@@ -1,0 +1,195 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Teammate Tag</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body class="dark">
+  <header>
+    <div class="title">
+      <h1>Teammate Tag</h1>
+      <span class="subtitle" id="brand-subtitle">pick a mode</span>
+    </div>
+    <div class="header-controls">
+      <button id="exit-btn" class="icon-btn exit-btn" title="Exit to home" aria-label="Exit to home" hidden>Exit</button>
+      <button id="rules-btn" class="icon-btn" title="How to play" aria-label="How to play">?</button>
+      <div class="header-toggles" id="header-toggles" hidden>
+        <label><input type="checkbox" id="toggle-lineup" checked> Lineup</label>
+        <label><input type="checkbox" id="toggle-out" checked> Struck Out</label>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===================== HOME SCREEN ====================== -->
+  <section id="home-screen" class="screen">
+    <div class="home">
+      <h2>Pick a mode</h2>
+      <div class="mode-tiles">
+        <button class="mode-tile" data-mode="bp">
+          <div class="mode-tile-head">
+            <span class="mode-tile-name">Batting Practice</span>
+            <span class="mode-tile-tag">solo</span>
+          </div>
+          <span class="mode-tile-desc">
+            Solo. 30-second timer that resets on each link. Team strikeouts
+            apply. Goal: build the longest lineup you can.
+          </span>
+        </button>
+        <button class="mode-tile" data-mode="fr">
+          <div class="mode-tile-head">
+            <span class="mode-tile-name">Film Review</span>
+            <span class="mode-tile-tag">daily</span>
+          </div>
+          <span class="mode-tile-desc">
+            Nine players, eight connections. Guess the team and year that links
+            each pair. 3 strikes you're out.
+          </span>
+        </button>
+        <button class="mode-tile" data-mode="mp">
+          <div class="mode-tile-head">
+            <span class="mode-tile-name">Division Rivalry</span>
+            <span class="mode-tile-tag">2 players</span>
+          </div>
+          <span class="mode-tile-desc">
+            Alternating turns, 30s clock, team strikeouts. Outlast your
+            opponent.
+          </span>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== MP SETUP SCREEN =================== -->
+  <section id="start-screen" class="screen" hidden>
+    <div class="start-card">
+      <button class="back-btn" data-back="home">&larr; Home</button>
+      <h2>Division Rivalry</h2>
+      <p class="muted">
+        Two players, alternating turns. 30 seconds per turn. Click the
+        <b>?</b> in the header for full rules.
+      </p>
+      <div class="form-row">
+        <label for="p1-input">Player 1</label>
+        <input id="p1-input" type="text" value="Player 1" />
+      </div>
+      <div class="form-row">
+        <label for="p2-input">Player 2</label>
+        <input id="p2-input" type="text" value="Player 2" />
+      </div>
+      <button id="start-btn" class="primary">Start Game</button>
+    </div>
+  </section>
+
+  <!-- ===================== GAME SCREEN ====================== -->
+  <section id="game-screen" class="screen" hidden>
+    <div class="game-layout">
+      <div class="game-main">
+        <!-- Game-over banner: shown inline when the game ends, instead of
+             switching screens. The lineup below stays visible for review. -->
+        <div id="game-over-banner" class="game-over-banner" hidden>
+          <h2 id="winner-text"></h2>
+          <p id="game-over-summary" class="muted"></p>
+          <button id="play-again-btn" class="primary">Let's play two.</button>
+        </div>
+
+        <!-- Active turn / input -->
+        <div id="turn-card" class="turn-card">
+          <div class="turn-header">
+            <span id="turn-label" class="turn-label"></span>
+            <span id="timer" class="timer">--</span>
+          </div>
+          <div class="turn-prompt">
+            <span class="muted">Name a teammate of</span>
+            <span id="current-player-name"></span>
+          </div>
+          <form id="guess-form" autocomplete="off" class="guess-form">
+            <div class="autocomplete-wrap">
+              <input
+                id="guess-input"
+                type="text"
+                autocomplete="off"
+                spellcheck="false"
+                placeholder="Type a name (first or last)..."
+              />
+              <ul id="autocomplete-list" class="autocomplete-list" hidden></ul>
+            </div>
+            <button type="submit" id="guess-btn" class="primary">Guess</button>
+          </form>
+          <div id="last-move-feedback" class="feedback"></div>
+        </div>
+
+        <!-- Stack of players. Newest is rendered first (top). -->
+        <div id="card-stack" class="card-stack"></div>
+      </div>
+
+      <!-- Side panel: lineup + out -->
+      <aside id="side-panel" class="side-panel">
+        <div class="side-section" id="lineup-section">
+          <h3>Lineup</h3>
+          <ol id="lineup" class="lineup-list"></ol>
+        </div>
+        <div class="side-section" id="out-section">
+          <h3>Struck Out</h3>
+          <ul id="out-list" class="out-list"></ul>
+          <p id="out-empty" class="muted small">No teams struck out yet.</p>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ===================== FILM REVIEW SCREEN ============== -->
+  <section id="fr-screen" class="screen" hidden>
+    <div class="game-layout">
+      <div class="game-main">
+        <div id="fr-summary-banner" class="game-over-banner" hidden>
+          <h2 id="fr-summary-text"></h2>
+          <p id="fr-summary-detail" class="muted"></p>
+          <div class="banner-buttons">
+            <button id="fr-home" class="primary">Home</button>
+          </div>
+        </div>
+
+        <div id="fr-turn-card" class="turn-card">
+          <div class="turn-header">
+            <span class="turn-label">Film Review</span>
+            <span id="fr-stats" class="fr-stats"></span>
+          </div>
+          <div class="turn-prompt">
+            <span class="muted">Guess the team and year linking</span>
+            <div id="fr-pair-names"></div>
+          </div>
+          <form id="fr-guess-form" autocomplete="off" class="guess-form fr-guess-form">
+            <div class="autocomplete-wrap team-autocomplete-wrap">
+              <input id="fr-team-input" type="text" autocomplete="off" spellcheck="false"
+                     placeholder="Team (e.g., Chicago Cubs)" />
+              <ul id="fr-team-autocomplete-list" class="autocomplete-list" hidden></ul>
+            </div>
+            <input id="fr-year-input" type="text" autocomplete="off" spellcheck="false"
+                   inputmode="numeric" pattern="\d{4}" maxlength="4"
+                   placeholder="Year" />
+            <button type="submit" class="primary">Guess</button>
+          </form>
+          <div id="fr-feedback" class="feedback"></div>
+        </div>
+
+        <div id="fr-card-stack" class="card-stack"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== RULES MODAL ====================== -->
+  <div id="rules-modal" class="modal" hidden>
+    <div class="modal-backdrop" id="rules-backdrop"></div>
+    <div class="modal-content">
+      <button id="rules-close" class="modal-close" aria-label="Close">x</button>
+      <h2>How to Play</h2>
+      <p id="rules-text"></p>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='main.js') }}"></script>
+</body>
+</html>
+

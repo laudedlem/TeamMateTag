@@ -1,0 +1,969 @@
+"""
+Flask server for Teammate Tag (codename base2nerdle).
+
+Backed by Supabase Postgres. Per-request connections; Supabase's transaction
+pooler handles pooling. Game state lives in Postgres as single JSONB blobs
+per game (bp_games / dr_games / fr_games), so deploying to a serverless
+host (Vercel) works without sticky in-memory state.
+
+Engine code (game/engine.py) uses sqlite-style `?` placeholders; a tiny
+PgEngineConn wrapper translates those to `%s` so the engine works against
+psycopg without modification.
+
+Run locally: `python web/server.py` (reads DATABASE_URL from .env).
+"""
+from __future__ import annotations
+
+import json
+import os
+import sys
+import uuid
+from contextlib import contextmanager
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from pathlib import Path
+from threading import Lock
+
+import psycopg
+from psycopg.types.json import Jsonb
+
+# Load .env first so DATABASE_URL is available before module-level code.
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
+from flask import Flask, jsonify, render_template, request
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "game"))
+from engine import (  # noqa: E402
+    STRIKES_TO_BURN,
+    TURN_SECONDS,
+    GameState,
+    MoveOutcome,
+    MoveResult,
+    get_shared_seasons,
+    seed_game,
+    validate_and_apply_move,
+)
+sys.path.insert(0, str(ROOT / "scripts"))
+from name_normalize import normalize  # noqa: E402
+
+DATABASE_URL = os.environ.get("DATABASE_URL")
+if not DATABASE_URL:
+    raise RuntimeError(
+        "DATABASE_URL is required. Copy .env.example to .env and set the "
+        "Supabase connection URI, or export it in the environment."
+    )
+
+DEFAULT_SEED = "rizzoan01"
+HEADSHOT_URL = "https://midfield.mlbstatic.com/v1/people/{}/spots/120"
+OPENING_COUNTDOWN_SECONDS = 3.0
+
+# Explicit folders so Flask works regardless of CWD on serverless hosts.
+app = Flask(
+    __name__,
+    template_folder=str(ROOT / "web" / "templates"),
+    static_folder=str(ROOT / "web" / "static"),
+    static_url_path="/static",
+)
+
+
+# ============================================================
+# Database access
+# ============================================================
+
+@contextmanager
+def db():
+    """Open a Postgres connection for a single request. Supabase's
+    transaction-mode pgbouncer manages pooling on the server side, so
+    we open and close per request without leaking.
+
+    Supabase's underlying Postgres sets `default_transaction_read_only=on`
+    at the config-file level (visible in pg_settings). We override at the
+    session level immediately after connecting so this server can write."""
+    # prepare_threshold=None disables psycopg3's auto-prepared-statement
+    # cache. pgbouncer in transaction mode doesn't preserve session state
+    # across transactions, so cached prepared-statement names collide
+    # ("prepared statement _pg3_0 already exists").
+    conn = psycopg.connect(
+        DATABASE_URL, autocommit=True, prepare_threshold=None,
+    )
+    conn.execute("SET default_transaction_read_only = off")
+    try:
+        yield conn
+    finally:
+        conn.close()
+
+
+class PgEngineConn:
+    """Wrap a psycopg.Connection to expose the .execute(sql, params) ->
+    cursor interface engine.py expects (the engine was written for
+    sqlite3 and uses `?` placeholders). Cheap; not thread-safe."""
+    def __init__(self, conn: psycopg.Connection):
+        self._conn = conn
+
+    def execute(self, sql: str, params: tuple = ()):
+        return self._conn.execute(sql.replace("?", "%s"), params)
+
+    def cursor(self):
+        return self._conn.cursor()
+
+
+# ============================================================
+# Static caches populated once at startup
+# ============================================================
+
+TEAM_NAME: dict[tuple[str, int], str] = {}
+TEAM_FRANCHISE: dict[tuple[str, int], str] = {}
+ALL_FR_TEAM_NAMES: list[str] = []
+PLAYER_CARD_CACHE: dict[str, dict] = {}
+PLAYER_CARD_LOCK = Lock()
+
+
+FR_CANONICAL_FRANCHISE_NAMES = {
+    "ANA": "Los Angeles Angels",
+    "FLA": "Miami Marlins",
+    "TBD": "Tampa Bay Rays",
+    "WSN": "Expos/Nationals",
+    "CLE": "Cleveland Guardians",
+}
+
+
+def fr_display_team_name(team_id: str, season: int) -> str:
+    franchise_id = TEAM_FRANCHISE.get((team_id, season))
+    if franchise_id in FR_CANONICAL_FRANCHISE_NAMES:
+        return FR_CANONICAL_FRANCHISE_NAMES[franchise_id]
+    return TEAM_NAME.get((team_id, season), team_id)
+
+
+def fr_team_aliases(team_id: str, season: int) -> list[str]:
+    raw_name = (TEAM_NAME.get((team_id, season), team_id) or "").lower()
+    franchise_id = TEAM_FRANCHISE.get((team_id, season))
+    if franchise_id == "ANA":
+        return ["angels", "anaheim angels", "los angeles angels",
+                "los angeles angels of anaheim", "california angels"]
+    if franchise_id == "FLA":
+        return ["marlins", "florida marlins", "miami marlins"]
+    if franchise_id == "TBD":
+        return ["rays", "tampa bay rays", "tampa bay devil rays", "devil rays"]
+    if franchise_id == "WSN":
+        return ["expos/nationals", "expos", "nationals",
+                "montreal expos", "washington nationals"]
+    if franchise_id == "CLE":
+        return ["guardians", "indians", "cleveland guardians", "cleveland indians"]
+    return [raw_name]
+
+
+def _init_static_caches():
+    """Load team-name lookups once per process. ~810 rows."""
+    global TEAM_NAME, TEAM_FRANCHISE, ALL_FR_TEAM_NAMES
+    with db() as conn:
+        rows = conn.execute(
+            "SELECT team_id, season, franchise_id, name FROM teams"
+        ).fetchall()
+    TEAM_NAME = {(t, s): n for t, s, _, n in rows}
+    TEAM_FRANCHISE = {(t, s): f for t, s, f, _ in rows}
+    ALL_FR_TEAM_NAMES = sorted({
+        fr_display_team_name(t, s) for t, s in TEAM_NAME
+    })
+
+
+def player_card(player_id: str) -> dict:
+    """Per-process cache of player-card metadata (mlbam_id, debut/final
+    years, career-team spans). 7,170 max entries; ~3-5 MB fully loaded."""
+    cached = PLAYER_CARD_CACHE.get(player_id)
+    if cached is not None:
+        return cached
+
+    with PLAYER_CARD_LOCK:
+        cached = PLAYER_CARD_CACHE.get(player_id)
+        if cached is not None:
+            return cached
+
+        with db() as conn:
+            row = conn.execute(
+                """SELECT mlbam_id, debut_year, final_year, name_first, name_last
+                     FROM players WHERE player_id = %s""",
+                (player_id,),
+            ).fetchone()
+            mlbam_id, debut_year, final_year, first, last = (
+                row or (None, None, None, None, None)
+            )
+
+            appearances = conn.execute(
+                """SELECT a.season, t.name
+                     FROM appearances a
+                     JOIN teams t ON t.team_id = a.team_id AND t.season = a.season
+                    WHERE a.player_id = %s
+                    ORDER BY a.season, t.team_id""",
+                (player_id,),
+            ).fetchall()
+
+        # Group consecutive same-name seasons into spans.
+        spans: list[list] = []
+        for season, team_name in appearances:
+            if spans and spans[-1][0] == team_name and spans[-1][2] == season - 1:
+                spans[-1][2] = season
+            else:
+                spans.append([team_name, season, season])
+
+        teams_list = [
+            f"{name} {start}" if start == end else f"{name} {start}-{end}"
+            for name, start, end in spans
+        ]
+
+        card = {
+            "mlbam_id": mlbam_id,
+            "headshot_url": HEADSHOT_URL.format(mlbam_id) if mlbam_id else None,
+            "debut_year": debut_year,
+            "final_year": final_year,
+            "teams": teams_list,
+            "name_first": first,
+            "name_last": last,
+        }
+        PLAYER_CARD_CACHE[player_id] = card
+        return card
+
+
+# ============================================================
+# State serialization (GameState <-> dict for JSONB)
+# ============================================================
+
+def now_utc() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def serialize_state(state: GameState) -> dict:
+    """GameState -> JSON-friendly dict. Strikes' tuple keys can't survive
+    JSON, so they ride as a list of objects."""
+    return {
+        "chain": list(state.chain),
+        "chain_names": list(state.chain_names),
+        "chain_shared_with_prev": [
+            [[t, s] for t, s in shared]
+            for shared in state.chain_shared_with_prev
+        ],
+        "strikes": [
+            {"team_id": t, "season": s, "count": n}
+            for (t, s), n in sorted(state.strikes.items())
+        ],
+    }
+
+
+def deserialize_state(blob: dict) -> GameState:
+    state = GameState()
+    state.chain = list(blob.get("chain", []))
+    state.chain_names = list(blob.get("chain_names", []))
+    state.chain_shared_with_prev = [
+        [(pair[0], pair[1]) for pair in shared]
+        for shared in blob.get("chain_shared_with_prev", [])
+    ]
+    state.strikes = {
+        (row["team_id"], row["season"]): row["count"]
+        for row in blob.get("strikes", [])
+    }
+    return state
+
+
+def chain_dict(state: GameState) -> list[dict]:
+    """Hydrated chain for the client: full player cards + per-link shared
+    seasons with display team-name."""
+    out = []
+    for i, (pid, name) in enumerate(zip(state.chain, state.chain_names)):
+        card = player_card(pid)
+        shared = state.chain_shared_with_prev[i]
+        out.append({
+            "id": pid,
+            "name": name,
+            "mlbam_id": card["mlbam_id"],
+            "headshot_url": card["headshot_url"],
+            "debut_year": card["debut_year"],
+            "final_year": card["final_year"],
+            "teams": card["teams"],
+            "shared_with_prev": [
+                {
+                    "team_id": t,
+                    "season": s,
+                    "team_name": TEAM_NAME.get((t, s), t),
+                }
+                for t, s in shared
+            ],
+        })
+    return out
+
+
+def strikes_dict(state: GameState) -> list[dict]:
+    return [
+        {
+            "team_id": t,
+            "season": s,
+            "count": n,
+            "team_name": TEAM_NAME.get((t, s), t),
+        }
+        for (t, s), n in sorted(state.strikes.items())
+    ]
+
+
+def result_to_dict(r: MoveResult) -> dict:
+    return {
+        "outcome": r.outcome.value,
+        "player_id": r.player_id,
+        "display_name": r.display_name,
+        "disambiguation": r.disambiguation,
+        "shared_seasons": [
+            {"team_id": t, "season": s, "team_name": TEAM_NAME.get((t, s), t)}
+            for t, s in r.shared_seasons
+        ],
+        "burned_seasons": [
+            {"team_id": t, "season": s, "team_name": TEAM_NAME.get((t, s), t)}
+            for t, s in r.burned_seasons
+        ],
+        "ambiguous_count": r.ambiguous_count,
+    }
+
+
+# ============================================================
+# Game-state storage helpers
+# Each *_load returns (state_dict, GameState) or (None, None).
+# Each *_save writes the blob back; finished column tracked separately.
+# ============================================================
+
+def _load_game(conn, table: str, game_id: str):
+    cur = conn.execute(
+        f"SELECT state, finished FROM {table} WHERE game_id = %s",
+        (game_id,),
+    )
+    row = cur.fetchone()
+    if not row:
+        return None, None
+    blob, finished = row
+    blob["finished"] = finished  # source of truth for finished is the column
+    return blob, deserialize_state(blob)
+
+
+def _save_game(conn, table: str, game_id: str, blob: dict):
+    conn.execute(
+        f"UPDATE {table} SET state = %s, finished = %s WHERE game_id = %s",
+        (Jsonb(blob), bool(blob.get("finished", False)), game_id),
+    )
+
+
+def _insert_game(conn, table: str, blob: dict) -> str:
+    cur = conn.execute(
+        f"INSERT INTO {table} (game_id, state, finished) "
+        f"VALUES (%s, %s, %s) RETURNING game_id::text",
+        (str(uuid.uuid4()), Jsonb(blob), bool(blob.get("finished", False))),
+    )
+    return cur.fetchone()[0]
+
+
+# ============================================================
+# Routes
+# ============================================================
+
+@app.route("/")
+def index():
+    return render_template("index.html")
+
+
+# ----- Player autocomplete (used by MP + BP) -----
+
+@app.route("/api/autocomplete")
+def autocomplete():
+    q = (request.args.get("q") or "").strip().lower()
+    if not q:
+        return jsonify([])
+    nq = normalize(q)
+    if not nq:
+        return jsonify([])
+    with db() as conn:
+        rows = conn.execute(
+            """SELECT player_id, display_name, debut_year, final_year, career_games FROM (
+                  SELECT ps.player_id, ps.display_name, p.debut_year, p.final_year, ps.career_games
+                    FROM players_searchable ps
+                    JOIN players p ON p.player_id = ps.player_id
+                   WHERE ps.search_key LIKE %s || '%%'
+                  UNION
+                  SELECT ps.player_id, ps.display_name, p.debut_year, p.final_year, ps.career_games
+                    FROM players_searchable ps
+                    JOIN players p ON p.player_id = ps.player_id
+                   WHERE ps.last_key LIKE %s || '%%'
+                  UNION
+                  SELECT ps.player_id, ps.display_name, p.debut_year, p.final_year, ps.career_games
+                    FROM players_searchable ps
+                    JOIN players p ON p.player_id = ps.player_id
+                    JOIN nickname_search ns ON ns.player_id = ps.player_id
+                   WHERE ns.nickname_key LIKE %s || '%%'
+                ) AS u
+                ORDER BY career_games DESC
+                LIMIT 4""",
+            (nq, nq, nq),
+        ).fetchall()
+    return jsonify([
+        {
+            "player_id": pid,
+            "display_name": display_name,
+            "debut_year": debut_year,
+            "final_year": final_year,
+            "career_games": career_games,
+        }
+        for pid, display_name, debut_year, final_year, career_games in rows
+    ])
+
+
+# ----- FR team-name autocomplete -----
+
+@app.route("/api/fr/team_autocomplete")
+def fr_team_autocomplete():
+    q = (request.args.get("q") or "").strip().lower()
+    if not q:
+        return jsonify([])
+    prefix = [n for n in ALL_FR_TEAM_NAMES if n.lower().startswith(q)]
+    sub = [
+        n for n in ALL_FR_TEAM_NAMES
+        if q in n.lower() and not n.lower().startswith(q)
+    ]
+    return jsonify((prefix + sub)[:6])
+
+
+# ============================================================
+# Division Rivalry (multiplayer)
+# ============================================================
+
+def dr_blob_from_state(state: GameState, p1: str, p2: str, turn_index: int,
+                       turn_seconds: float, turn_started_at: datetime,
+                       countdown_seconds: float, finished: bool = False,
+                       winner: str | None = None,
+                       last_move: dict | None = None) -> dict:
+    return {
+        **serialize_state(state),
+        "p1": p1,
+        "p2": p2,
+        "turn_index": turn_index,
+        "turn_seconds": turn_seconds,
+        "turn_started_at": turn_started_at.isoformat(),
+        "countdown_seconds": countdown_seconds,
+        "finished": finished,
+        "winner": winner,
+        "last_move": last_move,
+    }
+
+
+def dr_state_dict(gid: str, blob: dict, state: GameState) -> dict:
+    started = datetime.fromisoformat(blob["turn_started_at"])
+    elapsed = (now_utc() - started).total_seconds()
+    countdown_left = max(0.0, blob["countdown_seconds"] - elapsed) \
+        if not blob["finished"] else 0.0
+    live_elapsed = max(0.0, elapsed - blob["countdown_seconds"])
+    remaining = max(0.0, blob["turn_seconds"] - live_elapsed) \
+        if not blob["finished"] else 0.0
+    return {
+        "game_id": gid,
+        "current_player": {
+            "id": state.current_player_id,
+            "name": state.current_player_name,
+        },
+        "current_label": [blob["p1"], blob["p2"]][blob["turn_index"]],
+        "p1": blob["p1"],
+        "p2": blob["p2"],
+        "turn_index": blob["turn_index"],
+        "turn_seconds": blob["turn_seconds"],
+        "countdown_seconds_remaining": countdown_left,
+        "remaining_seconds": remaining,
+        "chain": chain_dict(state),
+        "strikes": strikes_dict(state),
+        "finished": blob["finished"],
+        "winner": blob.get("winner"),
+        "last_move": blob.get("last_move"),
+    }
+
+
+@app.route("/api/new_game", methods=["POST"])
+def new_game():
+    data = request.get_json(silent=True) or {}
+    p1 = (data.get("p1") or "Player 1").strip()
+    p2 = (data.get("p2") or "Player 2").strip()
+    seed = data.get("seed") or DEFAULT_SEED
+    turn_seconds = float(data.get("turn_seconds") or TURN_SECONDS)
+    with db() as conn:
+        engine_conn = PgEngineConn(conn)
+        try:
+            state = seed_game(engine_conn, seed)
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        blob = dr_blob_from_state(
+            state, p1, p2,
+            turn_index=0,
+            turn_seconds=turn_seconds,
+            turn_started_at=now_utc(),
+            countdown_seconds=OPENING_COUNTDOWN_SECONDS,
+        )
+        gid = _insert_game(conn, "dr_games", blob)
+    return jsonify(dr_state_dict(gid, blob, state))
+
+
+@app.route("/api/move", methods=["POST"])
+def move():
+    data = request.get_json(silent=True) or {}
+    gid = data.get("game_id")
+    raw = (data.get("raw") or "").strip()
+    player_id = (data.get("player_id") or "").strip() or None
+
+    with db() as conn:
+        blob, state = _load_game(conn, "dr_games", gid)
+        if not blob:
+            return jsonify({"error": "unknown game_id"}), 404
+        if blob["finished"]:
+            return jsonify(dr_state_dict(gid, blob, state))
+
+        started = datetime.fromisoformat(blob["turn_started_at"])
+        elapsed = (now_utc() - started).total_seconds()
+        live_elapsed = max(0.0, elapsed - blob["countdown_seconds"])
+        if live_elapsed > blob["turn_seconds"]:
+            blob["finished"] = True
+            blob["winner"] = [blob["p2"], blob["p1"]][blob["turn_index"]]
+            blob["last_move"] = {"outcome": "timeout"}
+            _save_game(conn, "dr_games", gid, blob)
+            return jsonify(dr_state_dict(gid, blob, state))
+
+        if not raw and not player_id:
+            blob["last_move"] = None
+            _save_game(conn, "dr_games", gid, blob)
+            return jsonify(dr_state_dict(gid, blob, state))
+
+        engine_conn = PgEngineConn(conn)
+        if player_id:
+            result = validate_and_apply_move(state, engine_conn, player_id=player_id)
+        else:
+            result = validate_and_apply_move(state, engine_conn, raw)
+
+        blob.update(serialize_state(state))
+        blob["last_move"] = result_to_dict(result)
+        if result.outcome == MoveOutcome.VALID:
+            blob["turn_index"] = 1 - blob["turn_index"]
+            blob["turn_started_at"] = now_utc().isoformat()
+            blob["countdown_seconds"] = 0.0
+        _save_game(conn, "dr_games", gid, blob)
+
+    return jsonify(dr_state_dict(gid, blob, state))
+
+
+@app.route("/api/timeout", methods=["POST"])
+def timeout():
+    data = request.get_json(silent=True) or {}
+    gid = data.get("game_id")
+    with db() as conn:
+        blob, state = _load_game(conn, "dr_games", gid)
+        if not blob:
+            return jsonify({"error": "unknown game_id"}), 404
+        if blob["finished"]:
+            return jsonify(dr_state_dict(gid, blob, state))
+        started = datetime.fromisoformat(blob["turn_started_at"])
+        elapsed = (now_utc() - started).total_seconds()
+        live_elapsed = max(0.0, elapsed - blob["countdown_seconds"])
+        if live_elapsed < blob["turn_seconds"] - 0.25:
+            return jsonify(dr_state_dict(gid, blob, state))
+        blob["finished"] = True
+        blob["winner"] = [blob["p2"], blob["p1"]][blob["turn_index"]]
+        blob["last_move"] = {"outcome": "timeout"}
+        _save_game(conn, "dr_games", gid, blob)
+    return jsonify(dr_state_dict(gid, blob, state))
+
+
+# ============================================================
+# Batting Practice (solo, timed)
+# ============================================================
+
+def bp_blob_from_state(state: GameState, turn_seconds: float,
+                       turn_started_at: datetime,
+                       countdown_seconds: float, longest_chain: int = 1,
+                       finished: bool = False,
+                       last_move: dict | None = None) -> dict:
+    return {
+        **serialize_state(state),
+        "turn_seconds": turn_seconds,
+        "turn_started_at": turn_started_at.isoformat(),
+        "countdown_seconds": countdown_seconds,
+        "longest_chain": longest_chain,
+        "finished": finished,
+        "last_move": last_move,
+    }
+
+
+def bp_state_dict(gid: str, blob: dict, state: GameState) -> dict:
+    started = datetime.fromisoformat(blob["turn_started_at"])
+    elapsed = (now_utc() - started).total_seconds()
+    countdown_left = max(0.0, blob["countdown_seconds"] - elapsed) \
+        if not blob["finished"] else 0.0
+    live_elapsed = max(0.0, elapsed - blob["countdown_seconds"])
+    remaining = max(0.0, blob["turn_seconds"] - live_elapsed) \
+        if not blob["finished"] else 0.0
+    return {
+        "game_id": gid,
+        "mode": "bp",
+        "current_player": {
+            "id": state.current_player_id,
+            "name": state.current_player_name,
+        },
+        "chain": chain_dict(state),
+        "strikes": strikes_dict(state),
+        "chain_length": len(state.chain),
+        "longest_chain": blob["longest_chain"],
+        "turn_seconds": blob["turn_seconds"],
+        "countdown_seconds_remaining": countdown_left,
+        "remaining_seconds": remaining,
+        "finished": blob["finished"],
+        "last_move": blob.get("last_move"),
+    }
+
+
+@app.route("/api/bp/new", methods=["POST"])
+def bp_new():
+    data = request.get_json(silent=True) or {}
+    seed = data.get("seed") or DEFAULT_SEED
+    turn_seconds = float(data.get("turn_seconds") or TURN_SECONDS)
+    with db() as conn:
+        engine_conn = PgEngineConn(conn)
+        try:
+            state = seed_game(engine_conn, seed)
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        blob = bp_blob_from_state(
+            state,
+            turn_seconds=turn_seconds,
+            turn_started_at=now_utc(),
+            countdown_seconds=OPENING_COUNTDOWN_SECONDS,
+            longest_chain=1,
+        )
+        gid = _insert_game(conn, "bp_games", blob)
+    return jsonify(bp_state_dict(gid, blob, state))
+
+
+@app.route("/api/bp/move", methods=["POST"])
+def bp_move():
+    data = request.get_json(silent=True) or {}
+    gid = data.get("game_id")
+    raw = (data.get("raw") or "").strip()
+    player_id = (data.get("player_id") or "").strip() or None
+    with db() as conn:
+        blob, state = _load_game(conn, "bp_games", gid)
+        if not blob:
+            return jsonify({"error": "unknown game_id"}), 404
+        if blob["finished"]:
+            return jsonify(bp_state_dict(gid, blob, state))
+
+        started = datetime.fromisoformat(blob["turn_started_at"])
+        elapsed = (now_utc() - started).total_seconds()
+        live_elapsed = max(0.0, elapsed - blob["countdown_seconds"])
+        if live_elapsed > blob["turn_seconds"]:
+            blob["finished"] = True
+            blob["last_move"] = {"outcome": "timeout"}
+            _save_game(conn, "bp_games", gid, blob)
+            return jsonify(bp_state_dict(gid, blob, state))
+
+        if not raw and not player_id:
+            blob["last_move"] = None
+            _save_game(conn, "bp_games", gid, blob)
+            return jsonify(bp_state_dict(gid, blob, state))
+
+        engine_conn = PgEngineConn(conn)
+        if player_id:
+            result = validate_and_apply_move(
+                state, engine_conn, player_id=player_id, track_strikes=True,
+            )
+        else:
+            result = validate_and_apply_move(
+                state, engine_conn, raw, track_strikes=True,
+            )
+        blob.update(serialize_state(state))
+        blob["last_move"] = result_to_dict(result)
+        if result.outcome == MoveOutcome.VALID:
+            blob["turn_started_at"] = now_utc().isoformat()
+            blob["countdown_seconds"] = 0.0
+            blob["longest_chain"] = max(blob["longest_chain"], len(state.chain))
+        _save_game(conn, "bp_games", gid, blob)
+
+    return jsonify(bp_state_dict(gid, blob, state))
+
+
+@app.route("/api/bp/timeout", methods=["POST"])
+def bp_timeout():
+    data = request.get_json(silent=True) or {}
+    gid = data.get("game_id")
+    with db() as conn:
+        blob, state = _load_game(conn, "bp_games", gid)
+        if not blob:
+            return jsonify({"error": "unknown game_id"}), 404
+        if blob["finished"]:
+            return jsonify(bp_state_dict(gid, blob, state))
+        started = datetime.fromisoformat(blob["turn_started_at"])
+        elapsed = (now_utc() - started).total_seconds()
+        live_elapsed = max(0.0, elapsed - blob["countdown_seconds"])
+        if live_elapsed < blob["turn_seconds"] - 0.25:
+            return jsonify(bp_state_dict(gid, blob, state))
+        blob["finished"] = True
+        blob["last_move"] = {"outcome": "timeout"}
+        _save_game(conn, "bp_games", gid, blob)
+    return jsonify(bp_state_dict(gid, blob, state))
+
+
+# ============================================================
+# Film Review (daily puzzle)
+# ============================================================
+
+FR_PUZZLES: list[dict] = [
+    {
+        "id": "fr_001",
+        "title": "Full Lineup",
+        "deck": [
+            "pujolal01", "hunteto01", "cabremi01", "pierrju01",
+            "rolliji01", "gonzaad01", "ortizda01", "pierzaj01", "beltrad01",
+        ],
+    },
+]
+
+FR_MAX_STRIKES = 3
+FR_MAX_CONSEC_FOULS = 2
+
+
+def _fr_compute_shared(conn, deck: list[str]) -> list[list[tuple[str, int, str]]]:
+    engine_conn = PgEngineConn(conn)
+    out = []
+    for i in range(len(deck) - 1):
+        shared = get_shared_seasons(engine_conn, deck[i], deck[i + 1])
+        out.append([(t, s, fr_display_team_name(t, s)) for t, s in shared])
+    return out
+
+
+def fr_today_puzzle() -> dict:
+    import time as _time
+    idx = int(_time.time() // 86400) % len(FR_PUZZLES)
+    return FR_PUZZLES[idx]
+
+
+def fr_card_dict(player_id: str) -> dict:
+    card = player_card(player_id)
+    name_first = card["name_first"] or ""
+    name_last = card["name_last"] or ""
+    return {
+        "id": player_id,
+        "name": f"{name_first} {name_last}".strip(),
+        "mlbam_id": card["mlbam_id"],
+        "headshot_url": card["headshot_url"],
+        "debut_year": card["debut_year"],
+        "final_year": card["final_year"],
+        "teams": [],  # hidden in FR
+    }
+
+
+def fr_state_dict(gid: str, blob: dict) -> dict:
+    deck = blob["deck"]
+    pair_index = blob["pair_index"]
+    return {
+        "game_id": gid,
+        "mode": "fr",
+        "puzzle_id": blob["puzzle_id"],
+        "total_cards": len(deck),
+        "revealed_count": blob["revealed_count"],
+        "revealed_cards": [fr_card_dict(pid) for pid in deck[:blob["revealed_count"]]],
+        "pair_index": pair_index,
+        "pair_names": [
+            (fr_card_dict(deck[pair_index])["name"]
+             if pair_index < len(deck) else None),
+            (fr_card_dict(deck[pair_index + 1])["name"]
+             if pair_index + 1 < len(deck) else None),
+        ],
+        "solved_links": blob["solved_links"][: max(0, blob["revealed_count"] - 1)],
+        "stats": {
+            "hits": blob["hits"],
+            "fouls": blob["fouls"],
+            "strikes": blob["strikes"],
+            "max_strikes": FR_MAX_STRIKES,
+            "consec_fouls": blob["consec_fouls"],
+            "total_pairs": len(deck) - 1,
+        },
+        "finished": blob["finished"],
+        "won": blob.get("won", False),
+        "last_guess": blob.get("last_guess"),
+    }
+
+
+def _classify_fr_guess(team_text: str, year_text: str,
+                       shared: list[tuple[str, int, str]]) -> tuple[str, list]:
+    team_q = (team_text or "").strip().lower()
+    try:
+        year_q = int((year_text or "").strip())
+    except (ValueError, TypeError):
+        year_q = None
+
+    team_match_rows = []
+    year_match_any = False
+    for team_id, season, team_name in shared:
+        aliases = fr_team_aliases(team_id, season)
+        team_hit = bool(team_q) and (
+            team_q == team_id.lower()
+            or any(team_q in alias or alias in team_q for alias in aliases)
+        )
+        if team_hit:
+            team_match_rows.append((team_id, season, team_name))
+        if year_q is not None and season == year_q:
+            year_match_any = True
+
+    full_hits = [r for r in team_match_rows if r[1] == year_q]
+    if full_hits:
+        return "hit", full_hits
+    if team_match_rows or year_match_any:
+        return "foul", []
+    return "strike", []
+
+
+@app.route("/api/fr/new", methods=["POST"])
+def fr_new():
+    puz = fr_today_puzzle()
+    deck = list(puz["deck"])
+    with db() as conn:
+        shared_per_pair = _fr_compute_shared(conn, deck)
+        bad = [i for i, lst in enumerate(shared_per_pair) if not lst]
+        if bad:
+            return jsonify({
+                "error": f"puzzle {puz['id']!r} has unsolvable pair(s): {bad}",
+            }), 500
+        blob = {
+            "puzzle_id": puz["id"],
+            "deck": deck,
+            "pair_index": 0,
+            "revealed_count": 2,
+            "hits": 0,
+            "fouls": 0,
+            "strikes": 0,
+            "consec_fouls": 0,
+            "solved_links": [None] * (len(deck) - 1),
+            "shared_per_pair": [
+                [list(t) for t in pair] for pair in shared_per_pair
+            ],
+            "finished": False,
+            "won": False,
+            "last_guess": None,
+        }
+        gid = _insert_game(conn, "fr_games", blob)
+    return jsonify(fr_state_dict(gid, blob))
+
+
+@app.route("/api/fr/guess", methods=["POST"])
+def fr_guess():
+    data = request.get_json(silent=True) or {}
+    gid = data.get("game_id")
+    team_text = (data.get("team") or "").strip()
+    year_text = (data.get("year") or "").strip()
+    with db() as conn:
+        cur = conn.execute(
+            "SELECT state, finished FROM fr_games WHERE game_id = %s", (gid,)
+        )
+        row = cur.fetchone()
+        if not row:
+            return jsonify({"error": "unknown game_id"}), 404
+        blob, finished = row
+        blob["finished"] = finished
+        if finished:
+            return jsonify(fr_state_dict(gid, blob))
+        if not team_text or not year_text:
+            blob["last_guess"] = {
+                "outcome": "invalid", "team": team_text, "year": year_text,
+            }
+            _save_game(conn, "fr_games", gid, blob)
+            return jsonify(fr_state_dict(gid, blob))
+
+        shared_raw = blob["shared_per_pair"][blob["pair_index"]]
+        shared = [(r[0], r[1], r[2]) for r in shared_raw]
+        outcome, matched = _classify_fr_guess(team_text, year_text, shared)
+
+        converted_from_foul = False
+        if outcome == "foul":
+            blob["consec_fouls"] += 1
+            if blob["consec_fouls"] >= FR_MAX_CONSEC_FOULS:
+                outcome = "strike"
+                blob["consec_fouls"] = 0
+                converted_from_foul = True
+        elif outcome == "hit":
+            blob["consec_fouls"] = 0
+        elif outcome == "strike":
+            blob["consec_fouls"] = 0
+
+        if outcome == "hit":
+            blob["hits"] += 1
+            t_id, season, team_name = matched[0]
+            blob["solved_links"][blob["pair_index"]] = {
+                "team_id": t_id, "season": season, "team_name": team_name,
+            }
+            blob["pair_index"] += 1
+            blob["revealed_count"] = min(blob["revealed_count"] + 1, len(blob["deck"]))
+            if blob["hits"] >= len(blob["deck"]) - 1:
+                blob["finished"] = True
+                blob["won"] = True
+        elif outcome == "foul":
+            blob["fouls"] += 1
+        elif outcome == "strike":
+            blob["strikes"] += 1
+            if blob["strikes"] >= FR_MAX_STRIKES:
+                blob["finished"] = True
+                blob["won"] = False
+
+        blob["last_guess"] = {
+            "outcome": outcome,
+            "team": team_text,
+            "year": year_text,
+            "converted_from_foul": converted_from_foul,
+            "matched": [
+                {"team_id": t, "season": s, "team_name": n} for t, s, n in matched
+            ],
+        }
+        _save_game(conn, "fr_games", gid, blob)
+    return jsonify(fr_state_dict(gid, blob))
+
+
+@app.route("/api/fr/reveal_answer", methods=["POST"])
+def fr_reveal_answer():
+    data = request.get_json(silent=True) or {}
+    gid = data.get("game_id")
+    with db() as conn:
+        cur = conn.execute(
+            "SELECT state, finished FROM fr_games WHERE game_id = %s", (gid,)
+        )
+        row = cur.fetchone()
+    if not row:
+        return jsonify({"error": "unknown game_id"}), 404
+    blob, finished = row
+    if not finished:
+        return jsonify({"error": "game not finished"}), 400
+    return jsonify({
+        "answers": [
+            [{"team_id": r[0], "season": r[1], "team_name": r[2]} for r in pair]
+            for pair in blob["shared_per_pair"]
+        ],
+    })
+
+
+# ============================================================
+# Startup
+# ============================================================
+
+_init_static_caches()
+# Validate FR puzzles reference real players.
+with db() as _conn:
+    for _puz in FR_PUZZLES:
+        for _pid in _puz["deck"]:
+            _row = _conn.execute(
+                "SELECT 1 FROM players_searchable WHERE player_id = %s", (_pid,)
+            ).fetchone()
+            if not _row:
+                print(
+                    f"[FR] WARNING: puzzle {_puz['id']!r} references unknown "
+                    f"player_id {_pid!r}"
+                )
+
+
+if __name__ == "__main__":
+    app.run(host="127.0.0.1", port=5000, debug=True)

@@ -1,0 +1,42 @@
+# Secrets and local config
+.env
+.env.local
+.env.*.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+
+# Local SQLite databases (these get migrated to Postgres for prod).
+# Keep the schema files committed.
+db/*.sqlite
+db/*.sqlite-journal
+
+# Lahman raw data (too large to commit; ETL scripts can re-download).
+raw/
+
+# Old archive artifact from the original unzip; safe to ignore.
+base2nerdle.zip
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# OS
+Thumbs.db
+desktop.ini
+
+# Vercel
+.vercel/
+
+# Logs
+*.log
