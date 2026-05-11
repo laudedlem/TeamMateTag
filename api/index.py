@@ -1,31 +1,50 @@
 """
-Vercel serverless entrypoint. Imports the Flask app from web/server.py.
+Vercel serverless entrypoint. Lazily loads the Flask app from web/server.py
+on the first request so that import errors show a diagnostic page instead
+of Vercel's generic 404.
 """
+import os
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-import os
 
-from flask import Flask
+class _WSGIApp:
+    """Lazy-loading WSGI wrapper. Avoids any third-party imports at module
+    level so Vercel's Python runtime can always find `app`."""
 
-app = Flask(__name__)
+    def __init__(self):
+        self._app = None
 
-try:
-    from web.server import app as _real
-    app = _real
-except Exception:
-    import traceback as _tb
+    def _load(self):
+        if self._app is not None:
+            return
+        try:
+            from web.server import app
+            self._app = app
+        except Exception:
+            import traceback
+            tb = traceback.format_exc()
+            from flask import Flask
+            fallback = Flask(__name__)
 
-    _err = _tb.format_exc()
+            @fallback.route("/", defaults={"path": ""})
+            @fallback.route("/<path:path>")
+            def err(path):
+                return (
+                    "<h1>Startup Error</h1>"
+                    f"<pre>{tb}</pre>"
+                    f"<p>DATABASE_URL set: "
+                    f"{'Yes' if os.environ.get('DATABASE_URL') else 'No'}</p>",
+                    500,
+                )
+            self._app = fallback
 
-    @app.route("/", defaults={"path": ""})
-    @app.route("/<path:path>")
-    def _startup_error(path):
-        return (
-            f"<h1>Startup Error</h1><pre>{_err}</pre>"
-            f"<p>DATABASE_URL set: {'Yes' if os.environ.get('DATABASE_URL') else 'No'}</p>",
-            500,
-        )
+    def __call__(self, environ, start_response):
+        self._load()
+        return self._app(environ, start_response)
+
+
+app = _WSGIApp()
