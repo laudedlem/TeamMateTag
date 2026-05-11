@@ -10,9 +10,6 @@ const els = {
   profileSaveBtn: document.getElementById('profile-save-btn'),
   profileOpenBtn: document.getElementById('profile-open-btn'),
   profileStatus: document.getElementById('profile-status'),
-  bpBestStat: document.getElementById('bp-best-stat'),
-  bpPlaysStat: document.getElementById('bp-plays-stat'),
-  frRecordStat: document.getElementById('fr-record-stat'),
   profileScreen: document.getElementById('profile-screen'),
   profileScreenName: document.getElementById('profile-screen-name'),
   profileBpBest: document.getElementById('profile-bp-best'),
@@ -121,9 +118,6 @@ function saveGuestId(guestId) {
 function renderProfile() {
   if (!profile) {
     els.profileStatus.textContent = 'Loading guest profile...';
-    els.bpBestStat.textContent = '--';
-    els.bpPlaysStat.textContent = '--';
-    els.frRecordStat.textContent = '--';
     els.profileScreenName.textContent = '';
     els.profileBpBest.textContent = '--';
     els.profileBpPlays.textContent = '--';
@@ -134,11 +128,8 @@ function renderProfile() {
   }
   els.profileNameInput.value = profile.display_name || '';
   els.profileStatus.textContent = 'Guest profile saved on this browser.';
-  els.bpBestStat.textContent = String(profile.stats?.bp_best ?? 0);
-  els.bpPlaysStat.textContent = String(profile.stats?.bp_plays ?? 0);
   const wins = profile.stats?.fr_wins ?? 0;
   const plays = profile.stats?.fr_plays ?? 0;
-  els.frRecordStat.textContent = `${wins}-${Math.max(0, plays - wins)}`;
   const drWins = profile.stats?.dr_wins ?? 0;
   const drLosses = profile.stats?.dr_losses ?? 0;
   els.profileScreenName.textContent = profile.display_name || '';
@@ -190,11 +181,7 @@ function showScreen(name) {
   els.gameScreen.hidden = !(name === 'mp-game' || name === 'bp-game');
   els.frScreen.hidden = name !== 'fr-game';
 
-  if (name === 'home') els.brandSubtitle.textContent = 'pick a mode';
-  else if (name === 'profile') els.brandSubtitle.textContent = 'profile';
-  else if (name === 'mp-setup' || name === 'mp-game') els.brandSubtitle.textContent = 'division rivalry';
-  else if (name === 'bp-game') els.brandSubtitle.textContent = 'batting practice';
-  else if (name === 'fr-game') els.brandSubtitle.textContent = 'film review';
+  els.brandSubtitle.textContent = '';
 
   els.exitBtn.hidden = name === 'home';
   els.headerToggles.hidden = !(name === 'mp-game' || name === 'bp-game');
@@ -918,7 +905,7 @@ function renderFrFeedback(g) {
   }
   if (g.outcome === 'strike') {
     if (g.converted_from_foul) {
-      return '<span class="bad">STRIKE. That was a second foul in a row, so it counts as a strike.</span>';
+      return '<span class="bad">STRIKE. Another foul in the same streak counts as a strike.</span>';
     }
     return '<span class="bad">STRIKE. Neither team nor year is right.</span>';
   }
@@ -950,9 +937,14 @@ async function loadFrAnswers() {
   if (!frGame?.game_id || frGame?.won) return;
   const res = await api('/api/fr/reveal_answer', { game_id: frGame.game_id });
   if (!res.answers) return;
+  if (res.full_cards && res.canonical_links) {
+    frGame.revealed_cards = res.full_cards;
+    frGame.solved_links = res.canonical_links;
+    renderFrGame(true);
+  }
   const items = res.answers.map((pair, idx) => {
-    const names = idx < frGame.revealed_cards.length - 1
-      ? `${frGame.revealed_cards[idx]?.name || ''} to ${frGame.revealed_cards[idx + 1]?.name || ''}`
+    const names = idx < res.full_cards.length - 1
+      ? `${res.full_cards[idx]?.name || ''} to ${res.full_cards[idx + 1]?.name || ''}`
       : `Link ${idx + 1}`;
     const answers = pair.map((p) => `${p.team_name} ${p.season}`).join(' or ');
     return `<li><strong>${escapeHtml(names)}:</strong> ${escapeHtml(answers)}</li>`;
@@ -987,7 +979,7 @@ function rulesForMode() {
     return 'Build the longest lineup you can. You have 30 seconds to name a teammate of the last player, and a correct guess resets the clock. Each team shared by two linked players gets a strike. Once a team is Struck Out, that team cannot be used to link players again. Your run ends when the clock hits zero.';
   }
   if (currentMode === 'fr') {
-    return 'Review the revealed players and guess the team and year that links each pair. A correct team and year is a hit and reveals the next player. One correct field is a foul. If you foul twice in a row, the second foul counts as a strike. Three strikes ends the review.';
+    return 'Review the revealed players and guess the team and year that links each pair. A correct team and year is a hit and reveals the next player. One correct field is a foul. The first foul in a streak is safe, then every foul after that in the same streak counts as a strike. Three strikes ends the review.';
   }
   if (currentMode === 'mp') {
     return 'Two players alternate turns building one lineup. The round starts with a 3 second countdown, then the 30 second clock begins. On your turn, name a teammate of the last player before time runs out. Correct guesses pass the turn. Teams collect strikes when used, and Struck Out teams cannot link players again. You win when your opponent runs out of time.';

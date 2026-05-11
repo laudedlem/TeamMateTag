@@ -1033,7 +1033,6 @@ FR_PUZZLES: list[dict] = [
 ]
 
 FR_MAX_STRIKES = 3
-FR_MAX_CONSEC_FOULS = 2
 
 
 def _fr_compute_shared(conn, deck: list[str]) -> list[list[tuple[str, int, str]]]:
@@ -1211,9 +1210,8 @@ def fr_guess():
         converted_from_foul = False
         if outcome == "foul":
             blob["consec_fouls"] += 1
-            if blob["consec_fouls"] >= FR_MAX_CONSEC_FOULS:
+            if blob["consec_fouls"] >= 2:
                 outcome = "strike"
-                blob["consec_fouls"] = 0
                 converted_from_foul = True
         elif outcome == "hit":
             blob["consec_fouls"] = 0
@@ -1269,6 +1267,14 @@ def fr_reveal_answer():
     if not finished:
         return jsonify({"error": "game not finished"}), 400
     return jsonify({
+        "full_cards": [fr_card_dict(pid) for pid in blob["deck"]],
+        "canonical_links": [
+            (
+                {"team_id": pair[0][0], "season": pair[0][1], "team_name": pair[0][2]}
+                if pair else None
+            )
+            for pair in blob["shared_per_pair"]
+        ],
         "answers": [
             [{"team_id": r[0], "season": r[1], "team_name": r[2]} for r in pair]
             for pair in blob["shared_per_pair"]

@@ -66,6 +66,10 @@ header .title h1 {
   letter-spacing: 0.06em;
 }
 
+.subtitle:empty {
+  display: none;
+}
+
 .header-controls {
   display: flex;
   align-items: center;
@@ -239,32 +243,6 @@ input[type="text"]:focus {
 
 .profile-detail strong {
   font-size: 1.2rem;
-}
-
-.profile-stats {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.65rem;
-  margin-top: 0.85rem;
-}
-
-.profile-stat {
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 0.7rem 0.8rem;
-}
-
-.profile-stat-label {
-  display: block;
-  color: var(--text-muted);
-  font-size: 0.74rem;
-  margin-bottom: 0.25rem;
-}
-
-.profile-stat strong {
-  font-size: 1.05rem;
-  color: var(--text);
 }
 
 .home h2 {
@@ -494,10 +472,6 @@ button.secondary:hover { border-color: var(--accent); color: var(--accent); }
   .profile-name-row input {
     min-width: 0;
     width: 100%;
-  }
-
-  .profile-stats {
-    grid-template-columns: 1fr;
   }
 
   .profile-detail-grid {
