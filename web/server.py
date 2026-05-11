@@ -52,11 +52,6 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from name_normalize import normalize  # noqa: E402
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
-if not DATABASE_URL:
-    raise RuntimeError(
-        "DATABASE_URL is required. Copy .env.example to .env and set the "
-        "Supabase connection URI, or export it in the environment."
-    )
 
 DEFAULT_SEED = "rizzoan01"
 HEADSHOT_URL = "https://midfield.mlbstatic.com/v1/people/{}/spots/120"
@@ -84,6 +79,11 @@ def db():
     Supabase's underlying Postgres sets `default_transaction_read_only=on`
     at the config-file level (visible in pg_settings). We override at the
     session level immediately after connecting so this server can write."""
+    if not DATABASE_URL:
+        raise RuntimeError(
+            "DATABASE_URL is required. Copy .env.example to .env and set the "
+            "Supabase connection URI, or export it in the environment."
+        )
     # prepare_threshold=None disables psycopg3's auto-prepared-statement
     # cache. pgbouncer in transaction mode doesn't preserve session state
     # across transactions, so cached prepared-statement names collide

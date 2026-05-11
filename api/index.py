@@ -1,27 +1,31 @@
 """
-Vercel serverless entrypoint. Catches startup errors so they show in the
-browser instead of a blank 404.
+Vercel serverless entrypoint. Imports the Flask app from web/server.py.
 """
 import sys
-import traceback
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-try:
-    from web.server import app
-except Exception:
-    from flask import Flask
+import os
 
-    app = Flask(__name__)
+from flask import Flask
+
+app = Flask(__name__)
+
+try:
+    from web.server import app as _real
+    app = _real
+except Exception:
+    import traceback as _tb
+
+    _err = _tb.format_exc()
 
     @app.route("/", defaults={"path": ""})
     @app.route("/<path:path>")
-    def startup_error(path):
-        tb = traceback.format_exc()
+    def _startup_error(path):
         return (
-            f"<h1>Startup Error</h1><pre>{tb}</pre>"
-            f"<p>DATABASE_URL set: {'Yes' if __import__('os').environ.get('DATABASE_URL') else 'No'}</p>",
+            f"<h1>Startup Error</h1><pre>{_err}</pre>"
+            f"<p>DATABASE_URL set: {'Yes' if os.environ.get('DATABASE_URL') else 'No'}</p>",
             500,
         )
