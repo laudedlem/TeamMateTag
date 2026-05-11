@@ -876,12 +876,15 @@ function hideGameOverBanner() {
   els.requeueBtn.hidden = true;
 }
 
-async function requeueForNewMatch(message) {
+async function requeueForNewMatch(message, options = {}) {
   clearInterval(mpRematchPollInterval);
   const finishedGameId = game?.finished ? game.game_id : '';
-  const avoidGuestId = game?.p1_guest_id === (profile?.guest_id || storedGuestId())
-    ? game?.p2_guest_id
-    : game?.p1_guest_id;
+  const shouldAvoidLastOpponent = !!options.avoidLastOpponent;
+  const avoidGuestId = shouldAvoidLastOpponent
+    ? (game?.p1_guest_id === (profile?.guest_id || storedGuestId())
+      ? game?.p2_guest_id
+      : game?.p1_guest_id)
+    : '';
   if (finishedGameId) {
     await api('/api/dr/postgame_leave', {
       guest_id: profile?.guest_id || storedGuestId(),
@@ -1292,13 +1295,17 @@ function startRematchPolling() {
     if (res.status === 'requeued') {
       els.mpRematchStatus.hidden = false;
       els.mpRematchStatus.textContent = 'Opponent left. Finding a new match...';
-      await requeueForNewMatch('Opponent left. Searching for a new opponent...');
+      await requeueForNewMatch('Opponent left. Searching for a new opponent...', {
+        avoidLastOpponent: true,
+      });
       return;
     }
     if (res.status === 'abandoned') {
       els.mpRematchStatus.hidden = false;
       els.mpRematchStatus.textContent = 'Opponent left. Finding a new match...';
-      await requeueForNewMatch('Opponent left. Searching for a new opponent...');
+      await requeueForNewMatch('Opponent left. Searching for a new opponent...', {
+        avoidLastOpponent: true,
+      });
       return;
     }
     if (!res.rematch_available) {
@@ -1316,7 +1323,9 @@ function startRematchPolling() {
         ? "Let's play two? Waiting on your opponent."
         : 'Opponent left. Finding a new match...';
       if (!res.opponent_present) {
-        await requeueForNewMatch('Opponent left. Searching for a new opponent...');
+        await requeueForNewMatch('Opponent left. Searching for a new opponent...', {
+          avoidLastOpponent: true,
+        });
       }
     }
   }, 1000);
