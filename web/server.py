@@ -19,6 +19,8 @@ import os
 import secrets
 import sys
 import uuid
+import hashlib
+import hmac
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -57,6 +59,7 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 DEFAULT_SEED = "rizzoan01"
 HEADSHOT_URL = "https://midfield.mlbstatic.com/v1/people/{}/spots/120"
 OPENING_COUNTDOWN_SECONDS = 3.0
+APP_TURN_SECONDS = 20.0
 
 # Explicit folders so Flask works regardless of CWD on serverless hosts.
 app = Flask(
@@ -201,6 +204,26 @@ def ensure_runtime_schema():
             return
         with db() as conn:
             conn.execute(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS username TEXT"
+            )
+            conn.execute(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT"
+            )
+            conn.execute(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT"
+            )
+            conn.execute(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS password_salt TEXT"
+            )
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_unique "
+                "ON users ((lower(username))) WHERE username IS NOT NULL"
+            )
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_unique "
+                "ON users ((lower(email))) WHERE email IS NOT NULL"
+            )
+            conn.execute(
                 "ALTER TABLE guests "
                 "ADD COLUMN IF NOT EXISTS elo INTEGER NOT NULL DEFAULT 1200"
             )
@@ -305,7 +328,26 @@ def ensure_runtime_schema():
                        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
                    )"""
             )
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS dr_postgame_exits (
+                       original_game_id UUID NOT NULL,
+                       guest_id UUID NOT NULL REFERENCES guests(guest_id) ON DELETE CASCADE,
+                       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                       PRIMARY KEY (original_game_id, guest_id)
+                   )"""
+            )
         RUNTIME_SCHEMA_READY = True
+
+
+def _hash_password(password: str, salt_hex: str | None = None) -> tuple[str, str]:
+    salt = bytes.fromhex(salt_hex) if salt_hex else secrets.token_bytes(16)
+    hashed = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, 260000)
+    return hashed.hex(), salt.hex()
+
+
+def _verify_password(password: str, password_hash: str, password_salt: str) -> bool:
+    candidate, _ = _hash_password(password, password_salt)
+    return hmac.compare_digest(candidate, password_hash)
 
 
 def _guest_stats(conn, guest_id: str) -> dict:
@@ -349,18 +391,28 @@ def _guest_stats(conn, guest_id: str) -> dict:
 
 def _guest_profile(conn, guest_id: str) -> dict | None:
     row = conn.execute(
-        """SELECT guest_id::text, display_name, created_at
-             FROM guests
-            WHERE guest_id = %s""",
+        """SELECT
+               g.guest_id::text,
+               g.display_name,
+               g.created_at,
+               u.username,
+               u.email
+             FROM guests g
+             LEFT JOIN users u ON u.user_id = g.guest_id
+            WHERE g.guest_id = %s""",
         (guest_id,),
     ).fetchone()
     if not row:
         return None
-    gid, display_name, created_at = row
+    gid, display_name, created_at, username, email = row
     return {
         "guest_id": gid,
         "display_name": display_name or f"Guest {gid[:8]}",
         "created_at": created_at.isoformat(),
+        "account": (
+            {"username": username, "email": email}
+            if username and email else None
+        ),
         "stats": _guest_stats(conn, gid),
     }
 
@@ -760,7 +812,113 @@ def profile_name():
             "UPDATE guests SET display_name = %s WHERE guest_id = %s",
             (display_name, guest_id),
         )
+        conn.execute(
+            "UPDATE users SET display_name = %s WHERE user_id = %s",
+            (display_name, guest_id),
+        )
         profile = _guest_profile(conn, guest_id)
+    return jsonify(profile)
+
+
+@app.route("/api/account/register", methods=["POST"])
+def account_register():
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
+    guest_id = (data.get("guest_id") or "").strip() or None
+    display_name = " ".join((data.get("display_name") or "").strip().split())
+    username = " ".join((data.get("username") or "").strip().split())
+    email = (data.get("email") or "").strip().lower()
+    password = data.get("password") or ""
+    if not username or len(username) < 3:
+        return jsonify({"error": "username must be at least 3 characters"}), 400
+    if len(username) > 24:
+        return jsonify({"error": "username too long"}), 400
+    if "@" not in email or "." not in email:
+        return jsonify({"error": "valid email required"}), 400
+    if len(password) < 6:
+        return jsonify({"error": "password must be at least 6 characters"}), 400
+    if not display_name:
+        display_name = username
+    if len(display_name) > 24:
+        return jsonify({"error": "display_name too long"}), 400
+
+    password_hash, password_salt = _hash_password(password)
+    with db() as conn:
+        taken = conn.execute(
+            """SELECT 1
+                 FROM users
+                WHERE lower(username) = %s OR lower(email) = %s""",
+            (username.lower(), email.lower()),
+        ).fetchone()
+        if taken:
+            return jsonify({"error": "username or email already in use"}), 409
+
+        gid = guest_id
+        guest_row = None
+        if gid:
+            guest_row = conn.execute(
+                "SELECT 1 FROM guests WHERE guest_id = %s",
+                (gid,),
+            ).fetchone()
+            existing_user = conn.execute(
+                "SELECT 1 FROM users WHERE user_id = %s",
+                (gid,),
+            ).fetchone()
+            if existing_user:
+                return jsonify({"error": "this guest profile already has an account"}), 409
+        if not gid or not guest_row:
+            gid = str(uuid.uuid4())
+            conn.execute(
+                "INSERT INTO guests (guest_id, display_name) VALUES (%s, %s)",
+                (gid, display_name),
+            )
+        else:
+            conn.execute(
+                "UPDATE guests SET display_name = %s WHERE guest_id = %s",
+                (display_name, gid),
+            )
+
+        conn.execute(
+            """INSERT INTO users (
+                   user_id, display_name, username, email, password_hash, password_salt
+               ) VALUES (%s, %s, %s, %s, %s, %s)""",
+            (gid, display_name, username, email, password_hash, password_salt),
+        )
+        profile = _guest_profile(conn, gid)
+    return jsonify(profile)
+
+
+@app.route("/api/account/login", methods=["POST"])
+def account_login():
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
+    identifier = (data.get("identifier") or "").strip().lower()
+    password = data.get("password") or ""
+    if not identifier or not password:
+        return jsonify({"error": "identifier and password required"}), 400
+    with db() as conn:
+        row = conn.execute(
+            """SELECT user_id::text, display_name, username, email, password_hash, password_salt
+                 FROM users
+                WHERE lower(username) = %s OR lower(email) = %s
+                LIMIT 1""",
+            (identifier, identifier),
+        ).fetchone()
+        if not row:
+            return jsonify({"error": "account not found"}), 404
+        user_id, display_name, username, email, password_hash, password_salt = row
+        if not password_hash or not password_salt or not _verify_password(password, password_hash, password_salt):
+            return jsonify({"error": "incorrect password"}), 403
+        guest_row = conn.execute(
+            "SELECT 1 FROM guests WHERE guest_id = %s",
+            (user_id,),
+        ).fetchone()
+        if not guest_row:
+            conn.execute(
+                "INSERT INTO guests (guest_id, display_name) VALUES (%s, %s)",
+                (user_id, display_name or username),
+            )
+        profile = _guest_profile(conn, user_id)
     return jsonify(profile)
 
 
@@ -960,7 +1118,7 @@ def _dr_create_online_game(conn, guest_a_id: str, name_a: str, guest_b_id: str, 
         p1=p1_name,
         p2=p2_name,
         turn_index=0,
-        turn_seconds=TURN_SECONDS,
+        turn_seconds=APP_TURN_SECONDS,
         turn_started_at=now_utc(),
         countdown_seconds=OPENING_COUNTDOWN_SECONDS,
         owner_guest_id=p1_guest_id,
@@ -1176,12 +1334,52 @@ def dr_rematch_status():
             ).fetchall()
         }
         other_guest_id = blob.get("p2_guest_id") if guest_id == blob.get("p1_guest_id") else blob.get("p1_guest_id")
+        exited = {
+            r[0] for r in conn.execute(
+                "SELECT guest_id::text FROM dr_postgame_exits WHERE original_game_id = %s",
+                (gid,),
+            ).fetchall()
+        }
+        if other_guest_id in exited:
+            return jsonify({
+                "status": "abandoned",
+                "you_requested": guest_id in requesters,
+                "opponent_requested": False,
+                "rematch_available": False,
+            })
         return jsonify({
             "status": "waiting",
             "you_requested": guest_id in requesters,
             "opponent_requested": other_guest_id in requesters,
             "rematch_available": blob.get("last_move", {}).get("outcome") != "forfeit",
         })
+
+
+@app.route("/api/dr/postgame_leave", methods=["POST"])
+def dr_postgame_leave():
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
+    guest_id = (data.get("guest_id") or "").strip()
+    game_id = (data.get("game_id") or "").strip()
+    if not guest_id or not game_id:
+        return jsonify({"error": "guest_id and game_id required"}), 400
+    with db() as conn:
+        blob, _state = _load_game(conn, "dr_games", game_id)
+        if not blob:
+            return jsonify({"status": "gone"})
+        if not _dr_authorize(blob, guest_id):
+            return jsonify({"error": "unauthorized"}), 403
+        conn.execute(
+            """INSERT INTO dr_postgame_exits (original_game_id, guest_id)
+               VALUES (%s, %s)
+               ON CONFLICT DO NOTHING""",
+            (game_id, guest_id),
+        )
+        conn.execute(
+            "DELETE FROM dr_rematches WHERE original_game_id = %s AND requester_guest_id = %s",
+            (game_id, guest_id),
+        )
+    return jsonify({"status": "gone"})
 
 
 @app.route("/api/dr/create_challenge", methods=["POST"])
@@ -1317,7 +1515,7 @@ def new_game():
     p2 = (data.get("p2") or "Player 2").strip()
     seed = data.get("seed") or DEFAULT_SEED
     guest_id = (data.get("guest_id") or "").strip() or None
-    turn_seconds = float(data.get("turn_seconds") or TURN_SECONDS)
+    turn_seconds = float(data.get("turn_seconds") or APP_TURN_SECONDS)
     with db() as conn:
         if guest_id:
             row = conn.execute(
@@ -1489,7 +1687,7 @@ def bp_new():
     data = request.get_json(silent=True) or {}
     seed = data.get("seed") or DEFAULT_SEED
     guest_id = (data.get("guest_id") or "").strip() or None
-    turn_seconds = float(data.get("turn_seconds") or TURN_SECONDS)
+    turn_seconds = float(data.get("turn_seconds") or APP_TURN_SECONDS)
     with db() as conn:
         if guest_id:
             row = conn.execute(

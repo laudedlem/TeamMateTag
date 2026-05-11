@@ -10,6 +10,16 @@ const els = {
   profileSaveBtn: document.getElementById('profile-save-btn'),
   profileOpenBtn: document.getElementById('profile-open-btn'),
   profileStatus: document.getElementById('profile-status'),
+  accountLoggedOut: document.getElementById('account-logged-out'),
+  accountLoggedIn: document.getElementById('account-logged-in'),
+  accountUsernameInput: document.getElementById('account-username-input'),
+  accountEmailInput: document.getElementById('account-email-input'),
+  accountPasswordInput: document.getElementById('account-password-input'),
+  accountRegisterBtn: document.getElementById('account-register-btn'),
+  accountLoginBtn: document.getElementById('account-login-btn'),
+  accountLogoutBtn: document.getElementById('account-logout-btn'),
+  accountSummary: document.getElementById('account-summary'),
+  accountStatus: document.getElementById('account-status'),
   profileScreen: document.getElementById('profile-screen'),
   profileScreenName: document.getElementById('profile-screen-name'),
   profileBpBest: document.getElementById('profile-bp-best'),
@@ -136,13 +146,18 @@ function renderProfile() {
     els.profileBpBest.textContent = '--';
     els.profileBpPlays.textContent = '--';
     els.profileFrRecord.textContent = '--';
-  els.profileDrElo.textContent = '--';
-  els.profileDrRecord.textContent = '--';
-  els.profileTopStruck.textContent = '--';
-  return;
-}
+    els.profileDrElo.textContent = '--';
+    els.profileDrRecord.textContent = '--';
+    els.profileTopStruck.textContent = '--';
+    els.accountLoggedOut.hidden = false;
+    els.accountLoggedIn.hidden = true;
+    els.accountStatus.textContent = '';
+    return;
+  }
   els.profileNameInput.value = profile.display_name || '';
-  els.profileStatus.textContent = 'Guest profile saved on this browser.';
+  els.profileStatus.textContent = profile.account
+    ? 'Signed in. Your profile follows you across devices.'
+    : 'Guest profile saved on this browser.';
   const wins = profile.stats?.fr_wins ?? 0;
   const plays = profile.stats?.fr_plays ?? 0;
   const drWins = profile.stats?.dr_wins ?? 0;
@@ -157,6 +172,17 @@ function renderProfile() {
   els.profileTopStruck.textContent = topStruck.length
     ? topStruck.map((t) => `${t.team_name} ${t.season} (${t.count})`).join(', ')
     : 'None yet';
+  if (profile.account) {
+    els.accountLoggedOut.hidden = true;
+    els.accountLoggedIn.hidden = false;
+    els.accountSummary.textContent = `${profile.account.username} · ${profile.account.email}`;
+    els.accountStatus.textContent = 'Account connected.';
+  } else {
+    els.accountLoggedOut.hidden = false;
+    els.accountLoggedIn.hidden = true;
+    els.accountSummary.textContent = '';
+    els.accountStatus.textContent = 'Create an account or log in to carry your profile across browsers and devices.';
+  }
 }
 
 async function bootstrapProfile() {
@@ -191,6 +217,55 @@ async function saveProfileName() {
   renderProfile();
 }
 
+async function registerAccount() {
+  if (!profile?.guest_id) return;
+  const username = els.accountUsernameInput.value.trim();
+  const email = els.accountEmailInput.value.trim();
+  const password = els.accountPasswordInput.value;
+  const display_name = els.profileNameInput.value.trim() || profile.display_name || username;
+  els.accountRegisterBtn.disabled = true;
+  const next = await api('/api/account/register', {
+    guest_id: profile.guest_id,
+    username,
+    email,
+    password,
+    display_name,
+  });
+  els.accountRegisterBtn.disabled = false;
+  if (next?.error) {
+    els.accountStatus.textContent = next.error;
+    return;
+  }
+  profile = next;
+  saveGuestId(profile.guest_id);
+  els.accountPasswordInput.value = '';
+  renderProfile();
+}
+
+async function loginAccount() {
+  const identifier = (els.accountEmailInput.value || els.accountUsernameInput.value).trim();
+  const password = els.accountPasswordInput.value;
+  els.accountLoginBtn.disabled = true;
+  const next = await api('/api/account/login', { identifier, password });
+  els.accountLoginBtn.disabled = false;
+  if (next?.error) {
+    els.accountStatus.textContent = next.error;
+    return;
+  }
+  profile = next;
+  saveGuestId(profile.guest_id);
+  els.accountPasswordInput.value = '';
+  renderProfile();
+  refreshBpLeaderboard();
+}
+
+async function logoutAccount() {
+  window.localStorage.removeItem(GUEST_ID_KEY);
+  profile = null;
+  renderProfile();
+  await bootstrapProfile();
+}
+
 async function getAutocomplete(q) {
   const r = await fetch('/api/autocomplete?q=' + encodeURIComponent(q));
   return r.json();
@@ -220,6 +295,7 @@ function showScreen(name) {
 function goHome() {
   const wasWaiting = !els.cancelMatchBtn.hidden;
   const activeMpGameId = currentMode === 'mp' && game?.game_id ? game.game_id : '';
+  const finishedMpGameId = currentMode === 'mp' && game?.finished ? game.game_id : '';
   currentMode = 'home';
   game = null;
   frGame = null;
@@ -245,10 +321,17 @@ function goHome() {
     api('/api/dr/cancel_queue', { guest_id: profile?.guest_id || storedGuestId() });
     api('/api/dr/cancel_challenge', { guest_id: profile?.guest_id || storedGuestId() });
   } else if (activeMpGameId) {
-    api('/api/dr/leave_game', {
-      guest_id: profile?.guest_id || storedGuestId(),
-      game_id: activeMpGameId,
-    });
+    if (finishedMpGameId) {
+      api('/api/dr/postgame_leave', {
+        guest_id: profile?.guest_id || storedGuestId(),
+        game_id: finishedMpGameId,
+      });
+    } else {
+      api('/api/dr/leave_game', {
+        guest_id: profile?.guest_id || storedGuestId(),
+        game_id: activeMpGameId,
+      });
+    }
   }
   showScreen('home');
 }
@@ -516,6 +599,17 @@ function hideGameOverBanner() {
   els.mpRematchStatus.hidden = true;
   els.mpRematchStatus.textContent = '';
   removeHomeFromBanner();
+}
+
+async function requeueAfterRematchAbandoned() {
+  clearInterval(mpRematchPollInterval);
+  hideGameOverBanner();
+  game = null;
+  currentMode = 'mp';
+  showScreen('mp-setup');
+  els.challengeStatusText.textContent = '';
+  els.mpStatusText.textContent = 'Opponent left. Searching for a new opponent...';
+  await startMpGame();
 }
 
 function ensureHomeFromBanner() {
@@ -838,7 +932,7 @@ function renderMpGame() {
   els.turnCard.classList.toggle('opponent-turn', !game.your_turn);
   els.timer.classList.toggle('your-turn', !!game.your_turn);
   els.timer.classList.toggle('opponent-turn', !game.your_turn);
-  setGuessDisabled(game.finished || (game.countdown_seconds_remaining || 0) > 0);
+  setGuessDisabled(game.finished || (game.countdown_seconds_remaining || 0) > 0 || !game.your_turn);
   els.guessInput.placeholder = 'Type a name (first or last)...';
 
   els.feedback.innerHTML = renderMoveFeedback(game.last_move, game);
@@ -923,6 +1017,12 @@ function startRematchPolling() {
       clearInterval(mpRematchPollInterval);
       els.mpRematchStatus.hidden = true;
       await enterMatchedGame(res.game);
+      return;
+    }
+    if (res.status === 'abandoned') {
+      els.mpRematchStatus.hidden = false;
+      els.mpRematchStatus.textContent = 'Opponent left. Finding a new match...';
+      await requeueAfterRematchAbandoned();
       return;
     }
     if (!res.rematch_available) {
@@ -1252,13 +1352,13 @@ function applyToggles() {
 
 function rulesForMode() {
   if (currentMode === 'bp') {
-    return 'Build the longest lineup you can. You have 30 seconds to name a teammate of the last player, and a correct guess resets the clock. Each team shared by two linked players gets a strike. Once a team is Struck Out, that team cannot be used to link players again. Your run ends when the clock hits zero.';
+    return 'Build the longest lineup you can. You have 20 seconds to name a teammate of the last player, and a correct guess resets the clock. Each team shared by two linked players gets a strike. Once a team is Struck Out, that team cannot be used to link players again. Your run ends when the clock hits zero.';
   }
   if (currentMode === 'fr') {
     return 'Review the revealed players and guess the team and year that links each pair. A correct team and year is a hit and reveals the next player. One correct field is a foul. The first foul in a streak is safe, then every foul after that in the same streak counts as a strike. Three strikes ends the review.';
   }
   if (currentMode === 'mp') {
-    return 'Queue into an online match and take turns building one lineup. After the 3 second countdown, the 30 second clock begins. On your turn, name a teammate of the last player before time runs out. Correct guesses pass the turn. Teams collect strikes when used, and Struck Out teams cannot link players again. You win when your opponent runs out of time.';
+    return 'Queue into an online match and take turns building one lineup. After the 3 second countdown, the 20 second clock begins. On your turn, name a teammate of the last player before time runs out. Correct guesses pass the turn and reset the clock. Teams collect strikes when used, and Struck Out teams cannot link players again. You win when your opponent runs out of time.';
   }
   return 'Pick a mode, then build or review a lineup by connecting baseball players through their shared teams.';
 }
@@ -1322,10 +1422,21 @@ els.rulesClose.addEventListener('click', closeRules);
 els.rulesBackdrop.addEventListener('click', closeRules);
 els.profileSaveBtn.addEventListener('click', saveProfileName);
 els.profileOpenBtn.addEventListener('click', openProfile);
+els.accountRegisterBtn.addEventListener('click', registerAccount);
+els.accountLoginBtn.addEventListener('click', loginAccount);
+els.accountLogoutBtn.addEventListener('click', logoutAccount);
 els.profileNameInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     e.preventDefault();
     saveProfileName();
+  }
+});
+els.accountPasswordInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    if (els.accountEmailInput.value.trim() || els.accountUsernameInput.value.trim()) {
+      loginAccount();
+    }
   }
 });
 

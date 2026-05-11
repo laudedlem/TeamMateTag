@@ -216,6 +216,29 @@ input[type="text"]:focus {
   font-size: 0.92rem;
 }
 
+.auth-card {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.auth-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.auth-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+
+.auth-actions button.secondary {
+  padding: 0.55rem 0.9rem;
+  font-size: 0.92rem;
+}
+
 .profile-screen-card {
   max-width: 720px;
 }
@@ -542,6 +565,14 @@ button.secondary:hover { border-color: var(--accent); color: var(--accent); }
   .challenge-row {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .auth-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .auth-actions {
+    flex-direction: column;
   }
 }
 
