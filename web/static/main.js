@@ -117,6 +117,7 @@ let mpPollInterval = null;
 let mpQueuePollInterval = null;
 let mpRematchPollInterval = null;
 let friendsPollInterval = null;
+let mpRequeueRelaxTimeout = null;
 let turnLocalStart = 0;
 let lastChainLength = 0;
 let activeCountdownKey = '';
@@ -555,10 +556,34 @@ function showScreen(name) {
   els.outSection.hidden = !togglesRelevant || !els.toggleOut.checked;
 }
 
+function clearRequeueRelaxTimeout() {
+  if (mpRequeueRelaxTimeout) {
+    clearTimeout(mpRequeueRelaxTimeout);
+    mpRequeueRelaxTimeout = null;
+  }
+}
+
 async function goHome() {
   const wasWaiting = !els.cancelMatchBtn.hidden;
   const activeMpGameId = currentMode === 'mp' && game?.game_id ? game.game_id : '';
   const finishedMpGameId = currentMode === 'mp' && game?.finished ? game.game_id : '';
+  clearRequeueRelaxTimeout();
+  if (wasWaiting) {
+    await api('/api/dr/cancel_queue', { guest_id: profile?.guest_id || storedGuestId() });
+    await api('/api/dr/cancel_challenge', { guest_id: profile?.guest_id || storedGuestId() });
+  } else if (activeMpGameId) {
+    if (finishedMpGameId) {
+      await api('/api/dr/postgame_leave', {
+        guest_id: profile?.guest_id || storedGuestId(),
+        game_id: finishedMpGameId,
+      });
+    } else {
+      await api('/api/dr/leave_game', {
+        guest_id: profile?.guest_id || storedGuestId(),
+        game_id: activeMpGameId,
+      });
+    }
+  }
   currentMode = 'home';
   game = null;
   frGame = null;
@@ -581,22 +606,6 @@ async function goHome() {
   els.startBtn.hidden = false;
   els.cancelMatchBtn.hidden = true;
   els.challengeStatusText.textContent = '';
-  if (wasWaiting) {
-    await api('/api/dr/cancel_queue', { guest_id: profile?.guest_id || storedGuestId() });
-    await api('/api/dr/cancel_challenge', { guest_id: profile?.guest_id || storedGuestId() });
-  } else if (activeMpGameId) {
-    if (finishedMpGameId) {
-      await api('/api/dr/postgame_leave', {
-        guest_id: profile?.guest_id || storedGuestId(),
-        game_id: finishedMpGameId,
-      });
-    } else {
-      await api('/api/dr/leave_game', {
-        guest_id: profile?.guest_id || storedGuestId(),
-        game_id: activeMpGameId,
-      });
-    }
-  }
   showScreen('home');
 }
 
@@ -651,6 +660,7 @@ function startMpPolling() {
 }
 
 async function enterMatchedGame(nextGame) {
+  clearRequeueRelaxTimeout();
   currentMode = 'mp';
   lastChainLength = 0;
   clearInterval(mpRematchPollInterval);
@@ -678,6 +688,7 @@ async function pollMatchmaking() {
 }
 
 async function startMpGame(opts = {}) {
+  clearRequeueRelaxTimeout();
   showScreen('mp-setup');
   els.mpStatusText.textContent = 'Searching for an opponent...';
   els.startBtn.hidden = true;
@@ -698,9 +709,20 @@ async function startMpGame(opts = {}) {
     return;
   }
   mpQueuePollInterval = setInterval(pollMatchmaking, 1000);
+  if (opts.allowSameOpponentAfterMs && opts.avoidGuestId) {
+    mpRequeueRelaxTimeout = setTimeout(async () => {
+      if (currentMode !== 'mp' || game) return;
+      const status = await api('/api/dr/status', { guest_id: profile?.guest_id || storedGuestId() });
+      if (status.status !== 'waiting') return;
+      clearInterval(mpQueuePollInterval);
+      await api('/api/dr/cancel_queue', { guest_id: profile?.guest_id || storedGuestId() });
+      await startMpGame();
+    }, opts.allowSameOpponentAfterMs);
+  }
 }
 
 async function cancelMatchmaking() {
+  clearRequeueRelaxTimeout();
   clearInterval(mpQueuePollInterval);
   await api('/api/dr/cancel_queue', { guest_id: profile?.guest_id || storedGuestId() });
   await api('/api/dr/cancel_challenge', { guest_id: profile?.guest_id || storedGuestId() });
@@ -878,6 +900,7 @@ function hideGameOverBanner() {
 
 async function requeueForNewMatch(message, options = {}) {
   clearInterval(mpRematchPollInterval);
+  clearRequeueRelaxTimeout();
   const finishedGameId = game?.finished ? game.game_id : '';
   const shouldAvoidLastOpponent = !!options.avoidLastOpponent;
   const avoidGuestId = shouldAvoidLastOpponent
@@ -897,7 +920,10 @@ async function requeueForNewMatch(message, options = {}) {
   showScreen('mp-setup');
   els.challengeStatusText.textContent = '';
   els.mpStatusText.textContent = message || 'Searching for a new opponent...';
-  await startMpGame({ avoidGuestId });
+  await startMpGame({
+    avoidGuestId,
+    allowSameOpponentAfterMs: shouldAvoidLastOpponent ? 5000 : 0,
+  });
 }
 
 function resetTurnTimer() {
@@ -1688,7 +1714,9 @@ els.guessInput.addEventListener('input', onGuessInput);
 els.guessInput.addEventListener('keydown', onGuessKeydown);
 
 els.playAgainBtn.addEventListener('click', rematch);
-els.requeueBtn.addEventListener('click', () => requeueForNewMatch('Searching for a new opponent...'));
+els.requeueBtn.addEventListener('click', () => requeueForNewMatch('Searching for a new opponent...', {
+  avoidLastOpponent: true,
+}));
 els.homeFromBannerBtn.addEventListener('click', goHome);
 els.toggleLineup.addEventListener('change', applyToggles);
 els.toggleOut.addEventListener('change', applyToggles);
