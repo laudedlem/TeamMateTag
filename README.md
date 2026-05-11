@@ -136,7 +136,7 @@ terminal CLI fallback in `game/cli.py`. Three modes:
 To run:
 
 ```bash
-pip install flask requests
+pip install -r requirements.txt
 python web/server.py
 # then open http://127.0.0.1:5000/
 ```
@@ -144,6 +144,7 @@ python web/server.py
 CLI fallback (Division Rivalry only, two humans at one keyboard):
 `python game/cli.py`.
 
+For deployment, see `DEPLOY_VERCEL.md`.
 See `CLAUDE.md` for full mechanics, API surface, and roadmap.
 
 ## Tools in the kit

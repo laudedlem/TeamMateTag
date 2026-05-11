@@ -1,7 +1,12 @@
-"""Minimal Vercel Flask entrypoint."""
-from flask import Flask
-app = Flask(__name__)
+"""Vercel entrypoint for the Teammate Tag Flask app."""
+from __future__ import annotations
 
-@app.route("/")
-def hello():
-    return "<h1>Teammate Tag is alive</h1><p>Vercel + Flask confirmed working.</p>"
+import sys
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from web.server import app  # noqa: E402,F401
