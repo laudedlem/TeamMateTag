@@ -17,6 +17,7 @@ const els = {
   profileFrRecord: document.getElementById('profile-fr-record'),
   profileDrElo: document.getElementById('profile-dr-elo'),
   profileDrRecord: document.getElementById('profile-dr-record'),
+  profileTopStruck: document.getElementById('profile-top-struck'),
   startScreen: document.getElementById('start-screen'),
   gameScreen: document.getElementById('game-screen'),
   frScreen: document.getElementById('fr-screen'),
@@ -32,6 +33,10 @@ const els = {
   startBtn: document.getElementById('start-btn'),
   cancelMatchBtn: document.getElementById('cancel-match-btn'),
   mpStatusText: document.getElementById('mp-status-text'),
+  createCodeBtn: document.getElementById('create-code-btn'),
+  joinCodeInput: document.getElementById('join-code-input'),
+  joinCodeBtn: document.getElementById('join-code-btn'),
+  challengeStatusText: document.getElementById('challenge-status-text'),
 
   turnCard: document.getElementById('turn-card'),
   turnLabel: document.getElementById('turn-label'),
@@ -126,10 +131,11 @@ function renderProfile() {
     els.profileBpBest.textContent = '--';
     els.profileBpPlays.textContent = '--';
     els.profileFrRecord.textContent = '--';
-    els.profileDrElo.textContent = '--';
-    els.profileDrRecord.textContent = '--';
-    return;
-  }
+  els.profileDrElo.textContent = '--';
+  els.profileDrRecord.textContent = '--';
+  els.profileTopStruck.textContent = '--';
+  return;
+}
   els.profileNameInput.value = profile.display_name || '';
   els.profileStatus.textContent = 'Guest profile saved on this browser.';
   const wins = profile.stats?.fr_wins ?? 0;
@@ -142,6 +148,10 @@ function renderProfile() {
   els.profileFrRecord.textContent = `${wins}-${Math.max(0, plays - wins)}`;
   els.profileDrElo.textContent = String(profile.stats?.dr_elo ?? 1200);
   els.profileDrRecord.textContent = `${drWins}-${drLosses}`;
+  const topStruck = profile.stats?.top_struck_teams || [];
+  els.profileTopStruck.textContent = topStruck.length
+    ? topStruck.map((t) => `${t.team_name} (${t.count})`).join(', ')
+    : 'None yet';
 }
 
 async function bootstrapProfile() {
@@ -196,6 +206,7 @@ function showScreen(name) {
 
 function goHome() {
   const wasWaiting = !els.cancelMatchBtn.hidden;
+  const activeMpGameId = currentMode === 'mp' && game?.game_id ? game.game_id : '';
   currentMode = 'home';
   game = null;
   frGame = null;
@@ -213,8 +224,15 @@ function goHome() {
   els.frYearInput.value = '';
   els.startBtn.hidden = false;
   els.cancelMatchBtn.hidden = true;
+  els.challengeStatusText.textContent = '';
   if (wasWaiting) {
     api('/api/dr/cancel_queue', { guest_id: profile?.guest_id || storedGuestId() });
+    api('/api/dr/cancel_challenge', { guest_id: profile?.guest_id || storedGuestId() });
+  } else if (activeMpGameId) {
+    api('/api/dr/leave_game', {
+      guest_id: profile?.guest_id || storedGuestId(),
+      game_id: activeMpGameId,
+    });
   }
   showScreen('home');
 }
@@ -230,6 +248,7 @@ function pickMode(mode) {
     els.mpStatusText.textContent = `Queue as ${profile?.display_name || 'your guest profile'}.`;
     els.startBtn.hidden = false;
     els.cancelMatchBtn.hidden = true;
+    els.challengeStatusText.textContent = '';
     return;
   }
   if (mode === 'bp') {
@@ -246,10 +265,13 @@ function startMpPolling() {
   if (currentMode !== 'mp' || !game || game.finished) return;
   mpPollInterval = setInterval(async () => {
     if (!game?.game_id) return;
-    const next = await api('/api/dr/status', { guest_id: profile?.guest_id || storedGuestId() });
-    if (next.status === 'matched' && next.game) {
+    const next = await api('/api/dr/game', {
+      guest_id: profile?.guest_id || storedGuestId(),
+      game_id: game.game_id,
+    });
+    if (!next.error) {
       const prevChain = game?.chain?.length || 0;
-      game = next.game;
+      game = next;
       lastChainLength = prevChain;
       renderMpGame();
       if (game.finished) {
@@ -258,7 +280,7 @@ function startMpPolling() {
         bootstrapProfile();
       }
     }
-  }, 1500);
+  }, 1000);
 }
 
 async function enterMatchedGame(nextGame) {
@@ -301,15 +323,49 @@ async function startMpGame() {
     await enterMatchedGame(queued.game);
     return;
   }
-  mpQueuePollInterval = setInterval(pollMatchmaking, 1500);
+  mpQueuePollInterval = setInterval(pollMatchmaking, 1000);
 }
 
 async function cancelMatchmaking() {
   clearInterval(mpQueuePollInterval);
   await api('/api/dr/cancel_queue', { guest_id: profile?.guest_id || storedGuestId() });
+  await api('/api/dr/cancel_challenge', { guest_id: profile?.guest_id || storedGuestId() });
   els.startBtn.hidden = false;
   els.cancelMatchBtn.hidden = true;
   els.mpStatusText.textContent = `Queue as ${profile?.display_name || 'your guest profile'}.`;
+  els.challengeStatusText.textContent = '';
+}
+
+async function createChallengeCode() {
+  const res = await api('/api/dr/create_challenge', { guest_id: profile?.guest_id || storedGuestId() });
+  if (res.error) {
+    els.challengeStatusText.textContent = res.error;
+    return;
+  }
+  els.challengeStatusText.textContent = `Challenge code: ${res.code}`;
+  els.startBtn.hidden = true;
+  els.cancelMatchBtn.hidden = false;
+  clearInterval(mpQueuePollInterval);
+  mpQueuePollInterval = setInterval(pollMatchmaking, 1000);
+}
+
+async function joinChallengeCode() {
+  const code = els.joinCodeInput.value.trim().toUpperCase();
+  if (!code) return;
+  els.challengeStatusText.textContent = 'Joining challenge...';
+  const res = await api('/api/dr/join_challenge', {
+    guest_id: profile?.guest_id || storedGuestId(),
+    code,
+  });
+  if (res.error) {
+    els.challengeStatusText.textContent = res.error;
+    return;
+  }
+  els.joinCodeInput.value = '';
+  els.challengeStatusText.textContent = '';
+  if (res.status === 'matched' && res.game) {
+    await enterMatchedGame(res.game);
+  }
 }
 
 async function startBp() {
@@ -370,7 +426,9 @@ function renderLoadingFilmReview() {
 
 async function rematch() {
   if (currentMode === 'mp') {
-    await newMpGame(game.p1, game.p2);
+    goHome();
+    pickMode('mp');
+    await startMpGame();
     return;
   }
   if (currentMode === 'bp') {
@@ -717,6 +775,10 @@ function closeTeamAutocomplete(opts = {}) {
 function renderMpGame() {
   els.turnLabel.textContent = game.your_turn ? 'Your turn' : `${game.current_label}'s turn`;
   els.currentPlayerName.textContent = game.current_player.name;
+  els.turnCard.classList.toggle('your-turn', !!game.your_turn);
+  els.turnCard.classList.toggle('opponent-turn', !game.your_turn);
+  els.timer.classList.toggle('your-turn', !!game.your_turn);
+  els.timer.classList.toggle('opponent-turn', !game.your_turn);
   setGuessDisabled(game.finished || (game.countdown_seconds_remaining || 0) > 0);
   els.guessInput.placeholder = 'Type a name (first or last)...';
 
@@ -1073,6 +1135,14 @@ document.querySelectorAll('[data-back="home"]').forEach((btn) => {
 
 els.startBtn.addEventListener('click', startMpGame);
 els.cancelMatchBtn.addEventListener('click', cancelMatchmaking);
+els.createCodeBtn.addEventListener('click', createChallengeCode);
+els.joinCodeBtn.addEventListener('click', joinChallengeCode);
+els.joinCodeInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    joinChallengeCode();
+  }
+});
 
 els.guessForm.addEventListener('submit', onGuessSubmit);
 els.guessInput.addEventListener('input', onGuessInput);

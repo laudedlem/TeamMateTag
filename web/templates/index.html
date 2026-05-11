@@ -100,6 +100,10 @@
           <span class="profile-detail-label">Division Rivalry Record</span>
           <strong id="profile-dr-record">--</strong>
         </div>
+        <div class="profile-detail">
+          <span class="profile-detail-label">Teams Most Struck Out</span>
+          <strong id="profile-top-struck">--</strong>
+        </div>
       </div>
     </div>
   </section>
@@ -116,6 +120,14 @@
       <p class="muted small" id="mp-status-text">You will queue as your current guest profile.</p>
       <button id="start-btn" class="primary">Find Match</button>
       <button id="cancel-match-btn" class="secondary" type="button" hidden>Cancel Search</button>
+      <div class="challenge-box">
+        <div class="challenge-row">
+          <button id="create-code-btn" class="secondary" type="button">Create Challenge Code</button>
+          <input id="join-code-input" type="text" maxlength="6" placeholder="Enter Code" />
+          <button id="join-code-btn" class="secondary" type="button">Join</button>
+        </div>
+        <p id="challenge-status-text" class="muted small"></p>
+      </div>
     </div>
   </section>
 

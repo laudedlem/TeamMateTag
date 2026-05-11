@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import os
+import secrets
 import sys
 import uuid
 from contextlib import contextmanager
@@ -233,6 +234,10 @@ def ensure_runtime_schema():
                    )"""
             )
             conn.execute(
+                "ALTER TABLE dr_results "
+                "ADD COLUMN IF NOT EXISTS opponent_guest_id UUID REFERENCES guests(guest_id) ON DELETE SET NULL"
+            )
+            conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_dr_results_owner_guest "
                 "ON dr_results(owner_guest_id, finished_at DESC)"
             )
@@ -248,6 +253,20 @@ def ensure_runtime_schema():
                 "ON dr_queue(enqueued_at)"
             )
             conn.execute(
+                """CREATE TABLE IF NOT EXISTS dr_invites (
+                       code TEXT PRIMARY KEY,
+                       host_guest_id UUID NOT NULL REFERENCES guests(guest_id) ON DELETE CASCADE,
+                       host_name TEXT NOT NULL,
+                       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                       expires_at TIMESTAMPTZ NOT NULL DEFAULT (now() + interval '30 minutes'),
+                       claimed_at TIMESTAMPTZ
+                   )"""
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_dr_invites_host "
+                "ON dr_invites(host_guest_id, created_at DESC)"
+            )
+            conn.execute(
                 """CREATE TABLE IF NOT EXISTS player_usage (
                        player_id TEXT PRIMARY KEY REFERENCES players(player_id),
                        total_count INTEGER NOT NULL DEFAULT 0,
@@ -255,6 +274,21 @@ def ensure_runtime_schema():
                        dr_count INTEGER NOT NULL DEFAULT 0,
                        last_used_at TIMESTAMPTZ NOT NULL DEFAULT now()
                    )"""
+            )
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS guest_team_strikeouts (
+                       event_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                       owner_guest_id UUID REFERENCES guests(guest_id) ON DELETE CASCADE,
+                       mode TEXT NOT NULL,
+                       team_name TEXT NOT NULL,
+                       team_id TEXT,
+                       season INTEGER,
+                       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                   )"""
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_guest_team_strikeouts_owner "
+                "ON guest_team_strikeouts(owner_guest_id, created_at DESC)"
             )
         RUNTIME_SCHEMA_READY = True
 
@@ -273,6 +307,15 @@ def _guest_stats(conn, guest_id: str) -> dict:
         """,
         (guest_id, guest_id, guest_id, guest_id, guest_id, guest_id, guest_id),
     ).fetchone()
+    top_struck = conn.execute(
+        """SELECT team_name, COUNT(*) AS n
+             FROM guest_team_strikeouts
+            WHERE owner_guest_id = %s
+            GROUP BY team_name
+            ORDER BY n DESC, team_name ASC
+            LIMIT 3""",
+        (guest_id,),
+    ).fetchall()
     return {
         "bp_plays": bp_plays,
         "bp_best": bp_best,
@@ -282,6 +325,9 @@ def _guest_stats(conn, guest_id: str) -> dict:
         "dr_wins": dr_wins,
         "dr_losses": max(0, dr_plays - dr_wins),
         "dr_elo": elo,
+        "top_struck_teams": [
+            {"team_name": team_name, "count": count} for team_name, count in top_struck
+        ],
     }
 
 
@@ -323,6 +369,7 @@ def _save_bp_run(conn, blob: dict, state: GameState):
                  VALUES (%s, %s, %s)""",
             (guest_id, blob.get("seed_player_id", DEFAULT_SEED), max(0, len(state.chain) - 1)),
         )
+        _record_struck_out_teams(conn, guest_id, "bp", state)
     blob["result_saved"] = True
 
 
@@ -340,6 +387,22 @@ def _record_player_usage(conn, player_id: str, mode: str):
                last_used_at = now()""",
         (player_id, bp_inc, dr_inc),
     )
+
+
+def _record_struck_out_teams(conn, guest_id: str | None, mode: str, state: GameState):
+    if not guest_id:
+        return
+    rows = []
+    for (team_id, season), count in state.strikes.items():
+        if count >= STRIKES_TO_BURN:
+            rows.append((guest_id, mode, TEAM_NAME.get((team_id, season), team_id), team_id, season))
+    for row in rows:
+        conn.execute(
+            """INSERT INTO guest_team_strikeouts (
+                   owner_guest_id, mode, team_name, team_id, season
+               ) VALUES (%s, %s, %s, %s, %s)""",
+            row,
+        )
 
 
 def _save_dr_result(conn, blob: dict):
@@ -383,6 +446,9 @@ def _save_dr_result(conn, blob: dict):
            ) VALUES (%s, %s, %s, %s, %s, %s)""",
         (p2_guest_id, p1_guest_id, blob.get("p1"), bool(not p1_won), p2_before, p2_after),
     )
+    state = deserialize_state(blob)
+    _record_struck_out_teams(conn, p1_guest_id, "dr", state)
+    _record_struck_out_teams(conn, p2_guest_id, "dr", state)
     blob["result_saved"] = True
 
 
@@ -857,6 +923,32 @@ def _dr_status_payload(conn, guest_id: str):
     return {"status": "idle"}
 
 
+def _dr_create_online_game(conn, guest_a_id: str, name_a: str, guest_b_id: str, name_b: str):
+    first_a = bool(secrets.randbelow(2) == 0)
+    p1_guest_id, p1_name, p2_guest_id, p2_name = (
+        (guest_a_id, name_a, guest_b_id, name_b) if first_a
+        else (guest_b_id, name_b, guest_a_id, name_a)
+    )
+    engine_conn = PgEngineConn(conn)
+    state = seed_game(engine_conn, DEFAULT_SEED)
+    _record_player_usage(conn, DEFAULT_SEED, "dr")
+    blob = dr_blob_from_state(
+        state,
+        p1=p1_name,
+        p2=p2_name,
+        turn_index=0,
+        turn_seconds=TURN_SECONDS,
+        turn_started_at=now_utc(),
+        countdown_seconds=OPENING_COUNTDOWN_SECONDS,
+        owner_guest_id=p1_guest_id,
+        p1_guest_id=p1_guest_id,
+        p2_guest_id=p2_guest_id,
+        seed_player_id=DEFAULT_SEED,
+    )
+    gid = _insert_game(conn, "dr_games", blob)
+    return gid, blob, state
+
+
 @app.route("/api/dr/queue", methods=["POST"])
 def dr_queue():
     ensure_runtime_schema()
@@ -894,23 +986,9 @@ def dr_queue():
                     "DELETE FROM dr_queue WHERE guest_id IN (%s, %s)",
                     (guest_id, opp_guest_id),
                 )
-                engine_conn = PgEngineConn(conn)
-                state = seed_game(engine_conn, DEFAULT_SEED)
-                _record_player_usage(conn, DEFAULT_SEED, "dr")
-                blob = dr_blob_from_state(
-                    state,
-                    p1=opp_name,
-                    p2=display_name,
-                    turn_index=0,
-                    turn_seconds=TURN_SECONDS,
-                    turn_started_at=now_utc(),
-                    countdown_seconds=OPENING_COUNTDOWN_SECONDS,
-                    owner_guest_id=opp_guest_id,
-                    p1_guest_id=opp_guest_id,
-                    p2_guest_id=guest_id,
-                    seed_player_id=DEFAULT_SEED,
+                gid, blob, state = _dr_create_online_game(
+                    conn, opp_guest_id, opp_name, guest_id, display_name
                 )
-                gid = _insert_game(conn, "dr_games", blob)
                 blob["viewer_guest_id"] = guest_id
                 return jsonify({
                     "status": "matched",
@@ -939,6 +1017,99 @@ def dr_status():
         return jsonify(_dr_status_payload(conn, guest_id))
 
 
+@app.route("/api/dr/game", methods=["POST"])
+def dr_game():
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
+    guest_id = (data.get("guest_id") or "").strip()
+    gid = (data.get("game_id") or "").strip()
+    if not guest_id or not gid:
+        return jsonify({"error": "guest_id and game_id required"}), 400
+    with db() as conn:
+        blob, state = _load_game(conn, "dr_games", gid)
+        if not blob:
+            return jsonify({"error": "unknown game_id"}), 404
+        if not _dr_authorize(blob, guest_id):
+            return jsonify({"error": "unauthorized"}), 403
+        blob["viewer_guest_id"] = guest_id
+        return jsonify(dr_state_dict(gid, blob, state, conn=conn))
+
+
+@app.route("/api/dr/create_challenge", methods=["POST"])
+def dr_create_challenge():
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
+    guest_id = (data.get("guest_id") or "").strip()
+    if not guest_id:
+        return jsonify({"error": "guest_id required"}), 400
+    with db() as conn:
+        guest = conn.execute(
+            "SELECT display_name FROM guests WHERE guest_id = %s",
+            (guest_id,),
+        ).fetchone()
+        if not guest:
+            return jsonify({"error": "unknown guest_id"}), 404
+        display_name = guest[0] or f"Guest {guest_id[:8]}"
+        conn.execute("DELETE FROM dr_queue WHERE guest_id = %s", (guest_id,))
+        conn.execute(
+            "DELETE FROM dr_invites WHERE host_guest_id = %s AND claimed_at IS NULL",
+            (guest_id,),
+        )
+        code = secrets.token_hex(3).upper()
+        conn.execute(
+            """INSERT INTO dr_invites (code, host_guest_id, host_name)
+               VALUES (%s, %s, %s)""",
+            (code, guest_id, display_name),
+        )
+    return jsonify({"code": code})
+
+
+@app.route("/api/dr/join_challenge", methods=["POST"])
+def dr_join_challenge():
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
+    guest_id = (data.get("guest_id") or "").strip()
+    code = (data.get("code") or "").strip().upper()
+    if not guest_id or not code:
+        return jsonify({"error": "guest_id and code required"}), 400
+    with db() as conn:
+        guest = conn.execute(
+            "SELECT display_name FROM guests WHERE guest_id = %s",
+            (guest_id,),
+        ).fetchone()
+        if not guest:
+            return jsonify({"error": "unknown guest_id"}), 404
+        display_name = guest[0] or f"Guest {guest_id[:8]}"
+        with conn.transaction():
+            conn.execute("SELECT pg_advisory_xact_lock(4411002)")
+            row = conn.execute(
+                """SELECT host_guest_id::text, host_name
+                     FROM dr_invites
+                    WHERE code = %s
+                      AND claimed_at IS NULL
+                      AND expires_at > now()
+                    FOR UPDATE""",
+                (code,),
+            ).fetchone()
+            if not row:
+                return jsonify({"error": "challenge not found"}), 404
+            host_guest_id, host_name = row
+            if host_guest_id == guest_id:
+                return jsonify({"error": "cannot join your own code"}), 400
+            gid, blob, state = _dr_create_online_game(
+                conn, host_guest_id, host_name, guest_id, display_name
+            )
+            conn.execute(
+                "UPDATE dr_invites SET claimed_at = now() WHERE code = %s",
+                (code,),
+            )
+            blob["viewer_guest_id"] = guest_id
+            return jsonify({
+                "status": "matched",
+                "game": dr_state_dict(gid, blob, state, conn=conn),
+            })
+
+
 @app.route("/api/dr/cancel_queue", methods=["POST"])
 def dr_cancel_queue():
     ensure_runtime_schema()
@@ -949,6 +1120,44 @@ def dr_cancel_queue():
     with db() as conn:
         conn.execute("DELETE FROM dr_queue WHERE guest_id = %s", (guest_id,))
     return jsonify({"status": "idle"})
+
+
+@app.route("/api/dr/cancel_challenge", methods=["POST"])
+def dr_cancel_challenge():
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
+    guest_id = (data.get("guest_id") or "").strip()
+    if not guest_id:
+        return jsonify({"error": "guest_id required"}), 400
+    with db() as conn:
+        conn.execute(
+            "DELETE FROM dr_invites WHERE host_guest_id = %s AND claimed_at IS NULL",
+            (guest_id,),
+        )
+    return jsonify({"status": "idle"})
+
+
+@app.route("/api/dr/leave_game", methods=["POST"])
+def dr_leave_game():
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
+    guest_id = (data.get("guest_id") or "").strip()
+    game_id = (data.get("game_id") or "").strip()
+    if not guest_id or not game_id:
+        return jsonify({"error": "guest_id and game_id required"}), 400
+    with db() as conn:
+        blob, state = _load_game(conn, "dr_games", game_id)
+        if not blob:
+            return jsonify({"status": "gone"})
+        if not _dr_authorize(blob, guest_id):
+            return jsonify({"error": "unauthorized"}), 403
+        if not blob["finished"]:
+            blob["finished"] = True
+            blob["winner"] = blob.get("p2") if guest_id == blob.get("p1_guest_id") else blob.get("p1")
+            blob["last_move"] = {"outcome": "forfeit"}
+            _save_dr_result(conn, blob)
+            _save_game(conn, "dr_games", game_id, blob)
+    return jsonify({"status": "gone"})
 
 
 @app.route("/api/new_game", methods=["POST"])

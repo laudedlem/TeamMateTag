@@ -245,6 +245,42 @@ input[type="text"]:focus {
   font-size: 1.2rem;
 }
 
+.challenge-box {
+  margin-top: 1rem;
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+}
+
+.challenge-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.challenge-row input {
+  flex: 1;
+  min-width: 0;
+  text-transform: uppercase;
+}
+
+.turn-card.your-turn {
+  border-color: var(--good);
+  box-shadow: 0 0 0 1px var(--good), var(--shadow-sm);
+}
+
+.turn-card.opponent-turn {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-sm);
+}
+
+.timer.your-turn {
+  color: var(--good);
+}
+
+.timer.opponent-turn {
+  color: var(--text-muted);
+}
+
 .home h2 {
   margin: 0 0 1rem 0;
   font-size: 1.4rem;
@@ -476,6 +512,11 @@ button.secondary:hover { border-color: var(--accent); color: var(--accent); }
 
   .profile-detail-grid {
     grid-template-columns: 1fr;
+  }
+
+  .challenge-row {
+    flex-direction: column;
+    align-items: stretch;
   }
 }
 
