@@ -30,6 +30,8 @@ const els = {
   p1Input: document.getElementById('p1-input'),
   p2Input: document.getElementById('p2-input'),
   startBtn: document.getElementById('start-btn'),
+  cancelMatchBtn: document.getElementById('cancel-match-btn'),
+  mpStatusText: document.getElementById('mp-status-text'),
 
   turnCard: document.getElementById('turn-card'),
   turnLabel: document.getElementById('turn-label'),
@@ -82,6 +84,8 @@ let frGame = null;
 let profile = null;
 let timerInterval = null;
 let countdownInterval = null;
+let mpPollInterval = null;
+let mpQueuePollInterval = null;
 let turnLocalStart = 0;
 let lastChainLength = 0;
 
@@ -191,12 +195,15 @@ function showScreen(name) {
 }
 
 function goHome() {
+  const wasWaiting = !els.cancelMatchBtn.hidden;
   currentMode = 'home';
   game = null;
   frGame = null;
   lastChainLength = 0;
   clearInterval(timerInterval);
   clearInterval(countdownInterval);
+  clearInterval(mpPollInterval);
+  clearInterval(mpQueuePollInterval);
   hideGameOverBanner();
   hideFrSummaryBanner();
   closeAutocomplete();
@@ -204,6 +211,11 @@ function goHome() {
   els.guessInput.value = '';
   els.frTeamInput.value = '';
   els.frYearInput.value = '';
+  els.startBtn.hidden = false;
+  els.cancelMatchBtn.hidden = true;
+  if (wasWaiting) {
+    api('/api/dr/cancel_queue', { guest_id: profile?.guest_id || storedGuestId() });
+  }
   showScreen('home');
 }
 
@@ -215,7 +227,9 @@ function openProfile() {
 function pickMode(mode) {
   if (mode === 'mp') {
     showScreen('mp-setup');
-    els.p1Input.focus();
+    els.mpStatusText.textContent = `Queue as ${profile?.display_name || 'your guest profile'}.`;
+    els.startBtn.hidden = false;
+    els.cancelMatchBtn.hidden = true;
     return;
   }
   if (mode === 'bp') {
@@ -227,26 +241,75 @@ function pickMode(mode) {
   }
 }
 
-async function newMpGame(p1, p2) {
+function startMpPolling() {
+  clearInterval(mpPollInterval);
+  if (currentMode !== 'mp' || !game || game.finished) return;
+  mpPollInterval = setInterval(async () => {
+    if (!game?.game_id) return;
+    const next = await api('/api/dr/status', { guest_id: profile?.guest_id || storedGuestId() });
+    if (next.status === 'matched' && next.game) {
+      const prevChain = game?.chain?.length || 0;
+      game = next.game;
+      lastChainLength = prevChain;
+      renderMpGame();
+      if (game.finished) {
+        clearInterval(mpPollInterval);
+        showGameOverBanner();
+        bootstrapProfile();
+      }
+    }
+  }, 1500);
+}
+
+async function enterMatchedGame(nextGame) {
   currentMode = 'mp';
   lastChainLength = 0;
   hideGameOverBanner();
   showScreen('mp-game');
-  renderLoadingGame('Division Rivalry', 'Starting matchup...');
-  game = await api('/api/new_game', { p1, p2, guest_id: profile?.guest_id || storedGuestId() });
-  if (game.error) {
-    alert('error: ' + game.error);
-    return false;
-  }
+  clearInterval(mpQueuePollInterval);
+  game = nextGame;
   renderMpGame();
   runOpeningCountdown();
-  return true;
+  startMpPolling();
+}
+
+async function pollMatchmaking() {
+  const status = await api('/api/dr/status', { guest_id: profile?.guest_id || storedGuestId() });
+  if (status.status === 'matched' && status.game) {
+    await enterMatchedGame(status.game);
+    return;
+  }
+  if (status.status === 'waiting') {
+    els.mpStatusText.textContent = 'Searching for an opponent...';
+  }
 }
 
 async function startMpGame() {
-  const p1 = els.p1Input.value.trim() || 'Player 1';
-  const p2 = els.p2Input.value.trim() || 'Player 2';
-  await newMpGame(p1, p2);
+  showScreen('mp-setup');
+  els.mpStatusText.textContent = 'Searching for an opponent...';
+  els.startBtn.hidden = true;
+  els.cancelMatchBtn.hidden = false;
+  clearInterval(mpQueuePollInterval);
+  const queued = await api('/api/dr/queue', { guest_id: profile?.guest_id || storedGuestId() });
+  if (queued.error) {
+    alert('error: ' + queued.error);
+    els.startBtn.hidden = false;
+    els.cancelMatchBtn.hidden = true;
+    return;
+  }
+  if (queued.status === 'matched' && queued.game) {
+    await enterMatchedGame(queued.game);
+    return;
+  }
+  mpQueuePollInterval = setInterval(pollMatchmaking, 1500);
+}
+
+async function cancelMatchmaking() {
+  clearInterval(mpQueuePollInterval);
+  await api('/api/dr/cancel_queue', { guest_id: profile?.guest_id || storedGuestId() });
+  els.startBtn.hidden = false;
+  els.cancelMatchBtn.hidden = true;
+  els.mpStatusText.textContent = `Queue as ${profile?.display_name || 'your guest profile'}.`;
 }
 
 async function startBp() {
@@ -424,7 +487,10 @@ function runOpeningCountdown() {
 }
 
 async function onMpTimeout() {
-  game = await api('/api/timeout', { game_id: game.game_id });
+  game = await api('/api/timeout', {
+    game_id: game.game_id,
+    guest_id: profile?.guest_id || storedGuestId(),
+  });
   if (game.finished) {
     renderMpGame();
     showGameOverBanner();
@@ -453,7 +519,12 @@ async function submitMove({ raw, player_id }) {
   els.guessInput.value = '';
   const path = currentMode === 'bp' ? '/api/bp/move' : '/api/move';
   const prevTurnIndex = game.turn_index;
-  game = await api(path, { game_id: game.game_id, raw, player_id });
+  game = await api(path, {
+    game_id: game.game_id,
+    raw,
+    player_id,
+    guest_id: currentMode === 'mp' ? (profile?.guest_id || storedGuestId()) : undefined,
+  });
   if (currentMode === 'mp') {
     if (game.last_move?.outcome === 'valid' || game.turn_index !== prevTurnIndex) {
       resetTurnTimer();
@@ -644,7 +715,7 @@ function closeTeamAutocomplete(opts = {}) {
 }
 
 function renderMpGame() {
-  els.turnLabel.textContent = `${game.current_label}'s turn`;
+  els.turnLabel.textContent = game.your_turn ? 'Your turn' : `${game.current_label}'s turn`;
   els.currentPlayerName.textContent = game.current_player.name;
   setGuessDisabled(game.finished || (game.countdown_seconds_remaining || 0) > 0);
   els.guessInput.placeholder = 'Type a name (first or last)...';
@@ -976,7 +1047,7 @@ function rulesForMode() {
     return 'Review the revealed players and guess the team and year that links each pair. A correct team and year is a hit and reveals the next player. One correct field is a foul. The first foul in a streak is safe, then every foul after that in the same streak counts as a strike. Three strikes ends the review.';
   }
   if (currentMode === 'mp') {
-    return 'Two players alternate turns building one lineup. The round starts with a 3 second countdown, then the 30 second clock begins. On your turn, name a teammate of the last player before time runs out. Correct guesses pass the turn. Teams collect strikes when used, and Struck Out teams cannot link players again. You win when your opponent runs out of time.';
+    return 'Queue into an online match and take turns building one lineup. After the 3 second countdown, the 30 second clock begins. On your turn, name a teammate of the last player before time runs out. Correct guesses pass the turn. Teams collect strikes when used, and Struck Out teams cannot link players again. You win when your opponent runs out of time.';
   }
   return 'Pick a mode, then build or review a lineup by connecting baseball players through their shared teams.';
 }
@@ -1001,11 +1072,7 @@ document.querySelectorAll('[data-back="home"]').forEach((btn) => {
 });
 
 els.startBtn.addEventListener('click', startMpGame);
-[els.p1Input, els.p2Input].forEach((inp) => {
-  inp.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') startMpGame();
-  });
-});
+els.cancelMatchBtn.addEventListener('click', cancelMatchmaking);
 
 els.guessForm.addEventListener('submit', onGuessSubmit);
 els.guessInput.addEventListener('input', onGuessInput);

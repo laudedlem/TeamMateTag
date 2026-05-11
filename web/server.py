@@ -224,6 +224,7 @@ def ensure_runtime_schema():
                 """CREATE TABLE IF NOT EXISTS dr_results (
                        result_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                        owner_guest_id UUID REFERENCES guests(guest_id) ON DELETE SET NULL,
+                       opponent_guest_id UUID REFERENCES guests(guest_id) ON DELETE SET NULL,
                        opponent_name TEXT,
                        won BOOLEAN NOT NULL DEFAULT false,
                        elo_before INTEGER NOT NULL,
@@ -234,6 +235,17 @@ def ensure_runtime_schema():
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_dr_results_owner_guest "
                 "ON dr_results(owner_guest_id, finished_at DESC)"
+            )
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS dr_queue (
+                       guest_id UUID PRIMARY KEY REFERENCES guests(guest_id) ON DELETE CASCADE,
+                       display_name TEXT NOT NULL,
+                       enqueued_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                   )"""
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_dr_queue_enqueued "
+                "ON dr_queue(enqueued_at)"
             )
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS player_usage (
@@ -333,26 +345,43 @@ def _record_player_usage(conn, player_id: str, mode: str):
 def _save_dr_result(conn, blob: dict):
     if blob.get("result_saved"):
         return
-    guest_id = blob.get("owner_guest_id")
-    if not guest_id:
+    p1_guest_id = blob.get("p1_guest_id")
+    p2_guest_id = blob.get("p2_guest_id")
+    if not p1_guest_id or not p2_guest_id:
         blob["result_saved"] = True
         return
-    row = conn.execute(
+    p1_row = conn.execute(
         "SELECT elo FROM guests WHERE guest_id = %s",
-        (guest_id,),
+        (p1_guest_id,),
     ).fetchone()
-    elo_before = row[0] if row else 1200
-    won = blob.get("winner") == blob.get("p1")
-    elo_after = max(800, elo_before + (16 if won else -16))
+    p2_row = conn.execute(
+        "SELECT elo FROM guests WHERE guest_id = %s",
+        (p2_guest_id,),
+    ).fetchone()
+    p1_before = p1_row[0] if p1_row else 1200
+    p2_before = p2_row[0] if p2_row else 1200
+    p1_won = blob.get("winner") == blob.get("p1")
+    p1_after = max(800, p1_before + (16 if p1_won else -16))
+    p2_after = max(800, p2_before + (16 if not p1_won else -16))
     conn.execute(
         "UPDATE guests SET elo = %s WHERE guest_id = %s",
-        (elo_after, guest_id),
+        (p1_after, p1_guest_id),
+    )
+    conn.execute(
+        "UPDATE guests SET elo = %s WHERE guest_id = %s",
+        (p2_after, p2_guest_id),
     )
     conn.execute(
         """INSERT INTO dr_results (
-               owner_guest_id, opponent_name, won, elo_before, elo_after
-           ) VALUES (%s, %s, %s, %s, %s)""",
-        (guest_id, blob.get("p2"), bool(won), elo_before, elo_after),
+               owner_guest_id, opponent_guest_id, opponent_name, won, elo_before, elo_after
+           ) VALUES (%s, %s, %s, %s, %s, %s)""",
+        (p1_guest_id, p2_guest_id, blob.get("p2"), bool(p1_won), p1_before, p1_after),
+    )
+    conn.execute(
+        """INSERT INTO dr_results (
+               owner_guest_id, opponent_guest_id, opponent_name, won, elo_before, elo_after
+           ) VALUES (%s, %s, %s, %s, %s, %s)""",
+        (p2_guest_id, p1_guest_id, blob.get("p1"), bool(not p1_won), p2_before, p2_after),
     )
     blob["result_saved"] = True
 
@@ -722,6 +751,8 @@ def dr_blob_from_state(state: GameState, p1: str, p2: str, turn_index: int,
                        turn_seconds: float, turn_started_at: datetime,
                        countdown_seconds: float, finished: bool = False,
                        owner_guest_id: str | None = None,
+                       p1_guest_id: str | None = None,
+                       p2_guest_id: str | None = None,
                        seed_player_id: str = DEFAULT_SEED,
                        result_saved: bool = False,
                        winner: str | None = None,
@@ -735,6 +766,8 @@ def dr_blob_from_state(state: GameState, p1: str, p2: str, turn_index: int,
         "turn_started_at": turn_started_at.isoformat(),
         "countdown_seconds": countdown_seconds,
         "owner_guest_id": owner_guest_id,
+        "p1_guest_id": p1_guest_id,
+        "p2_guest_id": p2_guest_id,
         "seed_player_id": seed_player_id,
         "result_saved": result_saved,
         "finished": finished,
@@ -752,6 +785,14 @@ def dr_state_dict(gid: str, blob: dict, state: GameState, conn=None) -> dict:
     remaining = max(0.0, blob["turn_seconds"] - live_elapsed) \
         if not blob["finished"] else 0.0
     cards = _hydrate_player_cards(conn, list(state.chain)) if conn else None
+    viewer_guest_id = blob.get("viewer_guest_id")
+    p1_guest_id = blob.get("p1_guest_id")
+    p2_guest_id = blob.get("p2_guest_id")
+    your_side = (
+        "p1" if viewer_guest_id and viewer_guest_id == p1_guest_id
+        else "p2" if viewer_guest_id and viewer_guest_id == p2_guest_id
+        else None
+    )
     return {
         "game_id": gid,
         "current_player": {
@@ -761,6 +802,16 @@ def dr_state_dict(gid: str, blob: dict, state: GameState, conn=None) -> dict:
         "current_label": [blob["p1"], blob["p2"]][blob["turn_index"]],
         "p1": blob["p1"],
         "p2": blob["p2"],
+        "p1_guest_id": p1_guest_id,
+        "p2_guest_id": p2_guest_id,
+        "viewer_guest_id": viewer_guest_id,
+        "your_side": your_side,
+        "your_name": blob["p1"] if your_side == "p1" else blob["p2"] if your_side == "p2" else None,
+        "opponent_name": blob["p2"] if your_side == "p1" else blob["p1"] if your_side == "p2" else None,
+        "your_turn": (
+            (your_side == "p1" and blob["turn_index"] == 0) or
+            (your_side == "p2" and blob["turn_index"] == 1)
+        ) if your_side else False,
         "turn_index": blob["turn_index"],
         "turn_seconds": blob["turn_seconds"],
         "countdown_seconds_remaining": countdown_left,
@@ -771,6 +822,133 @@ def dr_state_dict(gid: str, blob: dict, state: GameState, conn=None) -> dict:
         "winner": blob.get("winner"),
         "last_move": blob.get("last_move"),
     }
+
+
+def _dr_authorize(blob: dict, guest_id: str) -> bool:
+    return guest_id in {blob.get("p1_guest_id"), blob.get("p2_guest_id")}
+
+
+def _dr_status_payload(conn, guest_id: str):
+    row = conn.execute(
+        """SELECT game_id::text, state, finished
+             FROM dr_games
+            WHERE NOT finished
+              AND ((state->>'p1_guest_id') = %s OR (state->>'p2_guest_id') = %s)
+            ORDER BY created_at DESC
+            LIMIT 1""",
+        (guest_id, guest_id),
+    ).fetchone()
+    if row:
+        gid, blob, finished = row
+        blob["finished"] = finished
+        blob["viewer_guest_id"] = guest_id
+        state = deserialize_state(blob)
+        return {"status": "matched", "game": dr_state_dict(gid, blob, state, conn=conn)}
+    qrow = conn.execute(
+        "SELECT enqueued_at FROM dr_queue WHERE guest_id = %s",
+        (guest_id,),
+    ).fetchone()
+    if qrow:
+        return {
+            "status": "waiting",
+            "guest_id": guest_id,
+            "enqueued_at": qrow[0].isoformat(),
+        }
+    return {"status": "idle"}
+
+
+@app.route("/api/dr/queue", methods=["POST"])
+def dr_queue():
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
+    guest_id = (data.get("guest_id") or "").strip()
+    if not guest_id:
+        return jsonify({"error": "guest_id required"}), 400
+    with db() as conn:
+        guest = conn.execute(
+            "SELECT display_name FROM guests WHERE guest_id = %s",
+            (guest_id,),
+        ).fetchone()
+        if not guest:
+            return jsonify({"error": "unknown guest_id"}), 404
+        display_name = guest[0] or f"Guest {guest_id[:8]}"
+
+        existing = _dr_status_payload(conn, guest_id)
+        if existing["status"] in {"matched", "waiting"}:
+            return jsonify(existing)
+
+        with conn.transaction():
+            conn.execute("SELECT pg_advisory_xact_lock(4411001)")
+            opp = conn.execute(
+                """SELECT guest_id::text, display_name
+                     FROM dr_queue
+                    WHERE guest_id <> %s
+                    ORDER BY enqueued_at
+                    LIMIT 1
+                    FOR UPDATE SKIP LOCKED""",
+                (guest_id,),
+            ).fetchone()
+            if opp:
+                opp_guest_id, opp_name = opp
+                conn.execute(
+                    "DELETE FROM dr_queue WHERE guest_id IN (%s, %s)",
+                    (guest_id, opp_guest_id),
+                )
+                engine_conn = PgEngineConn(conn)
+                state = seed_game(engine_conn, DEFAULT_SEED)
+                _record_player_usage(conn, DEFAULT_SEED, "dr")
+                blob = dr_blob_from_state(
+                    state,
+                    p1=opp_name,
+                    p2=display_name,
+                    turn_index=0,
+                    turn_seconds=TURN_SECONDS,
+                    turn_started_at=now_utc(),
+                    countdown_seconds=OPENING_COUNTDOWN_SECONDS,
+                    owner_guest_id=opp_guest_id,
+                    p1_guest_id=opp_guest_id,
+                    p2_guest_id=guest_id,
+                    seed_player_id=DEFAULT_SEED,
+                )
+                gid = _insert_game(conn, "dr_games", blob)
+                blob["viewer_guest_id"] = guest_id
+                return jsonify({
+                    "status": "matched",
+                    "game": dr_state_dict(gid, blob, state, conn=conn),
+                })
+
+            conn.execute(
+                """INSERT INTO dr_queue (guest_id, display_name, enqueued_at)
+                   VALUES (%s, %s, now())
+                   ON CONFLICT (guest_id) DO UPDATE
+                   SET display_name = EXCLUDED.display_name,
+                       enqueued_at = now()""",
+                (guest_id, display_name),
+            )
+        return jsonify(_dr_status_payload(conn, guest_id))
+
+
+@app.route("/api/dr/status", methods=["POST"])
+def dr_status():
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
+    guest_id = (data.get("guest_id") or "").strip()
+    if not guest_id:
+        return jsonify({"error": "guest_id required"}), 400
+    with db() as conn:
+        return jsonify(_dr_status_payload(conn, guest_id))
+
+
+@app.route("/api/dr/cancel_queue", methods=["POST"])
+def dr_cancel_queue():
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
+    guest_id = (data.get("guest_id") or "").strip()
+    if not guest_id:
+        return jsonify({"error": "guest_id required"}), 400
+    with db() as conn:
+        conn.execute("DELETE FROM dr_queue WHERE guest_id = %s", (guest_id,))
+    return jsonify({"status": "idle"})
 
 
 @app.route("/api/new_game", methods=["POST"])
@@ -814,6 +992,7 @@ def move():
     ensure_runtime_schema()
     data = request.get_json(silent=True) or {}
     gid = data.get("game_id")
+    guest_id = (data.get("guest_id") or "").strip()
     raw = (data.get("raw") or "").strip()
     player_id = (data.get("player_id") or "").strip() or None
 
@@ -821,8 +1000,14 @@ def move():
         blob, state = _load_game(conn, "dr_games", gid)
         if not blob:
             return jsonify({"error": "unknown game_id"}), 404
+        if not guest_id or not _dr_authorize(blob, guest_id):
+            return jsonify({"error": "unauthorized"}), 403
+        blob["viewer_guest_id"] = guest_id
         if blob["finished"]:
             return jsonify(dr_state_dict(gid, blob, state, conn=conn))
+        expected_turn_guest = [blob.get("p1_guest_id"), blob.get("p2_guest_id")][blob["turn_index"]]
+        if guest_id != expected_turn_guest:
+            return jsonify({"error": "not your turn", **dr_state_dict(gid, blob, state, conn=conn)}), 409
 
         started = datetime.fromisoformat(blob["turn_started_at"])
         elapsed = (now_utc() - started).total_seconds()
@@ -863,10 +1048,14 @@ def timeout():
     ensure_runtime_schema()
     data = request.get_json(silent=True) or {}
     gid = data.get("game_id")
+    guest_id = (data.get("guest_id") or "").strip()
     with db() as conn:
         blob, state = _load_game(conn, "dr_games", gid)
         if not blob:
             return jsonify({"error": "unknown game_id"}), 404
+        if not guest_id or not _dr_authorize(blob, guest_id):
+            return jsonify({"error": "unauthorized"}), 403
+        blob["viewer_guest_id"] = guest_id
         if blob["finished"]:
             return jsonify(dr_state_dict(gid, blob, state, conn=conn))
         started = datetime.fromisoformat(blob["turn_started_at"])
