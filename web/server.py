@@ -1862,6 +1862,29 @@ def dr_postgame_leave():
             "DELETE FROM dr_rematches WHERE original_game_id = %s AND requester_guest_id = %s",
             (game_id, guest_id),
         )
+        if blob.get("finished"):
+            other_guest_id = (
+                blob.get("p2_guest_id") if guest_id == blob.get("p1_guest_id")
+                else blob.get("p1_guest_id")
+            )
+            if other_guest_id:
+                other_requested = conn.execute(
+                    """SELECT 1
+                         FROM dr_rematches
+                        WHERE original_game_id = %s
+                          AND requester_guest_id = %s""",
+                    (game_id, other_guest_id),
+                ).fetchone()
+                if other_requested:
+                    conn.execute(
+                        """INSERT INTO dr_queue (guest_id, display_name, avoid_guest_id, enqueued_at)
+                           VALUES (%s, %s, %s, now())
+                           ON CONFLICT (guest_id) DO UPDATE
+                           SET display_name = EXCLUDED.display_name,
+                               avoid_guest_id = EXCLUDED.avoid_guest_id,
+                               enqueued_at = now()""",
+                        (other_guest_id, _guest_label(conn, other_guest_id), guest_id),
+                    )
     return jsonify({"status": "gone"})
 
 
