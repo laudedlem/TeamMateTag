@@ -564,7 +564,7 @@ function clearRequeueRelaxTimeout() {
 }
 
 async function goHome() {
-  const wasWaiting = !els.cancelMatchBtn.hidden;
+  const wasWaiting = !els.startScreen.hidden && !els.cancelMatchBtn.hidden;
   const activeMpGameId = currentMode === 'mp' && game?.game_id ? game.game_id : '';
   const finishedMpGameId = currentMode === 'mp' && game?.finished ? game.game_id : '';
   clearRequeueRelaxTimeout();
@@ -667,6 +667,9 @@ async function enterMatchedGame(nextGame) {
   hideGameOverBanner();
   showScreen('mp-game');
   clearInterval(mpQueuePollInterval);
+  els.startBtn.hidden = false;
+  els.cancelMatchBtn.hidden = true;
+  els.challengeStatusText.textContent = '';
   game = nextGame;
   renderMpGame();
   syncMpClock(null, game, { force: true });
