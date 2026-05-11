@@ -336,6 +336,48 @@ def ensure_runtime_schema():
                        PRIMARY KEY (original_game_id, guest_id)
                    )"""
             )
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS friend_requests (
+                       request_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                       sender_user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+                       recipient_user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+                       status TEXT NOT NULL DEFAULT 'pending',
+                       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                       responded_at TIMESTAMPTZ,
+                       CHECK (sender_user_id <> recipient_user_id)
+                   )"""
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_friend_requests_recipient "
+                "ON friend_requests(recipient_user_id, status, created_at DESC)"
+            )
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS friendships (
+                       user_a_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+                       user_b_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+                       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                       PRIMARY KEY (user_a_id, user_b_id),
+                       CHECK (user_a_id < user_b_id)
+                   )"""
+            )
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS dr_friend_challenges (
+                       challenge_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                       sender_user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+                       recipient_user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+                       sender_name TEXT NOT NULL,
+                       recipient_name TEXT NOT NULL,
+                       status TEXT NOT NULL DEFAULT 'pending',
+                       game_id UUID,
+                       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                       responded_at TIMESTAMPTZ,
+                       CHECK (sender_user_id <> recipient_user_id)
+                   )"""
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_friend_challenges_recipient "
+                "ON dr_friend_challenges(recipient_user_id, status, created_at DESC)"
+            )
         RUNTIME_SCHEMA_READY = True
 
 
@@ -414,6 +456,121 @@ def _guest_profile(conn, guest_id: str) -> dict | None:
             if username and email else None
         ),
         "stats": _guest_stats(conn, gid),
+    }
+
+
+def _guest_label(conn, guest_id: str) -> str:
+    row = conn.execute(
+        """SELECT COALESCE(u.username, g.display_name, %s)
+             FROM guests g
+             LEFT JOIN users u ON u.user_id = g.guest_id
+            WHERE g.guest_id = %s""",
+        (f"Guest {guest_id[:8]}", guest_id),
+    ).fetchone()
+    return row[0] if row and row[0] else f"Guest {guest_id[:8]}"
+
+
+def _require_user(conn, guest_id: str):
+    return conn.execute(
+        """SELECT user_id::text, username, email, display_name
+             FROM users
+            WHERE user_id = %s""",
+        (guest_id,),
+    ).fetchone()
+
+
+def _friendship_pair(a: str, b: str) -> tuple[str, str]:
+    return (a, b) if a < b else (b, a)
+
+
+def _friends_payload(conn, guest_id: str) -> dict:
+    user_row = _require_user(conn, guest_id)
+    if not user_row:
+        return {"error": "account required"}
+    incoming_requests = conn.execute(
+        """SELECT r.request_id::text, u.user_id::text, u.username, COALESCE(u.display_name, u.username)
+             FROM friend_requests r
+             JOIN users u ON u.user_id = r.sender_user_id
+            WHERE r.recipient_user_id = %s AND r.status = 'pending'
+            ORDER BY r.created_at DESC""",
+        (guest_id,),
+    ).fetchall()
+    outgoing_requests = conn.execute(
+        """SELECT r.request_id::text, u.user_id::text, u.username, COALESCE(u.display_name, u.username)
+             FROM friend_requests r
+             JOIN users u ON u.user_id = r.recipient_user_id
+            WHERE r.sender_user_id = %s AND r.status = 'pending'
+            ORDER BY r.created_at DESC""",
+        (guest_id,),
+    ).fetchall()
+    friends = conn.execute(
+        """SELECT friend_user_id::text, username, display_name FROM (
+               SELECT u.user_id AS friend_user_id, u.username, COALESCE(u.display_name, u.username) AS display_name
+                 FROM friendships f
+                 JOIN users u ON u.user_id = f.user_b_id
+                WHERE f.user_a_id = %s
+               UNION ALL
+               SELECT u.user_id AS friend_user_id, u.username, COALESCE(u.display_name, u.username) AS display_name
+                 FROM friendships f
+                 JOIN users u ON u.user_id = f.user_a_id
+                WHERE f.user_b_id = %s
+           ) q
+           ORDER BY username""",
+        (guest_id, guest_id),
+    ).fetchall()
+    incoming_challenges = conn.execute(
+        """SELECT challenge_id::text, sender_user_id::text, sender_name
+             FROM dr_friend_challenges
+            WHERE recipient_user_id = %s AND status = 'pending'
+            ORDER BY created_at DESC""",
+        (guest_id,),
+    ).fetchall()
+    outgoing_challenges = conn.execute(
+        """SELECT challenge_id::text, recipient_user_id::text, recipient_name
+             FROM dr_friend_challenges
+            WHERE sender_user_id = %s AND status = 'pending'
+            ORDER BY created_at DESC""",
+        (guest_id,),
+    ).fetchall()
+    matched = conn.execute(
+        """SELECT challenge_id::text, game_id::text
+             FROM dr_friend_challenges
+            WHERE (sender_user_id = %s OR recipient_user_id = %s)
+              AND status = 'accepted'
+              AND game_id IS NOT NULL
+            ORDER BY responded_at DESC NULLS LAST, created_at DESC
+            LIMIT 1""",
+        (guest_id, guest_id),
+    ).fetchone()
+    matched_game = None
+    if matched:
+        gid = matched[1]
+        blob, state = _load_game(conn, "dr_games", gid)
+        if blob and not blob.get("finished"):
+            blob["viewer_guest_id"] = guest_id
+            matched_game = dr_state_dict(gid, blob, state, conn=conn)
+    return {
+        "friends": [
+            {"user_id": uid, "username": username, "display_name": display_name}
+            for uid, username, display_name in friends
+        ],
+        "incoming_requests": [
+            {"request_id": rid, "user_id": uid, "username": username, "display_name": display_name}
+            for rid, uid, username, display_name in incoming_requests
+        ],
+        "outgoing_requests": [
+            {"request_id": rid, "user_id": uid, "username": username, "display_name": display_name}
+            for rid, uid, username, display_name in outgoing_requests
+        ],
+        "incoming_challenges": [
+            {"challenge_id": cid, "user_id": uid, "name": name}
+            for cid, uid, name in incoming_challenges
+        ],
+        "outgoing_challenges": [
+            {"challenge_id": cid, "user_id": uid, "name": name}
+            for cid, uid, name in outgoing_challenges
+        ],
+        "matched_game": matched_game,
     }
 
 
@@ -922,6 +1079,197 @@ def account_login():
     return jsonify(profile)
 
 
+@app.route("/api/friends/list", methods=["POST"])
+def friends_list():
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
+    guest_id = (data.get("guest_id") or "").strip()
+    if not guest_id:
+        return jsonify({"error": "guest_id required"}), 400
+    with db() as conn:
+        payload = _friends_payload(conn, guest_id)
+        if payload.get("error"):
+            return jsonify(payload), 403
+        return jsonify(payload)
+
+
+@app.route("/api/friends/request", methods=["POST"])
+def friends_request():
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
+    guest_id = (data.get("guest_id") or "").strip()
+    target = (data.get("target") or "").strip().lower()
+    if not guest_id or not target:
+        return jsonify({"error": "guest_id and target required"}), 400
+    with db() as conn:
+        me = _require_user(conn, guest_id)
+        if not me:
+            return jsonify({"error": "account required"}), 403
+        target_row = conn.execute(
+            """SELECT user_id::text, username
+                 FROM users
+                WHERE lower(username) = %s OR lower(email) = %s
+                LIMIT 1""",
+            (target, target),
+        ).fetchone()
+        if not target_row:
+            return jsonify({"error": "account not found"}), 404
+        target_id, _target_username = target_row
+        if target_id == guest_id:
+            return jsonify({"error": "cannot add yourself"}), 400
+        a, b = _friendship_pair(guest_id, target_id)
+        already = conn.execute(
+            "SELECT 1 FROM friendships WHERE user_a_id = %s AND user_b_id = %s",
+            (a, b),
+        ).fetchone()
+        if already:
+            return jsonify({"error": "already friends"}), 409
+        pending = conn.execute(
+            """SELECT 1 FROM friend_requests
+                 WHERE ((sender_user_id = %s AND recipient_user_id = %s)
+                     OR (sender_user_id = %s AND recipient_user_id = %s))
+                   AND status = 'pending'""",
+            (guest_id, target_id, target_id, guest_id),
+        ).fetchone()
+        if pending:
+            return jsonify({"error": "friend request already pending"}), 409
+        conn.execute(
+            """INSERT INTO friend_requests (sender_user_id, recipient_user_id)
+               VALUES (%s, %s)""",
+            (guest_id, target_id),
+        )
+        return jsonify(_friends_payload(conn, guest_id))
+
+
+@app.route("/api/friends/respond", methods=["POST"])
+def friends_respond():
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
+    guest_id = (data.get("guest_id") or "").strip()
+    request_id = (data.get("request_id") or "").strip()
+    accept = bool(data.get("accept"))
+    if not guest_id or not request_id:
+        return jsonify({"error": "guest_id and request_id required"}), 400
+    with db() as conn:
+        me = _require_user(conn, guest_id)
+        if not me:
+            return jsonify({"error": "account required"}), 403
+        row = conn.execute(
+            """SELECT sender_user_id::text, recipient_user_id::text, status
+                 FROM friend_requests
+                WHERE request_id = %s""",
+            (request_id,),
+        ).fetchone()
+        if not row:
+            return jsonify({"error": "request not found"}), 404
+        sender_id, recipient_id, status = row
+        if recipient_id != guest_id:
+            return jsonify({"error": "unauthorized"}), 403
+        if status != "pending":
+            return jsonify({"error": "request already handled"}), 409
+        new_status = "accepted" if accept else "rejected"
+        conn.execute(
+            "UPDATE friend_requests SET status = %s, responded_at = now() WHERE request_id = %s",
+            (new_status, request_id),
+        )
+        if accept:
+            a, b = _friendship_pair(sender_id, recipient_id)
+            conn.execute(
+                """INSERT INTO friendships (user_a_id, user_b_id)
+                   VALUES (%s, %s)
+                   ON CONFLICT DO NOTHING""",
+                (a, b),
+            )
+        return jsonify(_friends_payload(conn, guest_id))
+
+
+@app.route("/api/friends/challenge", methods=["POST"])
+def friends_challenge():
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
+    guest_id = (data.get("guest_id") or "").strip()
+    friend_user_id = (data.get("friend_user_id") or "").strip()
+    if not guest_id or not friend_user_id:
+        return jsonify({"error": "guest_id and friend_user_id required"}), 400
+    with db() as conn:
+        me = _require_user(conn, guest_id)
+        other = _require_user(conn, friend_user_id)
+        if not me or not other:
+            return jsonify({"error": "account required"}), 403
+        a, b = _friendship_pair(guest_id, friend_user_id)
+        friends = conn.execute(
+            "SELECT 1 FROM friendships WHERE user_a_id = %s AND user_b_id = %s",
+            (a, b),
+        ).fetchone()
+        if not friends:
+            return jsonify({"error": "friendship required"}), 403
+        pending = conn.execute(
+            """SELECT 1 FROM dr_friend_challenges
+                 WHERE ((sender_user_id = %s AND recipient_user_id = %s)
+                     OR (sender_user_id = %s AND recipient_user_id = %s))
+                   AND status = 'pending'""",
+            (guest_id, friend_user_id, friend_user_id, guest_id),
+        ).fetchone()
+        if pending:
+            return jsonify({"error": "challenge already pending"}), 409
+        conn.execute("DELETE FROM dr_queue WHERE guest_id IN (%s, %s)", (guest_id, friend_user_id))
+        conn.execute(
+            """INSERT INTO dr_friend_challenges (
+                   sender_user_id, recipient_user_id, sender_name, recipient_name
+               ) VALUES (%s, %s, %s, %s)""",
+            (guest_id, friend_user_id, _guest_label(conn, guest_id), _guest_label(conn, friend_user_id)),
+        )
+        return jsonify(_friends_payload(conn, guest_id))
+
+
+@app.route("/api/friends/challenge_respond", methods=["POST"])
+def friends_challenge_respond():
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
+    guest_id = (data.get("guest_id") or "").strip()
+    challenge_id = (data.get("challenge_id") or "").strip()
+    accept = bool(data.get("accept"))
+    if not guest_id or not challenge_id:
+        return jsonify({"error": "guest_id and challenge_id required"}), 400
+    with db() as conn:
+        me = _require_user(conn, guest_id)
+        if not me:
+            return jsonify({"error": "account required"}), 403
+        row = conn.execute(
+            """SELECT sender_user_id::text, recipient_user_id::text, sender_name, recipient_name, status
+                 FROM dr_friend_challenges
+                WHERE challenge_id = %s""",
+            (challenge_id,),
+        ).fetchone()
+        if not row:
+            return jsonify({"error": "challenge not found"}), 404
+        sender_id, recipient_id, sender_name, recipient_name, status = row
+        if recipient_id != guest_id:
+            return jsonify({"error": "unauthorized"}), 403
+        if status != "pending":
+            return jsonify({"error": "challenge already handled"}), 409
+        if not accept:
+            conn.execute(
+                "UPDATE dr_friend_challenges SET status = 'declined', responded_at = now() WHERE challenge_id = %s",
+                (challenge_id,),
+            )
+            return jsonify(_friends_payload(conn, guest_id))
+        gid, blob, state = _dr_create_online_game(conn, sender_id, sender_name, recipient_id, recipient_name)
+        conn.execute(
+            """UPDATE dr_friend_challenges
+                  SET status = 'accepted',
+                      game_id = %s,
+                      responded_at = now()
+                WHERE challenge_id = %s""",
+            (gid, challenge_id),
+        )
+        blob["viewer_guest_id"] = guest_id
+        return jsonify({
+            "status": "matched",
+            "game": dr_state_dict(gid, blob, state, conn=conn),
+        })
+
+
 @app.route("/api/bp/leaderboard")
 def bp_leaderboard():
     ensure_runtime_schema()
@@ -1134,10 +1482,11 @@ def _bp_daily_leaderboard(conn) -> list[dict]:
     rows = conn.execute(
         """
         SELECT
-            COALESCE(g.display_name, 'Guest') AS display_name,
+            COALESCE(u.username, g.display_name, 'Guest') AS display_name,
             b.chain_length
         FROM bp_runs b
         LEFT JOIN guests g ON g.guest_id = b.owner_guest_id
+        LEFT JOIN users u ON u.user_id = g.guest_id
         WHERE ((b.finished_at AT TIME ZONE 'America/Chicago')::date =
                (now() AT TIME ZONE 'America/Chicago')::date)
         ORDER BY b.chain_length DESC, b.finished_at ASC
@@ -1158,13 +1507,13 @@ def dr_queue():
     if not guest_id:
         return jsonify({"error": "guest_id required"}), 400
     with db() as conn:
-        guest = conn.execute(
-            "SELECT display_name FROM guests WHERE guest_id = %s",
+        exists = conn.execute(
+            "SELECT 1 FROM guests WHERE guest_id = %s",
             (guest_id,),
         ).fetchone()
-        if not guest:
+        if not exists:
             return jsonify({"error": "unknown guest_id"}), 404
-        display_name = guest[0] or f"Guest {guest_id[:8]}"
+        display_name = _guest_label(conn, guest_id)
 
         existing = _dr_status_payload(conn, guest_id)
         if existing["status"] in {"matched", "waiting"}:
@@ -1347,6 +1696,34 @@ def dr_rematch_status():
                 "opponent_requested": False,
                 "rematch_available": False,
             })
+        other_in_queue = conn.execute(
+            "SELECT 1 FROM dr_queue WHERE guest_id = %s",
+            (other_guest_id,),
+        ).fetchone()
+        other_in_other_game = conn.execute(
+            """SELECT 1
+                 FROM dr_games
+                WHERE NOT finished
+                  AND game_id <> %s
+                  AND ((state->>'p1_guest_id') = %s OR (state->>'p2_guest_id') = %s)
+                LIMIT 1""",
+            (gid, other_guest_id, other_guest_id),
+        ).fetchone()
+        other_hosting_invite = conn.execute(
+            """SELECT 1 FROM dr_invites
+                 WHERE host_guest_id = %s
+                   AND claimed_at IS NULL
+                   AND expires_at > now()
+                 LIMIT 1""",
+            (other_guest_id,),
+        ).fetchone()
+        if other_in_queue or other_in_other_game or other_hosting_invite:
+            return jsonify({
+                "status": "abandoned",
+                "you_requested": guest_id in requesters,
+                "opponent_requested": False,
+                "rematch_available": False,
+            })
         return jsonify({
             "status": "waiting",
             "you_requested": guest_id in requesters,
@@ -1390,13 +1767,12 @@ def dr_create_challenge():
     if not guest_id:
         return jsonify({"error": "guest_id required"}), 400
     with db() as conn:
-        guest = conn.execute(
-            "SELECT display_name FROM guests WHERE guest_id = %s",
+        exists = conn.execute(
+            "SELECT 1 FROM guests WHERE guest_id = %s",
             (guest_id,),
         ).fetchone()
-        if not guest:
+        if not exists:
             return jsonify({"error": "unknown guest_id"}), 404
-        display_name = guest[0] or f"Guest {guest_id[:8]}"
         conn.execute("DELETE FROM dr_queue WHERE guest_id = %s", (guest_id,))
         conn.execute(
             "DELETE FROM dr_invites WHERE host_guest_id = %s AND claimed_at IS NULL",
@@ -1406,7 +1782,7 @@ def dr_create_challenge():
         conn.execute(
             """INSERT INTO dr_invites (code, host_guest_id, host_name)
                VALUES (%s, %s, %s)""",
-            (code, guest_id, display_name),
+            (code, guest_id, _guest_label(conn, guest_id)),
         )
     return jsonify({"code": code})
 
@@ -1420,13 +1796,12 @@ def dr_join_challenge():
     if not guest_id or not code:
         return jsonify({"error": "guest_id and code required"}), 400
     with db() as conn:
-        guest = conn.execute(
-            "SELECT display_name FROM guests WHERE guest_id = %s",
+        exists = conn.execute(
+            "SELECT 1 FROM guests WHERE guest_id = %s",
             (guest_id,),
         ).fetchone()
-        if not guest:
+        if not exists:
             return jsonify({"error": "unknown guest_id"}), 404
-        display_name = guest[0] or f"Guest {guest_id[:8]}"
         with conn.transaction():
             conn.execute("SELECT pg_advisory_xact_lock(4411002)")
             row = conn.execute(
@@ -1444,7 +1819,7 @@ def dr_join_challenge():
             if host_guest_id == guest_id:
                 return jsonify({"error": "cannot join your own code"}), 400
             gid, blob, state = _dr_create_online_game(
-                conn, host_guest_id, host_name, guest_id, display_name
+                conn, host_guest_id, host_name, guest_id, _guest_label(conn, guest_id)
             )
             conn.execute(
                 "UPDATE dr_invites SET claimed_at = now() WHERE code = %s",

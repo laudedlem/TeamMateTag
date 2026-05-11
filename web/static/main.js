@@ -9,6 +9,7 @@ const els = {
   profileNameInput: document.getElementById('profile-name-input'),
   profileSaveBtn: document.getElementById('profile-save-btn'),
   profileOpenBtn: document.getElementById('profile-open-btn'),
+  friendsOpenBtn: document.getElementById('friends-open-btn'),
   profileStatus: document.getElementById('profile-status'),
   accountLoggedOut: document.getElementById('account-logged-out'),
   accountLoggedIn: document.getElementById('account-logged-in'),
@@ -21,6 +22,7 @@ const els = {
   accountSummary: document.getElementById('account-summary'),
   accountStatus: document.getElementById('account-status'),
   profileScreen: document.getElementById('profile-screen'),
+  friendsScreen: document.getElementById('friends-screen'),
   profileScreenName: document.getElementById('profile-screen-name'),
   profileBpBest: document.getElementById('profile-bp-best'),
   profileBpPlays: document.getElementById('profile-bp-plays'),
@@ -29,6 +31,13 @@ const els = {
   profileDrRecord: document.getElementById('profile-dr-record'),
   profileTopStruck: document.getElementById('profile-top-struck'),
   bpLeaderboard: document.getElementById('bp-leaderboard'),
+  friendsStatus: document.getElementById('friends-status'),
+  friendTargetInput: document.getElementById('friend-target-input'),
+  friendRequestBtn: document.getElementById('friend-request-btn'),
+  incomingRequestsList: document.getElementById('incoming-requests-list'),
+  outgoingRequestsList: document.getElementById('outgoing-requests-list'),
+  incomingChallengesList: document.getElementById('incoming-challenges-list'),
+  friendsList: document.getElementById('friends-list'),
   startScreen: document.getElementById('start-screen'),
   gameScreen: document.getElementById('game-screen'),
   frScreen: document.getElementById('fr-screen'),
@@ -104,6 +113,7 @@ let countdownInterval = null;
 let mpPollInterval = null;
 let mpQueuePollInterval = null;
 let mpRematchPollInterval = null;
+let friendsPollInterval = null;
 let turnLocalStart = 0;
 let lastChainLength = 0;
 let activeCountdownKey = '';
@@ -118,6 +128,7 @@ let teamAcItems = [];
 let teamAcHighlight = -1;
 let teamAcFetchSeq = 0;
 let userTypedTeamQuery = '';
+let friendsData = null;
 
 const GUEST_ID_KEY = 'tt_guest_id';
 
@@ -162,7 +173,7 @@ function renderProfile() {
   const plays = profile.stats?.fr_plays ?? 0;
   const drWins = profile.stats?.dr_wins ?? 0;
   const drLosses = profile.stats?.dr_losses ?? 0;
-  els.profileScreenName.textContent = profile.display_name || '';
+  els.profileScreenName.textContent = profile.account?.username || profile.display_name || '';
   els.profileBpBest.textContent = String(profile.stats?.bp_best ?? 0);
   els.profileBpPlays.textContent = String(profile.stats?.bp_plays ?? 0);
   els.profileFrRecord.textContent = `${wins}-${Math.max(0, plays - wins)}`;
@@ -190,6 +201,8 @@ async function bootstrapProfile() {
   if (profile?.guest_id) saveGuestId(profile.guest_id);
   renderProfile();
   refreshBpLeaderboard();
+  startFriendsPolling();
+  refreshFriends();
 }
 
 async function refreshBpLeaderboard() {
@@ -240,6 +253,8 @@ async function registerAccount() {
   saveGuestId(profile.guest_id);
   els.accountPasswordInput.value = '';
   renderProfile();
+  startFriendsPolling();
+  refreshFriends();
 }
 
 async function loginAccount() {
@@ -257,13 +272,194 @@ async function loginAccount() {
   els.accountPasswordInput.value = '';
   renderProfile();
   refreshBpLeaderboard();
+  startFriendsPolling();
+  refreshFriends();
 }
 
 async function logoutAccount() {
+  clearInterval(friendsPollInterval);
   window.localStorage.removeItem(GUEST_ID_KEY);
   profile = null;
+  friendsData = null;
   renderProfile();
   await bootstrapProfile();
+}
+
+function currentHandle() {
+  return profile?.account?.username || profile?.display_name || 'your profile';
+}
+
+function renderSimpleList(el, rows, emptyText, actionBuilder) {
+  if (!rows || rows.length === 0) {
+    el.innerHTML = `<div class="friend-empty">${escapeHtml(emptyText)}</div>`;
+    return;
+  }
+  el.innerHTML = rows.map((row) => {
+    const actions = actionBuilder ? actionBuilder(row) : '';
+    const sub = row.display_name && row.display_name !== row.username
+      ? `<div class="friend-sub">${escapeHtml(row.display_name)}</div>`
+      : '';
+    const label = row.username || row.name || row.display_name || '';
+    return `<div class="friend-row">
+      <div class="friend-meta">
+        <div class="friend-name">${escapeHtml(label)}</div>
+        ${sub}
+      </div>
+      <div class="friend-actions">${actions}</div>
+    </div>`;
+  }).join('');
+}
+
+function wireFriendsActions() {
+  document.querySelectorAll('[data-friend-accept]').forEach((btn) => {
+    btn.addEventListener('click', () => respondFriendRequest(btn.dataset.friendAccept, true));
+  });
+  document.querySelectorAll('[data-friend-decline]').forEach((btn) => {
+    btn.addEventListener('click', () => respondFriendRequest(btn.dataset.friendDecline, false));
+  });
+  document.querySelectorAll('[data-friend-challenge]').forEach((btn) => {
+    btn.addEventListener('click', () => sendFriendChallenge(btn.dataset.friendChallenge));
+  });
+  document.querySelectorAll('[data-challenge-accept]').forEach((btn) => {
+    btn.addEventListener('click', () => respondFriendChallenge(btn.dataset.challengeAccept, true));
+  });
+  document.querySelectorAll('[data-challenge-decline]').forEach((btn) => {
+    btn.addEventListener('click', () => respondFriendChallenge(btn.dataset.challengeDecline, false));
+  });
+}
+
+function renderFriends() {
+  if (!profile?.account) {
+    els.friendsStatus.textContent = 'Create an account or log in to use friends.';
+    renderSimpleList(els.incomingRequestsList, [], 'Account required.', null);
+    renderSimpleList(els.outgoingRequestsList, [], 'Account required.', null);
+    renderSimpleList(els.incomingChallengesList, [], 'Account required.', null);
+    renderSimpleList(els.friendsList, [], 'Account required.', null);
+    return;
+  }
+  if (!friendsData) {
+    els.friendsStatus.textContent = 'Loading friends...';
+    return;
+  }
+  els.friendsStatus.textContent = 'Add friends by username or email. Friend challenges start Division Rivalry right away.';
+  renderSimpleList(
+    els.incomingRequestsList,
+    friendsData.incoming_requests,
+    'No incoming requests.',
+    (row) => `
+      <button class="secondary" type="button" data-friend-accept="${row.request_id}">Accept</button>
+      <button class="secondary" type="button" data-friend-decline="${row.request_id}">Decline</button>
+    `,
+  );
+  renderSimpleList(els.outgoingRequestsList, friendsData.outgoing_requests, 'No outgoing requests.', () => '');
+  renderSimpleList(
+    els.incomingChallengesList,
+    friendsData.incoming_challenges,
+    'No game requests.',
+    (row) => `
+      <button class="secondary" type="button" data-challenge-accept="${row.challenge_id}">Accept</button>
+      <button class="secondary" type="button" data-challenge-decline="${row.challenge_id}">Decline</button>
+    `,
+  );
+  renderSimpleList(
+    els.friendsList,
+    friendsData.friends,
+    'No friends yet.',
+    (row) => `<button class="secondary" type="button" data-friend-challenge="${row.user_id}">Challenge</button>`,
+  );
+  wireFriendsActions();
+}
+
+async function refreshFriends() {
+  if (!profile?.account) {
+    friendsData = null;
+    renderFriends();
+    return;
+  }
+  const next = await api('/api/friends/list', { guest_id: profile.guest_id });
+  if (next?.error) {
+    els.friendsStatus.textContent = next.error;
+    return;
+  }
+  friendsData = next;
+  renderFriends();
+  if (friendsData.matched_game && currentMode !== 'mp') {
+    await enterMatchedGame(friendsData.matched_game);
+  }
+}
+
+function startFriendsPolling() {
+  clearInterval(friendsPollInterval);
+  if (!profile?.account) return;
+  friendsPollInterval = setInterval(refreshFriends, 3000);
+}
+
+async function openFriends() {
+  showScreen('friends');
+  await refreshFriends();
+  startFriendsPolling();
+}
+
+async function sendFriendRequest() {
+  if (!profile?.account) {
+    els.friendsStatus.textContent = 'You need an account to add friends.';
+    return;
+  }
+  const target = els.friendTargetInput.value.trim();
+  if (!target) return;
+  const next = await api('/api/friends/request', { guest_id: profile.guest_id, target });
+  if (next?.error) {
+    els.friendsStatus.textContent = next.error;
+    return;
+  }
+  els.friendTargetInput.value = '';
+  friendsData = next;
+  renderFriends();
+}
+
+async function respondFriendRequest(requestId, accept) {
+  const next = await api('/api/friends/respond', {
+    guest_id: profile.guest_id,
+    request_id: requestId,
+    accept,
+  });
+  if (next?.error) {
+    els.friendsStatus.textContent = next.error;
+    return;
+  }
+  friendsData = next;
+  renderFriends();
+}
+
+async function sendFriendChallenge(friendUserId) {
+  const next = await api('/api/friends/challenge', {
+    guest_id: profile.guest_id,
+    friend_user_id: friendUserId,
+  });
+  if (next?.error) {
+    els.friendsStatus.textContent = next.error;
+    return;
+  }
+  friendsData = next;
+  els.friendsStatus.textContent = 'Game request sent.';
+  renderFriends();
+}
+
+async function respondFriendChallenge(challengeId, accept) {
+  const next = await api('/api/friends/challenge_respond', {
+    guest_id: profile.guest_id,
+    challenge_id: challengeId,
+    accept,
+  });
+  if (next?.error) {
+    els.friendsStatus.textContent = next.error;
+    return;
+  }
+  if (next.status === 'matched' && next.game) {
+    await enterMatchedGame(next.game);
+    return;
+  }
+  await refreshFriends();
 }
 
 async function getAutocomplete(q) {
@@ -279,6 +475,7 @@ async function getTeamAutocomplete(q) {
 function showScreen(name) {
   els.homeScreen.hidden = name !== 'home';
   els.profileScreen.hidden = name !== 'profile';
+  els.friendsScreen.hidden = name !== 'friends';
   els.startScreen.hidden = name !== 'mp-setup';
   els.gameScreen.hidden = !(name === 'mp-game' || name === 'bp-game');
   els.frScreen.hidden = name !== 'fr-game';
@@ -305,6 +502,7 @@ function goHome() {
   clearInterval(mpPollInterval);
   clearInterval(mpQueuePollInterval);
   clearInterval(mpRematchPollInterval);
+  clearInterval(friendsPollInterval);
   activeCountdownKey = '';
   activeTimerKey = '';
   hideGameOverBanner();
@@ -337,14 +535,16 @@ function goHome() {
 }
 
 function openProfile() {
+  clearInterval(friendsPollInterval);
   renderProfile();
   showScreen('profile');
 }
 
 function pickMode(mode) {
+  clearInterval(friendsPollInterval);
   if (mode === 'mp') {
     showScreen('mp-setup');
-    els.mpStatusText.textContent = `Queue as ${profile?.display_name || 'your guest profile'}.`;
+    els.mpStatusText.textContent = `Queue as ${currentHandle()}.`;
     els.startBtn.hidden = false;
     els.cancelMatchBtn.hidden = true;
     els.challengeStatusText.textContent = '';
@@ -408,7 +608,7 @@ async function pollMatchmaking() {
     return;
   }
   if (status.status === 'idle' && els.challengeStatusText.textContent) return;
-  els.mpStatusText.textContent = `Queue as ${profile?.display_name || 'your guest profile'}.`;
+  els.mpStatusText.textContent = `Queue as ${currentHandle()}.`;
 }
 
 async function startMpGame() {
@@ -437,7 +637,7 @@ async function cancelMatchmaking() {
   await api('/api/dr/cancel_challenge', { guest_id: profile?.guest_id || storedGuestId() });
   els.startBtn.hidden = false;
   els.cancelMatchBtn.hidden = true;
-  els.mpStatusText.textContent = `Queue as ${profile?.display_name || 'your guest profile'}.`;
+  els.mpStatusText.textContent = `Queue as ${currentHandle()}.`;
   els.challengeStatusText.textContent = '';
 }
 
@@ -933,7 +1133,7 @@ function renderMpGame() {
   els.timer.classList.toggle('your-turn', !!game.your_turn);
   els.timer.classList.toggle('opponent-turn', !game.your_turn);
   setGuessDisabled(game.finished || (game.countdown_seconds_remaining || 0) > 0 || !game.your_turn);
-  els.guessInput.placeholder = 'Type a name (first or last)...';
+  els.guessInput.placeholder = game.your_turn ? 'Type a name (first or last)...' : '';
 
   els.feedback.innerHTML = renderMoveFeedback(game.last_move, game);
   renderCardStack(game.chain, game.strikes, true);
@@ -1422,9 +1622,11 @@ els.rulesClose.addEventListener('click', closeRules);
 els.rulesBackdrop.addEventListener('click', closeRules);
 els.profileSaveBtn.addEventListener('click', saveProfileName);
 els.profileOpenBtn.addEventListener('click', openProfile);
+els.friendsOpenBtn.addEventListener('click', openFriends);
 els.accountRegisterBtn.addEventListener('click', registerAccount);
 els.accountLoginBtn.addEventListener('click', loginAccount);
 els.accountLogoutBtn.addEventListener('click', logoutAccount);
+els.friendRequestBtn.addEventListener('click', sendFriendRequest);
 els.profileNameInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     e.preventDefault();
@@ -1437,6 +1639,12 @@ els.accountPasswordInput.addEventListener('keydown', (e) => {
     if (els.accountEmailInput.value.trim() || els.accountUsernameInput.value.trim()) {
       loginAccount();
     }
+  }
+});
+els.friendTargetInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    sendFriendRequest();
   }
 });
 

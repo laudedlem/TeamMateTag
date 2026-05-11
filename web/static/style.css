@@ -305,6 +305,51 @@ input[type="text"]:focus {
   align-items: center;
 }
 
+.friends-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.friend-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.65rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.friend-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.friend-name {
+  font-weight: 600;
+}
+
+.friend-sub {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.friend-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.friend-empty {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
 .challenge-row input {
   flex: 1;
   min-width: 0;

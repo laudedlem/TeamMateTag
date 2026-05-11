@@ -30,9 +30,10 @@
           <div>
             <div class="profile-label">Profile</div>
             <div class="profile-name-row">
-              <input id="profile-name-input" type="text" maxlength="24" placeholder="Guest name" />
+              <input id="profile-name-input" type="text" maxlength="24" placeholder="Profile name" />
               <button id="profile-save-btn" class="secondary" type="button">Save</button>
               <button id="profile-open-btn" class="secondary" type="button">View Profile</button>
+              <button id="friends-open-btn" class="secondary" type="button">Friends</button>
             </div>
             <p id="profile-status" class="muted small">Loading guest profile...</p>
           </div>
@@ -41,7 +42,7 @@
           <div class="profile-label">Accounts</div>
           <div id="account-logged-out">
             <div class="auth-grid">
-              <input id="account-username-input" type="text" maxlength="24" placeholder="Username" />
+              <input id="account-username-input" type="text" maxlength="120" placeholder="Username or Email" />
               <input id="account-email-input" type="text" maxlength="120" placeholder="Email" />
               <input id="account-password-input" type="password" maxlength="120" placeholder="Password" />
             </div>
@@ -127,6 +128,36 @@
       <div class="leaderboard-card">
         <h3>Today's Batting Practice Leaders</h3>
         <ol id="bp-leaderboard" class="leaderboard-list"></ol>
+      </div>
+    </div>
+  </section>
+
+  <section id="friends-screen" class="screen" hidden>
+    <div class="start-card profile-screen-card">
+      <button class="back-btn" data-back="home">&larr; Home</button>
+      <h2>Friends</h2>
+      <p class="muted" id="friends-status">Add friends by username or email. Friend challenges start Division Rivalry right away.</p>
+      <div class="challenge-row">
+        <input id="friend-target-input" type="text" maxlength="120" placeholder="Friend username or email" />
+        <button id="friend-request-btn" class="secondary" type="button">Send Request</button>
+      </div>
+      <div class="profile-detail-grid">
+        <div class="profile-detail">
+          <span class="profile-detail-label">Incoming Requests</span>
+          <div id="incoming-requests-list" class="friends-list"></div>
+        </div>
+        <div class="profile-detail">
+          <span class="profile-detail-label">Outgoing Requests</span>
+          <div id="outgoing-requests-list" class="friends-list"></div>
+        </div>
+        <div class="profile-detail">
+          <span class="profile-detail-label">Game Requests</span>
+          <div id="incoming-challenges-list" class="friends-list"></div>
+        </div>
+        <div class="profile-detail">
+          <span class="profile-detail-label">Friends</span>
+          <div id="friends-list" class="friends-list"></div>
+        </div>
       </div>
     </div>
   </section>
