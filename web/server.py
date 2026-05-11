@@ -248,28 +248,19 @@ def ensure_runtime_schema():
 
 
 def _guest_stats(conn, guest_id: str) -> dict:
-    bp_plays, bp_best = conn.execute(
-        """SELECT COUNT(*), COALESCE(MAX(chain_length), 0)
-             FROM bp_runs
-            WHERE owner_guest_id = %s""",
-        (guest_id,),
+    bp_plays, bp_best, fr_plays, fr_wins, dr_plays, dr_wins, elo = conn.execute(
+        """
+        SELECT
+            (SELECT COUNT(*) FROM bp_runs WHERE owner_guest_id = %s),
+            (SELECT COALESCE(MAX(chain_length), 0) FROM bp_runs WHERE owner_guest_id = %s),
+            (SELECT COUNT(*) FROM fr_results WHERE owner_guest_id = %s),
+            (SELECT COALESCE(SUM(CASE WHEN won THEN 1 ELSE 0 END), 0) FROM fr_results WHERE owner_guest_id = %s),
+            (SELECT COUNT(*) FROM dr_results WHERE owner_guest_id = %s),
+            (SELECT COALESCE(SUM(CASE WHEN won THEN 1 ELSE 0 END), 0) FROM dr_results WHERE owner_guest_id = %s),
+            (SELECT elo FROM guests WHERE guest_id = %s)
+        """,
+        (guest_id, guest_id, guest_id, guest_id, guest_id, guest_id, guest_id),
     ).fetchone()
-    fr_plays, fr_wins = conn.execute(
-        """SELECT COUNT(*), COALESCE(SUM(CASE WHEN won THEN 1 ELSE 0 END), 0)
-             FROM fr_results
-            WHERE owner_guest_id = %s""",
-        (guest_id,),
-    ).fetchone()
-    dr_plays, dr_wins = conn.execute(
-        """SELECT COUNT(*), COALESCE(SUM(CASE WHEN won THEN 1 ELSE 0 END), 0)
-             FROM dr_results
-            WHERE owner_guest_id = %s""",
-        (guest_id,),
-    ).fetchone()
-    elo = conn.execute(
-        "SELECT elo FROM guests WHERE guest_id = %s",
-        (guest_id,),
-    ).fetchone()[0]
     return {
         "bp_plays": bp_plays,
         "bp_best": bp_best,
@@ -387,61 +378,93 @@ def _save_fr_result(conn, blob: dict):
     blob["result_saved"] = True
 
 
+def _hydrate_player_cards(conn, player_ids: list[str]) -> dict[str, dict]:
+    """Batch-hydrate player cards into the process cache using one DB roundtrip
+    for player rows and one for appearance rows."""
+    wanted = []
+    out: dict[str, dict] = {}
+    for pid in player_ids:
+        cached = PLAYER_CARD_CACHE.get(pid)
+        if cached is not None:
+            out[pid] = cached
+        elif pid not in wanted:
+            wanted.append(pid)
+    if not wanted:
+        return out
+
+    with PLAYER_CARD_LOCK:
+        missing = [pid for pid in wanted if PLAYER_CARD_CACHE.get(pid) is None]
+        for pid in wanted:
+            cached = PLAYER_CARD_CACHE.get(pid)
+            if cached is not None:
+                out[pid] = cached
+        if not missing:
+            return out
+
+        player_rows = conn.execute(
+            """SELECT player_id, mlbam_id, debut_year, final_year, name_first, name_last
+                 FROM players
+                WHERE player_id = ANY(%s)""",
+            (missing,),
+        ).fetchall()
+        player_map = {
+            pid: (mlbam_id, debut_year, final_year, first, last)
+            for pid, mlbam_id, debut_year, final_year, first, last in player_rows
+        }
+        appearance_rows = conn.execute(
+            """SELECT a.player_id, a.season, t.name
+                 FROM appearances a
+                 JOIN teams t ON t.team_id = a.team_id AND t.season = a.season
+                WHERE a.player_id = ANY(%s)
+                ORDER BY a.player_id, a.season, t.team_id""",
+            (missing,),
+        ).fetchall()
+        appearances_by_player: dict[str, list[tuple[int, str]]] = {pid: [] for pid in missing}
+        for pid, season, team_name in appearance_rows:
+            appearances_by_player.setdefault(pid, []).append((season, team_name))
+
+        for pid in missing:
+            mlbam_id, debut_year, final_year, first, last = player_map.get(
+                pid, (None, None, None, None, None)
+            )
+            spans: list[list] = []
+            for season, team_name in appearances_by_player.get(pid, []):
+                if spans and spans[-1][0] == team_name and spans[-1][2] == season - 1:
+                    spans[-1][2] = season
+                else:
+                    spans.append([team_name, season, season])
+            teams_list = [
+                f"{name} {start}" if start == end else f"{name} {start}-{end}"
+                for name, start, end in spans
+            ]
+            card = {
+                "mlbam_id": mlbam_id,
+                "headshot_url": HEADSHOT_URL.format(mlbam_id) if mlbam_id else None,
+                "debut_year": debut_year,
+                "final_year": final_year,
+                "teams": teams_list,
+                "name_first": first,
+                "name_last": last,
+            }
+            PLAYER_CARD_CACHE[pid] = card
+            out[pid] = card
+    return out
+
+
 def player_card(player_id: str) -> dict:
-    """Per-process cache of player-card metadata (mlbam_id, debut/final
-    years, career-team spans). 7,170 max entries; ~3-5 MB fully loaded."""
     cached = PLAYER_CARD_CACHE.get(player_id)
     if cached is not None:
         return cached
-
-    with PLAYER_CARD_LOCK:
-        cached = PLAYER_CARD_CACHE.get(player_id)
-        if cached is not None:
-            return cached
-
-        with db() as conn:
-            row = conn.execute(
-                """SELECT mlbam_id, debut_year, final_year, name_first, name_last
-                     FROM players WHERE player_id = %s""",
-                (player_id,),
-            ).fetchone()
-            mlbam_id, debut_year, final_year, first, last = (
-                row or (None, None, None, None, None)
-            )
-
-            appearances = conn.execute(
-                """SELECT a.season, t.name
-                     FROM appearances a
-                     JOIN teams t ON t.team_id = a.team_id AND t.season = a.season
-                    WHERE a.player_id = %s
-                    ORDER BY a.season, t.team_id""",
-                (player_id,),
-            ).fetchall()
-
-        # Group consecutive same-name seasons into spans.
-        spans: list[list] = []
-        for season, team_name in appearances:
-            if spans and spans[-1][0] == team_name and spans[-1][2] == season - 1:
-                spans[-1][2] = season
-            else:
-                spans.append([team_name, season, season])
-
-        teams_list = [
-            f"{name} {start}" if start == end else f"{name} {start}-{end}"
-            for name, start, end in spans
-        ]
-
-        card = {
-            "mlbam_id": mlbam_id,
-            "headshot_url": HEADSHOT_URL.format(mlbam_id) if mlbam_id else None,
-            "debut_year": debut_year,
-            "final_year": final_year,
-            "teams": teams_list,
-            "name_first": first,
-            "name_last": last,
-        }
-        PLAYER_CARD_CACHE[player_id] = card
-        return card
+    with db() as conn:
+        return _hydrate_player_cards(conn, [player_id]).get(player_id, {
+            "mlbam_id": None,
+            "headshot_url": None,
+            "debut_year": None,
+            "final_year": None,
+            "teams": [],
+            "name_first": None,
+            "name_last": None,
+        })
 
 
 # ============================================================
@@ -488,9 +511,11 @@ def chain_dict(state: GameState) -> list[dict]:
     """Hydrated chain for the client: full player cards + per-link shared
     seasons with display team-name."""
     ensure_static_caches()
+    with db() as conn:
+        cards = _hydrate_player_cards(conn, list(state.chain))
     out = []
     for i, (pid, name) in enumerate(zip(state.chain, state.chain_names)):
-        card = player_card(pid)
+        card = cards.get(pid) or player_card(pid)
         shared = state.chain_shared_with_prev[i]
         out.append({
             "id": pid,
@@ -1052,6 +1077,10 @@ def fr_today_puzzle() -> dict:
 
 def fr_card_dict(player_id: str) -> dict:
     card = player_card(player_id)
+    return fr_card_dict_from_card(player_id, card)
+
+
+def fr_card_dict_from_card(player_id: str, card: dict) -> dict:
     name_first = card["name_first"] or ""
     name_last = card["name_last"] or ""
     return {
@@ -1068,18 +1097,28 @@ def fr_card_dict(player_id: str) -> dict:
 def fr_state_dict(gid: str, blob: dict) -> dict:
     deck = blob["deck"]
     pair_index = blob["pair_index"]
+    with db() as conn:
+        cards = _hydrate_player_cards(conn, list(deck))
     return {
         "game_id": gid,
         "mode": "fr",
         "puzzle_id": blob["puzzle_id"],
         "total_cards": len(deck),
         "revealed_count": blob["revealed_count"],
-        "revealed_cards": [fr_card_dict(pid) for pid in deck[:blob["revealed_count"]]],
+        "revealed_cards": [
+            fr_card_dict_from_card(pid, cards.get(pid) or player_card(pid))
+            for pid in deck[:blob["revealed_count"]]
+        ],
         "pair_index": pair_index,
         "pair_names": [
-            (fr_card_dict(deck[pair_index])["name"]
+            (fr_card_dict_from_card(
+                deck[pair_index], cards.get(deck[pair_index]) or player_card(deck[pair_index])
+            )["name"]
              if pair_index < len(deck) else None),
-            (fr_card_dict(deck[pair_index + 1])["name"]
+            (fr_card_dict_from_card(
+                deck[pair_index + 1],
+                cards.get(deck[pair_index + 1]) or player_card(deck[pair_index + 1]),
+            )["name"]
              if pair_index + 1 < len(deck) else None),
         ],
         "solved_links": blob["solved_links"][: max(0, blob["revealed_count"] - 1)],
@@ -1266,8 +1305,13 @@ def fr_reveal_answer():
     blob, finished = row
     if not finished:
         return jsonify({"error": "game not finished"}), 400
+    with db() as conn:
+        cards = _hydrate_player_cards(conn, list(blob["deck"]))
     return jsonify({
-        "full_cards": [fr_card_dict(pid) for pid in blob["deck"]],
+        "full_cards": [
+            fr_card_dict_from_card(pid, cards.get(pid) or player_card(pid))
+            for pid in blob["deck"]
+        ],
         "canonical_links": [
             (
                 {"team_id": pair[0][0], "season": pair[0][1], "team_name": pair[0][2]}

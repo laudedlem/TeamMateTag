@@ -184,8 +184,10 @@ function showScreen(name) {
   els.brandSubtitle.textContent = '';
 
   els.exitBtn.hidden = name === 'home';
-  els.headerToggles.hidden = !(name === 'mp-game' || name === 'bp-game');
-  els.outSection.hidden = !(name === 'mp-game' || name === 'bp-game') || !els.toggleOut.checked;
+  const togglesRelevant = name === 'mp-game' || name === 'bp-game';
+  els.headerToggles.hidden = !togglesRelevant;
+  els.lineupSection.hidden = !togglesRelevant || !els.toggleLineup.checked;
+  els.outSection.hidden = !togglesRelevant || !els.toggleOut.checked;
 }
 
 function goHome() {
@@ -942,15 +944,7 @@ async function loadFrAnswers() {
     frGame.solved_links = res.canonical_links;
     renderFrGame(true);
   }
-  const items = res.answers.map((pair, idx) => {
-    const names = idx < res.full_cards.length - 1
-      ? `${res.full_cards[idx]?.name || ''} to ${res.full_cards[idx + 1]?.name || ''}`
-      : `Link ${idx + 1}`;
-    const answers = pair.map((p) => `${p.team_name} ${p.season}`).join(' or ');
-    return `<li><strong>${escapeHtml(names)}:</strong> ${escapeHtml(answers)}</li>`;
-  }).join('');
-  els.frAnswerReveal.innerHTML =
-    `<div>The correct connections were:</div><ul>${items}</ul>`;
+  els.frAnswerReveal.innerHTML = '';
 }
 
 function formatYears(debut, final) {
