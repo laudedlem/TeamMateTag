@@ -507,12 +507,13 @@ def deserialize_state(blob: dict) -> GameState:
     return state
 
 
-def chain_dict(state: GameState) -> list[dict]:
+def chain_dict(state: GameState, cards: dict[str, dict] | None = None) -> list[dict]:
     """Hydrated chain for the client: full player cards + per-link shared
     seasons with display team-name."""
     ensure_static_caches()
-    with db() as conn:
-        cards = _hydrate_player_cards(conn, list(state.chain))
+    if cards is None:
+        with db() as conn:
+            cards = _hydrate_player_cards(conn, list(state.chain))
     out = []
     for i, (pid, name) in enumerate(zip(state.chain, state.chain_names)):
         card = cards.get(pid) or player_card(pid)
@@ -742,7 +743,7 @@ def dr_blob_from_state(state: GameState, p1: str, p2: str, turn_index: int,
     }
 
 
-def dr_state_dict(gid: str, blob: dict, state: GameState) -> dict:
+def dr_state_dict(gid: str, blob: dict, state: GameState, conn=None) -> dict:
     started = datetime.fromisoformat(blob["turn_started_at"])
     elapsed = (now_utc() - started).total_seconds()
     countdown_left = max(0.0, blob["countdown_seconds"] - elapsed) \
@@ -750,6 +751,7 @@ def dr_state_dict(gid: str, blob: dict, state: GameState) -> dict:
     live_elapsed = max(0.0, elapsed - blob["countdown_seconds"])
     remaining = max(0.0, blob["turn_seconds"] - live_elapsed) \
         if not blob["finished"] else 0.0
+    cards = _hydrate_player_cards(conn, list(state.chain)) if conn else None
     return {
         "game_id": gid,
         "current_player": {
@@ -763,7 +765,7 @@ def dr_state_dict(gid: str, blob: dict, state: GameState) -> dict:
         "turn_seconds": blob["turn_seconds"],
         "countdown_seconds_remaining": countdown_left,
         "remaining_seconds": remaining,
-        "chain": chain_dict(state),
+        "chain": chain_dict(state, cards=cards),
         "strikes": strikes_dict(state),
         "finished": blob["finished"],
         "winner": blob.get("winner"),
@@ -804,7 +806,7 @@ def new_game():
             seed_player_id=seed,
         )
         gid = _insert_game(conn, "dr_games", blob)
-    return jsonify(dr_state_dict(gid, blob, state))
+        return jsonify(dr_state_dict(gid, blob, state, conn=conn))
 
 
 @app.route("/api/move", methods=["POST"])
@@ -820,7 +822,7 @@ def move():
         if not blob:
             return jsonify({"error": "unknown game_id"}), 404
         if blob["finished"]:
-            return jsonify(dr_state_dict(gid, blob, state))
+            return jsonify(dr_state_dict(gid, blob, state, conn=conn))
 
         started = datetime.fromisoformat(blob["turn_started_at"])
         elapsed = (now_utc() - started).total_seconds()
@@ -831,12 +833,12 @@ def move():
             blob["last_move"] = {"outcome": "timeout"}
             _save_dr_result(conn, blob)
             _save_game(conn, "dr_games", gid, blob)
-            return jsonify(dr_state_dict(gid, blob, state))
+            return jsonify(dr_state_dict(gid, blob, state, conn=conn))
 
         if not raw and not player_id:
             blob["last_move"] = None
             _save_game(conn, "dr_games", gid, blob)
-            return jsonify(dr_state_dict(gid, blob, state))
+            return jsonify(dr_state_dict(gid, blob, state, conn=conn))
 
         engine_conn = PgEngineConn(conn)
         if player_id:
@@ -853,8 +855,7 @@ def move():
             blob["turn_started_at"] = now_utc().isoformat()
             blob["countdown_seconds"] = 0.0
         _save_game(conn, "dr_games", gid, blob)
-
-    return jsonify(dr_state_dict(gid, blob, state))
+        return jsonify(dr_state_dict(gid, blob, state, conn=conn))
 
 
 @app.route("/api/timeout", methods=["POST"])
@@ -867,18 +868,18 @@ def timeout():
         if not blob:
             return jsonify({"error": "unknown game_id"}), 404
         if blob["finished"]:
-            return jsonify(dr_state_dict(gid, blob, state))
+            return jsonify(dr_state_dict(gid, blob, state, conn=conn))
         started = datetime.fromisoformat(blob["turn_started_at"])
         elapsed = (now_utc() - started).total_seconds()
         live_elapsed = max(0.0, elapsed - blob["countdown_seconds"])
         if live_elapsed < blob["turn_seconds"] - 0.25:
-            return jsonify(dr_state_dict(gid, blob, state))
+            return jsonify(dr_state_dict(gid, blob, state, conn=conn))
         blob["finished"] = True
         blob["winner"] = [blob["p2"], blob["p1"]][blob["turn_index"]]
         blob["last_move"] = {"outcome": "timeout"}
         _save_dr_result(conn, blob)
         _save_game(conn, "dr_games", gid, blob)
-    return jsonify(dr_state_dict(gid, blob, state))
+        return jsonify(dr_state_dict(gid, blob, state, conn=conn))
 
 
 # ============================================================
@@ -907,7 +908,7 @@ def bp_blob_from_state(state: GameState, turn_seconds: float,
     }
 
 
-def bp_state_dict(gid: str, blob: dict, state: GameState) -> dict:
+def bp_state_dict(gid: str, blob: dict, state: GameState, conn=None) -> dict:
     started = datetime.fromisoformat(blob["turn_started_at"])
     elapsed = (now_utc() - started).total_seconds()
     countdown_left = max(0.0, blob["countdown_seconds"] - elapsed) \
@@ -915,6 +916,7 @@ def bp_state_dict(gid: str, blob: dict, state: GameState) -> dict:
     live_elapsed = max(0.0, elapsed - blob["countdown_seconds"])
     remaining = max(0.0, blob["turn_seconds"] - live_elapsed) \
         if not blob["finished"] else 0.0
+    cards = _hydrate_player_cards(conn, list(state.chain)) if conn else None
     return {
         "game_id": gid,
         "mode": "bp",
@@ -922,7 +924,7 @@ def bp_state_dict(gid: str, blob: dict, state: GameState) -> dict:
             "id": state.current_player_id,
             "name": state.current_player_name,
         },
-        "chain": chain_dict(state),
+        "chain": chain_dict(state, cards=cards),
         "strikes": strikes_dict(state),
         "chain_length": len(state.chain),
         "longest_chain": blob["longest_chain"],
@@ -965,7 +967,7 @@ def bp_new():
             seed_player_id=seed,
         )
         gid = _insert_game(conn, "bp_games", blob)
-    return jsonify(bp_state_dict(gid, blob, state))
+        return jsonify(bp_state_dict(gid, blob, state, conn=conn))
 
 
 @app.route("/api/bp/move", methods=["POST"])
@@ -980,7 +982,7 @@ def bp_move():
         if not blob:
             return jsonify({"error": "unknown game_id"}), 404
         if blob["finished"]:
-            return jsonify(bp_state_dict(gid, blob, state))
+            return jsonify(bp_state_dict(gid, blob, state, conn=conn))
 
         started = datetime.fromisoformat(blob["turn_started_at"])
         elapsed = (now_utc() - started).total_seconds()
@@ -990,12 +992,12 @@ def bp_move():
             blob["last_move"] = {"outcome": "timeout"}
             _save_bp_run(conn, blob, state)
             _save_game(conn, "bp_games", gid, blob)
-            return jsonify(bp_state_dict(gid, blob, state))
+            return jsonify(bp_state_dict(gid, blob, state, conn=conn))
 
         if not raw and not player_id:
             blob["last_move"] = None
             _save_game(conn, "bp_games", gid, blob)
-            return jsonify(bp_state_dict(gid, blob, state))
+            return jsonify(bp_state_dict(gid, blob, state, conn=conn))
 
         engine_conn = PgEngineConn(conn)
         if player_id:
@@ -1015,8 +1017,7 @@ def bp_move():
             blob["countdown_seconds"] = 0.0
             blob["longest_chain"] = max(blob["longest_chain"], len(state.chain))
         _save_game(conn, "bp_games", gid, blob)
-
-    return jsonify(bp_state_dict(gid, blob, state))
+        return jsonify(bp_state_dict(gid, blob, state, conn=conn))
 
 
 @app.route("/api/bp/timeout", methods=["POST"])
@@ -1029,17 +1030,17 @@ def bp_timeout():
         if not blob:
             return jsonify({"error": "unknown game_id"}), 404
         if blob["finished"]:
-            return jsonify(bp_state_dict(gid, blob, state))
+            return jsonify(bp_state_dict(gid, blob, state, conn=conn))
         started = datetime.fromisoformat(blob["turn_started_at"])
         elapsed = (now_utc() - started).total_seconds()
         live_elapsed = max(0.0, elapsed - blob["countdown_seconds"])
         if live_elapsed < blob["turn_seconds"] - 0.25:
-            return jsonify(bp_state_dict(gid, blob, state))
+            return jsonify(bp_state_dict(gid, blob, state, conn=conn))
         blob["finished"] = True
         blob["last_move"] = {"outcome": "timeout"}
         _save_bp_run(conn, blob, state)
         _save_game(conn, "bp_games", gid, blob)
-    return jsonify(bp_state_dict(gid, blob, state))
+        return jsonify(bp_state_dict(gid, blob, state, conn=conn))
 
 
 # ============================================================
@@ -1094,11 +1095,14 @@ def fr_card_dict_from_card(player_id: str, card: dict) -> dict:
     }
 
 
-def fr_state_dict(gid: str, blob: dict) -> dict:
+def fr_state_dict(gid: str, blob: dict, conn=None) -> dict:
     deck = blob["deck"]
     pair_index = blob["pair_index"]
-    with db() as conn:
+    if conn:
         cards = _hydrate_player_cards(conn, list(deck))
+    else:
+        with db() as _conn:
+            cards = _hydrate_player_cards(_conn, list(deck))
     return {
         "game_id": gid,
         "mode": "fr",
@@ -1214,7 +1218,7 @@ def fr_new():
             }), 500
         blob = fr_blob_from_puzzle(puz, shared_per_pair, owner_guest_id=guest_id)
         gid = _insert_game(conn, "fr_games", blob)
-    return jsonify(fr_state_dict(gid, blob))
+        return jsonify(fr_state_dict(gid, blob, conn=conn))
 
 
 @app.route("/api/fr/guess", methods=["POST"])
@@ -1234,13 +1238,13 @@ def fr_guess():
         blob, finished = row
         blob["finished"] = finished
         if finished:
-            return jsonify(fr_state_dict(gid, blob))
+            return jsonify(fr_state_dict(gid, blob, conn=conn))
         if not team_text or not year_text:
             blob["last_guess"] = {
                 "outcome": "invalid", "team": team_text, "year": year_text,
             }
             _save_game(conn, "fr_games", gid, blob)
-            return jsonify(fr_state_dict(gid, blob))
+            return jsonify(fr_state_dict(gid, blob, conn=conn))
 
         shared_raw = blob["shared_per_pair"][blob["pair_index"]]
         shared = [(r[0], r[1], r[2]) for r in shared_raw]
@@ -1288,7 +1292,7 @@ def fr_guess():
         if blob["finished"]:
             _save_fr_result(conn, blob)
         _save_game(conn, "fr_games", gid, blob)
-    return jsonify(fr_state_dict(gid, blob))
+        return jsonify(fr_state_dict(gid, blob, conn=conn))
 
 
 @app.route("/api/fr/reveal_answer", methods=["POST"])

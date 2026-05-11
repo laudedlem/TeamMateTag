@@ -873,6 +873,11 @@ button.secondary:hover { border-color: var(--accent); color: var(--accent); }
   text-align: center;
 }
 
+#fr-summary-banner {
+  position: static;
+  top: auto;
+}
+
 #winner-text {
   margin: 0 0 0.4rem 0;
   font-size: 1.8rem;
