@@ -121,6 +121,10 @@ TEAM_FRANCHISE: dict[tuple[str, int], str] = {}
 ALL_FR_TEAM_NAMES: list[str] = []
 PLAYER_CARD_CACHE: dict[str, dict] = {}
 PLAYER_CARD_LOCK = Lock()
+STATIC_CACHE_LOCK = Lock()
+STATIC_CACHE_READY = False
+RUNTIME_SCHEMA_LOCK = Lock()
+RUNTIME_SCHEMA_READY = False
 
 
 FR_CANONICAL_FRANCHISE_NAMES = {
@@ -133,6 +137,7 @@ FR_CANONICAL_FRANCHISE_NAMES = {
 
 
 def fr_display_team_name(team_id: str, season: int) -> str:
+    ensure_static_caches()
     franchise_id = TEAM_FRANCHISE.get((team_id, season))
     if franchise_id in FR_CANONICAL_FRANCHISE_NAMES:
         return FR_CANONICAL_FRANCHISE_NAMES[franchise_id]
@@ -140,6 +145,7 @@ def fr_display_team_name(team_id: str, season: int) -> str:
 
 
 def fr_team_aliases(team_id: str, season: int) -> list[str]:
+    ensure_static_caches()
     raw_name = (TEAM_NAME.get((team_id, season), team_id) or "").lower()
     franchise_id = TEAM_FRANCHISE.get((team_id, season))
     if franchise_id == "ANA":
@@ -157,18 +163,143 @@ def fr_team_aliases(team_id: str, season: int) -> list[str]:
     return [raw_name]
 
 
-def _init_static_caches():
+def ensure_static_caches():
     """Load team-name lookups once per process. ~810 rows."""
-    global TEAM_NAME, TEAM_FRANCHISE, ALL_FR_TEAM_NAMES
-    with db() as conn:
-        rows = conn.execute(
-            "SELECT team_id, season, franchise_id, name FROM teams"
-        ).fetchall()
-    TEAM_NAME = {(t, s): n for t, s, _, n in rows}
-    TEAM_FRANCHISE = {(t, s): f for t, s, f, _ in rows}
-    ALL_FR_TEAM_NAMES = sorted({
-        fr_display_team_name(t, s) for t, s in TEAM_NAME
-    })
+    global TEAM_NAME, TEAM_FRANCHISE, ALL_FR_TEAM_NAMES, STATIC_CACHE_READY
+    if STATIC_CACHE_READY:
+        return
+    with STATIC_CACHE_LOCK:
+        if STATIC_CACHE_READY:
+            return
+        with db() as conn:
+            rows = conn.execute(
+                "SELECT team_id, season, franchise_id, name FROM teams"
+            ).fetchall()
+        TEAM_NAME = {(t, s): n for t, s, _, n in rows}
+        TEAM_FRANCHISE = {(t, s): f for t, s, f, _ in rows}
+        ALL_FR_TEAM_NAMES = sorted({
+            fr_display_team_name_noinit(t, s) for t, s in TEAM_NAME
+        })
+        STATIC_CACHE_READY = True
+
+
+def fr_display_team_name_noinit(team_id: str, season: int) -> str:
+    """Internal helper for cache-building to avoid recursive init."""
+    franchise_id = TEAM_FRANCHISE.get((team_id, season))
+    if franchise_id in FR_CANONICAL_FRANCHISE_NAMES:
+        return FR_CANONICAL_FRANCHISE_NAMES[franchise_id]
+    return TEAM_NAME.get((team_id, season), team_id)
+
+
+def ensure_runtime_schema():
+    global RUNTIME_SCHEMA_READY
+    if RUNTIME_SCHEMA_READY:
+        return
+    with RUNTIME_SCHEMA_LOCK:
+        if RUNTIME_SCHEMA_READY:
+            return
+        with db() as conn:
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS fr_results (
+                       result_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                       owner_user_id UUID REFERENCES users(user_id) ON DELETE SET NULL,
+                       owner_guest_id UUID REFERENCES guests(guest_id) ON DELETE SET NULL,
+                       puzzle_id TEXT NOT NULL,
+                       hits INTEGER NOT NULL,
+                       fouls INTEGER NOT NULL,
+                       strikes INTEGER NOT NULL,
+                       won BOOLEAN NOT NULL DEFAULT false,
+                       finished_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                   )"""
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_fr_results_owner_guest "
+                "ON fr_results(owner_guest_id, finished_at DESC)"
+            )
+        RUNTIME_SCHEMA_READY = True
+
+
+def _guest_stats(conn, guest_id: str) -> dict:
+    bp_plays, bp_best = conn.execute(
+        """SELECT COUNT(*), COALESCE(MAX(chain_length), 0)
+             FROM bp_runs
+            WHERE owner_guest_id = %s""",
+        (guest_id,),
+    ).fetchone()
+    fr_plays, fr_wins = conn.execute(
+        """SELECT COUNT(*), COALESCE(SUM(CASE WHEN won THEN 1 ELSE 0 END), 0)
+             FROM fr_results
+            WHERE owner_guest_id = %s""",
+        (guest_id,),
+    ).fetchone()
+    return {
+        "bp_plays": bp_plays,
+        "bp_best": bp_best,
+        "fr_plays": fr_plays,
+        "fr_wins": fr_wins,
+    }
+
+
+def _guest_profile(conn, guest_id: str) -> dict | None:
+    row = conn.execute(
+        """SELECT guest_id::text, display_name, created_at
+             FROM guests
+            WHERE guest_id = %s""",
+        (guest_id,),
+    ).fetchone()
+    if not row:
+        return None
+    gid, display_name, created_at = row
+    return {
+        "guest_id": gid,
+        "display_name": display_name or f"Guest {gid[:8]}",
+        "created_at": created_at.isoformat(),
+        "stats": _guest_stats(conn, gid),
+    }
+
+
+def _create_guest(conn) -> dict:
+    gid = str(uuid.uuid4())
+    display_name = f"Guest {gid[:8]}"
+    conn.execute(
+        "INSERT INTO guests (guest_id, display_name) VALUES (%s, %s)",
+        (gid, display_name),
+    )
+    return _guest_profile(conn, gid)
+
+
+def _save_bp_run(conn, blob: dict, state: GameState):
+    if blob.get("result_saved"):
+        return
+    guest_id = blob.get("owner_guest_id")
+    if guest_id:
+        conn.execute(
+            """INSERT INTO bp_runs (owner_guest_id, seed_player_id, chain_length)
+                 VALUES (%s, %s, %s)""",
+            (guest_id, blob.get("seed_player_id", DEFAULT_SEED), max(0, len(state.chain) - 1)),
+        )
+    blob["result_saved"] = True
+
+
+def _save_fr_result(conn, blob: dict):
+    if blob.get("result_saved"):
+        return
+    guest_id = blob.get("owner_guest_id")
+    if guest_id:
+        conn.execute(
+            """INSERT INTO fr_results (
+                   owner_guest_id, puzzle_id, hits, fouls, strikes, won
+               ) VALUES (%s, %s, %s, %s, %s, %s)""",
+            (
+                guest_id,
+                blob.get("puzzle_id"),
+                blob.get("hits", 0),
+                blob.get("fouls", 0),
+                blob.get("strikes", 0),
+                bool(blob.get("won", False)),
+            ),
+        )
+    blob["result_saved"] = True
 
 
 def player_card(player_id: str) -> dict:
@@ -271,6 +402,7 @@ def deserialize_state(blob: dict) -> GameState:
 def chain_dict(state: GameState) -> list[dict]:
     """Hydrated chain for the client: full player cards + per-link shared
     seasons with display team-name."""
+    ensure_static_caches()
     out = []
     for i, (pid, name) in enumerate(zip(state.chain, state.chain_names)):
         card = player_card(pid)
@@ -296,6 +428,7 @@ def chain_dict(state: GameState) -> list[dict]:
 
 
 def strikes_dict(state: GameState) -> list[dict]:
+    ensure_static_caches()
     return [
         {
             "team_id": t,
@@ -308,6 +441,7 @@ def strikes_dict(state: GameState) -> list[dict]:
 
 
 def result_to_dict(r: MoveResult) -> dict:
+    ensure_static_caches()
     return {
         "outcome": r.outcome.value,
         "player_id": r.player_id,
@@ -369,6 +503,45 @@ def index():
     return render_template("index.html")
 
 
+@app.route("/api/profile/bootstrap", methods=["POST"])
+def profile_bootstrap():
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
+    requested_guest_id = (data.get("guest_id") or "").strip() or None
+    with db() as conn:
+        profile = _guest_profile(conn, requested_guest_id) if requested_guest_id else None
+        if profile is None:
+            profile = _create_guest(conn)
+    return jsonify(profile)
+
+
+@app.route("/api/profile/name", methods=["POST"])
+def profile_name():
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
+    guest_id = (data.get("guest_id") or "").strip()
+    display_name = " ".join((data.get("display_name") or "").strip().split())
+    if not guest_id:
+        return jsonify({"error": "guest_id required"}), 400
+    if not display_name:
+        return jsonify({"error": "display_name required"}), 400
+    if len(display_name) > 24:
+        return jsonify({"error": "display_name too long"}), 400
+    with db() as conn:
+        row = conn.execute(
+            "SELECT 1 FROM guests WHERE guest_id = %s",
+            (guest_id,),
+        ).fetchone()
+        if not row:
+            return jsonify({"error": "unknown guest_id"}), 404
+        conn.execute(
+            "UPDATE guests SET display_name = %s WHERE guest_id = %s",
+            (display_name, guest_id),
+        )
+        profile = _guest_profile(conn, guest_id)
+    return jsonify(profile)
+
+
 # ----- Player autocomplete (used by MP + BP) -----
 
 @app.route("/api/autocomplete")
@@ -418,6 +591,7 @@ def autocomplete():
 
 @app.route("/api/fr/team_autocomplete")
 def fr_team_autocomplete():
+    ensure_static_caches()
     q = (request.args.get("q") or "").strip().lower()
     if not q:
         return jsonify([])
@@ -580,6 +754,9 @@ def timeout():
 def bp_blob_from_state(state: GameState, turn_seconds: float,
                        turn_started_at: datetime,
                        countdown_seconds: float, longest_chain: int = 1,
+                       owner_guest_id: str | None = None,
+                       seed_player_id: str = DEFAULT_SEED,
+                       result_saved: bool = False,
                        finished: bool = False,
                        last_move: dict | None = None) -> dict:
     return {
@@ -588,6 +765,9 @@ def bp_blob_from_state(state: GameState, turn_seconds: float,
         "turn_started_at": turn_started_at.isoformat(),
         "countdown_seconds": countdown_seconds,
         "longest_chain": longest_chain,
+        "owner_guest_id": owner_guest_id,
+        "seed_player_id": seed_player_id,
+        "result_saved": result_saved,
         "finished": finished,
         "last_move": last_move,
     }
@@ -622,10 +802,19 @@ def bp_state_dict(gid: str, blob: dict, state: GameState) -> dict:
 
 @app.route("/api/bp/new", methods=["POST"])
 def bp_new():
+    ensure_runtime_schema()
     data = request.get_json(silent=True) or {}
     seed = data.get("seed") or DEFAULT_SEED
+    guest_id = (data.get("guest_id") or "").strip() or None
     turn_seconds = float(data.get("turn_seconds") or TURN_SECONDS)
     with db() as conn:
+        if guest_id:
+            row = conn.execute(
+                "SELECT 1 FROM guests WHERE guest_id = %s",
+                (guest_id,),
+            ).fetchone()
+            if not row:
+                guest_id = None
         engine_conn = PgEngineConn(conn)
         try:
             state = seed_game(engine_conn, seed)
@@ -637,6 +826,8 @@ def bp_new():
             turn_started_at=now_utc(),
             countdown_seconds=OPENING_COUNTDOWN_SECONDS,
             longest_chain=1,
+            owner_guest_id=guest_id,
+            seed_player_id=seed,
         )
         gid = _insert_game(conn, "bp_games", blob)
     return jsonify(bp_state_dict(gid, blob, state))
@@ -644,6 +835,7 @@ def bp_new():
 
 @app.route("/api/bp/move", methods=["POST"])
 def bp_move():
+    ensure_runtime_schema()
     data = request.get_json(silent=True) or {}
     gid = data.get("game_id")
     raw = (data.get("raw") or "").strip()
@@ -661,6 +853,7 @@ def bp_move():
         if live_elapsed > blob["turn_seconds"]:
             blob["finished"] = True
             blob["last_move"] = {"outcome": "timeout"}
+            _save_bp_run(conn, blob, state)
             _save_game(conn, "bp_games", gid, blob)
             return jsonify(bp_state_dict(gid, blob, state))
 
@@ -691,6 +884,7 @@ def bp_move():
 
 @app.route("/api/bp/timeout", methods=["POST"])
 def bp_timeout():
+    ensure_runtime_schema()
     data = request.get_json(silent=True) or {}
     gid = data.get("game_id")
     with db() as conn:
@@ -706,6 +900,7 @@ def bp_timeout():
             return jsonify(bp_state_dict(gid, blob, state))
         blob["finished"] = True
         blob["last_move"] = {"outcome": "timeout"}
+        _save_bp_run(conn, blob, state)
         _save_game(conn, "bp_games", gid, blob)
     return jsonify(bp_state_dict(gid, blob, state))
 
@@ -791,6 +986,32 @@ def fr_state_dict(gid: str, blob: dict) -> dict:
     }
 
 
+def fr_blob_from_puzzle(
+    puzzle: dict,
+    shared_per_pair: list[list[tuple[str, int, str]]],
+    owner_guest_id: str | None = None,
+) -> dict:
+    return {
+        "puzzle_id": puzzle["id"],
+        "deck": list(puzzle["deck"]),
+        "pair_index": 0,
+        "revealed_count": 2,
+        "hits": 0,
+        "fouls": 0,
+        "strikes": 0,
+        "consec_fouls": 0,
+        "solved_links": [None] * (len(puzzle["deck"]) - 1),
+        "shared_per_pair": [
+            [list(t) for t in pair] for pair in shared_per_pair
+        ],
+        "owner_guest_id": owner_guest_id,
+        "result_saved": False,
+        "finished": False,
+        "won": False,
+        "last_guess": None,
+    }
+
+
 def _classify_fr_guess(team_text: str, year_text: str,
                        shared: list[tuple[str, int, str]]) -> tuple[str, list]:
     team_q = (team_text or "").strip().lower()
@@ -822,38 +1043,33 @@ def _classify_fr_guess(team_text: str, year_text: str,
 
 @app.route("/api/fr/new", methods=["POST"])
 def fr_new():
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
     puz = fr_today_puzzle()
     deck = list(puz["deck"])
+    guest_id = (data.get("guest_id") or "").strip() or None
     with db() as conn:
+        if guest_id:
+            row = conn.execute(
+                "SELECT 1 FROM guests WHERE guest_id = %s",
+                (guest_id,),
+            ).fetchone()
+            if not row:
+                guest_id = None
         shared_per_pair = _fr_compute_shared(conn, deck)
         bad = [i for i, lst in enumerate(shared_per_pair) if not lst]
         if bad:
             return jsonify({
                 "error": f"puzzle {puz['id']!r} has unsolvable pair(s): {bad}",
             }), 500
-        blob = {
-            "puzzle_id": puz["id"],
-            "deck": deck,
-            "pair_index": 0,
-            "revealed_count": 2,
-            "hits": 0,
-            "fouls": 0,
-            "strikes": 0,
-            "consec_fouls": 0,
-            "solved_links": [None] * (len(deck) - 1),
-            "shared_per_pair": [
-                [list(t) for t in pair] for pair in shared_per_pair
-            ],
-            "finished": False,
-            "won": False,
-            "last_guess": None,
-        }
+        blob = fr_blob_from_puzzle(puz, shared_per_pair, owner_guest_id=guest_id)
         gid = _insert_game(conn, "fr_games", blob)
     return jsonify(fr_state_dict(gid, blob))
 
 
 @app.route("/api/fr/guess", methods=["POST"])
 def fr_guess():
+    ensure_runtime_schema()
     data = request.get_json(silent=True) or {}
     gid = data.get("game_id")
     team_text = (data.get("team") or "").strip()
@@ -920,6 +1136,8 @@ def fr_guess():
                 {"team_id": t, "season": s, "team_name": n} for t, s, n in matched
             ],
         }
+        if blob["finished"]:
+            _save_fr_result(conn, blob)
         _save_game(conn, "fr_games", gid, blob)
     return jsonify(fr_state_dict(gid, blob))
 
@@ -946,24 +1164,7 @@ def fr_reveal_answer():
     })
 
 
-# ============================================================
-# Startup
-# ============================================================
-
-_init_static_caches()
-# Validate FR puzzles reference real players.
-with db() as _conn:
-    for _puz in FR_PUZZLES:
-        for _pid in _puz["deck"]:
-            _row = _conn.execute(
-                "SELECT 1 FROM players_searchable WHERE player_id = %s", (_pid,)
-            ).fetchone()
-            if not _row:
-                print(
-                    f"[FR] WARNING: puzzle {_puz['id']!r} references unknown "
-                    f"player_id {_pid!r}"
-                )
-
-
 if __name__ == "__main__":
+    ensure_runtime_schema()
+    ensure_static_caches()
     app.run(host="127.0.0.1", port=5000, debug=True)

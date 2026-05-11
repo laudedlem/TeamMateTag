@@ -173,6 +173,71 @@ input[type="text"]:focus {
   margin: 2.5rem auto 0;
 }
 
+.profile-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.1rem;
+  margin-bottom: 1rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.profile-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 1rem;
+}
+
+.profile-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 0.35rem;
+}
+
+.profile-name-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.profile-name-row input {
+  min-width: 220px;
+}
+
+.profile-name-row button.secondary {
+  padding: 0.55rem 0.9rem;
+  font-size: 0.92rem;
+}
+
+.profile-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin-top: 0.85rem;
+}
+
+.profile-stat {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.7rem 0.8rem;
+}
+
+.profile-stat-label {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  margin-bottom: 0.25rem;
+}
+
+.profile-stat strong {
+  font-size: 1.05rem;
+  color: var(--text);
+}
+
 .home h2 {
   margin: 0 0 1rem 0;
   font-size: 1.4rem;
@@ -372,6 +437,22 @@ button.secondary:hover { border-color: var(--accent); color: var(--accent); }
 
 @media (max-width: 900px) {
   .game-layout { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 700px) {
+  .profile-name-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .profile-name-row input {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .profile-stats {
+    grid-template-columns: 1fr;
+  }
 }
 
 .game-main {

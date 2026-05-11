@@ -6,6 +6,12 @@
 
 const els = {
   homeScreen: document.getElementById('home-screen'),
+  profileNameInput: document.getElementById('profile-name-input'),
+  profileSaveBtn: document.getElementById('profile-save-btn'),
+  profileStatus: document.getElementById('profile-status'),
+  bpBestStat: document.getElementById('bp-best-stat'),
+  bpPlaysStat: document.getElementById('bp-plays-stat'),
+  frRecordStat: document.getElementById('fr-record-stat'),
   startScreen: document.getElementById('start-screen'),
   gameScreen: document.getElementById('game-screen'),
   frScreen: document.getElementById('fr-screen'),
@@ -67,6 +73,7 @@ const els = {
 let currentMode = 'home';
 let game = null;
 let frGame = null;
+let profile = null;
 let timerInterval = null;
 let countdownInterval = null;
 let turnLocalStart = 0;
@@ -82,6 +89,8 @@ let teamAcHighlight = -1;
 let teamAcFetchSeq = 0;
 let userTypedTeamQuery = '';
 
+const GUEST_ID_KEY = 'tt_guest_id';
+
 async function api(path, body) {
   const r = await fetch(path, {
     method: 'POST',
@@ -89,6 +98,56 @@ async function api(path, body) {
     body: JSON.stringify(body || {}),
   });
   return r.json();
+}
+
+function storedGuestId() {
+  return window.localStorage.getItem(GUEST_ID_KEY) || '';
+}
+
+function saveGuestId(guestId) {
+  if (!guestId) return;
+  window.localStorage.setItem(GUEST_ID_KEY, guestId);
+}
+
+function renderProfile() {
+  if (!profile) {
+    els.profileStatus.textContent = 'Loading guest profile...';
+    els.bpBestStat.textContent = '--';
+    els.bpPlaysStat.textContent = '--';
+    els.frRecordStat.textContent = '--';
+    return;
+  }
+  els.profileNameInput.value = profile.display_name || '';
+  els.profileStatus.textContent = 'Guest profile saved on this browser.';
+  els.bpBestStat.textContent = String(profile.stats?.bp_best ?? 0);
+  els.bpPlaysStat.textContent = String(profile.stats?.bp_plays ?? 0);
+  const wins = profile.stats?.fr_wins ?? 0;
+  const plays = profile.stats?.fr_plays ?? 0;
+  els.frRecordStat.textContent = `${wins}-${Math.max(0, plays - wins)}`;
+}
+
+async function bootstrapProfile() {
+  profile = await api('/api/profile/bootstrap', { guest_id: storedGuestId() });
+  if (profile?.guest_id) saveGuestId(profile.guest_id);
+  renderProfile();
+}
+
+async function saveProfileName() {
+  if (!profile?.guest_id) return;
+  const display_name = els.profileNameInput.value.trim();
+  if (!display_name) return;
+  els.profileSaveBtn.disabled = true;
+  const next = await api('/api/profile/name', {
+    guest_id: profile.guest_id,
+    display_name,
+  });
+  els.profileSaveBtn.disabled = false;
+  if (next?.error) {
+    els.profileStatus.textContent = next.error;
+    return;
+  }
+  profile = next;
+  renderProfile();
 }
 
 async function getAutocomplete(q) {
@@ -150,15 +209,16 @@ function pickMode(mode) {
 }
 
 async function newMpGame(p1, p2) {
+  currentMode = 'mp';
+  lastChainLength = 0;
+  hideGameOverBanner();
+  showScreen('mp-game');
+  renderLoadingGame('Division Rivalry', 'Starting matchup...');
   game = await api('/api/new_game', { p1, p2 });
   if (game.error) {
     alert('error: ' + game.error);
     return false;
   }
-  currentMode = 'mp';
-  lastChainLength = 0;
-  hideGameOverBanner();
-  showScreen('mp-game');
   renderMpGame();
   runOpeningCountdown();
   return true;
@@ -171,34 +231,59 @@ async function startMpGame() {
 }
 
 async function startBp() {
-  game = await api('/api/bp/new', {});
-  if (game.error) {
-    alert('error: ' + game.error);
-    return;
-  }
   currentMode = 'bp';
   lastChainLength = 0;
   hideGameOverBanner();
   showScreen('bp-game');
+  renderLoadingGame('Batting Practice', 'Loading leadoff...');
+  game = await api('/api/bp/new', { guest_id: profile?.guest_id || storedGuestId() });
+  if (game.error) {
+    alert('error: ' + game.error);
+    return;
+  }
   els.guessInput.value = '';
   renderBpGame();
   runOpeningCountdown();
 }
 
 async function startFr() {
-  frGame = await api('/api/fr/new', {});
-  if (frGame.error) {
-    alert('error: ' + frGame.error);
-    return;
-  }
   currentMode = 'fr';
   hideFrSummaryBanner();
   closeTeamAutocomplete();
   els.frTeamInput.value = '';
   els.frYearInput.value = '';
   showScreen('fr-game');
+  renderLoadingFilmReview();
+  frGame = await api('/api/fr/new', { guest_id: profile?.guest_id || storedGuestId() });
+  if (frGame.error) {
+    alert('error: ' + frGame.error);
+    return;
+  }
   renderFrGame(true);
   els.frTeamInput.focus();
+}
+
+function renderLoadingGame(label, prompt) {
+  els.turnCard.hidden = false;
+  els.turnLabel.textContent = label;
+  els.timer.textContent = '...';
+  els.currentPlayerName.textContent = prompt;
+  els.feedback.innerHTML = '';
+  els.cardStack.innerHTML = '';
+  els.lineup.innerHTML = '';
+  els.outList.innerHTML = '';
+  els.outEmpty.hidden = false;
+  setGuessDisabled(true);
+}
+
+function renderLoadingFilmReview() {
+  els.frTurnCard.hidden = false;
+  els.frStats.textContent = '--';
+  els.frPairNames.textContent = 'Loading review...';
+  els.frFeedback.innerHTML = '';
+  els.frCardStack.innerHTML = '';
+  els.frTeamInput.disabled = true;
+  els.frYearInput.disabled = true;
 }
 
 async function rematch() {
@@ -335,6 +420,7 @@ async function onBpTimeout() {
   if (game.finished) {
     renderBpGame();
     showGameOverBanner();
+    bootstrapProfile();
   } else {
     resetTurnTimer();
     renderBpGame();
@@ -357,7 +443,10 @@ async function submitMove({ raw, player_id }) {
   } else {
     if (game.last_move?.outcome === 'valid') resetTurnTimer();
     renderBpGame();
-    if (game.finished) showGameOverBanner();
+    if (game.finished) {
+      showGameOverBanner();
+      bootstrapProfile();
+    }
   }
   if (!game.finished) els.guessInput.focus();
 }
@@ -725,6 +814,7 @@ async function frSubmit(e) {
   renderFrGame(false);
   if (frGame.finished) {
     showFrSummaryBanner();
+    bootstrapProfile();
   } else {
     els.frTeamInput.focus();
   }
@@ -907,9 +997,18 @@ document.addEventListener('click', (e) => {
 els.rulesBtn.addEventListener('click', openRules);
 els.rulesClose.addEventListener('click', closeRules);
 els.rulesBackdrop.addEventListener('click', closeRules);
+els.profileSaveBtn.addEventListener('click', saveProfileName);
+els.profileNameInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    saveProfileName();
+  }
+});
 
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && !els.rulesModal.hidden) closeRules();
 });
 
 showScreen('home');
+renderProfile();
+bootstrapProfile();

@@ -25,6 +25,32 @@
   <!-- ===================== HOME SCREEN ====================== -->
   <section id="home-screen" class="screen">
     <div class="home">
+      <div class="profile-card" id="profile-card">
+        <div class="profile-head">
+          <div>
+            <div class="profile-label">Profile</div>
+            <div class="profile-name-row">
+              <input id="profile-name-input" type="text" maxlength="24" placeholder="Guest name" />
+              <button id="profile-save-btn" class="secondary" type="button">Save</button>
+            </div>
+            <p id="profile-status" class="muted small">Loading guest profile...</p>
+          </div>
+        </div>
+        <div class="profile-stats">
+          <div class="profile-stat">
+            <span class="profile-stat-label">Batting Practice Best</span>
+            <strong id="bp-best-stat">--</strong>
+          </div>
+          <div class="profile-stat">
+            <span class="profile-stat-label">Batting Practice Plays</span>
+            <strong id="bp-plays-stat">--</strong>
+          </div>
+          <div class="profile-stat">
+            <span class="profile-stat-label">Film Review Record</span>
+            <strong id="fr-record-stat">--</strong>
+          </div>
+        </div>
+      </div>
       <h2>Pick a mode</h2>
       <div class="mode-tiles">
         <button class="mode-tile" data-mode="bp">
