@@ -1788,6 +1788,18 @@ def dr_rematch_status():
                 (gid,),
             ).fetchall()
         }
+        self_in_queue = conn.execute(
+            "SELECT 1 FROM dr_queue WHERE guest_id = %s",
+            (guest_id,),
+        ).fetchone()
+        if self_in_queue:
+            return jsonify({
+                "status": "requeued",
+                "you_requested": guest_id in requesters,
+                "opponent_requested": False,
+                "opponent_present": False,
+                "rematch_available": False,
+            })
         other_guest_id = blob.get("p2_guest_id") if guest_id == blob.get("p1_guest_id") else blob.get("p1_guest_id")
         exited = {
             r[0] for r in conn.execute(
@@ -1800,6 +1812,7 @@ def dr_rematch_status():
                 "status": "abandoned",
                 "you_requested": guest_id in requesters,
                 "opponent_requested": False,
+                "opponent_present": False,
                 "rematch_available": False,
             })
         other_in_queue = conn.execute(
@@ -1828,12 +1841,14 @@ def dr_rematch_status():
                 "status": "abandoned",
                 "you_requested": guest_id in requesters,
                 "opponent_requested": False,
+                "opponent_present": False,
                 "rematch_available": False,
             })
         return jsonify({
             "status": "waiting",
             "you_requested": guest_id in requesters,
             "opponent_requested": other_guest_id in requesters,
+            "opponent_present": True,
             "rematch_available": blob.get("last_move", {}).get("outcome") != "forfeit",
         })
 

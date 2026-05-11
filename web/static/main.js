@@ -82,6 +82,8 @@ const els = {
   gameOverSummary: document.getElementById('game-over-summary'),
   mpRematchStatus: document.getElementById('mp-rematch-status'),
   playAgainBtn: document.getElementById('play-again-btn'),
+  requeueBtn: document.getElementById('requeue-btn'),
+  homeFromBannerBtn: document.getElementById('home-from-banner-btn'),
 
   frTurnCard: document.getElementById('fr-turn-card'),
   frStats: document.getElementById('fr-stats'),
@@ -584,15 +586,9 @@ async function goHome() {
     await api('/api/dr/cancel_challenge', { guest_id: profile?.guest_id || storedGuestId() });
   } else if (activeMpGameId) {
     if (finishedMpGameId) {
-      const payload = JSON.stringify({
+      await api('/api/dr/postgame_leave', {
         guest_id: profile?.guest_id || storedGuestId(),
         game_id: finishedMpGameId,
-      });
-      await fetch('/api/dr/postgame_leave', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: payload,
-        keepalive: true,
       });
     } else {
       await api('/api/dr/leave_game', {
@@ -828,6 +824,7 @@ async function rematch() {
     }
     els.mpRematchStatus.hidden = false;
     els.mpRematchStatus.textContent = "Let's play two? Waiting on your opponent.";
+    els.requeueBtn.hidden = false;
     startRematchPolling();
     return;
   }
@@ -844,6 +841,7 @@ function showGameOverBanner() {
   clearInterval(mpRematchPollInterval);
   els.mpRematchStatus.hidden = true;
   els.mpRematchStatus.textContent = '';
+  els.requeueBtn.hidden = true;
 
   if (currentMode === 'mp') {
     const teamsOut = game.strikes.filter((s) => s.count >= 3).length;
@@ -851,18 +849,21 @@ function showGameOverBanner() {
     els.gameOverSummary.textContent =
       `Lineup of ${game.chain.length}. ${teamsOut} team${teamsOut === 1 ? '' : 's'} struck out.`;
     if (game.last_move?.outcome === 'forfeit') {
-      els.playAgainBtn.textContent = 'Find New Match';
+      els.playAgainBtn.hidden = true;
+      els.requeueBtn.hidden = false;
     } else {
+      els.playAgainBtn.hidden = false;
       els.playAgainBtn.textContent = "Let's play two.";
+      els.requeueBtn.hidden = false;
       startRematchPolling();
     }
   } else if (currentMode === 'bp') {
+    els.playAgainBtn.hidden = false;
+    els.requeueBtn.hidden = true;
     els.winnerText.textContent = `Lineup of ${game.longest_chain - 1}.`;
     els.gameOverSummary.textContent = 'Time expired. Try to beat your longest lineup.';
     els.playAgainBtn.textContent = 'Take more cuts';
   }
-
-  ensureHomeFromBanner();
 }
 
 function hideGameOverBanner() {
@@ -871,36 +872,29 @@ function hideGameOverBanner() {
   clearInterval(mpRematchPollInterval);
   els.mpRematchStatus.hidden = true;
   els.mpRematchStatus.textContent = '';
-  removeHomeFromBanner();
+  els.playAgainBtn.hidden = false;
+  els.requeueBtn.hidden = true;
 }
 
-async function requeueAfterRematchAbandoned() {
+async function requeueForNewMatch(message) {
   clearInterval(mpRematchPollInterval);
+  const finishedGameId = game?.finished ? game.game_id : '';
   const avoidGuestId = game?.p1_guest_id === (profile?.guest_id || storedGuestId())
     ? game?.p2_guest_id
     : game?.p1_guest_id;
+  if (finishedGameId) {
+    await api('/api/dr/postgame_leave', {
+      guest_id: profile?.guest_id || storedGuestId(),
+      game_id: finishedGameId,
+    });
+  }
   hideGameOverBanner();
   game = null;
   currentMode = 'mp';
   showScreen('mp-setup');
   els.challengeStatusText.textContent = '';
-  els.mpStatusText.textContent = 'Opponent left. Searching for a new opponent...';
+  els.mpStatusText.textContent = message || 'Searching for a new opponent...';
   await startMpGame({ avoidGuestId });
-}
-
-function ensureHomeFromBanner() {
-  if (els.gameOverBanner.querySelector('.home-from-banner')) return;
-  const homeBtn = document.createElement('button');
-  homeBtn.textContent = 'Home';
-  homeBtn.className = 'secondary home-from-banner';
-  homeBtn.style.marginLeft = '0.5rem';
-  homeBtn.addEventListener('click', goHome);
-  els.playAgainBtn.parentNode.appendChild(homeBtn);
-}
-
-function removeHomeFromBanner() {
-  const homeBtn = els.gameOverBanner.querySelector('.home-from-banner');
-  if (homeBtn) homeBtn.remove();
 }
 
 function resetTurnTimer() {
@@ -1295,10 +1289,16 @@ function startRematchPolling() {
       await enterMatchedGame(res.game);
       return;
     }
+    if (res.status === 'requeued') {
+      els.mpRematchStatus.hidden = false;
+      els.mpRematchStatus.textContent = 'Opponent left. Finding a new match...';
+      await requeueForNewMatch('Opponent left. Searching for a new opponent...');
+      return;
+    }
     if (res.status === 'abandoned') {
       els.mpRematchStatus.hidden = false;
       els.mpRematchStatus.textContent = 'Opponent left. Finding a new match...';
-      await requeueAfterRematchAbandoned();
+      await requeueForNewMatch('Opponent left. Searching for a new opponent...');
       return;
     }
     if (!res.rematch_available) {
@@ -1312,7 +1312,12 @@ function startRematchPolling() {
       els.mpRematchStatus.textContent = 'Your opponent wants a rematch.';
     } else if (res.you_requested) {
       els.mpRematchStatus.hidden = false;
-      els.mpRematchStatus.textContent = "Let's play two? Waiting on your opponent.";
+      els.mpRematchStatus.textContent = res.opponent_present
+        ? "Let's play two? Waiting on your opponent."
+        : 'Opponent left. Finding a new match...';
+      if (!res.opponent_present) {
+        await requeueForNewMatch('Opponent left. Searching for a new opponent...');
+      }
     }
   }, 1000);
 }
@@ -1674,6 +1679,8 @@ els.guessInput.addEventListener('input', onGuessInput);
 els.guessInput.addEventListener('keydown', onGuessKeydown);
 
 els.playAgainBtn.addEventListener('click', rematch);
+els.requeueBtn.addEventListener('click', () => requeueForNewMatch('Searching for a new opponent...'));
+els.homeFromBannerBtn.addEventListener('click', goHome);
 els.toggleLineup.addEventListener('change', applyToggles);
 els.toggleOut.addEventListener('change', applyToggles);
 
