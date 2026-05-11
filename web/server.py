@@ -1619,7 +1619,7 @@ def dr_queue():
         display_name = _guest_label(conn, guest_id)
 
         existing = _dr_status_payload(conn, guest_id)
-        if existing["status"] in {"matched", "waiting"}:
+        if existing["status"] == "matched":
             return jsonify(existing)
 
         with conn.transaction():
