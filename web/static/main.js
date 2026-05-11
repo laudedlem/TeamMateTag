@@ -37,6 +37,8 @@ const els = {
   incomingRequestsList: document.getElementById('incoming-requests-list'),
   outgoingRequestsList: document.getElementById('outgoing-requests-list'),
   incomingChallengesList: document.getElementById('incoming-challenges-list'),
+  outgoingChallengesList: document.getElementById('outgoing-challenges-list'),
+  challengeHistoryList: document.getElementById('challenge-history-list'),
   friendsList: document.getElementById('friends-list'),
   startScreen: document.getElementById('start-screen'),
   gameScreen: document.getElementById('game-screen'),
@@ -317,6 +319,9 @@ function wireFriendsActions() {
   document.querySelectorAll('[data-friend-decline]').forEach((btn) => {
     btn.addEventListener('click', () => respondFriendRequest(btn.dataset.friendDecline, false));
   });
+  document.querySelectorAll('[data-friend-cancel]').forEach((btn) => {
+    btn.addEventListener('click', () => cancelFriendRequest(btn.dataset.friendCancel));
+  });
   document.querySelectorAll('[data-friend-challenge]').forEach((btn) => {
     btn.addEventListener('click', () => sendFriendChallenge(btn.dataset.friendChallenge));
   });
@@ -326,21 +331,30 @@ function wireFriendsActions() {
   document.querySelectorAll('[data-challenge-decline]').forEach((btn) => {
     btn.addEventListener('click', () => respondFriendChallenge(btn.dataset.challengeDecline, false));
   });
+  document.querySelectorAll('[data-challenge-cancel]').forEach((btn) => {
+    btn.addEventListener('click', () => cancelFriendChallenge(btn.dataset.challengeCancel));
+  });
 }
 
 function renderFriends() {
   if (!profile?.account) {
+    els.friendsOpenBtn.textContent = 'Friends';
     els.friendsStatus.textContent = 'Create an account or log in to use friends.';
     renderSimpleList(els.incomingRequestsList, [], 'Account required.', null);
     renderSimpleList(els.outgoingRequestsList, [], 'Account required.', null);
     renderSimpleList(els.incomingChallengesList, [], 'Account required.', null);
+    renderSimpleList(els.outgoingChallengesList, [], 'Account required.', null);
+    renderSimpleList(els.challengeHistoryList, [], 'Account required.', null);
     renderSimpleList(els.friendsList, [], 'Account required.', null);
     return;
   }
   if (!friendsData) {
+    els.friendsOpenBtn.textContent = 'Friends';
     els.friendsStatus.textContent = 'Loading friends...';
     return;
   }
+  const pendingCount = (friendsData.incoming_requests?.length || 0) + (friendsData.incoming_challenges?.length || 0);
+  els.friendsOpenBtn.textContent = pendingCount > 0 ? `Friends (${pendingCount})` : 'Friends';
   els.friendsStatus.textContent = 'Add friends by username or email. Friend challenges start Division Rivalry right away.';
   renderSimpleList(
     els.incomingRequestsList,
@@ -351,7 +365,12 @@ function renderFriends() {
       <button class="secondary" type="button" data-friend-decline="${row.request_id}">Decline</button>
     `,
   );
-  renderSimpleList(els.outgoingRequestsList, friendsData.outgoing_requests, 'No outgoing requests.', () => '');
+  renderSimpleList(
+    els.outgoingRequestsList,
+    friendsData.outgoing_requests,
+    'No outgoing requests.',
+    (row) => `<button class="secondary" type="button" data-friend-cancel="${row.request_id}">Cancel</button>`,
+  );
   renderSimpleList(
     els.incomingChallengesList,
     friendsData.incoming_challenges,
@@ -362,10 +381,22 @@ function renderFriends() {
     `,
   );
   renderSimpleList(
+    els.outgoingChallengesList,
+    friendsData.outgoing_challenges,
+    'No sent game requests.',
+    (row) => `<button class="secondary" type="button" data-challenge-cancel="${row.challenge_id}">Cancel</button>`,
+  );
+  renderSimpleList(
     els.friendsList,
     friendsData.friends,
     'No friends yet.',
     (row) => `<button class="secondary" type="button" data-friend-challenge="${row.user_id}">Challenge</button>`,
+  );
+  renderSimpleList(
+    els.challengeHistoryList,
+    friendsData.challenge_history,
+    'No challenge history yet.',
+    () => '',
   );
   wireFriendsActions();
 }
@@ -431,6 +462,19 @@ async function respondFriendRequest(requestId, accept) {
   renderFriends();
 }
 
+async function cancelFriendRequest(requestId) {
+  const next = await api('/api/friends/request_cancel', {
+    guest_id: profile.guest_id,
+    request_id: requestId,
+  });
+  if (next?.error) {
+    els.friendsStatus.textContent = next.error;
+    return;
+  }
+  friendsData = next;
+  renderFriends();
+}
+
 async function sendFriendChallenge(friendUserId) {
   const next = await api('/api/friends/challenge', {
     guest_id: profile.guest_id,
@@ -460,6 +504,19 @@ async function respondFriendChallenge(challengeId, accept) {
     return;
   }
   await refreshFriends();
+}
+
+async function cancelFriendChallenge(challengeId) {
+  const next = await api('/api/friends/challenge_cancel', {
+    guest_id: profile.guest_id,
+    challenge_id: challengeId,
+  });
+  if (next?.error) {
+    els.friendsStatus.textContent = next.error;
+    return;
+  }
+  friendsData = next;
+  renderFriends();
 }
 
 async function getAutocomplete(q) {

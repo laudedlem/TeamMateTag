@@ -272,6 +272,9 @@ def ensure_runtime_schema():
                    )"""
             )
             conn.execute(
+                "ALTER TABLE dr_queue ADD COLUMN IF NOT EXISTS avoid_guest_id UUID"
+            )
+            conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_dr_queue_enqueued "
                 "ON dr_queue(enqueued_at)"
             )
@@ -532,6 +535,14 @@ def _friends_payload(conn, guest_id: str) -> dict:
             ORDER BY created_at DESC""",
         (guest_id,),
     ).fetchall()
+    challenge_history = conn.execute(
+        """SELECT challenge_id::text, status, sender_name, recipient_name, created_at
+             FROM dr_friend_challenges
+            WHERE sender_user_id = %s OR recipient_user_id = %s
+            ORDER BY created_at DESC
+            LIMIT 8""",
+        (guest_id, guest_id),
+    ).fetchall()
     matched = conn.execute(
         """SELECT challenge_id::text, game_id::text
              FROM dr_friend_challenges
@@ -569,6 +580,16 @@ def _friends_payload(conn, guest_id: str) -> dict:
         "outgoing_challenges": [
             {"challenge_id": cid, "user_id": uid, "name": name}
             for cid, uid, name in outgoing_challenges
+        ],
+        "challenge_history": [
+            {
+                "challenge_id": cid,
+                "status": status,
+                "sender_name": sender_name,
+                "recipient_name": recipient_name,
+                "created_at": created_at.isoformat(),
+            }
+            for cid, status, sender_name, recipient_name, created_at in challenge_history
         ],
         "matched_game": matched_game,
     }
@@ -1270,6 +1291,52 @@ def friends_challenge_respond():
         })
 
 
+@app.route("/api/friends/request_cancel", methods=["POST"])
+def friends_request_cancel():
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
+    guest_id = (data.get("guest_id") or "").strip()
+    request_id = (data.get("request_id") or "").strip()
+    if not guest_id or not request_id:
+        return jsonify({"error": "guest_id and request_id required"}), 400
+    with db() as conn:
+        me = _require_user(conn, guest_id)
+        if not me:
+            return jsonify({"error": "account required"}), 403
+        conn.execute(
+            """UPDATE friend_requests
+                  SET status = 'cancelled', responded_at = now()
+                WHERE request_id = %s
+                  AND sender_user_id = %s
+                  AND status = 'pending'""",
+            (request_id, guest_id),
+        )
+        return jsonify(_friends_payload(conn, guest_id))
+
+
+@app.route("/api/friends/challenge_cancel", methods=["POST"])
+def friends_challenge_cancel():
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
+    guest_id = (data.get("guest_id") or "").strip()
+    challenge_id = (data.get("challenge_id") or "").strip()
+    if not guest_id or not challenge_id:
+        return jsonify({"error": "guest_id and challenge_id required"}), 400
+    with db() as conn:
+        me = _require_user(conn, guest_id)
+        if not me:
+            return jsonify({"error": "account required"}), 403
+        conn.execute(
+            """UPDATE dr_friend_challenges
+                  SET status = 'cancelled', responded_at = now()
+                WHERE challenge_id = %s
+                  AND sender_user_id = %s
+                  AND status = 'pending'""",
+            (challenge_id, guest_id),
+        )
+        return jsonify(_friends_payload(conn, guest_id))
+
+
 @app.route("/api/bp/leaderboard")
 def bp_leaderboard():
     ensure_runtime_schema()
@@ -1504,6 +1571,7 @@ def dr_queue():
     ensure_runtime_schema()
     data = request.get_json(silent=True) or {}
     guest_id = (data.get("guest_id") or "").strip()
+    avoid_guest_id = (data.get("avoid_guest_id") or "").strip() or None
     if not guest_id:
         return jsonify({"error": "guest_id required"}), 400
     with db() as conn:
@@ -1525,10 +1593,12 @@ def dr_queue():
                 """SELECT guest_id::text, display_name
                      FROM dr_queue
                     WHERE guest_id <> %s
+                      AND (avoid_guest_id IS NULL OR avoid_guest_id <> CAST(%s AS uuid))
+                      AND (CAST(%s AS uuid) IS NULL OR guest_id <> CAST(%s AS uuid))
                     ORDER BY enqueued_at
                     LIMIT 1
                     FOR UPDATE SKIP LOCKED""",
-                (guest_id,),
+                (guest_id, guest_id, avoid_guest_id, avoid_guest_id),
             ).fetchone()
             if opp:
                 opp_guest_id, opp_name = opp
@@ -1546,12 +1616,13 @@ def dr_queue():
                 })
 
             conn.execute(
-                """INSERT INTO dr_queue (guest_id, display_name, enqueued_at)
-                   VALUES (%s, %s, now())
+                """INSERT INTO dr_queue (guest_id, display_name, avoid_guest_id, enqueued_at)
+                   VALUES (%s, %s, %s, now())
                    ON CONFLICT (guest_id) DO UPDATE
                    SET display_name = EXCLUDED.display_name,
+                       avoid_guest_id = EXCLUDED.avoid_guest_id,
                        enqueued_at = now()""",
-                (guest_id, display_name),
+                (guest_id, display_name, avoid_guest_id),
             )
         return jsonify(_dr_status_payload(conn, guest_id))
 
