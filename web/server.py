@@ -250,11 +250,15 @@ def ensure_runtime_schema():
                        owner_guest_id UUID REFERENCES guests(guest_id) ON DELETE SET NULL,
                        opponent_guest_id UUID REFERENCES guests(guest_id) ON DELETE SET NULL,
                        opponent_name TEXT,
+                       chain_length INTEGER,
                        won BOOLEAN NOT NULL DEFAULT false,
                        elo_before INTEGER NOT NULL,
                        elo_after INTEGER NOT NULL,
                        finished_at TIMESTAMPTZ NOT NULL DEFAULT now()
                    )"""
+            )
+            conn.execute(
+                "ALTER TABLE dr_results ADD COLUMN IF NOT EXISTS chain_length INTEGER"
             )
             conn.execute(
                 "ALTER TABLE dr_results "
@@ -536,12 +540,25 @@ def _friends_payload(conn, guest_id: str) -> dict:
         (guest_id,),
     ).fetchall()
     challenge_history = conn.execute(
-        """SELECT challenge_id::text, status, sender_name, recipient_name, created_at
-             FROM dr_friend_challenges
-            WHERE sender_user_id = %s OR recipient_user_id = %s
-            ORDER BY created_at DESC
-            LIMIT 8""",
-        (guest_id, guest_id),
+        """SELECT
+               r.opponent_guest_id::text,
+               COALESCE(u.username, r.opponent_name) AS opponent_label,
+               r.chain_length,
+               r.won,
+               r.finished_at
+             FROM dr_results r
+             LEFT JOIN users u ON u.user_id = r.opponent_guest_id
+            WHERE r.owner_guest_id = %s
+              AND r.opponent_guest_id IS NOT NULL
+              AND EXISTS (
+                    SELECT 1
+                      FROM friendships f
+                     WHERE (f.user_a_id = %s AND f.user_b_id = r.opponent_guest_id)
+                        OR (f.user_b_id = %s AND f.user_a_id = r.opponent_guest_id)
+              )
+            ORDER BY r.finished_at DESC
+            LIMIT 3""",
+        (guest_id, guest_id, guest_id),
     ).fetchall()
     matched = conn.execute(
         """SELECT challenge_id::text, game_id::text
@@ -583,13 +600,13 @@ def _friends_payload(conn, guest_id: str) -> dict:
         ],
         "challenge_history": [
             {
-                "challenge_id": cid,
-                "status": status,
-                "sender_name": sender_name,
-                "recipient_name": recipient_name,
-                "created_at": created_at.isoformat(),
+                "opponent_guest_id": opponent_guest_id,
+                "opponent_label": opponent_label,
+                "chain_length": chain_length or 0,
+                "won": won,
+                "finished_at": finished_at.isoformat(),
             }
-            for cid, status, sender_name, recipient_name, created_at in challenge_history
+            for opponent_guest_id, opponent_label, chain_length, won, finished_at in challenge_history
         ],
         "matched_game": matched_game,
     }
@@ -670,6 +687,7 @@ def _save_dr_result(conn, blob: dict):
     p1_before = p1_row[0] if p1_row else 1200
     p2_before = p2_row[0] if p2_row else 1200
     p1_won = blob.get("winner") == blob.get("p1")
+    chain_length = len(deserialize_state(blob).chain)
     p1_after = max(800, p1_before + (16 if p1_won else -16))
     p2_after = max(800, p2_before + (16 if not p1_won else -16))
     conn.execute(
@@ -682,15 +700,15 @@ def _save_dr_result(conn, blob: dict):
     )
     conn.execute(
         """INSERT INTO dr_results (
-               owner_guest_id, opponent_guest_id, opponent_name, won, elo_before, elo_after
-           ) VALUES (%s, %s, %s, %s, %s, %s)""",
-        (p1_guest_id, p2_guest_id, blob.get("p2"), bool(p1_won), p1_before, p1_after),
+               owner_guest_id, opponent_guest_id, opponent_name, chain_length, won, elo_before, elo_after
+           ) VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+        (p1_guest_id, p2_guest_id, blob.get("p2"), chain_length, bool(p1_won), p1_before, p1_after),
     )
     conn.execute(
         """INSERT INTO dr_results (
-               owner_guest_id, opponent_guest_id, opponent_name, won, elo_before, elo_after
-           ) VALUES (%s, %s, %s, %s, %s, %s)""",
-        (p2_guest_id, p1_guest_id, blob.get("p1"), bool(not p1_won), p2_before, p2_after),
+               owner_guest_id, opponent_guest_id, opponent_name, chain_length, won, elo_before, elo_after
+           ) VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+        (p2_guest_id, p1_guest_id, blob.get("p1"), chain_length, bool(not p1_won), p2_before, p2_after),
     )
     state = deserialize_state(blob)
     _record_struck_out_teams(conn, p1_guest_id, "dr", state)

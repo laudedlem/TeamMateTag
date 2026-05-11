@@ -396,8 +396,18 @@ function renderFriends() {
     els.challengeHistoryList,
     friendsData.challenge_history,
     'No challenge history yet.',
-    () => '',
+    (row) => '',
   );
+  els.challengeHistoryList.querySelectorAll('.friend-row').forEach((rowEl, idx) => {
+    const row = friendsData.challenge_history[idx];
+    if (!row) return;
+    rowEl.innerHTML = `
+      <div class="friend-meta">
+        <div class="friend-name">${escapeHtml(row.won ? 'Win' : 'Loss')} vs ${escapeHtml(row.opponent_label || 'Friend')}</div>
+        <div class="friend-sub">Lineup ${escapeHtml(String(row.chain_length || 0))}</div>
+      </div>
+    `;
+  });
   wireFriendsActions();
 }
 
@@ -546,7 +556,7 @@ function showScreen(name) {
   els.outSection.hidden = !togglesRelevant || !els.toggleOut.checked;
 }
 
-function goHome() {
+async function goHome() {
   const wasWaiting = !els.cancelMatchBtn.hidden;
   const activeMpGameId = currentMode === 'mp' && game?.game_id ? game.game_id : '';
   const finishedMpGameId = currentMode === 'mp' && game?.finished ? game.game_id : '';
@@ -573,16 +583,16 @@ function goHome() {
   els.cancelMatchBtn.hidden = true;
   els.challengeStatusText.textContent = '';
   if (wasWaiting) {
-    api('/api/dr/cancel_queue', { guest_id: profile?.guest_id || storedGuestId() });
-    api('/api/dr/cancel_challenge', { guest_id: profile?.guest_id || storedGuestId() });
+    await api('/api/dr/cancel_queue', { guest_id: profile?.guest_id || storedGuestId() });
+    await api('/api/dr/cancel_challenge', { guest_id: profile?.guest_id || storedGuestId() });
   } else if (activeMpGameId) {
     if (finishedMpGameId) {
-      api('/api/dr/postgame_leave', {
+      await api('/api/dr/postgame_leave', {
         guest_id: profile?.guest_id || storedGuestId(),
         game_id: finishedMpGameId,
       });
     } else {
-      api('/api/dr/leave_game', {
+      await api('/api/dr/leave_game', {
         guest_id: profile?.guest_id || storedGuestId(),
         game_id: activeMpGameId,
       });
@@ -668,13 +678,16 @@ async function pollMatchmaking() {
   els.mpStatusText.textContent = `Queue as ${currentHandle()}.`;
 }
 
-async function startMpGame() {
+async function startMpGame(opts = {}) {
   showScreen('mp-setup');
   els.mpStatusText.textContent = 'Searching for an opponent...';
   els.startBtn.hidden = true;
   els.cancelMatchBtn.hidden = false;
   clearInterval(mpQueuePollInterval);
-  const queued = await api('/api/dr/queue', { guest_id: profile?.guest_id || storedGuestId() });
+  const queued = await api('/api/dr/queue', {
+    guest_id: profile?.guest_id || storedGuestId(),
+    avoid_guest_id: opts.avoidGuestId || '',
+  });
   if (queued.error) {
     alert('error: ' + queued.error);
     els.startBtn.hidden = false;
@@ -860,13 +873,16 @@ function hideGameOverBanner() {
 
 async function requeueAfterRematchAbandoned() {
   clearInterval(mpRematchPollInterval);
+  const avoidGuestId = game?.p1_guest_id === (profile?.guest_id || storedGuestId())
+    ? game?.p2_guest_id
+    : game?.p1_guest_id;
   hideGameOverBanner();
   game = null;
   currentMode = 'mp';
   showScreen('mp-setup');
   els.challengeStatusText.textContent = '';
   els.mpStatusText.textContent = 'Opponent left. Searching for a new opponent...';
-  await startMpGame();
+  await startMpGame({ avoidGuestId });
 }
 
 function ensureHomeFromBanner() {
