@@ -32,6 +32,7 @@
             <div class="profile-name-row">
               <input id="profile-name-input" type="text" maxlength="24" placeholder="Guest name" />
               <button id="profile-save-btn" class="secondary" type="button">Save</button>
+              <button id="profile-open-btn" class="secondary" type="button">View Profile</button>
             </div>
             <p id="profile-status" class="muted small">Loading guest profile...</p>
           </div>
@@ -83,6 +84,36 @@
             opponent.
           </span>
         </button>
+      </div>
+    </div>
+  </section>
+
+  <section id="profile-screen" class="screen" hidden>
+    <div class="start-card profile-screen-card">
+      <button class="back-btn" data-back="home">&larr; Home</button>
+      <h2>Profile</h2>
+      <p class="muted" id="profile-screen-name"></p>
+      <div class="profile-detail-grid">
+        <div class="profile-detail">
+          <span class="profile-detail-label">Batting Practice Longest Lineup</span>
+          <strong id="profile-bp-best">--</strong>
+        </div>
+        <div class="profile-detail">
+          <span class="profile-detail-label">Batting Practice Plays</span>
+          <strong id="profile-bp-plays">--</strong>
+        </div>
+        <div class="profile-detail">
+          <span class="profile-detail-label">Film Review Win-Loss</span>
+          <strong id="profile-fr-record">--</strong>
+        </div>
+        <div class="profile-detail">
+          <span class="profile-detail-label">Division Rivalry ELO</span>
+          <strong id="profile-dr-elo">--</strong>
+        </div>
+        <div class="profile-detail">
+          <span class="profile-detail-label">Division Rivalry Record</span>
+          <strong id="profile-dr-record">--</strong>
+        </div>
       </div>
     </div>
   </section>
@@ -172,6 +203,7 @@
         <div id="fr-summary-banner" class="game-over-banner" hidden>
           <h2 id="fr-summary-text"></h2>
           <p id="fr-summary-detail" class="muted"></p>
+          <div id="fr-answer-reveal" class="fr-answer-reveal"></div>
           <div class="banner-buttons">
             <button id="fr-home" class="primary">Home</button>
           </div>

@@ -8,10 +8,18 @@ const els = {
   homeScreen: document.getElementById('home-screen'),
   profileNameInput: document.getElementById('profile-name-input'),
   profileSaveBtn: document.getElementById('profile-save-btn'),
+  profileOpenBtn: document.getElementById('profile-open-btn'),
   profileStatus: document.getElementById('profile-status'),
   bpBestStat: document.getElementById('bp-best-stat'),
   bpPlaysStat: document.getElementById('bp-plays-stat'),
   frRecordStat: document.getElementById('fr-record-stat'),
+  profileScreen: document.getElementById('profile-screen'),
+  profileScreenName: document.getElementById('profile-screen-name'),
+  profileBpBest: document.getElementById('profile-bp-best'),
+  profileBpPlays: document.getElementById('profile-bp-plays'),
+  profileFrRecord: document.getElementById('profile-fr-record'),
+  profileDrElo: document.getElementById('profile-dr-elo'),
+  profileDrRecord: document.getElementById('profile-dr-record'),
   startScreen: document.getElementById('start-screen'),
   gameScreen: document.getElementById('game-screen'),
   frScreen: document.getElementById('fr-screen'),
@@ -61,6 +69,7 @@ const els = {
   frSummaryBanner: document.getElementById('fr-summary-banner'),
   frSummaryText: document.getElementById('fr-summary-text'),
   frSummaryDetail: document.getElementById('fr-summary-detail'),
+  frAnswerReveal: document.getElementById('fr-answer-reveal'),
   frHomeBtn: document.getElementById('fr-home'),
 
   rulesBtn: document.getElementById('rules-btn'),
@@ -115,6 +124,12 @@ function renderProfile() {
     els.bpBestStat.textContent = '--';
     els.bpPlaysStat.textContent = '--';
     els.frRecordStat.textContent = '--';
+    els.profileScreenName.textContent = '';
+    els.profileBpBest.textContent = '--';
+    els.profileBpPlays.textContent = '--';
+    els.profileFrRecord.textContent = '--';
+    els.profileDrElo.textContent = '--';
+    els.profileDrRecord.textContent = '--';
     return;
   }
   els.profileNameInput.value = profile.display_name || '';
@@ -124,6 +139,14 @@ function renderProfile() {
   const wins = profile.stats?.fr_wins ?? 0;
   const plays = profile.stats?.fr_plays ?? 0;
   els.frRecordStat.textContent = `${wins}-${Math.max(0, plays - wins)}`;
+  const drWins = profile.stats?.dr_wins ?? 0;
+  const drLosses = profile.stats?.dr_losses ?? 0;
+  els.profileScreenName.textContent = profile.display_name || '';
+  els.profileBpBest.textContent = String(profile.stats?.bp_best ?? 0);
+  els.profileBpPlays.textContent = String(profile.stats?.bp_plays ?? 0);
+  els.profileFrRecord.textContent = `${wins}-${Math.max(0, plays - wins)}`;
+  els.profileDrElo.textContent = String(profile.stats?.dr_elo ?? 1200);
+  els.profileDrRecord.textContent = `${drWins}-${drLosses}`;
 }
 
 async function bootstrapProfile() {
@@ -162,11 +185,13 @@ async function getTeamAutocomplete(q) {
 
 function showScreen(name) {
   els.homeScreen.hidden = name !== 'home';
+  els.profileScreen.hidden = name !== 'profile';
   els.startScreen.hidden = name !== 'mp-setup';
   els.gameScreen.hidden = !(name === 'mp-game' || name === 'bp-game');
   els.frScreen.hidden = name !== 'fr-game';
 
   if (name === 'home') els.brandSubtitle.textContent = 'pick a mode';
+  else if (name === 'profile') els.brandSubtitle.textContent = 'profile';
   else if (name === 'mp-setup' || name === 'mp-game') els.brandSubtitle.textContent = 'division rivalry';
   else if (name === 'bp-game') els.brandSubtitle.textContent = 'batting practice';
   else if (name === 'fr-game') els.brandSubtitle.textContent = 'film review';
@@ -193,6 +218,11 @@ function goHome() {
   showScreen('home');
 }
 
+function openProfile() {
+  renderProfile();
+  showScreen('profile');
+}
+
 function pickMode(mode) {
   if (mode === 'mp') {
     showScreen('mp-setup');
@@ -214,7 +244,7 @@ async function newMpGame(p1, p2) {
   hideGameOverBanner();
   showScreen('mp-game');
   renderLoadingGame('Division Rivalry', 'Starting matchup...');
-  game = await api('/api/new_game', { p1, p2 });
+  game = await api('/api/new_game', { p1, p2, guest_id: profile?.guest_id || storedGuestId() });
   if (game.error) {
     alert('error: ' + game.error);
     return false;
@@ -409,6 +439,7 @@ async function onMpTimeout() {
   if (game.finished) {
     renderMpGame();
     showGameOverBanner();
+    bootstrapProfile();
   } else {
     resetTurnTimer();
     renderMpGame();
@@ -439,7 +470,10 @@ async function submitMove({ raw, player_id }) {
       resetTurnTimer();
     }
     renderMpGame();
-    if (game.finished) showGameOverBanner();
+    if (game.finished) {
+      showGameOverBanner();
+      bootstrapProfile();
+    }
   } else {
     if (game.last_move?.outcome === 'valid') resetTurnTimer();
     renderBpGame();
@@ -902,12 +936,29 @@ function showFrSummaryBanner() {
     els.frSummaryText.textContent = 'Game called.';
     els.frSummaryDetail.textContent =
       `${frGame.stats.hits} hits before 3 strikes.`;
+    loadFrAnswers();
   }
 }
 
 function hideFrSummaryBanner() {
   els.frTurnCard.hidden = false;
   els.frSummaryBanner.hidden = true;
+  els.frAnswerReveal.innerHTML = '';
+}
+
+async function loadFrAnswers() {
+  if (!frGame?.game_id || frGame?.won) return;
+  const res = await api('/api/fr/reveal_answer', { game_id: frGame.game_id });
+  if (!res.answers) return;
+  const items = res.answers.map((pair, idx) => {
+    const names = idx < frGame.revealed_cards.length - 1
+      ? `${frGame.revealed_cards[idx]?.name || ''} to ${frGame.revealed_cards[idx + 1]?.name || ''}`
+      : `Link ${idx + 1}`;
+    const answers = pair.map((p) => `${p.team_name} ${p.season}`).join(' or ');
+    return `<li><strong>${escapeHtml(names)}:</strong> ${escapeHtml(answers)}</li>`;
+  }).join('');
+  els.frAnswerReveal.innerHTML =
+    `<div>The correct connections were:</div><ul>${items}</ul>`;
 }
 
 function formatYears(debut, final) {
@@ -998,6 +1049,7 @@ els.rulesBtn.addEventListener('click', openRules);
 els.rulesClose.addEventListener('click', closeRules);
 els.rulesBackdrop.addEventListener('click', closeRules);
 els.profileSaveBtn.addEventListener('click', saveProfileName);
+els.profileOpenBtn.addEventListener('click', openProfile);
 els.profileNameInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     e.preventDefault();

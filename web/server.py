@@ -200,6 +200,10 @@ def ensure_runtime_schema():
             return
         with db() as conn:
             conn.execute(
+                "ALTER TABLE guests "
+                "ADD COLUMN IF NOT EXISTS elo INTEGER NOT NULL DEFAULT 1200"
+            )
+            conn.execute(
                 """CREATE TABLE IF NOT EXISTS fr_results (
                        result_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                        owner_user_id UUID REFERENCES users(user_id) ON DELETE SET NULL,
@@ -215,6 +219,30 @@ def ensure_runtime_schema():
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_fr_results_owner_guest "
                 "ON fr_results(owner_guest_id, finished_at DESC)"
+            )
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS dr_results (
+                       result_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                       owner_guest_id UUID REFERENCES guests(guest_id) ON DELETE SET NULL,
+                       opponent_name TEXT,
+                       won BOOLEAN NOT NULL DEFAULT false,
+                       elo_before INTEGER NOT NULL,
+                       elo_after INTEGER NOT NULL,
+                       finished_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                   )"""
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_dr_results_owner_guest "
+                "ON dr_results(owner_guest_id, finished_at DESC)"
+            )
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS player_usage (
+                       player_id TEXT PRIMARY KEY REFERENCES players(player_id),
+                       total_count INTEGER NOT NULL DEFAULT 0,
+                       bp_count INTEGER NOT NULL DEFAULT 0,
+                       dr_count INTEGER NOT NULL DEFAULT 0,
+                       last_used_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                   )"""
             )
         RUNTIME_SCHEMA_READY = True
 
@@ -232,11 +260,25 @@ def _guest_stats(conn, guest_id: str) -> dict:
             WHERE owner_guest_id = %s""",
         (guest_id,),
     ).fetchone()
+    dr_plays, dr_wins = conn.execute(
+        """SELECT COUNT(*), COALESCE(SUM(CASE WHEN won THEN 1 ELSE 0 END), 0)
+             FROM dr_results
+            WHERE owner_guest_id = %s""",
+        (guest_id,),
+    ).fetchone()
+    elo = conn.execute(
+        "SELECT elo FROM guests WHERE guest_id = %s",
+        (guest_id,),
+    ).fetchone()[0]
     return {
         "bp_plays": bp_plays,
         "bp_best": bp_best,
         "fr_plays": fr_plays,
         "fr_wins": fr_wins,
+        "dr_plays": dr_plays,
+        "dr_wins": dr_wins,
+        "dr_losses": max(0, dr_plays - dr_wins),
+        "dr_elo": elo,
     }
 
 
@@ -278,6 +320,49 @@ def _save_bp_run(conn, blob: dict, state: GameState):
                  VALUES (%s, %s, %s)""",
             (guest_id, blob.get("seed_player_id", DEFAULT_SEED), max(0, len(state.chain) - 1)),
         )
+    blob["result_saved"] = True
+
+
+def _record_player_usage(conn, player_id: str, mode: str):
+    bp_inc = 1 if mode == "bp" else 0
+    dr_inc = 1 if mode == "dr" else 0
+    conn.execute(
+        """INSERT INTO player_usage (
+               player_id, total_count, bp_count, dr_count, last_used_at
+           ) VALUES (%s, 1, %s, %s, now())
+           ON CONFLICT (player_id) DO UPDATE
+           SET total_count = player_usage.total_count + 1,
+               bp_count = player_usage.bp_count + EXCLUDED.bp_count,
+               dr_count = player_usage.dr_count + EXCLUDED.dr_count,
+               last_used_at = now()""",
+        (player_id, bp_inc, dr_inc),
+    )
+
+
+def _save_dr_result(conn, blob: dict):
+    if blob.get("result_saved"):
+        return
+    guest_id = blob.get("owner_guest_id")
+    if not guest_id:
+        blob["result_saved"] = True
+        return
+    row = conn.execute(
+        "SELECT elo FROM guests WHERE guest_id = %s",
+        (guest_id,),
+    ).fetchone()
+    elo_before = row[0] if row else 1200
+    won = blob.get("winner") == blob.get("p1")
+    elo_after = max(800, elo_before + (16 if won else -16))
+    conn.execute(
+        "UPDATE guests SET elo = %s WHERE guest_id = %s",
+        (elo_after, guest_id),
+    )
+    conn.execute(
+        """INSERT INTO dr_results (
+               owner_guest_id, opponent_name, won, elo_before, elo_after
+           ) VALUES (%s, %s, %s, %s, %s)""",
+        (guest_id, blob.get("p2"), bool(won), elo_before, elo_after),
+    )
     blob["result_saved"] = True
 
 
@@ -610,6 +695,9 @@ def fr_team_autocomplete():
 def dr_blob_from_state(state: GameState, p1: str, p2: str, turn_index: int,
                        turn_seconds: float, turn_started_at: datetime,
                        countdown_seconds: float, finished: bool = False,
+                       owner_guest_id: str | None = None,
+                       seed_player_id: str = DEFAULT_SEED,
+                       result_saved: bool = False,
                        winner: str | None = None,
                        last_move: dict | None = None) -> dict:
     return {
@@ -620,6 +708,9 @@ def dr_blob_from_state(state: GameState, p1: str, p2: str, turn_index: int,
         "turn_seconds": turn_seconds,
         "turn_started_at": turn_started_at.isoformat(),
         "countdown_seconds": countdown_seconds,
+        "owner_guest_id": owner_guest_id,
+        "seed_player_id": seed_player_id,
+        "result_saved": result_saved,
         "finished": finished,
         "winner": winner,
         "last_move": last_move,
@@ -657,23 +748,35 @@ def dr_state_dict(gid: str, blob: dict, state: GameState) -> dict:
 
 @app.route("/api/new_game", methods=["POST"])
 def new_game():
+    ensure_runtime_schema()
     data = request.get_json(silent=True) or {}
     p1 = (data.get("p1") or "Player 1").strip()
     p2 = (data.get("p2") or "Player 2").strip()
     seed = data.get("seed") or DEFAULT_SEED
+    guest_id = (data.get("guest_id") or "").strip() or None
     turn_seconds = float(data.get("turn_seconds") or TURN_SECONDS)
     with db() as conn:
+        if guest_id:
+            row = conn.execute(
+                "SELECT 1 FROM guests WHERE guest_id = %s",
+                (guest_id,),
+            ).fetchone()
+            if not row:
+                guest_id = None
         engine_conn = PgEngineConn(conn)
         try:
             state = seed_game(engine_conn, seed)
         except ValueError as e:
             return jsonify({"error": str(e)}), 400
+        _record_player_usage(conn, seed, "dr")
         blob = dr_blob_from_state(
             state, p1, p2,
             turn_index=0,
             turn_seconds=turn_seconds,
             turn_started_at=now_utc(),
             countdown_seconds=OPENING_COUNTDOWN_SECONDS,
+            owner_guest_id=guest_id,
+            seed_player_id=seed,
         )
         gid = _insert_game(conn, "dr_games", blob)
     return jsonify(dr_state_dict(gid, blob, state))
@@ -681,6 +784,7 @@ def new_game():
 
 @app.route("/api/move", methods=["POST"])
 def move():
+    ensure_runtime_schema()
     data = request.get_json(silent=True) or {}
     gid = data.get("game_id")
     raw = (data.get("raw") or "").strip()
@@ -700,6 +804,7 @@ def move():
             blob["finished"] = True
             blob["winner"] = [blob["p2"], blob["p1"]][blob["turn_index"]]
             blob["last_move"] = {"outcome": "timeout"}
+            _save_dr_result(conn, blob)
             _save_game(conn, "dr_games", gid, blob)
             return jsonify(dr_state_dict(gid, blob, state))
 
@@ -717,6 +822,8 @@ def move():
         blob.update(serialize_state(state))
         blob["last_move"] = result_to_dict(result)
         if result.outcome == MoveOutcome.VALID:
+            if result.player_id:
+                _record_player_usage(conn, result.player_id, "dr")
             blob["turn_index"] = 1 - blob["turn_index"]
             blob["turn_started_at"] = now_utc().isoformat()
             blob["countdown_seconds"] = 0.0
@@ -727,6 +834,7 @@ def move():
 
 @app.route("/api/timeout", methods=["POST"])
 def timeout():
+    ensure_runtime_schema()
     data = request.get_json(silent=True) or {}
     gid = data.get("game_id")
     with db() as conn:
@@ -743,6 +851,7 @@ def timeout():
         blob["finished"] = True
         blob["winner"] = [blob["p2"], blob["p1"]][blob["turn_index"]]
         blob["last_move"] = {"outcome": "timeout"}
+        _save_dr_result(conn, blob)
         _save_game(conn, "dr_games", gid, blob)
     return jsonify(dr_state_dict(gid, blob, state))
 
@@ -820,6 +929,7 @@ def bp_new():
             state = seed_game(engine_conn, seed)
         except ValueError as e:
             return jsonify({"error": str(e)}), 400
+        _record_player_usage(conn, seed, "bp")
         blob = bp_blob_from_state(
             state,
             turn_seconds=turn_seconds,
@@ -874,6 +984,8 @@ def bp_move():
         blob.update(serialize_state(state))
         blob["last_move"] = result_to_dict(result)
         if result.outcome == MoveOutcome.VALID:
+            if result.player_id:
+                _record_player_usage(conn, result.player_id, "bp")
             blob["turn_started_at"] = now_utc().isoformat()
             blob["countdown_seconds"] = 0.0
             blob["longest_chain"] = max(blob["longest_chain"], len(state.chain))

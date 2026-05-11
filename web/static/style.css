@@ -212,6 +212,35 @@ input[type="text"]:focus {
   font-size: 0.92rem;
 }
 
+.profile-screen-card {
+  max-width: 720px;
+}
+
+.profile-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+  margin-top: 1rem;
+}
+
+.profile-detail {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.9rem 1rem;
+}
+
+.profile-detail-label {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  margin-bottom: 0.25rem;
+}
+
+.profile-detail strong {
+  font-size: 1.2rem;
+}
+
 .profile-stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -322,6 +351,23 @@ input[type="text"]:focus {
   display: flex;
   gap: 0.5rem;
   justify-content: center;
+}
+
+.fr-answer-reveal {
+  margin: 0 0 1rem 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.fr-answer-reveal ul {
+  list-style: none;
+  margin: 0.5rem 0 0 0;
+  padding: 0;
+}
+
+.fr-answer-reveal li {
+  padding: 0.2rem 0;
 }
 
 button.secondary {
@@ -451,6 +497,10 @@ button.secondary:hover { border-color: var(--accent); color: var(--accent); }
   }
 
   .profile-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-detail-grid {
     grid-template-columns: 1fr;
   }
 }
