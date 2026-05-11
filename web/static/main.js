@@ -18,6 +18,7 @@ const els = {
   profileDrElo: document.getElementById('profile-dr-elo'),
   profileDrRecord: document.getElementById('profile-dr-record'),
   profileTopStruck: document.getElementById('profile-top-struck'),
+  bpLeaderboard: document.getElementById('bp-leaderboard'),
   startScreen: document.getElementById('start-screen'),
   gameScreen: document.getElementById('game-screen'),
   frScreen: document.getElementById('fr-screen'),
@@ -59,6 +60,7 @@ const els = {
   gameOverBanner: document.getElementById('game-over-banner'),
   winnerText: document.getElementById('winner-text'),
   gameOverSummary: document.getElementById('game-over-summary'),
+  mpRematchStatus: document.getElementById('mp-rematch-status'),
   playAgainBtn: document.getElementById('play-again-btn'),
 
   frTurnCard: document.getElementById('fr-turn-card'),
@@ -91,8 +93,11 @@ let timerInterval = null;
 let countdownInterval = null;
 let mpPollInterval = null;
 let mpQueuePollInterval = null;
+let mpRematchPollInterval = null;
 let turnLocalStart = 0;
 let lastChainLength = 0;
+let activeCountdownKey = '';
+let activeTimerKey = '';
 
 let acItems = [];
 let acHighlight = -1;
@@ -150,7 +155,7 @@ function renderProfile() {
   els.profileDrRecord.textContent = `${drWins}-${drLosses}`;
   const topStruck = profile.stats?.top_struck_teams || [];
   els.profileTopStruck.textContent = topStruck.length
-    ? topStruck.map((t) => `${t.team_name} (${t.count})`).join(', ')
+    ? topStruck.map((t) => `${t.team_name} ${t.season} (${t.count})`).join(', ')
     : 'None yet';
 }
 
@@ -158,6 +163,14 @@ async function bootstrapProfile() {
   profile = await api('/api/profile/bootstrap', { guest_id: storedGuestId() });
   if (profile?.guest_id) saveGuestId(profile.guest_id);
   renderProfile();
+  refreshBpLeaderboard();
+}
+
+async function refreshBpLeaderboard() {
+  const rows = await fetch('/api/bp/leaderboard').then((r) => r.json());
+  els.bpLeaderboard.innerHTML = rows.length
+    ? rows.map((row) => `<li>${escapeHtml(row.display_name)} - ${row.chain_length}</li>`).join('')
+    : '<li>No runs yet today.</li>';
 }
 
 async function saveProfileName() {
@@ -215,6 +228,9 @@ function goHome() {
   clearInterval(countdownInterval);
   clearInterval(mpPollInterval);
   clearInterval(mpQueuePollInterval);
+  clearInterval(mpRematchPollInterval);
+  activeCountdownKey = '';
+  activeTimerKey = '';
   hideGameOverBanner();
   hideFrSummaryBanner();
   closeAutocomplete();
@@ -265,15 +281,17 @@ function startMpPolling() {
   if (currentMode !== 'mp' || !game || game.finished) return;
   mpPollInterval = setInterval(async () => {
     if (!game?.game_id) return;
+    const previousGame = game;
     const next = await api('/api/dr/game', {
       guest_id: profile?.guest_id || storedGuestId(),
       game_id: game.game_id,
     });
     if (!next.error) {
-      const prevChain = game?.chain?.length || 0;
+      const prevChain = previousGame?.chain?.length || 0;
       game = next;
       lastChainLength = prevChain;
       renderMpGame();
+      syncMpClock(previousGame, next);
       if (game.finished) {
         clearInterval(mpPollInterval);
         showGameOverBanner();
@@ -286,12 +304,13 @@ function startMpPolling() {
 async function enterMatchedGame(nextGame) {
   currentMode = 'mp';
   lastChainLength = 0;
+  clearInterval(mpRematchPollInterval);
   hideGameOverBanner();
   showScreen('mp-game');
   clearInterval(mpQueuePollInterval);
   game = nextGame;
   renderMpGame();
-  runOpeningCountdown();
+  syncMpClock(null, game, { force: true });
   startMpPolling();
 }
 
@@ -303,7 +322,10 @@ async function pollMatchmaking() {
   }
   if (status.status === 'waiting') {
     els.mpStatusText.textContent = 'Searching for an opponent...';
+    return;
   }
+  if (status.status === 'idle' && els.challengeStatusText.textContent) return;
+  els.mpStatusText.textContent = `Queue as ${profile?.display_name || 'your guest profile'}.`;
 }
 
 async function startMpGame() {
@@ -345,6 +367,7 @@ async function createChallengeCode() {
   els.challengeStatusText.textContent = `Challenge code: ${res.code}`;
   els.startBtn.hidden = true;
   els.cancelMatchBtn.hidden = false;
+  els.mpStatusText.textContent = 'Waiting for someone to join your challenge...';
   clearInterval(mpQueuePollInterval);
   mpQueuePollInterval = setInterval(pollMatchmaking, 1000);
 }
@@ -426,9 +449,30 @@ function renderLoadingFilmReview() {
 
 async function rematch() {
   if (currentMode === 'mp') {
-    goHome();
-    pickMode('mp');
-    await startMpGame();
+    if (!game) return;
+    if (game.last_move?.outcome === 'forfeit') {
+      goHome();
+      pickMode('mp');
+      await startMpGame();
+      return;
+    }
+    const res = await api('/api/dr/rematch_request', {
+      guest_id: profile?.guest_id || storedGuestId(),
+      game_id: game.game_id,
+    });
+    if (res.error) {
+      els.mpRematchStatus.hidden = false;
+      els.mpRematchStatus.textContent = res.error;
+      return;
+    }
+    if (res.status === 'matched' && res.game) {
+      els.mpRematchStatus.hidden = true;
+      await enterMatchedGame(res.game);
+      return;
+    }
+    els.mpRematchStatus.hidden = false;
+    els.mpRematchStatus.textContent = "Let's play two? Waiting on your opponent.";
+    startRematchPolling();
     return;
   }
   if (currentMode === 'bp') {
@@ -441,13 +485,21 @@ function showGameOverBanner() {
   els.timer.classList.remove('countdown');
   els.turnCard.hidden = true;
   els.gameOverBanner.hidden = false;
+  clearInterval(mpRematchPollInterval);
+  els.mpRematchStatus.hidden = true;
+  els.mpRematchStatus.textContent = '';
 
   if (currentMode === 'mp') {
     const teamsOut = game.strikes.filter((s) => s.count >= 3).length;
     els.winnerText.textContent = game.winner ? `${game.winner} wins!` : 'Game over.';
     els.gameOverSummary.textContent =
       `Lineup of ${game.chain.length}. ${teamsOut} team${teamsOut === 1 ? '' : 's'} struck out.`;
-    els.playAgainBtn.textContent = "Let's play two.";
+    if (game.last_move?.outcome === 'forfeit') {
+      els.playAgainBtn.textContent = 'Find New Match';
+    } else {
+      els.playAgainBtn.textContent = "Let's play two.";
+      startRematchPolling();
+    }
   } else if (currentMode === 'bp') {
     els.winnerText.textContent = `Lineup of ${game.longest_chain - 1}.`;
     els.gameOverSummary.textContent = 'Time expired. Try to beat your longest lineup.';
@@ -460,6 +512,9 @@ function showGameOverBanner() {
 function hideGameOverBanner() {
   els.turnCard.hidden = false;
   els.gameOverBanner.hidden = true;
+  clearInterval(mpRematchPollInterval);
+  els.mpRematchStatus.hidden = true;
+  els.mpRematchStatus.textContent = '';
   removeHomeFromBanner();
 }
 
@@ -482,12 +537,15 @@ function resetTurnTimer() {
   clearInterval(timerInterval);
   if (!(currentMode === 'mp' || currentMode === 'bp')) {
     els.timer.textContent = '--';
+    activeTimerKey = '';
     return;
   }
   if (!game || game.finished) {
     els.timer.textContent = '--';
+    activeTimerKey = '';
     return;
   }
+  activeTimerKey = timerKey(game);
   turnLocalStart = performance.now() / 1000;
   const startRemaining = game.remaining_seconds;
   els.timer.title = 'seconds left';
@@ -515,6 +573,7 @@ function runOpeningCountdown() {
   const remaining = Number(game?.countdown_seconds_remaining || 0);
   if (!(currentMode === 'mp' || currentMode === 'bp') || remaining <= 0) {
     els.timer.classList.remove('countdown');
+    activeCountdownKey = '';
     setGuessDisabled(false);
     resetTurnTimer();
     els.guessInput.focus();
@@ -523,6 +582,7 @@ function runOpeningCountdown() {
 
   setGuessDisabled(true);
   els.timer.classList.add('countdown');
+  activeCountdownKey = countdownKey(game);
 
   const countdownStart = performance.now() / 1000;
   const update = () => {
@@ -532,6 +592,7 @@ function runOpeningCountdown() {
       clearInterval(countdownInterval);
       els.timer.classList.remove('countdown');
       els.timer.style.color = '';
+      activeCountdownKey = '';
       setGuessDisabled(false);
       resetTurnTimer();
       els.guessInput.focus();
@@ -554,8 +615,8 @@ async function onMpTimeout() {
     showGameOverBanner();
     bootstrapProfile();
   } else {
-    resetTurnTimer();
     renderMpGame();
+    syncMpClock(null, game, { force: true });
   }
 }
 
@@ -584,10 +645,8 @@ async function submitMove({ raw, player_id }) {
     guest_id: currentMode === 'mp' ? (profile?.guest_id || storedGuestId()) : undefined,
   });
   if (currentMode === 'mp') {
-    if (game.last_move?.outcome === 'valid' || game.turn_index !== prevTurnIndex) {
-      resetTurnTimer();
-    }
     renderMpGame();
+    syncMpClock(null, game, { force: true });
     if (game.finished) {
       showGameOverBanner();
       bootstrapProfile();
@@ -790,6 +849,96 @@ function renderMpGame() {
   els.lineupSection.hidden = !els.toggleLineup.checked;
   els.outSection.hidden = !els.toggleOut.checked;
   lastChainLength = game.chain.length;
+}
+
+function countdownKey(state) {
+  if (!state) return '';
+  return [
+    state.game_id,
+    state.turn_index,
+    state.current_player?.id || '',
+    Math.ceil(Number(state.countdown_seconds_remaining || 0)),
+  ].join('|');
+}
+
+function timerKey(state) {
+  if (!state) return '';
+  return [
+    state.game_id,
+    state.turn_index,
+    state.current_player?.id || '',
+    Number(state.remaining_seconds || 0).toFixed(1),
+  ].join('|');
+}
+
+function syncMpClock(previousState, nextState, opts = {}) {
+  if (currentMode !== 'mp' || !nextState) return;
+  if (nextState.finished) {
+    clearInterval(countdownInterval);
+    clearInterval(timerInterval);
+    activeCountdownKey = '';
+    activeTimerKey = '';
+    els.timer.textContent = '0.0s';
+    return;
+  }
+  const nextCountdown = Number(nextState.countdown_seconds_remaining || 0);
+  if (nextCountdown > 0) {
+    const key = countdownKey(nextState);
+    if (opts.force || key !== activeCountdownKey) {
+      runOpeningCountdown();
+    }
+    return;
+  }
+
+  clearInterval(countdownInterval);
+  els.timer.classList.remove('countdown');
+  activeCountdownKey = '';
+
+  const nextTimer = Number(nextState.remaining_seconds || 0);
+  const prevTimer = Number(previousState?.remaining_seconds || 0);
+  const changedTurn =
+    !previousState ||
+    previousState.turn_index !== nextState.turn_index ||
+    previousState.current_player?.id !== nextState.current_player?.id;
+  const drifted = Math.abs(nextTimer - prevTimer) > 0.65;
+  if (opts.force || changedTurn || drifted || timerKey(nextState) !== activeTimerKey) {
+    resetTurnTimer();
+  }
+}
+
+function startRematchPolling() {
+  clearInterval(mpRematchPollInterval);
+  mpRematchPollInterval = setInterval(async () => {
+    if (currentMode !== 'mp' || !game?.game_id) return;
+    const res = await api('/api/dr/rematch_status', {
+      guest_id: profile?.guest_id || storedGuestId(),
+      game_id: game.game_id,
+    });
+    if (res.error) {
+      els.mpRematchStatus.hidden = false;
+      els.mpRematchStatus.textContent = res.error;
+      return;
+    }
+    if (res.status === 'matched' && res.game) {
+      clearInterval(mpRematchPollInterval);
+      els.mpRematchStatus.hidden = true;
+      await enterMatchedGame(res.game);
+      return;
+    }
+    if (!res.rematch_available) {
+      clearInterval(mpRematchPollInterval);
+      els.mpRematchStatus.hidden = false;
+      els.mpRematchStatus.textContent = 'Rematch is unavailable after a player leaves.';
+      return;
+    }
+    if (res.opponent_requested && !res.you_requested) {
+      els.mpRematchStatus.hidden = false;
+      els.mpRematchStatus.textContent = 'Your opponent wants a rematch.';
+    } else if (res.you_requested) {
+      els.mpRematchStatus.hidden = false;
+      els.mpRematchStatus.textContent = "Let's play two? Waiting on your opponent.";
+    }
+  }, 1000);
 }
 
 function renderBpGame() {

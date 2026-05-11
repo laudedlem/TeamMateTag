@@ -290,6 +290,21 @@ def ensure_runtime_schema():
                 "CREATE INDEX IF NOT EXISTS idx_guest_team_strikeouts_owner "
                 "ON guest_team_strikeouts(owner_guest_id, created_at DESC)"
             )
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS dr_rematches (
+                       original_game_id UUID NOT NULL,
+                       requester_guest_id UUID NOT NULL REFERENCES guests(guest_id) ON DELETE CASCADE,
+                       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                       PRIMARY KEY (original_game_id, requester_guest_id)
+                   )"""
+            )
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS dr_rematch_links (
+                       original_game_id UUID PRIMARY KEY,
+                       new_game_id UUID NOT NULL,
+                       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                   )"""
+            )
         RUNTIME_SCHEMA_READY = True
 
 
@@ -308,11 +323,11 @@ def _guest_stats(conn, guest_id: str) -> dict:
         (guest_id, guest_id, guest_id, guest_id, guest_id, guest_id, guest_id),
     ).fetchone()
     top_struck = conn.execute(
-        """SELECT team_name, COUNT(*) AS n
+        """SELECT team_name, season, COUNT(*) AS n
              FROM guest_team_strikeouts
             WHERE owner_guest_id = %s
-            GROUP BY team_name
-            ORDER BY n DESC, team_name ASC
+            GROUP BY team_name, season
+            ORDER BY n DESC, season DESC, team_name ASC
             LIMIT 3""",
         (guest_id,),
     ).fetchall()
@@ -326,7 +341,8 @@ def _guest_stats(conn, guest_id: str) -> dict:
         "dr_losses": max(0, dr_plays - dr_wins),
         "dr_elo": elo,
         "top_struck_teams": [
-            {"team_name": team_name, "count": count} for team_name, count in top_struck
+            {"team_name": team_name, "season": season, "count": count}
+            for team_name, season, count in top_struck
         ],
     }
 
@@ -748,6 +764,13 @@ def profile_name():
     return jsonify(profile)
 
 
+@app.route("/api/bp/leaderboard")
+def bp_leaderboard():
+    ensure_runtime_schema()
+    with db() as conn:
+        return jsonify(_bp_daily_leaderboard(conn))
+
+
 # ----- Player autocomplete (used by MP + BP) -----
 
 @app.route("/api/autocomplete")
@@ -949,6 +972,26 @@ def _dr_create_online_game(conn, guest_a_id: str, name_a: str, guest_b_id: str, 
     return gid, blob, state
 
 
+def _bp_daily_leaderboard(conn) -> list[dict]:
+    rows = conn.execute(
+        """
+        SELECT
+            COALESCE(g.display_name, 'Guest') AS display_name,
+            b.chain_length
+        FROM bp_runs b
+        LEFT JOIN guests g ON g.guest_id = b.owner_guest_id
+        WHERE ((b.finished_at AT TIME ZONE 'America/Chicago')::date =
+               (now() AT TIME ZONE 'America/Chicago')::date)
+        ORDER BY b.chain_length DESC, b.finished_at ASC
+        LIMIT 9
+        """
+    ).fetchall()
+    return [
+        {"display_name": display_name, "chain_length": chain_length}
+        for display_name, chain_length in rows
+    ]
+
+
 @app.route("/api/dr/queue", methods=["POST"])
 def dr_queue():
     ensure_runtime_schema()
@@ -1033,6 +1076,112 @@ def dr_game():
             return jsonify({"error": "unauthorized"}), 403
         blob["viewer_guest_id"] = guest_id
         return jsonify(dr_state_dict(gid, blob, state, conn=conn))
+
+
+@app.route("/api/dr/rematch_request", methods=["POST"])
+def dr_rematch_request():
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
+    guest_id = (data.get("guest_id") or "").strip()
+    gid = (data.get("game_id") or "").strip()
+    if not guest_id or not gid:
+        return jsonify({"error": "guest_id and game_id required"}), 400
+    with db() as conn:
+        blob, state = _load_game(conn, "dr_games", gid)
+        if not blob:
+            return jsonify({"error": "unknown game_id"}), 404
+        if not _dr_authorize(blob, guest_id):
+            return jsonify({"error": "unauthorized"}), 403
+        if not blob["finished"]:
+            return jsonify({"error": "game not finished"}), 400
+        if blob.get("last_move", {}).get("outcome") == "forfeit":
+            return jsonify({"error": "rematch unavailable after forfeit"}), 400
+
+        link = conn.execute(
+            "SELECT new_game_id::text FROM dr_rematch_links WHERE original_game_id = %s",
+            (gid,),
+        ).fetchone()
+        if link:
+            new_gid = link[0]
+            new_blob, new_state = _load_game(conn, "dr_games", new_gid)
+            if new_blob:
+                new_blob["viewer_guest_id"] = guest_id
+                return jsonify({
+                    "status": "matched",
+                    "game": dr_state_dict(new_gid, new_blob, new_state, conn=conn),
+                })
+
+        conn.execute(
+            """INSERT INTO dr_rematches (original_game_id, requester_guest_id)
+               VALUES (%s, %s)
+               ON CONFLICT DO NOTHING""",
+            (gid, guest_id),
+        )
+        requesters = conn.execute(
+            "SELECT requester_guest_id::text FROM dr_rematches WHERE original_game_id = %s",
+            (gid,),
+        ).fetchall()
+        requested_ids = {r[0] for r in requesters}
+        if {blob.get("p1_guest_id"), blob.get("p2_guest_id")} <= requested_ids:
+            new_gid, new_blob, new_state = _dr_create_online_game(
+                conn,
+                blob.get("p1_guest_id"), blob.get("p1"),
+                blob.get("p2_guest_id"), blob.get("p2"),
+            )
+            conn.execute(
+                """INSERT INTO dr_rematch_links (original_game_id, new_game_id)
+                   VALUES (%s, %s)
+                   ON CONFLICT (original_game_id) DO NOTHING""",
+                (gid, new_gid),
+            )
+            new_blob["viewer_guest_id"] = guest_id
+            return jsonify({
+                "status": "matched",
+                "game": dr_state_dict(new_gid, new_blob, new_state, conn=conn),
+            })
+        return jsonify({"status": "waiting"})
+
+
+@app.route("/api/dr/rematch_status", methods=["POST"])
+def dr_rematch_status():
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
+    guest_id = (data.get("guest_id") or "").strip()
+    gid = (data.get("game_id") or "").strip()
+    if not guest_id or not gid:
+        return jsonify({"error": "guest_id and game_id required"}), 400
+    with db() as conn:
+        blob, state = _load_game(conn, "dr_games", gid)
+        if not blob:
+            return jsonify({"error": "unknown game_id"}), 404
+        if not _dr_authorize(blob, guest_id):
+            return jsonify({"error": "unauthorized"}), 403
+        link = conn.execute(
+            "SELECT new_game_id::text FROM dr_rematch_links WHERE original_game_id = %s",
+            (gid,),
+        ).fetchone()
+        if link:
+            new_gid = link[0]
+            new_blob, new_state = _load_game(conn, "dr_games", new_gid)
+            if new_blob:
+                new_blob["viewer_guest_id"] = guest_id
+                return jsonify({
+                    "status": "matched",
+                    "game": dr_state_dict(new_gid, new_blob, new_state, conn=conn),
+                })
+        requesters = {
+            r[0] for r in conn.execute(
+                "SELECT requester_guest_id::text FROM dr_rematches WHERE original_game_id = %s",
+                (gid,),
+            ).fetchall()
+        }
+        other_guest_id = blob.get("p2_guest_id") if guest_id == blob.get("p1_guest_id") else blob.get("p1_guest_id")
+        return jsonify({
+            "status": "waiting",
+            "you_requested": guest_id in requesters,
+            "opponent_requested": other_guest_id in requesters,
+            "rematch_available": blob.get("last_move", {}).get("outcome") != "forfeit",
+        })
 
 
 @app.route("/api/dr/create_challenge", methods=["POST"])
