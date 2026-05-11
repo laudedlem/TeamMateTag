@@ -1,9 +1,8 @@
 {
-  "version": 2,
-  "builds": [
-    { "src": "api/index.py", "use": "@vercel/python" }
-  ],
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/api/index" }
-  ]
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "app.py": {
+      "excludeFiles": "{db/*.sqlite,db/*.sqlite-journal,raw/**,data/sample/**,tests/**,__pycache__/**,*.log}"
+    }
+  }
 }
