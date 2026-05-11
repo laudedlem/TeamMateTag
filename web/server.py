@@ -247,6 +247,7 @@ def ensure_runtime_schema():
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS dr_results (
                        result_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                       game_id UUID,
                        owner_guest_id UUID REFERENCES guests(guest_id) ON DELETE SET NULL,
                        opponent_guest_id UUID REFERENCES guests(guest_id) ON DELETE SET NULL,
                        opponent_name TEXT,
@@ -258,6 +259,9 @@ def ensure_runtime_schema():
                    )"""
             )
             conn.execute(
+                "ALTER TABLE dr_results ADD COLUMN IF NOT EXISTS game_id UUID"
+            )
+            conn.execute(
                 "ALTER TABLE dr_results ADD COLUMN IF NOT EXISTS chain_length INTEGER"
             )
             conn.execute(
@@ -267,6 +271,10 @@ def ensure_runtime_schema():
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_dr_results_owner_guest "
                 "ON dr_results(owner_guest_id, finished_at DESC)"
+            )
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_dr_results_owner_game_unique "
+                "ON dr_results(owner_guest_id, game_id) WHERE game_id IS NOT NULL"
             )
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS dr_queue (
@@ -460,7 +468,7 @@ def _guest_profile(conn, guest_id: str) -> dict | None:
         "created_at": created_at.isoformat(),
         "account": (
             {"username": username, "email": email}
-            if username and email else None
+            if username else None
         ),
         "stats": _guest_stats(conn, gid),
     }
@@ -668,7 +676,7 @@ def _record_struck_out_teams(conn, guest_id: str | None, mode: str, state: GameS
         )
 
 
-def _save_dr_result(conn, blob: dict):
+def _save_dr_result(conn, blob: dict, game_id: str | None = None):
     if blob.get("result_saved"):
         return
     p1_guest_id = blob.get("p1_guest_id")
@@ -700,15 +708,17 @@ def _save_dr_result(conn, blob: dict):
     )
     conn.execute(
         """INSERT INTO dr_results (
-               owner_guest_id, opponent_guest_id, opponent_name, chain_length, won, elo_before, elo_after
-           ) VALUES (%s, %s, %s, %s, %s, %s, %s)""",
-        (p1_guest_id, p2_guest_id, blob.get("p2"), chain_length, bool(p1_won), p1_before, p1_after),
+               game_id, owner_guest_id, opponent_guest_id, opponent_name, chain_length, won, elo_before, elo_after
+           ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+           ON CONFLICT (owner_guest_id, game_id) WHERE game_id IS NOT NULL DO NOTHING""",
+        (game_id, p1_guest_id, p2_guest_id, blob.get("p2"), chain_length, bool(p1_won), p1_before, p1_after),
     )
     conn.execute(
         """INSERT INTO dr_results (
-               owner_guest_id, opponent_guest_id, opponent_name, chain_length, won, elo_before, elo_after
-           ) VALUES (%s, %s, %s, %s, %s, %s, %s)""",
-        (p2_guest_id, p1_guest_id, blob.get("p1"), chain_length, bool(not p1_won), p2_before, p2_after),
+               game_id, owner_guest_id, opponent_guest_id, opponent_name, chain_length, won, elo_before, elo_after
+           ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+           ON CONFLICT (owner_guest_id, game_id) WHERE game_id IS NOT NULL DO NOTHING""",
+        (game_id, p2_guest_id, p1_guest_id, blob.get("p1"), chain_length, bool(not p1_won), p2_before, p2_after),
     )
     state = deserialize_state(blob)
     _record_struck_out_teams(conn, p1_guest_id, "dr", state)
@@ -1029,23 +1039,30 @@ def account_register():
         return jsonify({"error": "username must be at least 3 characters"}), 400
     if len(username) > 24:
         return jsonify({"error": "username too long"}), 400
-    if "@" not in email or "." not in email:
-        return jsonify({"error": "valid email required"}), 400
     if len(password) < 6:
         return jsonify({"error": "password must be at least 6 characters"}), 400
     if not display_name:
         display_name = username
     if len(display_name) > 24:
         return jsonify({"error": "display_name too long"}), 400
+    email = email or None
 
     password_hash, password_salt = _hash_password(password)
     with db() as conn:
-        taken = conn.execute(
-            """SELECT 1
-                 FROM users
-                WHERE lower(username) = %s OR lower(email) = %s""",
-            (username.lower(), email.lower()),
-        ).fetchone()
+        if email:
+            taken = conn.execute(
+                """SELECT 1
+                     FROM users
+                    WHERE lower(username) = %s OR lower(email) = %s""",
+                (username.lower(), email.lower()),
+            ).fetchone()
+        else:
+            taken = conn.execute(
+                """SELECT 1
+                     FROM users
+                    WHERE lower(username) = %s""",
+                (username.lower(),),
+            ).fetchone()
         if taken:
             return jsonify({"error": "username or email already in use"}), 409
 
@@ -1966,7 +1983,7 @@ def dr_leave_game():
             blob["finished"] = True
             blob["winner"] = blob.get("p2") if guest_id == blob.get("p1_guest_id") else blob.get("p1")
             blob["last_move"] = {"outcome": "forfeit"}
-            _save_dr_result(conn, blob)
+            _save_dr_result(conn, blob, game_id)
             _save_game(conn, "dr_games", game_id, blob)
     return jsonify({"status": "gone"})
 
@@ -2036,7 +2053,7 @@ def move():
             blob["finished"] = True
             blob["winner"] = [blob["p2"], blob["p1"]][blob["turn_index"]]
             blob["last_move"] = {"outcome": "timeout"}
-            _save_dr_result(conn, blob)
+            _save_dr_result(conn, blob, gid)
             _save_game(conn, "dr_games", gid, blob)
             return jsonify(dr_state_dict(gid, blob, state, conn=conn))
 
@@ -2086,7 +2103,7 @@ def timeout():
         blob["finished"] = True
         blob["winner"] = [blob["p2"], blob["p1"]][blob["turn_index"]]
         blob["last_move"] = {"outcome": "timeout"}
-        _save_dr_result(conn, blob)
+        _save_dr_result(conn, blob, gid)
         _save_game(conn, "dr_games", gid, blob)
         return jsonify(dr_state_dict(gid, blob, state, conn=conn))
 

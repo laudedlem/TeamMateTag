@@ -14,7 +14,6 @@ const els = {
   accountLoggedOut: document.getElementById('account-logged-out'),
   accountLoggedIn: document.getElementById('account-logged-in'),
   accountUsernameInput: document.getElementById('account-username-input'),
-  accountEmailInput: document.getElementById('account-email-input'),
   accountPasswordInput: document.getElementById('account-password-input'),
   accountRegisterBtn: document.getElementById('account-register-btn'),
   accountLoginBtn: document.getElementById('account-login-btn'),
@@ -235,14 +234,12 @@ async function saveProfileName() {
 async function registerAccount() {
   if (!profile?.guest_id) return;
   const username = els.accountUsernameInput.value.trim();
-  const email = els.accountEmailInput.value.trim();
   const password = els.accountPasswordInput.value;
   const display_name = els.profileNameInput.value.trim() || profile.display_name || username;
   els.accountRegisterBtn.disabled = true;
   const next = await api('/api/account/register', {
     guest_id: profile.guest_id,
     username,
-    email,
     password,
     display_name,
   });
@@ -260,7 +257,7 @@ async function registerAccount() {
 }
 
 async function loginAccount() {
-  const identifier = (els.accountEmailInput.value || els.accountUsernameInput.value).trim();
+  const identifier = els.accountUsernameInput.value.trim();
   const password = els.accountPasswordInput.value;
   els.accountLoginBtn.disabled = true;
   const next = await api('/api/account/login', { identifier, password });
@@ -587,9 +584,15 @@ async function goHome() {
     await api('/api/dr/cancel_challenge', { guest_id: profile?.guest_id || storedGuestId() });
   } else if (activeMpGameId) {
     if (finishedMpGameId) {
-      await api('/api/dr/postgame_leave', {
+      const payload = JSON.stringify({
         guest_id: profile?.guest_id || storedGuestId(),
         game_id: finishedMpGameId,
+      });
+      await fetch('/api/dr/postgame_leave', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payload,
+        keepalive: true,
       });
     } else {
       await api('/api/dr/leave_game', {
@@ -1709,7 +1712,7 @@ els.profileNameInput.addEventListener('keydown', (e) => {
 els.accountPasswordInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     e.preventDefault();
-    if (els.accountEmailInput.value.trim() || els.accountUsernameInput.value.trim()) {
+    if (els.accountUsernameInput.value.trim()) {
       loginAccount();
     }
   }
