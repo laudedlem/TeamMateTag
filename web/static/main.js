@@ -19,7 +19,6 @@ const els = {
   accountRegisterBtn: document.getElementById('account-register-btn'),
   accountLoginBtn: document.getElementById('account-login-btn'),
   accountResetBtn: document.getElementById('account-reset-btn'),
-  accountResendBtn: document.getElementById('account-resend-btn'),
   accountLogoutBtn: document.getElementById('account-logout-btn'),
   accountSummary: document.getElementById('account-summary'),
   accountStatus: document.getElementById('account-status'),
@@ -274,11 +273,8 @@ async function registerAccount() {
   }
   profile = next;
   saveGuestId(profile.guest_id);
-  els.accountEmailInput.value = '';
   els.accountPasswordInput.value = '';
-  if (profile.registration_requires_verification) {
-    els.accountStatus.textContent = 'Check your email to verify the account, then log in.';
-  }
+  els.accountStatus.textContent = 'Account created and signed in.';
   renderProfile();
   startFriendsPolling();
   refreshFriends();
@@ -323,18 +319,6 @@ async function resetPassword() {
   const res = await api('/api/account/reset_password', { identifier });
   els.accountResetBtn.disabled = false;
   els.accountStatus.textContent = res?.error || 'Password reset email sent if the account exists.';
-}
-
-async function resendVerification() {
-  const identifier = els.accountUsernameInput.value.trim();
-  if (!identifier) {
-    els.accountStatus.textContent = 'Enter your username or email first.';
-    return;
-  }
-  els.accountResendBtn.disabled = true;
-  const res = await api('/api/account/resend_verification', { identifier });
-  els.accountResendBtn.disabled = false;
-  els.accountStatus.textContent = res?.error || 'Verification email sent if the account exists.';
 }
 
 async function deleteAccount() {
@@ -1833,7 +1817,6 @@ els.friendsOpenBtn.addEventListener('click', openFriends);
 els.accountRegisterBtn.addEventListener('click', registerAccount);
 els.accountLoginBtn.addEventListener('click', loginAccount);
 els.accountResetBtn.addEventListener('click', resetPassword);
-els.accountResendBtn.addEventListener('click', resendVerification);
 els.accountLogoutBtn.addEventListener('click', logoutAccount);
 els.deleteAccountBtn.addEventListener('click', deleteAccount);
 els.friendRequestBtn.addEventListener('click', sendFriendRequest);

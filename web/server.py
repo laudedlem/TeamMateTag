@@ -1311,23 +1311,21 @@ def account_register():
         if taken:
             return jsonify({"error": "username or email already in use"}), 409
 
-        signup_res = _supabase_signup(
+        create_res = _supabase_admin_create_user(
             email,
             password,
             username,
             display_name,
-            request.url_root.rstrip("/") + "/",
         )
-        signup_json = signup_res.json()
-        if signup_res.status_code >= 400:
-            message = signup_json.get("msg") or signup_json.get("error_description") or signup_json.get("error") or "signup failed"
-            return jsonify({"error": message}), signup_res.status_code
+        create_json = create_res.json()
+        if create_res.status_code >= 400:
+            message = create_json.get("msg") or create_json.get("error_description") or create_json.get("error") or "signup failed"
+            return jsonify({"error": message}), create_res.status_code
 
-        session = signup_json.get("session")
-        auth_user_id = _extract_auth_user_id(signup_json) or _find_auth_user_id_by_email(conn, email)
+        auth_user_id = _extract_auth_user_id(create_json) or _find_auth_user_id_by_email(conn, email)
         if not auth_user_id:
             return jsonify({
-                "error": "verification email sent, but the account could not be linked yet. Try logging in after confirming your email."
+                "error": "account was created, but the auth identity could not be linked yet"
             }), 502
 
         gid = guest_id
@@ -1375,13 +1373,14 @@ def account_register():
                    ) VALUES (%s, %s, %s, %s, %s, NULL, NULL)""",
                 (gid, display_name, username, email, auth_user_id),
             )
-        profile = _guest_profile(conn, gid, authenticated=bool(session))
-        if session:
-            session_token = _create_app_session(conn, gid, auth_user_id)
-            return _session_response(profile, session_token)
-
-    profile["registration_requires_verification"] = True
-    return jsonify(profile)
+        signin_res = _supabase_signin(email, password)
+        signin_json = signin_res.json()
+        if signin_res.status_code >= 400:
+            message = signin_json.get("msg") or signin_json.get("error_description") or signin_json.get("error") or "login failed"
+            return jsonify({"error": message}), 403 if signin_res.status_code == 400 else signin_res.status_code
+        profile = _guest_profile(conn, gid, authenticated=True)
+        session_token = _create_app_session(conn, gid, auth_user_id)
+        return _session_response(profile, session_token)
 
 
 @app.route("/api/account/login", methods=["POST"])
@@ -1509,36 +1508,6 @@ def account_reset_password():
         payload = reset_res.json()
         message = payload.get("msg") or payload.get("error_description") or payload.get("error") or "reset request failed"
         return jsonify({"error": message}), reset_res.status_code
-    return jsonify({"status": "sent"})
-
-
-@app.route("/api/account/resend_verification", methods=["POST"])
-def account_resend_verification():
-    ensure_runtime_schema()
-    if not _supabase_ready():
-        return jsonify({"error": "Supabase Auth is not configured on the server."}), 500
-    data = request.get_json(silent=True) or {}
-    identifier = (data.get("identifier") or "").strip().lower()
-    if not identifier:
-        return jsonify({"error": "identifier required"}), 400
-    with db() as conn:
-        row = conn.execute(
-            """SELECT email
-                 FROM users
-                WHERE lower(username) = %s OR lower(email) = %s
-                LIMIT 1""",
-            (identifier, identifier),
-        ).fetchone()
-    if not row or not row[0]:
-        return jsonify({"error": "account not found"}), 404
-    resend_res = _supabase_resend_signup(
-        row[0],
-        request.url_root.rstrip("/") + "/",
-    )
-    if resend_res.status_code >= 400:
-        payload = resend_res.json()
-        message = payload.get("msg") or payload.get("error_description") or payload.get("error") or "verification resend failed"
-        return jsonify({"error": message}), resend_res.status_code
     return jsonify({"status": "sent"})
 
 
