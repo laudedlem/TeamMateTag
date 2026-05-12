@@ -1329,19 +1329,29 @@ function startRematchPolling() {
       return;
     }
     if (res.status === 'requeued') {
-      els.mpRematchStatus.hidden = false;
-      els.mpRematchStatus.textContent = 'Opponent left. Finding a new match...';
-      await requeueForNewMatch('Opponent left. Searching for a new opponent...', {
-        avoidLastOpponent: true,
-      });
+      if (res.you_requested) {
+        els.mpRematchStatus.hidden = false;
+        els.mpRematchStatus.textContent = 'Opponent left. Finding a new match...';
+        await requeueForNewMatch('Opponent left. Searching for a new opponent...', {
+          avoidLastOpponent: true,
+        });
+      } else {
+        els.mpRematchStatus.hidden = false;
+        els.mpRematchStatus.textContent = 'Opponent left the game.';
+      }
       return;
     }
     if (res.status === 'abandoned') {
-      els.mpRematchStatus.hidden = false;
-      els.mpRematchStatus.textContent = 'Opponent left. Finding a new match...';
-      await requeueForNewMatch('Opponent left. Searching for a new opponent...', {
-        avoidLastOpponent: true,
-      });
+      if (res.you_requested) {
+        els.mpRematchStatus.hidden = false;
+        els.mpRematchStatus.textContent = 'Opponent left. Finding a new match...';
+        await requeueForNewMatch('Opponent left. Searching for a new opponent...', {
+          avoidLastOpponent: true,
+        });
+      } else {
+        els.mpRematchStatus.hidden = false;
+        els.mpRematchStatus.textContent = 'Opponent left the game.';
+      }
       return;
     }
     if (!res.rematch_available) {
