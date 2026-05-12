@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Privacy Policy | TeamMateTag</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body class="dark">
+  <header>
+    <div class="title">
+      <div class="brand-row">
+        <h1>TeamMateTag</h1>
+        <span class="app-version">0.1.15</span>
+      </div>
+    </div>
+  </header>
+  <main class="legal-page">
+    <div class="legal-card">
+      <a href="/" class="back-link">&larr; Back to TeamMateTag</a>
+      <h2>Privacy Policy</h2>
+      <p class="muted">Last updated May 11, 2026</p>
+
+      <p>
+        TeamMateTag stores only the information needed to run accounts, matchmaking, friends,
+        leaderboards, and game statistics. We collect usernames, email addresses when provided,
+        password authentication data, guest and account identifiers, gameplay results, friend
+        relationships, and basic client-side identifiers needed to keep your profile on a device.
+      </p>
+
+      <p>
+        We use this information to let you log in, match into games, save your statistics across
+        browsers and devices, support friend challenges, and maintain fair play. We do not sell
+        personal information. Our application is hosted on Vercel and our database is hosted on
+        Supabase, which process data on our behalf as service providers.
+      </p>
+
+      <p>
+        Gameplay data may include lineup history, win-loss results, ELO, team-year strikeout
+        statistics, and usage counts for players and links. This data helps operate the game,
+        support leaderboards, and improve balancing.
+      </p>
+
+      <p>
+        If you create an account, you can request deletion of your account and associated profile
+        data from within the app. You can also contact us at <a href="mailto:{{ support_email }}">{{ support_email }}</a>
+        for privacy questions, correction requests, or deletion help.
+      </p>
+
+      <p>
+        TeamMateTag is intended for users age 13 and older. If you believe a child has provided
+        personal information to TeamMateTag, contact us and we will review and remove it.
+      </p>
+    </div>
+  </main>
+  <footer class="site-footer">
+    <a href="/" class="footer-link">Home</a>
+    <a href="/privacy" class="footer-link">Privacy</a>
+    <a href="/terms" class="footer-link">Terms</a>
+    <a href="/contact" class="footer-link">Contact</a>
+  </footer>
+</body>
+</html>

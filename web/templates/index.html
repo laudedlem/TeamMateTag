@@ -9,7 +9,10 @@
 <body class="dark">
   <header>
     <div class="title">
-      <h1>TeamMateTag</h1>
+      <div class="brand-row">
+        <h1>TeamMateTag</h1>
+        <span class="app-version" title="Current version">0.1.15</span>
+      </div>
       <span class="subtitle" id="brand-subtitle"></span>
     </div>
     <div class="header-controls">
@@ -127,6 +130,19 @@
       <div class="leaderboard-card">
         <h3>Today's Batting Practice Leaders</h3>
         <ol id="bp-leaderboard" class="leaderboard-list"></ol>
+      </div>
+      <div class="danger-card" id="delete-account-card" hidden>
+        <h3>Delete Account</h3>
+        <p class="muted small">
+          This permanently deletes your account, friends, and saved profile data tied to this login.
+        </p>
+        <div class="auth-grid">
+          <input id="delete-account-password-input" type="password" maxlength="120" placeholder="Confirm password" />
+        </div>
+        <div class="auth-actions">
+          <button id="delete-account-btn" class="danger" type="button">Delete Account</button>
+        </div>
+        <p id="delete-account-status" class="muted small"></p>
       </div>
     </div>
   </section>
@@ -304,6 +320,13 @@
       <p id="rules-text"></p>
     </div>
   </div>
+
+  <footer class="site-footer">
+    <a href="/" class="footer-link">Home</a>
+    <a href="/privacy" class="footer-link">Privacy</a>
+    <a href="/terms" class="footer-link">Terms</a>
+    <a href="/contact" class="footer-link">Contact</a>
+  </footer>
 
   <script src="{{ url_for('static', filename='main.js') }}"></script>
 </body>

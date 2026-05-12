@@ -30,6 +30,10 @@ const els = {
   profileDrRecord: document.getElementById('profile-dr-record'),
   profileTopStruck: document.getElementById('profile-top-struck'),
   bpLeaderboard: document.getElementById('bp-leaderboard'),
+  deleteAccountCard: document.getElementById('delete-account-card'),
+  deleteAccountPasswordInput: document.getElementById('delete-account-password-input'),
+  deleteAccountBtn: document.getElementById('delete-account-btn'),
+  deleteAccountStatus: document.getElementById('delete-account-status'),
   friendsStatus: document.getElementById('friends-status'),
   friendTargetInput: document.getElementById('friend-target-input'),
   friendRequestBtn: document.getElementById('friend-request-btn'),
@@ -165,6 +169,8 @@ function renderProfile() {
     els.profileDrElo.textContent = '--';
     els.profileDrRecord.textContent = '--';
     els.profileTopStruck.textContent = '--';
+    els.deleteAccountCard.hidden = true;
+    els.deleteAccountStatus.textContent = '';
     els.accountLoggedOut.hidden = false;
     els.accountLoggedIn.hidden = true;
     els.accountStatus.textContent = '';
@@ -198,6 +204,11 @@ function renderProfile() {
     els.accountLoggedIn.hidden = true;
     els.accountSummary.textContent = '';
     els.accountStatus.textContent = 'Create an account or log in to carry your profile across browsers and devices.';
+  }
+  els.deleteAccountCard.hidden = !profile.account;
+  if (!profile.account) {
+    els.deleteAccountStatus.textContent = '';
+    els.deleteAccountPasswordInput.value = '';
   }
 }
 
@@ -286,6 +297,30 @@ async function logoutAccount() {
   friendsData = null;
   renderProfile();
   await bootstrapProfile();
+}
+
+async function deleteAccount() {
+  if (!profile?.account || !profile?.guest_id) return;
+  const password = els.deleteAccountPasswordInput.value;
+  if (!password) {
+    els.deleteAccountStatus.textContent = 'Enter your password to delete the account.';
+    return;
+  }
+  const confirmed = window.confirm('Delete this account and all linked profile data? This cannot be undone.');
+  if (!confirmed) return;
+  els.deleteAccountBtn.disabled = true;
+  const res = await api('/api/account/delete', {
+    guest_id: profile.guest_id,
+    password,
+  });
+  els.deleteAccountBtn.disabled = false;
+  if (res?.error) {
+    els.deleteAccountStatus.textContent = res.error;
+    return;
+  }
+  els.deleteAccountStatus.textContent = '';
+  els.deleteAccountPasswordInput.value = '';
+  await logoutAccount();
 }
 
 function currentHandle() {
@@ -1766,6 +1801,7 @@ els.friendsOpenBtn.addEventListener('click', openFriends);
 els.accountRegisterBtn.addEventListener('click', registerAccount);
 els.accountLoginBtn.addEventListener('click', loginAccount);
 els.accountLogoutBtn.addEventListener('click', logoutAccount);
+els.deleteAccountBtn.addEventListener('click', deleteAccount);
 els.friendRequestBtn.addEventListener('click', sendFriendRequest);
 els.profileNameInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
@@ -1779,6 +1815,12 @@ els.accountPasswordInput.addEventListener('keydown', (e) => {
     if (els.accountUsernameInput.value.trim()) {
       loginAccount();
     }
+  }
+});
+els.deleteAccountPasswordInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    deleteAccount();
   }
 });
 els.friendTargetInput.addEventListener('keydown', (e) => {

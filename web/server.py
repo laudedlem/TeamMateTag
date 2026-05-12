@@ -60,6 +60,7 @@ DEFAULT_SEED = "rizzoan01"
 HEADSHOT_URL = "https://midfield.mlbstatic.com/v1/people/{}/spots/120"
 OPENING_COUNTDOWN_SECONDS = 3.0
 APP_TURN_SECONDS = 20.0
+SUPPORT_EMAIL = "support@teammatetag.com"
 
 # Explicit folders so Flask works regardless of CWD on serverless hosts.
 app = Flask(
@@ -983,6 +984,21 @@ def index():
     return render_template("index.html")
 
 
+@app.route("/privacy")
+def privacy():
+    return render_template("privacy.html", support_email=SUPPORT_EMAIL)
+
+
+@app.route("/terms")
+def terms():
+    return render_template("terms.html", support_email=SUPPORT_EMAIL)
+
+
+@app.route("/contact")
+def contact():
+    return render_template("contact.html", support_email=SUPPORT_EMAIL)
+
+
 @app.route("/api/profile/bootstrap", methods=["POST"])
 def profile_bootstrap():
     ensure_runtime_schema()
@@ -1133,6 +1149,60 @@ def account_login():
             )
         profile = _guest_profile(conn, user_id)
     return jsonify(profile)
+
+
+def _forfeit_active_dr_games(conn, guest_id: str):
+    rows = conn.execute(
+        """SELECT game_id::text, state, finished
+             FROM dr_games
+            WHERE NOT finished
+              AND ((state->>'p1_guest_id') = %s OR (state->>'p2_guest_id') = %s)""",
+        (guest_id, guest_id),
+    ).fetchall()
+    for game_id, blob, finished in rows:
+        blob["finished"] = finished
+        if blob.get("finished"):
+            continue
+        blob["finished"] = True
+        blob["winner"] = (
+            blob.get("p2") if guest_id == blob.get("p1_guest_id")
+            else blob.get("p1")
+        )
+        blob["last_move"] = {"outcome": "forfeit"}
+        _save_dr_result(conn, blob, game_id)
+        _save_game(conn, "dr_games", game_id, blob)
+
+
+@app.route("/api/account/delete", methods=["POST"])
+def account_delete():
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
+    guest_id = (data.get("guest_id") or "").strip()
+    password = data.get("password") or ""
+    if not guest_id or not password:
+        return jsonify({"error": "guest_id and password required"}), 400
+    with db() as conn:
+        row = conn.execute(
+            """SELECT password_hash, password_salt
+                 FROM users
+                WHERE user_id = %s""",
+            (guest_id,),
+        ).fetchone()
+        if not row:
+            return jsonify({"error": "account not found"}), 404
+        password_hash, password_salt = row
+        if not password_hash or not password_salt or not _verify_password(password, password_hash, password_salt):
+            return jsonify({"error": "incorrect password"}), 403
+
+        _forfeit_active_dr_games(conn, guest_id)
+        conn.execute("DELETE FROM dr_queue WHERE guest_id = %s", (guest_id,))
+        conn.execute("DELETE FROM dr_invites WHERE host_guest_id = %s", (guest_id,))
+        conn.execute("DELETE FROM dr_rematches WHERE requester_guest_id = %s", (guest_id,))
+        conn.execute("DELETE FROM dr_postgame_exits WHERE guest_id = %s", (guest_id,))
+        conn.execute("DELETE FROM users WHERE user_id = %s", (guest_id,))
+        conn.execute("DELETE FROM guests WHERE guest_id = %s", (guest_id,))
+
+    return jsonify({"status": "deleted"})
 
 
 @app.route("/api/friends/list", methods=["POST"])

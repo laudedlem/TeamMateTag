@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Contact | TeamMateTag</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body class="dark">
+  <header>
+    <div class="title">
+      <div class="brand-row">
+        <h1>TeamMateTag</h1>
+        <span class="app-version">0.1.15</span>
+      </div>
+    </div>
+  </header>
+  <main class="legal-page">
+    <div class="legal-card">
+      <a href="/" class="back-link">&larr; Back to TeamMateTag</a>
+      <h2>Contact</h2>
+      <p>
+        For support, privacy questions, account deletion help, or legal requests, email
+        <a href="mailto:{{ support_email }}">{{ support_email }}</a>.
+      </p>
+      <p class="muted">
+        Before a broader public launch, make sure this inbox is configured and actively monitored.
+      </p>
+    </div>
+  </main>
+  <footer class="site-footer">
+    <a href="/" class="footer-link">Home</a>
+    <a href="/privacy" class="footer-link">Privacy</a>
+    <a href="/terms" class="footer-link">Terms</a>
+    <a href="/contact" class="footer-link">Contact</a>
+  </footer>
+</body>
+</html>

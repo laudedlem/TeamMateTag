@@ -58,6 +58,21 @@ header .title h1 {
   color: var(--text);
 }
 
+.brand-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+}
+
+.app-version {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.12rem 0.45rem;
+  line-height: 1.2;
+}
+
 .subtitle {
   font-size: 0.78rem;
   color: var(--text-muted);
@@ -74,6 +89,47 @@ header .title h1 {
   display: flex;
   align-items: center;
   gap: 1rem;
+}
+
+.site-footer {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 1.25rem 1rem 0;
+  color: var(--text-muted);
+}
+
+.footer-link {
+  color: var(--text-muted);
+  text-decoration: none;
+}
+
+.footer-link:hover {
+  color: var(--accent);
+}
+
+.legal-page {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 2rem 1rem 1rem;
+}
+
+.legal-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.4rem 1.5rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.legal-card h2 {
+  margin-top: 0.5rem;
+}
+
+.back-link {
+  color: var(--accent);
+  text-decoration: none;
 }
 
 .header-toggles {
@@ -148,7 +204,8 @@ button.primary:disabled {
   cursor: not-allowed;
 }
 
-input[type="text"] {
+input[type="text"],
+input[type="password"] {
   background: var(--bg);
   border: 1px solid var(--border-strong);
   color: var(--text);
@@ -160,8 +217,24 @@ input[type="text"] {
   transition: border-color 0.15s;
 }
 
-input[type="text"]:focus {
+input[type="text"]:focus,
+input[type="password"]:focus {
   border-color: var(--accent);
+}
+
+button.danger {
+  background: #7f1d1d;
+  color: #fee2e2;
+  border: 1px solid #b91c1c;
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 1.2rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button.danger:hover:not(:disabled) {
+  background: #991b1b;
 }
 
 /* ---------- Screens ---------- */
@@ -348,6 +421,19 @@ input[type="text"]:focus {
 .friend-empty {
   color: var(--text-muted);
   font-size: 0.85rem;
+}
+
+.danger-card {
+  margin-top: 1rem;
+  padding: 1rem 1.1rem;
+  background: rgba(127, 29, 29, 0.12);
+  border: 1px solid rgba(248, 113, 113, 0.28);
+  border-radius: var(--radius-sm);
+}
+
+.danger-card h3 {
+  margin: 0 0 0.5rem;
+  color: #fecaca;
 }
 
 .challenge-row input {

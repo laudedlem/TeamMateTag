@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Terms of Use | TeamMateTag</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body class="dark">
+  <header>
+    <div class="title">
+      <div class="brand-row">
+        <h1>TeamMateTag</h1>
+        <span class="app-version">0.1.15</span>
+      </div>
+    </div>
+  </header>
+  <main class="legal-page">
+    <div class="legal-card">
+      <a href="/" class="back-link">&larr; Back to TeamMateTag</a>
+      <h2>Terms of Use</h2>
+      <p class="muted">Last updated May 11, 2026</p>
+
+      <p>
+        TeamMateTag is provided for personal entertainment and playtesting. By using the service,
+        you agree not to abuse the game, interfere with matchmaking, impersonate other users, scrape
+        content at scale, or attempt to damage the service.
+      </p>
+
+      <p>
+        You are responsible for activity on your account and for keeping your password secure.
+        We may suspend or remove accounts that cheat, harass other users, or misuse the platform.
+      </p>
+
+      <p>
+        TeamMateTag, rankings, leaderboards, and game statistics are provided as-is and may change,
+        reset, or be removed as the product evolves. We may update or discontinue features at any
+        time.
+      </p>
+
+      <p>
+        To the fullest extent allowed by law, TeamMateTag is provided without warranties of any
+        kind. For questions about these terms, contact <a href="mailto:{{ support_email }}">{{ support_email }}</a>.
+      </p>
+    </div>
+  </main>
+  <footer class="site-footer">
+    <a href="/" class="footer-link">Home</a>
+    <a href="/privacy" class="footer-link">Privacy</a>
+    <a href="/terms" class="footer-link">Terms</a>
+    <a href="/contact" class="footer-link">Contact</a>
+  </footer>
+</body>
+</html>
