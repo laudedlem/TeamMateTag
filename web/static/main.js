@@ -122,6 +122,7 @@ let turnLocalStart = 0;
 let lastChainLength = 0;
 let activeCountdownKey = '';
 let activeTimerKey = '';
+let animateNewestCard = false;
 
 let acItems = [];
 let acHighlight = -1;
@@ -648,6 +649,7 @@ function startMpPolling() {
       const prevChain = previousGame?.chain?.length || 0;
       game = next;
       lastChainLength = prevChain;
+      animateNewestCard = (next.chain?.length || 0) > prevChain;
       renderMpGame();
       syncMpClock(previousGame, next);
       if (game.finished) {
@@ -671,6 +673,7 @@ async function enterMatchedGame(nextGame) {
   els.cancelMatchBtn.hidden = true;
   els.challengeStatusText.textContent = '';
   game = nextGame;
+  animateNewestCard = false;
   renderMpGame();
   syncMpClock(null, game, { force: true });
   startMpPolling();
@@ -780,6 +783,7 @@ async function startBp() {
     return;
   }
   els.guessInput.value = '';
+  animateNewestCard = false;
   renderBpGame();
   runOpeningCountdown();
 }
@@ -1033,7 +1037,7 @@ async function submitMove({ raw, player_id }) {
   closeAutocomplete();
   els.guessInput.value = '';
   const path = currentMode === 'bp' ? '/api/bp/move' : '/api/move';
-  const prevTurnIndex = game.turn_index;
+  const previousChainLength = game.chain?.length || 0;
   game = await api(path, {
     game_id: game.game_id,
     raw,
@@ -1041,6 +1045,7 @@ async function submitMove({ raw, player_id }) {
     guest_id: currentMode === 'mp' ? (profile?.guest_id || storedGuestId()) : undefined,
   });
   if (currentMode === 'mp') {
+    animateNewestCard = (game.chain?.length || 0) > previousChainLength;
     renderMpGame();
     syncMpClock(null, game, { force: true });
     if (game.finished) {
@@ -1049,6 +1054,7 @@ async function submitMove({ raw, player_id }) {
     }
   } else {
     if (game.last_move?.outcome === 'valid') resetTurnTimer();
+    animateNewestCard = (game.chain?.length || 0) > previousChainLength;
     renderBpGame();
     if (game.finished) {
       showGameOverBanner();
@@ -1238,13 +1244,14 @@ function renderMpGame() {
   els.guessInput.placeholder = game.your_turn ? 'Type a name (first or last)...' : '';
 
   els.feedback.innerHTML = renderMoveFeedback(game.last_move, game);
-  renderCardStack(game.chain, game.strikes, true);
+  renderCardStack(game.chain, game.strikes, true, animateNewestCard);
   renderLineup(game.chain);
   renderOut(game.strikes);
 
   els.lineupSection.hidden = !els.toggleLineup.checked;
   els.outSection.hidden = !els.toggleOut.checked;
   lastChainLength = game.chain.length;
+  animateNewestCard = false;
 }
 
 function countdownKey(state) {
@@ -1368,27 +1375,27 @@ function renderBpGame() {
   els.guessInput.placeholder = 'Type a name (first or last)...';
 
   els.feedback.innerHTML = renderMoveFeedback(game.last_move, game);
-  renderCardStack(game.chain, game.strikes, true);
+  renderCardStack(game.chain, game.strikes, true, animateNewestCard);
   renderLineup(game.chain);
   renderOut(game.strikes);
 
   els.lineupSection.hidden = !els.toggleLineup.checked;
   els.outSection.hidden = !els.toggleOut.checked;
   lastChainLength = game.chain.length;
+  animateNewestCard = false;
 }
 
-function renderCardStack(chain, allStrikes, showStrikes) {
-  const newPlayerAdded = chain.length > lastChainLength;
+function renderCardStack(chain, allStrikes, showStrikes, animateNewest = false) {
   const reversed = chain.slice().reverse();
   els.cardStack.innerHTML = '';
   reversed.forEach((player, i) => {
     const isSeed = i === reversed.length - 1;
     const playerCard = makePlayerCard(player, isSeed);
-    if (newPlayerAdded && i === 0) playerCard.classList.add('slide-in');
+    if (animateNewest && i === 0) playerCard.classList.add('slide-in');
     els.cardStack.appendChild(playerCard);
     if (i < reversed.length - 1) {
       const bar = makeConnectionBar(player.shared_with_prev, allStrikes, showStrikes);
-      if (newPlayerAdded && i === 0) bar.classList.add('slide-in');
+      if (animateNewest && i === 0) bar.classList.add('slide-in');
       els.cardStack.appendChild(bar);
     }
   });
