@@ -21,6 +21,7 @@ import sys
 import uuid
 import hashlib
 import hmac
+from urllib.parse import urljoin
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -28,6 +29,7 @@ from pathlib import Path
 from threading import Lock
 
 import psycopg
+import requests
 from psycopg.types.json import Jsonb
 
 # Load .env first so DATABASE_URL is available before module-level code.
@@ -37,7 +39,7 @@ try:
 except ImportError:
     pass
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, make_response, render_template, request
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "game"))
@@ -55,12 +57,16 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from name_normalize import normalize  # noqa: E402
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
+SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 
 DEFAULT_SEED = "rizzoan01"
 HEADSHOT_URL = "https://midfield.mlbstatic.com/v1/people/{}/spots/120"
 OPENING_COUNTDOWN_SECONDS = 3.0
 APP_TURN_SECONDS = 20.0
 SUPPORT_EMAIL = "support@teammatetag.com"
+SESSION_COOKIE = "tt_session"
 
 # Explicit folders so Flask works regardless of CWD on serverless hosts.
 app = Flask(
@@ -211,6 +217,9 @@ def ensure_runtime_schema():
                 "ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT"
             )
             conn.execute(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_user_id UUID"
+            )
+            conn.execute(
                 "ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT"
             )
             conn.execute(
@@ -223,6 +232,10 @@ def ensure_runtime_schema():
             conn.execute(
                 "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_unique "
                 "ON users ((lower(email))) WHERE email IS NOT NULL"
+            )
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_auth_user_unique "
+                "ON users(auth_user_id) WHERE auth_user_id IS NOT NULL"
             )
             conn.execute(
                 "ALTER TABLE guests "
@@ -394,6 +407,18 @@ def ensure_runtime_schema():
                 "CREATE INDEX IF NOT EXISTS idx_friend_challenges_recipient "
                 "ON dr_friend_challenges(recipient_user_id, status, created_at DESC)"
             )
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS app_sessions (
+                       session_token TEXT PRIMARY KEY,
+                       guest_id UUID NOT NULL REFERENCES guests(guest_id) ON DELETE CASCADE,
+                       auth_user_id UUID NOT NULL,
+                       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                       last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                   )"""
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_app_sessions_guest ON app_sessions(guest_id, created_at DESC)"
+            )
         RUNTIME_SCHEMA_READY = True
 
 
@@ -406,6 +431,151 @@ def _hash_password(password: str, salt_hex: str | None = None) -> tuple[str, str
 def _verify_password(password: str, password_hash: str, password_salt: str) -> bool:
     candidate, _ = _hash_password(password, password_salt)
     return hmac.compare_digest(candidate, password_hash)
+
+
+def _supabase_ready() -> bool:
+    return bool(SUPABASE_URL and SUPABASE_ANON_KEY and SUPABASE_SERVICE_ROLE_KEY)
+
+
+def _supabase_headers(use_service: bool = False, bearer: str | None = None) -> dict[str, str]:
+    key = SUPABASE_SERVICE_ROLE_KEY if use_service else SUPABASE_ANON_KEY
+    if not SUPABASE_URL or not key:
+        raise RuntimeError("Supabase Auth env vars are not configured.")
+    headers = {
+        "apikey": key,
+        "Content-Type": "application/json",
+    }
+    if bearer:
+        headers["Authorization"] = f"Bearer {bearer}"
+    elif use_service:
+        headers["Authorization"] = f"Bearer {key}"
+    return headers
+
+
+def _supabase_auth_url(path: str) -> str:
+    if not SUPABASE_URL:
+        raise RuntimeError("SUPABASE_URL is not configured.")
+    return urljoin(SUPABASE_URL.rstrip("/") + "/", f"auth/v1/{path.lstrip('/')}")
+
+
+def _supabase_auth_post(path: str, payload: dict, *, use_service: bool = False,
+                        bearer: str | None = None):
+    return requests.post(
+        _supabase_auth_url(path),
+        headers=_supabase_headers(use_service=use_service, bearer=bearer),
+        json=payload,
+        timeout=15,
+    )
+
+
+def _supabase_auth_get(path: str, *, use_service: bool = False, bearer: str | None = None):
+    return requests.get(
+        _supabase_auth_url(path),
+        headers=_supabase_headers(use_service=use_service, bearer=bearer),
+        timeout=15,
+    )
+
+
+def _supabase_signup(email: str, password: str, username: str, display_name: str, email_redirect_to: str | None):
+    payload = {
+        "email": email,
+        "password": password,
+        "data": {
+            "username": username,
+            "display_name": display_name,
+        },
+    }
+    if email_redirect_to:
+        payload["email_redirect_to"] = email_redirect_to
+    return _supabase_auth_post("signup", payload)
+
+
+def _supabase_signin(email: str, password: str):
+    return _supabase_auth_post("token?grant_type=password", {
+        "email": email,
+        "password": password,
+    })
+
+
+def _supabase_resend_signup(email: str, email_redirect_to: str | None):
+    payload = {"email": email, "type": "signup"}
+    if email_redirect_to:
+        payload["email_redirect_to"] = email_redirect_to
+    return _supabase_auth_post("resend", payload)
+
+
+def _supabase_reset_password(email: str, redirect_to: str | None):
+    payload = {"email": email}
+    if redirect_to:
+        payload["redirect_to"] = redirect_to
+    return _supabase_auth_post("recover", payload)
+
+
+def _supabase_admin_delete_user(auth_user_id: str):
+    return requests.delete(
+        _supabase_auth_url(f"admin/users/{auth_user_id}"),
+        headers=_supabase_headers(use_service=True),
+        timeout=15,
+    )
+
+
+def _create_app_session(conn, guest_id: str, auth_user_id: str) -> str:
+    token = secrets.token_urlsafe(32)
+    conn.execute(
+        """INSERT INTO app_sessions (session_token, guest_id, auth_user_id)
+           VALUES (%s, %s, %s)""",
+        (token, guest_id, auth_user_id),
+    )
+    return token
+
+
+def _session_row(conn):
+    token = request.cookies.get(SESSION_COOKIE)
+    if not token:
+        return None
+    row = conn.execute(
+        """SELECT session_token, guest_id::text, auth_user_id::text
+             FROM app_sessions
+            WHERE session_token = %s""",
+        (token,),
+    ).fetchone()
+    if row:
+        conn.execute(
+            "UPDATE app_sessions SET last_seen_at = now() WHERE session_token = %s",
+            (token,),
+        )
+    return row
+
+
+def _session_guest_id(conn) -> str | None:
+    row = _session_row(conn)
+    return row[1] if row else None
+
+
+def _clear_app_session(conn):
+    token = request.cookies.get(SESSION_COOKIE)
+    if token:
+        conn.execute("DELETE FROM app_sessions WHERE session_token = %s", (token,))
+
+
+def _session_response(payload: dict, session_token: str | None = None):
+    resp = make_response(jsonify(payload))
+    if session_token:
+        resp.set_cookie(
+            SESSION_COOKIE,
+            session_token,
+            httponly=True,
+            samesite="Lax",
+            secure=not app.debug,
+            path="/",
+        )
+    return resp
+
+
+def _clear_session_response(payload: dict):
+    resp = make_response(jsonify(payload))
+    resp.delete_cookie(SESSION_COOKIE, path="/")
+    return resp
 
 
 def _guest_stats(conn, guest_id: str) -> dict:
@@ -447,14 +617,15 @@ def _guest_stats(conn, guest_id: str) -> dict:
     }
 
 
-def _guest_profile(conn, guest_id: str) -> dict | None:
+def _guest_profile(conn, guest_id: str, *, authenticated: bool = False) -> dict | None:
     row = conn.execute(
         """SELECT
                g.guest_id::text,
                g.display_name,
                g.created_at,
                u.username,
-               u.email
+               u.email,
+               u.auth_user_id::text
              FROM guests g
              LEFT JOIN users u ON u.user_id = g.guest_id
             WHERE g.guest_id = %s""",
@@ -462,15 +633,16 @@ def _guest_profile(conn, guest_id: str) -> dict | None:
     ).fetchone()
     if not row:
         return None
-    gid, display_name, created_at, username, email = row
+    gid, display_name, created_at, username, email, auth_user_id = row
     return {
         "guest_id": gid,
         "display_name": display_name or f"Guest {gid[:8]}",
         "created_at": created_at.isoformat(),
         "account": (
-            {"username": username, "email": email}
-            if username else None
+            {"username": username, "email": email, "auth_user_id": auth_user_id}
+            if username or auth_user_id else None
         ),
+        "authenticated": bool(authenticated and auth_user_id),
         "stats": _guest_stats(conn, gid),
     }
 
@@ -493,6 +665,13 @@ def _require_user(conn, guest_id: str):
             WHERE user_id = %s""",
         (guest_id,),
     ).fetchone()
+
+
+def _session_account_guest_id(conn) -> str | None:
+    guest_id = _session_guest_id(conn)
+    if not guest_id:
+        return None
+    return guest_id if _require_user(conn, guest_id) else None
 
 
 def _friendship_pair(a: str, b: str) -> tuple[str, str]:
@@ -999,13 +1178,27 @@ def contact():
     return render_template("contact.html", support_email=SUPPORT_EMAIL)
 
 
+@app.route("/reset-password")
+def reset_password_page():
+    return render_template(
+        "reset_password.html",
+        support_email=SUPPORT_EMAIL,
+        supabase_url=SUPABASE_URL or "",
+        supabase_anon_key=SUPABASE_ANON_KEY or "",
+    )
+
+
 @app.route("/api/profile/bootstrap", methods=["POST"])
 def profile_bootstrap():
     ensure_runtime_schema()
     data = request.get_json(silent=True) or {}
     requested_guest_id = (data.get("guest_id") or "").strip() or None
     with db() as conn:
-        profile = _guest_profile(conn, requested_guest_id) if requested_guest_id else None
+        session_guest_id = _session_guest_id(conn)
+        if session_guest_id:
+            profile = _guest_profile(conn, session_guest_id, authenticated=True)
+        else:
+            profile = _guest_profile(conn, requested_guest_id) if requested_guest_id else None
         if profile is None:
             profile = _create_guest(conn)
     return jsonify(profile)
@@ -1045,6 +1238,8 @@ def profile_name():
 @app.route("/api/account/register", methods=["POST"])
 def account_register():
     ensure_runtime_schema()
+    if not _supabase_ready():
+        return jsonify({"error": "Supabase Auth is not configured on the server."}), 500
     data = request.get_json(silent=True) or {}
     guest_id = (data.get("guest_id") or "").strip() or None
     display_name = " ".join((data.get("display_name") or "").strip().split())
@@ -1057,28 +1252,40 @@ def account_register():
         return jsonify({"error": "username too long"}), 400
     if len(password) < 6:
         return jsonify({"error": "password must be at least 6 characters"}), 400
+    if not email:
+        return jsonify({"error": "email required"}), 400
     if not display_name:
         display_name = username
     if len(display_name) > 24:
         return jsonify({"error": "display_name too long"}), 400
-    email = email or None
 
-    password_hash, password_salt = _hash_password(password)
+    signup_res = _supabase_signup(
+        email,
+        password,
+        username,
+        display_name,
+        request.url_root.rstrip("/") + "/",
+    )
+    signup_json = signup_res.json()
+    if signup_res.status_code >= 400:
+        message = signup_json.get("msg") or signup_json.get("error_description") or signup_json.get("error") or "signup failed"
+        return jsonify({"error": message}), signup_res.status_code
+
+    user = signup_json.get("user") or {}
+    session = signup_json.get("session")
+    auth_user_id = user.get("id")
+    if not auth_user_id:
+        return jsonify({"error": "signup did not return a user id"}), 502
+
     with db() as conn:
-        if email:
-            taken = conn.execute(
-                """SELECT 1
-                     FROM users
-                    WHERE lower(username) = %s OR lower(email) = %s""",
-                (username.lower(), email.lower()),
-            ).fetchone()
-        else:
-            taken = conn.execute(
-                """SELECT 1
-                     FROM users
-                    WHERE lower(username) = %s""",
-                (username.lower(),),
-            ).fetchone()
+        taken = conn.execute(
+            """SELECT user_id::text
+                 FROM users
+                WHERE (lower(username) = %s OR lower(email) = %s)
+                  AND (user_id <> %s)
+                LIMIT 1""",
+            (username.lower(), email.lower(), guest_id or ""),
+        ).fetchone()
         if taken:
             return jsonify({"error": "username or email already in use"}), 409
 
@@ -1089,12 +1296,6 @@ def account_register():
                 "SELECT 1 FROM guests WHERE guest_id = %s",
                 (gid,),
             ).fetchone()
-            existing_user = conn.execute(
-                "SELECT 1 FROM users WHERE user_id = %s",
-                (gid,),
-            ).fetchone()
-            if existing_user:
-                return jsonify({"error": "this guest profile already has an account"}), 409
         if not gid or not guest_row:
             gid = str(uuid.uuid4())
             conn.execute(
@@ -1107,19 +1308,46 @@ def account_register():
                 (display_name, gid),
             )
 
-        conn.execute(
-            """INSERT INTO users (
-                   user_id, display_name, username, email, password_hash, password_salt
-               ) VALUES (%s, %s, %s, %s, %s, %s)""",
-            (gid, display_name, username, email, password_hash, password_salt),
-        )
-        profile = _guest_profile(conn, gid)
+        existing_profile = conn.execute(
+            "SELECT auth_user_id::text FROM users WHERE user_id = %s",
+            (gid,),
+        ).fetchone()
+        if existing_profile and existing_profile[0]:
+            return jsonify({"error": "this guest profile already has a Supabase account"}), 409
+        if existing_profile:
+            conn.execute(
+                """UPDATE users
+                      SET display_name = %s,
+                          username = %s,
+                          email = %s,
+                          auth_user_id = %s,
+                          password_hash = NULL,
+                          password_salt = NULL
+                    WHERE user_id = %s""",
+                (display_name, username, email, auth_user_id, gid),
+            )
+        else:
+            conn.execute(
+                """INSERT INTO users (
+                       user_id, display_name, username, email, auth_user_id,
+                       password_hash, password_salt
+                   ) VALUES (%s, %s, %s, %s, %s, NULL, NULL)""",
+                (gid, display_name, username, email, auth_user_id),
+            )
+        profile = _guest_profile(conn, gid, authenticated=bool(session))
+        if session:
+            session_token = _create_app_session(conn, gid, auth_user_id)
+            return _session_response(profile, session_token)
+
+    profile["registration_requires_verification"] = True
     return jsonify(profile)
 
 
 @app.route("/api/account/login", methods=["POST"])
 def account_login():
     ensure_runtime_schema()
+    if not _supabase_ready():
+        return jsonify({"error": "Supabase Auth is not configured on the server."}), 500
     data = request.get_json(silent=True) or {}
     identifier = (data.get("identifier") or "").strip().lower()
     password = data.get("password") or ""
@@ -1127,7 +1355,7 @@ def account_login():
         return jsonify({"error": "identifier and password required"}), 400
     with db() as conn:
         row = conn.execute(
-            """SELECT user_id::text, display_name, username, email, password_hash, password_salt
+            """SELECT user_id::text, display_name, username, email, auth_user_id::text
                  FROM users
                 WHERE lower(username) = %s OR lower(email) = %s
                 LIMIT 1""",
@@ -1135,9 +1363,17 @@ def account_login():
         ).fetchone()
         if not row:
             return jsonify({"error": "account not found"}), 404
-        user_id, display_name, username, email, password_hash, password_salt = row
-        if not password_hash or not password_salt or not _verify_password(password, password_hash, password_salt):
-            return jsonify({"error": "incorrect password"}), 403
+        user_id, display_name, username, email, auth_user_id = row
+        if not email or not auth_user_id:
+            return jsonify({"error": "this account has not been migrated to Supabase Auth yet"}), 409
+        signin_res = _supabase_signin(email, password)
+        signin_json = signin_res.json()
+        if signin_res.status_code >= 400:
+            message = signin_json.get("msg") or signin_json.get("error_description") or signin_json.get("error") or "login failed"
+            return jsonify({"error": message}), 403 if signin_res.status_code == 400 else signin_res.status_code
+        user = signin_json.get("user") or {}
+        if user.get("id") != auth_user_id:
+            return jsonify({"error": "account identity mismatch"}), 409
         guest_row = conn.execute(
             "SELECT 1 FROM guests WHERE guest_id = %s",
             (user_id,),
@@ -1147,8 +1383,77 @@ def account_login():
                 "INSERT INTO guests (guest_id, display_name) VALUES (%s, %s)",
                 (user_id, display_name or username),
             )
-        profile = _guest_profile(conn, user_id)
-    return jsonify(profile)
+        session_token = _create_app_session(conn, user_id, auth_user_id)
+        profile = _guest_profile(conn, user_id, authenticated=True)
+    return _session_response(profile, session_token)
+
+
+@app.route("/api/account/logout", methods=["POST"])
+def account_logout():
+    ensure_runtime_schema()
+    with db() as conn:
+        _clear_app_session(conn)
+    return _clear_session_response({"status": "signed_out"})
+
+
+@app.route("/api/account/reset_password", methods=["POST"])
+def account_reset_password():
+    ensure_runtime_schema()
+    if not _supabase_ready():
+        return jsonify({"error": "Supabase Auth is not configured on the server."}), 500
+    data = request.get_json(silent=True) or {}
+    identifier = (data.get("identifier") or "").strip().lower()
+    if not identifier:
+        return jsonify({"error": "identifier required"}), 400
+    with db() as conn:
+        row = conn.execute(
+            """SELECT email
+                 FROM users
+                WHERE lower(username) = %s OR lower(email) = %s
+                LIMIT 1""",
+            (identifier, identifier),
+        ).fetchone()
+    if not row or not row[0]:
+        return jsonify({"error": "account not found"}), 404
+    reset_res = _supabase_reset_password(
+        row[0],
+        request.url_root.rstrip("/") + "/reset-password",
+    )
+    if reset_res.status_code >= 400:
+        payload = reset_res.json()
+        message = payload.get("msg") or payload.get("error_description") or payload.get("error") or "reset request failed"
+        return jsonify({"error": message}), reset_res.status_code
+    return jsonify({"status": "sent"})
+
+
+@app.route("/api/account/resend_verification", methods=["POST"])
+def account_resend_verification():
+    ensure_runtime_schema()
+    if not _supabase_ready():
+        return jsonify({"error": "Supabase Auth is not configured on the server."}), 500
+    data = request.get_json(silent=True) or {}
+    identifier = (data.get("identifier") or "").strip().lower()
+    if not identifier:
+        return jsonify({"error": "identifier required"}), 400
+    with db() as conn:
+        row = conn.execute(
+            """SELECT email
+                 FROM users
+                WHERE lower(username) = %s OR lower(email) = %s
+                LIMIT 1""",
+            (identifier, identifier),
+        ).fetchone()
+    if not row or not row[0]:
+        return jsonify({"error": "account not found"}), 404
+    resend_res = _supabase_resend_signup(
+        row[0],
+        request.url_root.rstrip("/") + "/",
+    )
+    if resend_res.status_code >= 400:
+        payload = resend_res.json()
+        message = payload.get("msg") or payload.get("error_description") or payload.get("error") or "verification resend failed"
+        return jsonify({"error": message}), resend_res.status_code
+    return jsonify({"status": "sent"})
 
 
 def _forfeit_active_dr_games(conn, guest_id: str):
@@ -1176,43 +1481,51 @@ def _forfeit_active_dr_games(conn, guest_id: str):
 @app.route("/api/account/delete", methods=["POST"])
 def account_delete():
     ensure_runtime_schema()
+    if not _supabase_ready():
+        return jsonify({"error": "Supabase Auth is not configured on the server."}), 500
     data = request.get_json(silent=True) or {}
-    guest_id = (data.get("guest_id") or "").strip()
     password = data.get("password") or ""
-    if not guest_id or not password:
-        return jsonify({"error": "guest_id and password required"}), 400
     with db() as conn:
+        guest_id = _session_guest_id(conn)
+        if not guest_id or not password:
+            return jsonify({"error": "signed-in account and password required"}), 400
         row = conn.execute(
-            """SELECT password_hash, password_salt
+            """SELECT email, auth_user_id::text
                  FROM users
                 WHERE user_id = %s""",
             (guest_id,),
         ).fetchone()
         if not row:
             return jsonify({"error": "account not found"}), 404
-        password_hash, password_salt = row
-        if not password_hash or not password_salt or not _verify_password(password, password_hash, password_salt):
+        email, auth_user_id = row
+        if not email or not auth_user_id:
+            return jsonify({"error": "this account is not using Supabase Auth"}), 409
+        signin_res = _supabase_signin(email, password)
+        if signin_res.status_code >= 400:
             return jsonify({"error": "incorrect password"}), 403
+        delete_res = _supabase_admin_delete_user(auth_user_id)
+        if delete_res.status_code >= 400:
+            return jsonify({"error": "failed to delete Supabase Auth user"}), 502
 
         _forfeit_active_dr_games(conn, guest_id)
         conn.execute("DELETE FROM dr_queue WHERE guest_id = %s", (guest_id,))
         conn.execute("DELETE FROM dr_invites WHERE host_guest_id = %s", (guest_id,))
         conn.execute("DELETE FROM dr_rematches WHERE requester_guest_id = %s", (guest_id,))
         conn.execute("DELETE FROM dr_postgame_exits WHERE guest_id = %s", (guest_id,))
+        _clear_app_session(conn)
         conn.execute("DELETE FROM users WHERE user_id = %s", (guest_id,))
         conn.execute("DELETE FROM guests WHERE guest_id = %s", (guest_id,))
 
-    return jsonify({"status": "deleted"})
+    return _clear_session_response({"status": "deleted"})
 
 
 @app.route("/api/friends/list", methods=["POST"])
 def friends_list():
     ensure_runtime_schema()
-    data = request.get_json(silent=True) or {}
-    guest_id = (data.get("guest_id") or "").strip()
-    if not guest_id:
-        return jsonify({"error": "guest_id required"}), 400
     with db() as conn:
+        guest_id = _session_account_guest_id(conn)
+        if not guest_id:
+            return jsonify({"error": "account login required"}), 403
         payload = _friends_payload(conn, guest_id)
         if payload.get("error"):
             return jsonify(payload), 403
@@ -1223,11 +1536,13 @@ def friends_list():
 def friends_request():
     ensure_runtime_schema()
     data = request.get_json(silent=True) or {}
-    guest_id = (data.get("guest_id") or "").strip()
     target = (data.get("target") or "").strip().lower()
-    if not guest_id or not target:
-        return jsonify({"error": "guest_id and target required"}), 400
+    if not target:
+        return jsonify({"error": "target required"}), 400
     with db() as conn:
+        guest_id = _session_account_guest_id(conn)
+        if not guest_id:
+            return jsonify({"error": "account login required"}), 403
         me = _require_user(conn, guest_id)
         if not me:
             return jsonify({"error": "account required"}), 403
@@ -1271,12 +1586,14 @@ def friends_request():
 def friends_respond():
     ensure_runtime_schema()
     data = request.get_json(silent=True) or {}
-    guest_id = (data.get("guest_id") or "").strip()
     request_id = (data.get("request_id") or "").strip()
     accept = bool(data.get("accept"))
-    if not guest_id or not request_id:
-        return jsonify({"error": "guest_id and request_id required"}), 400
+    if not request_id:
+        return jsonify({"error": "request_id required"}), 400
     with db() as conn:
+        guest_id = _session_account_guest_id(conn)
+        if not guest_id:
+            return jsonify({"error": "account login required"}), 403
         me = _require_user(conn, guest_id)
         if not me:
             return jsonify({"error": "account required"}), 403
@@ -1313,11 +1630,13 @@ def friends_respond():
 def friends_challenge():
     ensure_runtime_schema()
     data = request.get_json(silent=True) or {}
-    guest_id = (data.get("guest_id") or "").strip()
     friend_user_id = (data.get("friend_user_id") or "").strip()
-    if not guest_id or not friend_user_id:
-        return jsonify({"error": "guest_id and friend_user_id required"}), 400
+    if not friend_user_id:
+        return jsonify({"error": "friend_user_id required"}), 400
     with db() as conn:
+        guest_id = _session_account_guest_id(conn)
+        if not guest_id:
+            return jsonify({"error": "account login required"}), 403
         me = _require_user(conn, guest_id)
         other = _require_user(conn, friend_user_id)
         if not me or not other:
@@ -1352,12 +1671,14 @@ def friends_challenge():
 def friends_challenge_respond():
     ensure_runtime_schema()
     data = request.get_json(silent=True) or {}
-    guest_id = (data.get("guest_id") or "").strip()
     challenge_id = (data.get("challenge_id") or "").strip()
     accept = bool(data.get("accept"))
-    if not guest_id or not challenge_id:
-        return jsonify({"error": "guest_id and challenge_id required"}), 400
+    if not challenge_id:
+        return jsonify({"error": "challenge_id required"}), 400
     with db() as conn:
+        guest_id = _session_account_guest_id(conn)
+        if not guest_id:
+            return jsonify({"error": "account login required"}), 403
         me = _require_user(conn, guest_id)
         if not me:
             return jsonify({"error": "account required"}), 403
@@ -1400,11 +1721,13 @@ def friends_challenge_respond():
 def friends_request_cancel():
     ensure_runtime_schema()
     data = request.get_json(silent=True) or {}
-    guest_id = (data.get("guest_id") or "").strip()
     request_id = (data.get("request_id") or "").strip()
-    if not guest_id or not request_id:
-        return jsonify({"error": "guest_id and request_id required"}), 400
+    if not request_id:
+        return jsonify({"error": "request_id required"}), 400
     with db() as conn:
+        guest_id = _session_account_guest_id(conn)
+        if not guest_id:
+            return jsonify({"error": "account login required"}), 403
         me = _require_user(conn, guest_id)
         if not me:
             return jsonify({"error": "account required"}), 403
@@ -1423,11 +1746,13 @@ def friends_request_cancel():
 def friends_challenge_cancel():
     ensure_runtime_schema()
     data = request.get_json(silent=True) or {}
-    guest_id = (data.get("guest_id") or "").strip()
     challenge_id = (data.get("challenge_id") or "").strip()
-    if not guest_id or not challenge_id:
-        return jsonify({"error": "guest_id and challenge_id required"}), 400
+    if not challenge_id:
+        return jsonify({"error": "challenge_id required"}), 400
     with db() as conn:
+        guest_id = _session_account_guest_id(conn)
+        if not guest_id:
+            return jsonify({"error": "account login required"}), 403
         me = _require_user(conn, guest_id)
         if not me:
             return jsonify({"error": "account required"}), 403

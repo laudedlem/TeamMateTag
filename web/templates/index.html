@@ -11,7 +11,7 @@
     <div class="title">
       <div class="brand-row">
         <h1>TeamMateTag</h1>
-        <span class="app-version" title="Current version">0.1.15</span>
+        <span class="app-version" title="Current version">0.1.16</span>
       </div>
       <span class="subtitle" id="brand-subtitle"></span>
     </div>
@@ -46,11 +46,14 @@
           <div id="account-logged-out">
             <div class="auth-grid">
               <input id="account-username-input" type="text" maxlength="120" placeholder="Username or Email" />
+              <input id="account-email-input" type="email" maxlength="160" placeholder="Email (for account creation)" />
               <input id="account-password-input" type="password" maxlength="120" placeholder="Password" />
             </div>
             <div class="auth-actions">
               <button id="account-register-btn" class="secondary" type="button">Create Account</button>
               <button id="account-login-btn" class="secondary" type="button">Log In</button>
+              <button id="account-reset-btn" class="secondary" type="button">Reset Password</button>
+              <button id="account-resend-btn" class="secondary" type="button">Resend Verification</button>
             </div>
           </div>
           <div id="account-logged-in" hidden>

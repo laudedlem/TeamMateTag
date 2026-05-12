@@ -14,9 +14,12 @@ const els = {
   accountLoggedOut: document.getElementById('account-logged-out'),
   accountLoggedIn: document.getElementById('account-logged-in'),
   accountUsernameInput: document.getElementById('account-username-input'),
+  accountEmailInput: document.getElementById('account-email-input'),
   accountPasswordInput: document.getElementById('account-password-input'),
   accountRegisterBtn: document.getElementById('account-register-btn'),
   accountLoginBtn: document.getElementById('account-login-btn'),
+  accountResetBtn: document.getElementById('account-reset-btn'),
+  accountResendBtn: document.getElementById('account-resend-btn'),
   accountLogoutBtn: document.getElementById('account-logout-btn'),
   accountSummary: document.getElementById('account-summary'),
   accountStatus: document.getElementById('account-status'),
@@ -177,9 +180,11 @@ function renderProfile() {
     return;
   }
   els.profileNameInput.value = profile.display_name || '';
-  els.profileStatus.textContent = profile.account
+  els.profileStatus.textContent = profile.authenticated
     ? 'Signed in. Your profile follows you across devices.'
-    : 'Guest profile saved on this browser.';
+    : profile.account
+      ? 'Account found. Log in to use it on this device.'
+      : 'Guest profile saved on this browser.';
   const wins = profile.stats?.fr_wins ?? 0;
   const plays = profile.stats?.fr_plays ?? 0;
   const drWins = profile.stats?.dr_wins ?? 0;
@@ -194,10 +199,12 @@ function renderProfile() {
   els.profileTopStruck.textContent = topStruck.length
     ? topStruck.map((t) => `${t.team_name} ${t.season} (${t.count})`).join(', ')
     : 'None yet';
-  if (profile.account) {
+  if (profile.authenticated) {
     els.accountLoggedOut.hidden = true;
     els.accountLoggedIn.hidden = false;
-    els.accountSummary.textContent = `${profile.account.username} · ${profile.account.email}`;
+    els.accountSummary.textContent = profile.account?.email
+      ? `${profile.account.username} - ${profile.account.email}`
+      : `${profile.account?.username || ""}`;
     els.accountStatus.textContent = 'Account connected.';
   } else {
     els.accountLoggedOut.hidden = false;
@@ -205,8 +212,8 @@ function renderProfile() {
     els.accountSummary.textContent = '';
     els.accountStatus.textContent = 'Create an account or log in to carry your profile across browsers and devices.';
   }
-  els.deleteAccountCard.hidden = !profile.account;
-  if (!profile.account) {
+  els.deleteAccountCard.hidden = !profile.authenticated;
+  if (!profile.authenticated) {
     els.deleteAccountStatus.textContent = '';
     els.deleteAccountPasswordInput.value = '';
   }
@@ -249,12 +256,14 @@ async function saveProfileName() {
 async function registerAccount() {
   if (!profile?.guest_id) return;
   const username = els.accountUsernameInput.value.trim();
+  const email = els.accountEmailInput.value.trim();
   const password = els.accountPasswordInput.value;
   const display_name = els.profileNameInput.value.trim() || profile.display_name || username;
   els.accountRegisterBtn.disabled = true;
   const next = await api('/api/account/register', {
     guest_id: profile.guest_id,
     username,
+    email,
     password,
     display_name,
   });
@@ -265,7 +274,11 @@ async function registerAccount() {
   }
   profile = next;
   saveGuestId(profile.guest_id);
+  els.accountEmailInput.value = '';
   els.accountPasswordInput.value = '';
+  if (profile.registration_requires_verification) {
+    els.accountStatus.textContent = 'Check your email to verify the account, then log in.';
+  }
   renderProfile();
   startFriendsPolling();
   refreshFriends();
@@ -291,6 +304,7 @@ async function loginAccount() {
 }
 
 async function logoutAccount() {
+  await api('/api/account/logout');
   clearInterval(friendsPollInterval);
   window.localStorage.removeItem(GUEST_ID_KEY);
   profile = null;
@@ -299,8 +313,32 @@ async function logoutAccount() {
   await bootstrapProfile();
 }
 
+async function resetPassword() {
+  const identifier = els.accountUsernameInput.value.trim();
+  if (!identifier) {
+    els.accountStatus.textContent = 'Enter your username or email first.';
+    return;
+  }
+  els.accountResetBtn.disabled = true;
+  const res = await api('/api/account/reset_password', { identifier });
+  els.accountResetBtn.disabled = false;
+  els.accountStatus.textContent = res?.error || 'Password reset email sent if the account exists.';
+}
+
+async function resendVerification() {
+  const identifier = els.accountUsernameInput.value.trim();
+  if (!identifier) {
+    els.accountStatus.textContent = 'Enter your username or email first.';
+    return;
+  }
+  els.accountResendBtn.disabled = true;
+  const res = await api('/api/account/resend_verification', { identifier });
+  els.accountResendBtn.disabled = false;
+  els.accountStatus.textContent = res?.error || 'Verification email sent if the account exists.';
+}
+
 async function deleteAccount() {
-  if (!profile?.account || !profile?.guest_id) return;
+  if (!profile?.authenticated || !profile?.guest_id) return;
   const password = els.deleteAccountPasswordInput.value;
   if (!password) {
     els.deleteAccountStatus.textContent = 'Enter your password to delete the account.';
@@ -310,7 +348,6 @@ async function deleteAccount() {
   if (!confirmed) return;
   els.deleteAccountBtn.disabled = true;
   const res = await api('/api/account/delete', {
-    guest_id: profile.guest_id,
     password,
   });
   els.deleteAccountBtn.disabled = false;
@@ -373,7 +410,7 @@ function wireFriendsActions() {
 }
 
 function renderFriends() {
-  if (!profile?.account) {
+  if (!profile?.authenticated) {
     els.friendsOpenBtn.textContent = 'Friends';
     els.friendsStatus.textContent = 'Create an account or log in to use friends.';
     renderSimpleList(els.incomingRequestsList, [], 'Account required.', null);
@@ -448,12 +485,12 @@ function renderFriends() {
 }
 
 async function refreshFriends() {
-  if (!profile?.account) {
+  if (!profile?.authenticated) {
     friendsData = null;
     renderFriends();
     return;
   }
-  const next = await api('/api/friends/list', { guest_id: profile.guest_id });
+  const next = await api('/api/friends/list');
   if (next?.error) {
     els.friendsStatus.textContent = next.error;
     return;
@@ -467,7 +504,7 @@ async function refreshFriends() {
 
 function startFriendsPolling() {
   clearInterval(friendsPollInterval);
-  if (!profile?.account) return;
+  if (!profile?.authenticated) return;
   friendsPollInterval = setInterval(refreshFriends, 3000);
 }
 
@@ -478,13 +515,13 @@ async function openFriends() {
 }
 
 async function sendFriendRequest() {
-  if (!profile?.account) {
+  if (!profile?.authenticated) {
     els.friendsStatus.textContent = 'You need an account to add friends.';
     return;
   }
   const target = els.friendTargetInput.value.trim();
   if (!target) return;
-  const next = await api('/api/friends/request', { guest_id: profile.guest_id, target });
+  const next = await api('/api/friends/request', { target });
   if (next?.error) {
     els.friendsStatus.textContent = next.error;
     return;
@@ -496,7 +533,6 @@ async function sendFriendRequest() {
 
 async function respondFriendRequest(requestId, accept) {
   const next = await api('/api/friends/respond', {
-    guest_id: profile.guest_id,
     request_id: requestId,
     accept,
   });
@@ -510,7 +546,6 @@ async function respondFriendRequest(requestId, accept) {
 
 async function cancelFriendRequest(requestId) {
   const next = await api('/api/friends/request_cancel', {
-    guest_id: profile.guest_id,
     request_id: requestId,
   });
   if (next?.error) {
@@ -523,7 +558,6 @@ async function cancelFriendRequest(requestId) {
 
 async function sendFriendChallenge(friendUserId) {
   const next = await api('/api/friends/challenge', {
-    guest_id: profile.guest_id,
     friend_user_id: friendUserId,
   });
   if (next?.error) {
@@ -537,7 +571,6 @@ async function sendFriendChallenge(friendUserId) {
 
 async function respondFriendChallenge(challengeId, accept) {
   const next = await api('/api/friends/challenge_respond', {
-    guest_id: profile.guest_id,
     challenge_id: challengeId,
     accept,
   });
@@ -554,7 +587,6 @@ async function respondFriendChallenge(challengeId, accept) {
 
 async function cancelFriendChallenge(challengeId) {
   const next = await api('/api/friends/challenge_cancel', {
-    guest_id: profile.guest_id,
     challenge_id: challengeId,
   });
   if (next?.error) {
@@ -1800,6 +1832,8 @@ els.profileOpenBtn.addEventListener('click', openProfile);
 els.friendsOpenBtn.addEventListener('click', openFriends);
 els.accountRegisterBtn.addEventListener('click', registerAccount);
 els.accountLoginBtn.addEventListener('click', loginAccount);
+els.accountResetBtn.addEventListener('click', resetPassword);
+els.accountResendBtn.addEventListener('click', resendVerification);
 els.accountLogoutBtn.addEventListener('click', logoutAccount);
 els.deleteAccountBtn.addEventListener('click', deleteAccount);
 els.friendRequestBtn.addEventListener('click', sendFriendRequest);

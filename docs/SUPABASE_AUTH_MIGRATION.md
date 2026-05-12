@@ -1,28 +1,21 @@
-# Supabase Auth Migration Plan
+# Supabase Auth Migration
 
-This project currently uses app-managed accounts stored in `users` plus guest-linked profiles in `guests`.
-That is workable for playtesting, but it should be replaced before a broader public launch.
+This project now uses Supabase Auth for account creation, login, email verification,
+password reset, and password changes, while keeping gameplay/profile identity in the
+existing app tables.
 
-## Goal
-
-Move email and password authentication to Supabase Auth while keeping:
-
-- guest bootstrap flow
-- saved profile stats
-- friends
-- Division Rivalry matchmaking history
-- leaderboards
-
-## Target model
+## Current model
 
 1. Supabase Auth owns:
-   - email/password login
-   - password reset
-   - email verification
-   - sessions
+   - email/password sign up
+   - email/password sign in
+   - verification emails
+   - recovery emails
+   - password reset completion
 
-2. App tables keep gameplay data:
+2. App tables still own gameplay identity and stats:
    - `guests`
+   - `users`
    - `bp_runs`
    - `fr_results`
    - `dr_results`
@@ -30,43 +23,52 @@ Move email and password authentication to Supabase Auth while keeping:
    - `friend_requests`
    - `dr_friend_challenges`
 
-3. A profile table links gameplay identity to auth identity:
-   - `profiles.profile_id`
-   - `profiles.auth_user_id`
-   - `profiles.display_name`
-   - `profiles.username`
+3. The link between auth and gameplay lives in `users.auth_user_id`.
 
-## Recommended steps
+4. The app keeps a lightweight server-side session in `app_sessions`:
+   - `tt_session` cookie in the browser
+   - maps back to `guest_id` and `auth_user_id`
+   - lets the existing API stay server-authoritative without rewriting the whole game
 
-### Phase 1
+## What this preserves
 
-- Create `profiles` table keyed by Supabase Auth user id
-- Mirror existing `users.username`, `users.email`, and `guests.display_name` into `profiles`
-- Add a migration script that maps current `users.user_id` to `profiles.auth_user_id`
+- guest bootstrap flow
+- saved profile stats
+- friends
+- Division Rivalry matchmaking history
+- leaderboards
 
-### Phase 2
+## Implemented
 
-- Enable Supabase Auth email/password
-- Replace `/api/account/register` and `/api/account/login`
-- Use Supabase-issued session tokens on the client
-- Keep guest bootstrap for anonymous players
+- `/api/account/register` now creates auth users through Supabase Auth
+- `/api/account/login` signs in through Supabase Auth
+- `/api/account/logout` clears the app session cookie and server session row
+- `/api/account/reset_password` sends Supabase recovery email
+- `/reset-password` completes the password reset through Supabase JS
+- `/api/account/resend_verification` resends signup verification mail
+- `/api/account/delete` verifies password through Supabase Auth and deletes both auth + linked app data
+- friends and friend challenges now require a signed-in session instead of trusting a posted `guest_id`
+- the app no longer verifies passwords against app-managed hashes during normal account use
 
-### Phase 3
+## Still worth doing next
 
-- Add guest-to-account upgrade flow
-- On upgrade, attach guest stats/history to the new auth user profile
-- Preserve username uniqueness at the app level
+### Short term
 
-### Phase 4
+- rotate the exposed database password and update `DATABASE_URL`
+- set up a real inbox for `support@teammatetag.com`
+- test the verification and recovery flows on the live Vercel URL end to end
+- add rate limiting around auth-heavy endpoints if traffic starts to climb
 
-- Add password reset
-- Add email verification
-- Add session-aware auth checks on friend and profile actions
+### Medium term
 
-### Phase 5
+- remove unused legacy password columns once you are comfortable there are no old accounts left to migrate
+- move more profile/account-edit endpoints to session-first access patterns
+- consider swapping the lightweight app session for fuller Supabase session handling if you later build a richer SPA shell
 
-- Remove password hash and salt storage from the app `users` table
-- Either remove the table entirely or downgrade it to non-auth profile metadata
+### Longer term
+
+- enable stronger auth features like social login only if they clearly help the product
+- add audit/admin tooling for account deletes and moderation actions
 
 ## Risks to handle carefully
 
@@ -79,7 +81,7 @@ Move email and password authentication to Supabase Auth while keeping:
 
 - account creation and login happen through Supabase Auth
 - existing profile stats survive migration
-- guest upgrade works
 - password reset works
 - email verification works
-- app code no longer stores or verifies password hashes directly
+- friends and challenges require signed-in sessions
+- app code no longer stores or verifies password hashes directly during normal auth flows

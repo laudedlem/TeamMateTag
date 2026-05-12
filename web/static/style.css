@@ -205,6 +205,7 @@ button.primary:disabled {
 }
 
 input[type="text"],
+input[type="email"],
 input[type="password"] {
   background: var(--bg);
   border: 1px solid var(--border-strong);
@@ -218,6 +219,7 @@ input[type="password"] {
 }
 
 input[type="text"]:focus,
+input[type="email"]:focus,
 input[type="password"]:focus {
   border-color: var(--accent);
 }
