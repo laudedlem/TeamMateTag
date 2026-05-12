@@ -124,6 +124,75 @@ PLAYOFF_POWERUPS = {
     },
 }
 
+PLAYOFF_WIN_CONDITIONS = {
+    "sunset_kingdom": {
+        "label": "Sunset Kingdom",
+        "description": "Name 5 Japanese players.",
+        "target": 5,
+        "mode": "count",
+    },
+    "havana_heat": {
+        "label": "Havana Heat",
+        "description": "Name 5 Cuban players.",
+        "target": 5,
+        "mode": "count",
+    },
+    "maple_corridor": {
+        "label": "Maple Corridor",
+        "description": "Name 5 Canadian players.",
+        "target": 5,
+        "mode": "count",
+    },
+    "mvp_circle": {
+        "label": "MVP Circle",
+        "description": "Name 3 MVP winners.",
+        "target": 3,
+        "mode": "count",
+    },
+    "young_buck": {
+        "label": "Young Buck",
+        "description": "Name 3 Rookie of the Year winners.",
+        "target": 3,
+        "mode": "count",
+    },
+    "gonna_be_golden": {
+        "label": "Gonna Be Golden",
+        "description": "Name 3 Gold Glove winners.",
+        "target": 3,
+        "mode": "count",
+    },
+    "secretariat": {
+        "label": "Secretariat",
+        "description": "Name 1 Triple Crown winner.",
+        "target": 1,
+        "mode": "count",
+    },
+    "hound_dog": {
+        "label": "Hound-dog",
+        "description": "Name 2 players who spent at least 10 seasons with one franchise only.",
+        "target": 2,
+        "mode": "count",
+    },
+    "great_bambinos": {
+        "label": "Great Bambinos",
+        "description": "Name 1 player with 500 career home runs.",
+        "target": 1,
+        "mode": "count",
+    },
+    "ring_chaser": {
+        "label": "Ring Chaser",
+        "description": "Name players with a combined 30 World Series rings.",
+        "target": 30,
+        "mode": "sum",
+    },
+    "journeyman": {
+        "label": "Journeyman",
+        "description": "Name 2 players who played for at least 7 teams.",
+        "target": 2,
+        "mode": "count",
+    },
+}
+
 # Explicit folders so Flask works regardless of CWD on serverless hosts.
 app = Flask(
     __name__,
@@ -476,6 +545,27 @@ def ensure_runtime_schema():
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_ppq_lookup "
                 "ON player_powerup_qualifications(powerup_key, franchise_id, player_id)"
+            )
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS player_playoff_traits (
+                       player_id TEXT PRIMARY KEY REFERENCES players(player_id),
+                       birth_country TEXT,
+                       is_japanese BOOLEAN NOT NULL DEFAULT false,
+                       is_cuban BOOLEAN NOT NULL DEFAULT false,
+                       is_canadian BOOLEAN NOT NULL DEFAULT false,
+                       mvp_count INTEGER NOT NULL DEFAULT 0,
+                       roty_count INTEGER NOT NULL DEFAULT 0,
+                       gold_glove_count INTEGER NOT NULL DEFAULT 0,
+                       triple_crown_count INTEGER NOT NULL DEFAULT 0,
+                       career_hr INTEGER NOT NULL DEFAULT 0,
+                       world_series_rings INTEGER NOT NULL DEFAULT 0,
+                       team_count INTEGER NOT NULL DEFAULT 0,
+                       franchise_count INTEGER NOT NULL DEFAULT 0,
+                       season_count INTEGER NOT NULL DEFAULT 0,
+                       hound_dog_eligible BOOLEAN NOT NULL DEFAULT false,
+                       journeyman_eligible BOOLEAN NOT NULL DEFAULT false,
+                       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                   )"""
             )
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS po_games (
@@ -863,6 +953,10 @@ def _all_playoff_powerups() -> list[str]:
     return list(PLAYOFF_POWERUPS.keys())
 
 
+def _random_playoff_win_condition() -> str:
+    return secrets.choice(list(PLAYOFF_WIN_CONDITIONS.keys()))
+
+
 def _playoff_player_role(conn, player_id: str) -> str:
     row = conn.execute(
         "SELECT COALESCE(primary_pos, '') FROM players WHERE player_id = %s",
@@ -914,6 +1008,128 @@ def _playoff_powerup_state(blob: dict, viewer_guest_id: str | None) -> dict:
         } if active_key else None,
         "next_turn_seconds_override": blob.get("next_turn_seconds_override"),
         "turn_powerup_used": bool(blob.get("turn_powerup_used")),
+    }
+
+
+def _playoff_condition_progress_state(blob: dict, viewer_guest_id: str | None) -> dict:
+    def side_payload(side_key: str) -> dict:
+        key = blob.get(f"{side_key}_win_condition_key")
+        meta = PLAYOFF_WIN_CONDITIONS.get(key, {})
+        return {
+            "key": key,
+            "label": meta.get("label"),
+            "description": meta.get("description"),
+            "target": meta.get("target", 0),
+            "mode": meta.get("mode", "count"),
+            "progress": int(blob.get(f"{side_key}_win_progress") or 0),
+            "completed": bool(blob.get(f"{side_key}_win_completed")),
+        }
+
+    your_side = None
+    if viewer_guest_id == blob.get("p1_guest_id"):
+        your_side = "p1"
+    elif viewer_guest_id == blob.get("p2_guest_id"):
+        your_side = "p2"
+    your_condition = side_payload("p1") if your_side == "p1" else side_payload("p2") if your_side == "p2" else None
+    opponent_condition = side_payload("p2") if your_side == "p1" else side_payload("p1") if your_side == "p2" else None
+    return {
+        "your_condition": your_condition,
+        "opponent_condition": opponent_condition,
+    }
+
+
+def _playoff_trait_row(conn, player_id: str):
+    row = conn.execute(
+        """SELECT birth_country, is_japanese, is_cuban, is_canadian, mvp_count,
+                  roty_count, gold_glove_count, triple_crown_count, career_hr,
+                  world_series_rings, team_count, franchise_count, season_count,
+                  hound_dog_eligible, journeyman_eligible
+             FROM player_playoff_traits
+            WHERE player_id = %s""",
+        (player_id,),
+    ).fetchone()
+    if not row:
+        return {
+            "birth_country": None,
+            "is_japanese": False,
+            "is_cuban": False,
+            "is_canadian": False,
+            "mvp_count": 0,
+            "roty_count": 0,
+            "gold_glove_count": 0,
+            "triple_crown_count": 0,
+            "career_hr": 0,
+            "world_series_rings": 0,
+            "team_count": 0,
+            "franchise_count": 0,
+            "season_count": 0,
+            "hound_dog_eligible": False,
+            "journeyman_eligible": False,
+        }
+    keys = [
+        "birth_country", "is_japanese", "is_cuban", "is_canadian", "mvp_count",
+        "roty_count", "gold_glove_count", "triple_crown_count", "career_hr",
+        "world_series_rings", "team_count", "franchise_count", "season_count",
+        "hound_dog_eligible", "journeyman_eligible",
+    ]
+    return dict(zip(keys, row))
+
+
+def _playoff_condition_increment(condition_key: str, traits: dict) -> int:
+    if condition_key == "sunset_kingdom":
+        return 1 if traits["is_japanese"] else 0
+    if condition_key == "havana_heat":
+        return 1 if traits["is_cuban"] else 0
+    if condition_key == "maple_corridor":
+        return 1 if traits["is_canadian"] else 0
+    if condition_key == "mvp_circle":
+        return 1 if int(traits["mvp_count"]) > 0 else 0
+    if condition_key == "young_buck":
+        return 1 if int(traits["roty_count"]) > 0 else 0
+    if condition_key == "gonna_be_golden":
+        return 1 if int(traits["gold_glove_count"]) > 0 else 0
+    if condition_key == "secretariat":
+        return 1 if int(traits["triple_crown_count"]) > 0 else 0
+    if condition_key == "hound_dog":
+        return 1 if traits["hound_dog_eligible"] else 0
+    if condition_key == "great_bambinos":
+        return 1 if int(traits["career_hr"]) >= 500 else 0
+    if condition_key == "ring_chaser":
+        return int(traits["world_series_rings"] or 0)
+    if condition_key == "journeyman":
+        return 1 if traits["journeyman_eligible"] else 0
+    return 0
+
+
+def _apply_playoff_win_condition_hit(conn, blob: dict, player_id: str, mover_side: str) -> dict:
+    key = blob.get(f"{mover_side}_win_condition_key")
+    meta = PLAYOFF_WIN_CONDITIONS.get(key, {})
+    progress = int(blob.get(f"{mover_side}_win_progress") or 0)
+    traits = _playoff_trait_row(conn, player_id)
+    increment = _playoff_condition_increment(key, traits)
+    hits = list(blob.get("chain_win_condition_hits") or [False] * (len(blob.get("chain") or [])))
+    hits.append(increment > 0)
+    blob["chain_win_condition_hits"] = hits
+    if increment <= 0:
+        return {
+            "hit": False,
+            "progress": progress,
+            "target": meta.get("target", 0),
+            "completed": False,
+            "label": meta.get("label"),
+        }
+    progress += increment
+    target = int(meta.get("target", 0) or 0)
+    completed = progress >= target if target else False
+    blob[f"{mover_side}_win_progress"] = progress
+    blob[f"{mover_side}_win_completed"] = completed
+    return {
+        "hit": True,
+        "progress": progress,
+        "target": target,
+        "completed": completed,
+        "label": meta.get("label"),
+        "increment": increment,
     }
 
 
@@ -2338,6 +2554,13 @@ def po_blob_from_state(state: GameState, p1: str, p2: str, turn_index: int,
         "active_turn_powerup": None,
         "next_turn_seconds_override": None,
         "turn_powerup_used": False,
+        "p1_win_condition_key": _random_playoff_win_condition(),
+        "p2_win_condition_key": _random_playoff_win_condition(),
+        "p1_win_progress": 0,
+        "p2_win_progress": 0,
+        "p1_win_completed": False,
+        "p2_win_completed": False,
+        "chain_win_condition_hits": [False],
         "chain_link_meta": [None],
     }
 
@@ -2359,8 +2582,10 @@ def po_state_dict(gid: str, blob: dict, state: GameState, conn=None) -> dict:
     )
     chain = chain_dict(state, cards=cards)
     link_meta = blob.get("chain_link_meta") or [None] * len(chain)
+    win_hits = blob.get("chain_win_condition_hits") or [False] * len(chain)
     for i, player in enumerate(chain):
         player["link_meta_with_prev"] = link_meta[i] if i < len(link_meta) else None
+        player["win_condition_hit"] = bool(win_hits[i]) if i < len(win_hits) else False
     return {
         "game_id": gid,
         "mode": "po",
@@ -2392,6 +2617,7 @@ def po_state_dict(gid: str, blob: dict, state: GameState, conn=None) -> dict:
         "winner": blob.get("winner"),
         "last_move": blob.get("last_move"),
         "powerups": _playoff_powerup_state(blob, viewer_guest_id),
+        "win_conditions": _playoff_condition_progress_state(blob, viewer_guest_id),
     }
 
 
@@ -3293,6 +3519,7 @@ def po_move():
         else:
             result = validate_and_apply_move(state, engine_conn, raw)
 
+        mover_side = "p1" if guest_id == blob.get("p1_guest_id") else "p2"
         move_payload = None
         if result.outcome == MoveOutcome.VALID:
             move_payload = result_to_dict(result)
@@ -3318,15 +3545,25 @@ def po_move():
         blob.update(serialize_state(state))
         blob["last_move"] = move_payload
         if move_payload.get("outcome") == "valid":
+            win_update = _apply_playoff_win_condition_hit(conn, blob, move_payload["player_id"], mover_side)
+            move_payload["win_condition_hit"] = win_update["hit"]
+            move_payload["win_condition_label"] = win_update["label"]
+            move_payload["win_condition_progress"] = win_update["progress"]
+            move_payload["win_condition_target"] = win_update["target"]
+            move_payload["win_condition_completed"] = win_update["completed"]
             if move_payload.get("player_id"):
                 _record_player_usage(conn, move_payload["player_id"], "dr")
-            blob["turn_index"] = 1 - blob["turn_index"]
-            blob["turn_started_at"] = now_utc().isoformat()
-            blob["countdown_seconds"] = 0.0
-            blob["turn_seconds"] = float(blob.get("next_turn_seconds_override") or blob.get("default_turn_seconds") or DEFAULT_PLAYOFF_TURN_SECONDS)
-            blob["next_turn_seconds_override"] = None
-            blob["active_turn_powerup"] = None
-            blob["turn_powerup_used"] = False
+            if win_update["completed"]:
+                blob["finished"] = True
+                blob["winner"] = blob.get(mover_side)
+            else:
+                blob["turn_index"] = 1 - blob["turn_index"]
+                blob["turn_started_at"] = now_utc().isoformat()
+                blob["countdown_seconds"] = 0.0
+                blob["turn_seconds"] = float(blob.get("next_turn_seconds_override") or blob.get("default_turn_seconds") or DEFAULT_PLAYOFF_TURN_SECONDS)
+                blob["next_turn_seconds_override"] = None
+                blob["active_turn_powerup"] = None
+                blob["turn_powerup_used"] = False
         _save_game(conn, "po_games", gid, blob)
         return jsonify(po_state_dict(gid, blob, state, conn=conn))
 

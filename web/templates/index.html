@@ -11,7 +11,7 @@
     <div class="title">
       <div class="brand-row">
         <h1>TeamMateTag</h1>
-        <span class="app-version" title="Current version">0.1.18</span>
+        <span class="app-version" title="Current version">0.1.19</span>
       </div>
       <span class="subtitle" id="brand-subtitle"></span>
     </div>
@@ -246,6 +246,20 @@
           <div class="turn-prompt">
             <span class="muted">Name a teammate of</span>
             <span id="current-player-name"></span>
+          </div>
+          <div id="win-panel" class="win-panel" hidden>
+            <div class="win-box">
+              <div class="powerup-box-label">Your Win Condition</div>
+              <div id="your-win-name" class="powerup-name">--</div>
+              <div id="your-win-desc" class="muted small"></div>
+              <div id="your-win-pips" class="win-pips"></div>
+            </div>
+            <div class="win-box">
+              <div class="powerup-box-label">Opponent Win Condition</div>
+              <div id="opp-win-name" class="powerup-name">--</div>
+              <div id="opp-win-desc" class="muted small"></div>
+              <div id="opp-win-pips" class="win-pips"></div>
+            </div>
           </div>
           <div id="powerup-panel" class="powerup-panel" hidden>
             <div class="powerup-box">

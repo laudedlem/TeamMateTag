@@ -432,6 +432,40 @@ button.danger:hover:not(:disabled) {
   margin: 0.85rem 0 0.25rem;
 }
 
+.win-panel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+  margin: 0.85rem 0 0.25rem;
+}
+
+.win-box {
+  background: var(--bg);
+  border: 1px solid rgba(250, 204, 21, 0.28);
+  border-radius: var(--radius-sm);
+  padding: 0.7rem 0.8rem;
+}
+
+.win-pips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.55rem;
+}
+
+.win-pip {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 999px;
+  border: 1px solid rgba(250, 204, 21, 0.45);
+  background: rgba(250, 204, 21, 0.08);
+}
+
+.win-pip.filled {
+  background: rgba(250, 204, 21, 0.95);
+  box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.18);
+}
+
 .powerup-box {
   background: var(--bg);
   border: 1px solid var(--border);
@@ -450,6 +484,11 @@ button.danger:hover:not(:disabled) {
 .powerup-name {
   font-weight: 700;
   margin-bottom: 0.25rem;
+}
+
+.player-card.win-hit {
+  border-color: rgba(250, 204, 21, 0.55);
+  box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.32), var(--shadow-sm);
 }
 
 .powerup-list {

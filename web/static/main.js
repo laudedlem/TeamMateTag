@@ -72,6 +72,13 @@ const els = {
   turnLabel: document.getElementById('turn-label'),
   timer: document.getElementById('timer'),
   currentPlayerName: document.getElementById('current-player-name'),
+  winPanel: document.getElementById('win-panel'),
+  yourWinName: document.getElementById('your-win-name'),
+  yourWinDesc: document.getElementById('your-win-desc'),
+  yourWinPips: document.getElementById('your-win-pips'),
+  oppWinName: document.getElementById('opp-win-name'),
+  oppWinDesc: document.getElementById('opp-win-desc'),
+  oppWinPips: document.getElementById('opp-win-pips'),
   powerupPanel: document.getElementById('powerup-panel'),
   yourPowerupName: document.getElementById('your-powerup-name'),
   yourPowerupDesc: document.getElementById('your-powerup-desc'),
@@ -961,8 +968,13 @@ function showGameOverBanner() {
   if (isOnlineMode()) {
     const teamsOut = game.strikes.filter((s) => s.count >= 3).length;
     els.winnerText.textContent = game.winner ? `${game.winner} wins!` : 'Game over.';
-    els.gameOverSummary.textContent =
-      `Lineup of ${game.chain.length}. ${teamsOut} team${teamsOut === 1 ? '' : 's'} struck out.`;
+    if (currentMode === 'po' && game.last_move?.win_condition_completed) {
+      els.gameOverSummary.textContent =
+        `${game.last_move.win_condition_label} completed. Lineup of ${game.chain.length}. ${teamsOut} team${teamsOut === 1 ? '' : 's'} struck out.`;
+    } else {
+      els.gameOverSummary.textContent =
+        `Lineup of ${game.chain.length}. ${teamsOut} team${teamsOut === 1 ? '' : 's'} struck out.`;
+    }
     if (game.last_move?.outcome === 'forfeit') {
       els.playAgainBtn.hidden = true;
       els.requeueBtn.hidden = false;
@@ -1353,6 +1365,28 @@ function powerupPillHtml(powerup) {
   </div>`;
 }
 
+function renderWinPips(progress, target) {
+  const pips = [];
+  for (let i = 0; i < target; i += 1) {
+    pips.push(`<span class="win-pip ${i < progress ? 'filled' : ''}"></span>`);
+  }
+  return pips.join('');
+}
+
+function renderWinConditions() {
+  const isPo = currentMode === 'po' && game?.win_conditions;
+  els.winPanel.hidden = !isPo;
+  if (!isPo) return;
+  const your = game.win_conditions.your_condition;
+  const opp = game.win_conditions.opponent_condition;
+  els.yourWinName.textContent = your?.label || '--';
+  els.yourWinDesc.textContent = your ? `${your.progress}/${your.target}` : '';
+  els.yourWinPips.innerHTML = your ? renderWinPips(your.progress, your.target) : '';
+  els.oppWinName.textContent = opp?.label || '--';
+  els.oppWinDesc.textContent = opp ? `${opp.progress}/${opp.target}` : '';
+  els.oppWinPips.innerHTML = opp ? renderWinPips(opp.progress, opp.target) : '';
+}
+
 function renderMpGame() {
   els.turnLabel.textContent = game.your_turn ? 'Your turn' : `${game.current_label}'s turn`;
   els.currentPlayerName.textContent = game.current_player.name;
@@ -1367,6 +1401,7 @@ function renderMpGame() {
     : 'Name a teammate of';
   const promptLabel = document.querySelector('#turn-card .turn-prompt .muted');
   if (promptLabel) promptLabel.textContent = prompt;
+  renderWinConditions();
   renderPowerups();
 
   els.feedback.innerHTML = renderMoveFeedback(game.last_move, game);
@@ -1578,7 +1613,7 @@ function renderCardStack(chain, allStrikes, showStrikes, animateNewest = false) 
 function makePlayerCard(player, isSeed, options = {}) {
   const showTeams = options.showTeams !== false;
   const playerCard = document.createElement('div');
-  playerCard.className = 'player-card' + (isSeed ? ' seed' : '');
+  playerCard.className = 'player-card' + (isSeed ? ' seed' : '') + (player.win_condition_hit ? ' win-hit' : '');
 
   const headshot = document.createElement('div');
   headshot.className = 'headshot';
@@ -1686,8 +1721,16 @@ function renderMoveFeedback(m, g) {
       const lead = m.move_via_powerup
         ? `${escapeHtml(m.powerup_label || 'Powerup')}: ${name}${ambig}. Linked through ${escapeHtml(teams)}.`
         : `${name}${ambig}. Teammates on ${escapeHtml(teams)}.`;
+      const winNote = m.win_condition_hit
+        ? `<br><span class="ok">${escapeHtml(m.win_condition_label)}: ${m.win_condition_progress}/${m.win_condition_target}</span>`
+        : '';
+      const winFinish = m.win_condition_completed
+        ? `<br><span class="burn">${escapeHtml(m.win_condition_label)} completed.</span>`
+        : '';
       return `<span class="ok">${lead}</span>` +
-        (newOut ? `<br><span class="burn">STRUCK OUT this move: ${escapeHtml(newOut)}</span>` : '');
+        (newOut ? `<br><span class="burn">STRUCK OUT this move: ${escapeHtml(newOut)}</span>` : '') +
+        winNote +
+        winFinish;
     }
     case 'unknown_player':
       return '<span class="bad">Unknown player.</span>';
@@ -1875,7 +1918,7 @@ function rulesForMode() {
     return 'Queue into an online match and take turns building one lineup. After the 3 second countdown, the 20 second clock begins. On your turn, name a teammate of the last player before time runs out. Correct guesses pass the turn and reset the clock. Teams collect strikes when used, and Struck Out teams cannot link players again. You win when your opponent runs out of time.';
   }
   if (currentMode === 'po') {
-    return 'Playoffs uses the Division Rivalry rules, but both players also get one use of every powerup during the game. You can use at most one powerup on a turn. Open Reference for what each powerup does.';
+    return 'Playoffs uses the Division Rivalry rules, but both players also get one use of every powerup during the game and a secret win condition. You can use at most one powerup on a turn. Finish your win condition first, or win on time. Open Reference for the powerups.';
   }
   return 'Pick a mode, then build or review a lineup by connecting baseball players through their shared teams.';
 }
