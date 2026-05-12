@@ -55,6 +55,7 @@ const els = {
   headerToggles: document.getElementById('header-toggles'),
   toggleLineup: document.getElementById('toggle-lineup'),
   toggleOut: document.getElementById('toggle-out'),
+  referenceBtn: document.getElementById('reference-btn'),
 
   p1Input: document.getElementById('p1-input'),
   p2Input: document.getElementById('p2-input'),
@@ -74,7 +75,6 @@ const els = {
   powerupPanel: document.getElementById('powerup-panel'),
   yourPowerupName: document.getElementById('your-powerup-name'),
   yourPowerupDesc: document.getElementById('your-powerup-desc'),
-  usePowerupBtn: document.getElementById('use-powerup-btn'),
   oppPowerupName: document.getElementById('opp-powerup-name'),
   oppPowerupDesc: document.getElementById('opp-powerup-desc'),
   guessForm: document.getElementById('guess-form'),
@@ -118,6 +118,7 @@ const els = {
   rulesModal: document.getElementById('rules-modal'),
   rulesBackdrop: document.getElementById('rules-backdrop'),
   rulesClose: document.getElementById('rules-close'),
+  rulesTitle: document.getElementById('rules-title'),
   rulesText: document.getElementById('rules-text'),
 };
 
@@ -150,6 +151,16 @@ let userTypedTeamQuery = '';
 let friendsData = null;
 
 const GUEST_ID_KEY = 'tt_guest_id';
+
+const POWERUP_UI = {
+  bubblegum: { icon: 'BG', className: 'bubblegum' },
+  pine_tar: { icon: 'PT', className: 'pine-tar' },
+  bat_donut: { icon: 'BD', className: 'bat-donut' },
+  sunglasses: { icon: 'SG', className: 'sunglasses' },
+  backup_mitt: { icon: 'BM', className: 'backup-mitt' },
+  abs: { icon: 'ABS', className: 'abs' },
+  quick_pitch: { icon: 'QP', className: 'quick-pitch' },
+};
 
 function isOnlineMode(mode = currentMode) {
   return mode === 'mp' || mode === 'po';
@@ -623,6 +634,7 @@ function showScreen(name) {
   els.brandSubtitle.textContent = '';
 
   els.exitBtn.hidden = name === 'home';
+  els.referenceBtn.hidden = currentMode !== 'po' || !(name === 'mp-setup' || name === 'po-game');
   const togglesRelevant = name === 'mp-game' || name === 'bp-game' || name === 'po-game';
   els.headerToggles.hidden = !togglesRelevant;
   els.lineupSection.hidden = !togglesRelevant || !els.toggleLineup.checked;
@@ -982,6 +994,7 @@ function hideGameOverBanner() {
 async function requeueForNewMatch(message, options = {}) {
   clearInterval(mpRematchPollInterval);
   clearRequeueRelaxTimeout();
+  const onlineMode = currentMode;
   const finishedGameId = game?.finished ? game.game_id : '';
   const shouldAvoidLastOpponent = !!options.avoidLastOpponent;
   const avoidGuestId = shouldAvoidLastOpponent
@@ -997,7 +1010,6 @@ async function requeueForNewMatch(message, options = {}) {
   }
   hideGameOverBanner();
   game = null;
-  const onlineMode = currentMode;
   currentMode = onlineMode;
   showScreen('mp-setup');
   els.matchModeTitle.textContent = onlineModeName(onlineMode);
@@ -1309,6 +1321,38 @@ function closeTeamAutocomplete(opts = {}) {
   if (!opts.keepValue) userTypedTeamQuery = '';
 }
 
+function powerupClass(key) {
+  return POWERUP_UI[key]?.className || 'generic';
+}
+
+function powerupIcon(key) {
+  return POWERUP_UI[key]?.icon || 'P';
+}
+
+function powerupButtonHtml(powerup, disabled) {
+  const classes = ['powerup-chip', 'powerup-' + powerupClass(powerup.key)];
+  if (powerup.used) classes.push('used');
+  return `<button
+    type="button"
+    class="${classes.join(' ')}"
+    data-powerup-key="${escapeHtml(powerup.key)}"
+    ${disabled ? 'disabled' : ''}>
+      <span class="powerup-icon">${escapeHtml(powerupIcon(powerup.key))}</span>
+      <span class="powerup-label">${escapeHtml(powerup.label || powerup.key)}</span>
+      <span class="powerup-state">${powerup.used ? 'Used' : 'Ready'}</span>
+    </button>`;
+}
+
+function powerupPillHtml(powerup) {
+  const classes = ['powerup-chip', 'powerup-chip-static', 'powerup-' + powerupClass(powerup.key)];
+  if (powerup.used) classes.push('used');
+  return `<div class="${classes.join(' ')}">
+    <span class="powerup-icon">${escapeHtml(powerupIcon(powerup.key))}</span>
+    <span class="powerup-label">${escapeHtml(powerup.label || powerup.key)}</span>
+    <span class="powerup-state">${powerup.used ? 'Used' : 'Ready'}</span>
+  </div>`;
+}
+
 function renderMpGame() {
   els.turnLabel.textContent = game.your_turn ? 'Your turn' : `${game.current_label}'s turn`;
   els.currentPlayerName.textContent = game.current_player.name;
@@ -1481,27 +1525,38 @@ function renderPowerups() {
   const isPo = currentMode === 'po' && game?.powerups;
   els.powerupPanel.hidden = !isPo;
   if (!isPo) return;
-  const your = game.powerups.your_powerup;
-  const opp = game.powerups.opponent_powerup;
-  els.yourPowerupName.textContent = your?.label || '--';
-  els.yourPowerupDesc.textContent = your?.used ? 'Used' : (your?.description || '');
-  els.usePowerupBtn.textContent = your?.used ? 'Powerup Used' : (your?.label ? `Use ${your.label}` : 'Use Powerup');
-  els.oppPowerupName.textContent = opp?.label || '--';
-  els.oppPowerupDesc.textContent = opp?.used ? 'Used' : (opp?.description || '');
-  els.usePowerupBtn.disabled = !game.your_turn || game.finished || !your || your.used || (game.countdown_seconds_remaining || 0) > 0;
+  const your = game.powerups.your_powerups || [];
+  const opp = game.powerups.opponent_powerups || [];
+  const buttonsDisabled = !game.your_turn || game.finished || !!game.powerups.turn_powerup_used || (game.countdown_seconds_remaining || 0) > 0;
+  els.yourPowerupName.textContent = game.your_turn
+    ? (game.powerups.turn_powerup_used ? 'Powerup used this turn' : 'One use each this game')
+    : 'Available on your turn';
+  els.oppPowerupName.textContent = 'Track what is still live';
+  els.yourPowerupDesc.innerHTML = your.length
+    ? your.map((powerup) => powerupButtonHtml(powerup, buttonsDisabled || powerup.used)).join('')
+    : '<div class="muted small">No powerups assigned.</div>';
+  els.oppPowerupDesc.innerHTML = opp.length
+    ? opp.map((powerup) => powerupPillHtml(powerup)).join('')
+    : '<div class="muted small">No powerups assigned.</div>';
+  els.yourPowerupDesc.querySelectorAll('[data-powerup-key]').forEach((btn) => {
+    btn.addEventListener('click', () => usePowerup(btn.dataset.powerupKey));
+  });
 }
 
-async function usePowerup() {
-  if (currentMode !== 'po' || !game?.game_id) return;
+async function usePowerup(powerupKey) {
+  if (currentMode !== 'po' || !game?.game_id || !powerupKey) return;
   const next = await api('/api/po/powerup', {
     guest_id: profile?.guest_id || storedGuestId(),
     game_id: game.game_id,
+    powerup_key: powerupKey,
   });
-  if (!next?.error) {
-    game = next;
-    renderMpGame();
-    syncMpClock(null, game, { force: true });
+  if (next?.error) {
+    els.feedback.innerHTML = `<span class="bad">${escapeHtml(next.error)}</span>`;
+    return;
   }
+  game = next;
+  renderMpGame();
+  syncMpClock(null, game, { force: true });
 }
 
 function renderCardStack(chain, allStrikes, showStrikes, animateNewest = false) {
@@ -1559,8 +1614,8 @@ function makeConnectionBar(sharedSeasons, allStrikes, showStrikes, linkMeta) {
   seasons.className = 'connection-seasons';
   if (linkMeta?.type === 'powerup' && linkMeta?.powerup_label) {
     const badge = document.createElement('span');
-    badge.className = 'mode-tile-tag';
-    badge.textContent = linkMeta.powerup_label;
+    badge.className = `mode-tile-tag powerup-badge powerup-${powerupClass(linkMeta.powerup_key)}`;
+    badge.textContent = `${powerupIcon(linkMeta.powerup_key)} ${linkMeta.powerup_label}`;
     seasons.appendChild(badge);
   }
   (sharedSeasons || []).forEach((s) => {
@@ -1820,13 +1875,57 @@ function rulesForMode() {
     return 'Queue into an online match and take turns building one lineup. After the 3 second countdown, the 20 second clock begins. On your turn, name a teammate of the last player before time runs out. Correct guesses pass the turn and reset the clock. Teams collect strikes when used, and Struck Out teams cannot link players again. You win when your opponent runs out of time.';
   }
   if (currentMode === 'po') {
-    return 'Playoffs starts like Division Rivalry, but each player gets one random powerup. Some powerups add time, and some let you link a player through a qualified team-year instead of a direct teammate link. Team-year strikeouts still apply, and the match still ends if a player runs out of time.';
+    return 'Playoffs uses the Division Rivalry rules, but both players also get one use of every powerup during the game. You can use at most one powerup on a turn. Open Reference for what each powerup does.';
   }
   return 'Pick a mode, then build or review a lineup by connecting baseball players through their shared teams.';
 }
 
+function renderPowerupReferenceHtml() {
+  const names = {
+    bubblegum: 'Bubblegum',
+    pine_tar: 'Pine Tar',
+    bat_donut: 'Bat Donut',
+    sunglasses: 'Sunglasses',
+    backup_mitt: 'Backup Mitt',
+    abs: 'ABS',
+    quick_pitch: 'Quick Pitch',
+  };
+  const rows = [
+    ['bubblegum', 'Any batter from the same franchise with a 40+ home run season. Adds 5 seconds.'],
+    ['pine_tar', 'Any pitcher from the same franchise with a 200+ strikeout season. Adds 5 seconds.'],
+    ['bat_donut', 'Any player from the same franchise with a Silver Slugger. Adds 5 seconds.'],
+    ['sunglasses', 'Any player from the same franchise with an All-Star selection. Adds 5 seconds.'],
+    ['backup_mitt', 'Any player from the same franchise with a Gold Glove. Adds 5 seconds.'],
+    ['abs', 'Adds 15 seconds to your current turn.'],
+    ['quick_pitch', 'Cuts your opponent down to 10 seconds on their next turn.'],
+  ];
+  return `
+    <p class="muted">Each Playoffs game gives both players one use of every powerup. You can activate one powerup on a turn.</p>
+    <div class="reference-key">
+      ${rows.map(([key, desc]) => `
+        <div class="reference-row powerup-${powerupClass(key)}">
+          <div class="reference-chip powerup-chip powerup-chip-static powerup-${powerupClass(key)}">
+            <span class="powerup-icon">${escapeHtml(powerupIcon(key))}</span>
+            <span class="powerup-label">${escapeHtml(names[key])}</span>
+          </div>
+          <div class="reference-copy">
+            <div class="reference-name">${escapeHtml(names[key])}</div>
+            <div class="muted small">${escapeHtml(desc)}</div>
+          </div>
+        </div>
+      `).join('')}
+    </div>`;
+}
+
 function openRules() {
-  els.rulesText.textContent = rulesForMode();
+  els.rulesTitle.textContent = 'How to Play';
+  els.rulesText.innerHTML = `<p>${escapeHtml(rulesForMode())}</p>`;
+  els.rulesModal.hidden = false;
+}
+
+function openReference() {
+  els.rulesTitle.textContent = 'Powerup Reference';
+  els.rulesText.innerHTML = renderPowerupReferenceHtml();
   els.rulesModal.hidden = false;
 }
 
@@ -1858,7 +1957,6 @@ els.joinCodeInput.addEventListener('keydown', (e) => {
 els.guessForm.addEventListener('submit', onGuessSubmit);
 els.guessInput.addEventListener('input', onGuessInput);
 els.guessInput.addEventListener('keydown', onGuessKeydown);
-els.usePowerupBtn.addEventListener('click', usePowerup);
 
 els.playAgainBtn.addEventListener('click', rematch);
 els.requeueBtn.addEventListener('click', () => requeueForNewMatch('Searching for a new opponent...', {
@@ -1885,6 +1983,7 @@ document.addEventListener('click', (e) => {
 });
 
 els.rulesBtn.addEventListener('click', openRules);
+els.referenceBtn.addEventListener('click', openReference);
 els.rulesClose.addEventListener('click', closeRules);
 els.rulesBackdrop.addEventListener('click', closeRules);
 els.profileSaveBtn.addEventListener('click', saveProfileName);

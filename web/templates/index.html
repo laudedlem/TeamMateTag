@@ -11,13 +11,14 @@
     <div class="title">
       <div class="brand-row">
         <h1>TeamMateTag</h1>
-        <span class="app-version" title="Current version">0.1.17</span>
+        <span class="app-version" title="Current version">0.1.18</span>
       </div>
       <span class="subtitle" id="brand-subtitle"></span>
     </div>
     <div class="header-controls">
       <button id="exit-btn" class="icon-btn exit-btn" title="Exit to home" aria-label="Exit to home" hidden>Exit</button>
       <button id="rules-btn" class="icon-btn" title="How to play" aria-label="How to play">?</button>
+      <button id="reference-btn" class="icon-btn" title="Powerup reference" aria-label="Powerup reference">Ref</button>
       <div class="header-toggles" id="header-toggles" hidden>
         <label><input type="checkbox" id="toggle-lineup" checked> Lineup</label>
         <label><input type="checkbox" id="toggle-out" checked> Struck Out</label>
@@ -99,7 +100,7 @@
           <span class="mode-tile-tag">2 players</span>
         </div>
         <span class="mode-tile-desc">
-            Division Rivalry with one powerup per player. Timer swings and
+            Division Rivalry with a full powerup set for each player. Timer swings and
             expanded links create a more chaotic battle.
         </span>
         </button>
@@ -248,15 +249,14 @@
           </div>
           <div id="powerup-panel" class="powerup-panel" hidden>
             <div class="powerup-box">
-              <div class="powerup-box-label">Your Powerup</div>
-              <div id="your-powerup-name" class="powerup-name">--</div>
-              <div id="your-powerup-desc" class="muted small"></div>
-              <button id="use-powerup-btn" type="button" class="secondary">Use Powerup</button>
+              <div class="powerup-box-label">Your Powerups</div>
+              <div id="your-powerup-name" class="powerup-name">Ready this game</div>
+              <div id="your-powerup-desc" class="powerup-list"></div>
             </div>
             <div class="powerup-box">
-              <div class="powerup-box-label">Opponent Powerup</div>
-              <div id="opp-powerup-name" class="powerup-name">--</div>
-              <div id="opp-powerup-desc" class="muted small"></div>
+              <div class="powerup-box-label">Opponent Powerups</div>
+              <div id="opp-powerup-name" class="powerup-name">Scouting report</div>
+              <div id="opp-powerup-desc" class="powerup-list"></div>
             </div>
           </div>
           <form id="guess-form" autocomplete="off" class="guess-form">
@@ -340,8 +340,8 @@
     <div class="modal-backdrop" id="rules-backdrop"></div>
     <div class="modal-content">
       <button id="rules-close" class="modal-close" aria-label="Close">x</button>
-      <h2>How to Play</h2>
-      <p id="rules-text"></p>
+      <h2 id="rules-title">How to Play</h2>
+      <div id="rules-text"></div>
     </div>
   </div>
 

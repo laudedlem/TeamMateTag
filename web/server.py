@@ -859,6 +859,10 @@ def _random_playoff_powerup() -> str:
     return secrets.choice(list(PLAYOFF_POWERUPS.keys()))
 
 
+def _all_playoff_powerups() -> list[str]:
+    return list(PLAYOFF_POWERUPS.keys())
+
+
 def _playoff_player_role(conn, player_id: str) -> str:
     row = conn.execute(
         "SELECT COALESCE(primary_pos, '') FROM players WHERE player_id = %s",
@@ -869,20 +873,30 @@ def _playoff_player_role(conn, player_id: str) -> str:
 
 
 def _playoff_powerup_state(blob: dict, viewer_guest_id: str | None) -> dict:
-    p1_side = {
-        "key": blob.get("p1_powerup_key"),
-        "label": PLAYOFF_POWERUPS.get(blob.get("p1_powerup_key"), {}).get("label"),
-        "description": PLAYOFF_POWERUPS.get(blob.get("p1_powerup_key"), {}).get("description"),
-        "used": bool(blob.get("p1_powerup_used")),
-        "owner": blob.get("p1"),
-    }
-    p2_side = {
-        "key": blob.get("p2_powerup_key"),
-        "label": PLAYOFF_POWERUPS.get(blob.get("p2_powerup_key"), {}).get("label"),
-        "description": PLAYOFF_POWERUPS.get(blob.get("p2_powerup_key"), {}).get("description"),
-        "used": bool(blob.get("p2_powerup_used")),
-        "owner": blob.get("p2"),
-    }
+    def side_payload(side_key: str) -> list[dict]:
+        keys = blob.get(f"{side_key}_powerup_keys")
+        if not keys:
+            legacy_key = blob.get(f"{side_key}_powerup_key")
+            keys = [legacy_key] if legacy_key else []
+        used_keys = set(blob.get(f"{side_key}_powerup_used_keys") or [])
+        legacy_key = blob.get(f"{side_key}_powerup_key")
+        if blob.get(f"{side_key}_powerup_used") and legacy_key:
+            used_keys.add(legacy_key)
+        rows = []
+        for key in keys:
+            meta = PLAYOFF_POWERUPS.get(key, {})
+            rows.append({
+                "key": key,
+                "label": meta.get("label"),
+                "description": meta.get("description"),
+                "used": key in used_keys,
+                "kind": meta.get("kind"),
+                "owner": blob.get("p1") if side_key == "p1" else blob.get("p2"),
+            })
+        return rows
+
+    p1_side = side_payload("p1")
+    p2_side = side_payload("p2")
     your_side = None
     if viewer_guest_id == blob.get("p1_guest_id"):
         your_side = "p1"
@@ -892,13 +906,14 @@ def _playoff_powerup_state(blob: dict, viewer_guest_id: str | None) -> dict:
     opponent_powerup = p2_side if your_side == "p1" else p1_side if your_side == "p2" else None
     active_key = blob.get("active_turn_powerup")
     return {
-        "your_powerup": your_powerup,
-        "opponent_powerup": opponent_powerup,
+        "your_powerups": your_powerup or [],
+        "opponent_powerups": opponent_powerup or [],
         "active_turn_powerup": {
             "key": active_key,
             "label": PLAYOFF_POWERUPS.get(active_key, {}).get("label"),
         } if active_key else None,
         "next_turn_seconds_override": blob.get("next_turn_seconds_override"),
+        "turn_powerup_used": bool(blob.get("turn_powerup_used")),
     }
 
 
@@ -2312,12 +2327,17 @@ def po_blob_from_state(state: GameState, p1: str, p2: str, turn_index: int,
         "finished": finished,
         "winner": winner,
         "last_move": last_move,
-        "p1_powerup_key": _random_playoff_powerup(),
-        "p2_powerup_key": _random_playoff_powerup(),
+        "p1_powerup_key": None,
+        "p2_powerup_key": None,
         "p1_powerup_used": False,
         "p2_powerup_used": False,
+        "p1_powerup_keys": _all_playoff_powerups(),
+        "p2_powerup_keys": _all_playoff_powerups(),
+        "p1_powerup_used_keys": [],
+        "p2_powerup_used_keys": [],
         "active_turn_powerup": None,
         "next_turn_seconds_override": None,
+        "turn_powerup_used": False,
         "chain_link_meta": [None],
     }
 
@@ -3163,6 +3183,7 @@ def po_powerup():
     data = request.get_json(silent=True) or {}
     guest_id = (data.get("guest_id") or "").strip()
     gid = (data.get("game_id") or "").strip()
+    requested_key = (data.get("powerup_key") or "").strip()
     if not guest_id or not gid:
         return jsonify({"error": "guest_id and game_id required"}), 400
     with db() as conn:
@@ -3178,15 +3199,31 @@ def po_powerup():
         if guest_id != expected_turn_guest:
             return jsonify({"error": "not your turn", **po_state_dict(gid, blob, state, conn=conn)}), 409
         side = "p1" if guest_id == blob.get("p1_guest_id") else "p2"
-        key = blob.get(f"{side}_powerup_key")
-        if not key:
+        keys = blob.get(f"{side}_powerup_keys")
+        if not keys:
+            legacy_key = blob.get(f"{side}_powerup_key")
+            keys = [legacy_key] if legacy_key else []
+        used_keys = set(blob.get(f"{side}_powerup_used_keys") or [])
+        legacy_key = blob.get(f"{side}_powerup_key")
+        if blob.get(f"{side}_powerup_used") and legacy_key:
+            used_keys.add(legacy_key)
+        if not keys:
             return jsonify({"error": "no powerup assigned", **po_state_dict(gid, blob, state, conn=conn)}), 409
-        if blob.get(f"{side}_powerup_used"):
+        if blob.get("turn_powerup_used"):
+            return jsonify({"error": "you already used a powerup this turn", **po_state_dict(gid, blob, state, conn=conn)}), 409
+        if not requested_key or requested_key not in keys:
+            return jsonify({"error": "choose a valid powerup", **po_state_dict(gid, blob, state, conn=conn)}), 409
+        if requested_key in used_keys:
             return jsonify({"error": "powerup already used", **po_state_dict(gid, blob, state, conn=conn)}), 409
         if blob.get("active_turn_powerup"):
             return jsonify({"error": "powerup already active this turn", **po_state_dict(gid, blob, state, conn=conn)}), 409
+        key = requested_key
         powerup = PLAYOFF_POWERUPS[key]
+        used_keys.add(key)
+        blob[f"{side}_powerup_used_keys"] = sorted(used_keys)
+        blob[f"{side}_powerup_key"] = key
         blob[f"{side}_powerup_used"] = True
+        blob["turn_powerup_used"] = True
         if key == "abs":
             blob["turn_seconds"] = float(blob["turn_seconds"]) + float(powerup["bonus_seconds"])
             blob["last_move"] = {
@@ -3289,6 +3326,7 @@ def po_move():
             blob["turn_seconds"] = float(blob.get("next_turn_seconds_override") or blob.get("default_turn_seconds") or DEFAULT_PLAYOFF_TURN_SECONDS)
             blob["next_turn_seconds_override"] = None
             blob["active_turn_powerup"] = None
+            blob["turn_powerup_used"] = False
         _save_game(conn, "po_games", gid, blob)
         return jsonify(po_state_dict(gid, blob, state, conn=conn))
 
