@@ -519,6 +519,46 @@ def _supabase_admin_delete_user(auth_user_id: str):
     )
 
 
+def _supabase_admin_create_user(email: str, password: str, username: str, display_name: str):
+    return requests.post(
+        _supabase_auth_url("admin/users"),
+        headers=_supabase_headers(use_service=True),
+        json={
+            "email": email,
+            "password": password,
+            "email_confirm": True,
+            "user_metadata": {
+                "username": username,
+                "display_name": display_name,
+            },
+        },
+        timeout=15,
+    )
+
+
+def _extract_auth_user_id(payload: dict | None) -> str | None:
+    if not isinstance(payload, dict):
+        return None
+    user = payload.get("user")
+    if isinstance(user, dict) and user.get("id"):
+        return str(user["id"])
+    if payload.get("id"):
+        return str(payload["id"])
+    return None
+
+
+def _find_auth_user_id_by_email(conn, email: str) -> str | None:
+    row = conn.execute(
+        """SELECT id::text
+             FROM auth.users
+            WHERE lower(email) = %s
+            ORDER BY created_at DESC
+            LIMIT 1""",
+        (email.lower(),),
+    ).fetchone()
+    return row[0] if row else None
+
+
 def _create_app_session(conn, guest_id: str, auth_user_id: str) -> str:
     token = secrets.token_urlsafe(32)
     conn.execute(
@@ -1259,24 +1299,6 @@ def account_register():
     if len(display_name) > 24:
         return jsonify({"error": "display_name too long"}), 400
 
-    signup_res = _supabase_signup(
-        email,
-        password,
-        username,
-        display_name,
-        request.url_root.rstrip("/") + "/",
-    )
-    signup_json = signup_res.json()
-    if signup_res.status_code >= 400:
-        message = signup_json.get("msg") or signup_json.get("error_description") or signup_json.get("error") or "signup failed"
-        return jsonify({"error": message}), signup_res.status_code
-
-    user = signup_json.get("user") or {}
-    session = signup_json.get("session")
-    auth_user_id = user.get("id")
-    if not auth_user_id:
-        return jsonify({"error": "signup did not return a user id"}), 502
-
     with db() as conn:
         taken = conn.execute(
             """SELECT user_id::text
@@ -1288,6 +1310,25 @@ def account_register():
         ).fetchone()
         if taken:
             return jsonify({"error": "username or email already in use"}), 409
+
+        signup_res = _supabase_signup(
+            email,
+            password,
+            username,
+            display_name,
+            request.url_root.rstrip("/") + "/",
+        )
+        signup_json = signup_res.json()
+        if signup_res.status_code >= 400:
+            message = signup_json.get("msg") or signup_json.get("error_description") or signup_json.get("error") or "signup failed"
+            return jsonify({"error": message}), signup_res.status_code
+
+        session = signup_json.get("session")
+        auth_user_id = _extract_auth_user_id(signup_json) or _find_auth_user_id_by_email(conn, email)
+        if not auth_user_id:
+            return jsonify({
+                "error": "verification email sent, but the account could not be linked yet. Try logging in after confirming your email."
+            }), 502
 
         gid = guest_id
         guest_row = None
@@ -1312,7 +1353,7 @@ def account_register():
             "SELECT auth_user_id::text FROM users WHERE user_id = %s",
             (gid,),
         ).fetchone()
-        if existing_profile and existing_profile[0]:
+        if existing_profile and existing_profile[0] and existing_profile[0] != auth_user_id:
             return jsonify({"error": "this guest profile already has a Supabase account"}), 409
         if existing_profile:
             conn.execute(
@@ -1355,7 +1396,8 @@ def account_login():
         return jsonify({"error": "identifier and password required"}), 400
     with db() as conn:
         row = conn.execute(
-            """SELECT user_id::text, display_name, username, email, auth_user_id::text
+            """SELECT user_id::text, display_name, username, email, auth_user_id::text,
+                      password_hash, password_salt
                  FROM users
                 WHERE lower(username) = %s OR lower(email) = %s
                 LIMIT 1""",
@@ -1363,16 +1405,60 @@ def account_login():
         ).fetchone()
         if not row:
             return jsonify({"error": "account not found"}), 404
-        user_id, display_name, username, email, auth_user_id = row
-        if not email or not auth_user_id:
-            return jsonify({"error": "this account has not been migrated to Supabase Auth yet"}), 409
-        signin_res = _supabase_signin(email, password)
-        signin_json = signin_res.json()
-        if signin_res.status_code >= 400:
-            message = signin_json.get("msg") or signin_json.get("error_description") or signin_json.get("error") or "login failed"
-            return jsonify({"error": message}), 403 if signin_res.status_code == 400 else signin_res.status_code
+        user_id, display_name, username, email, auth_user_id, password_hash, password_salt = row
+        if not email:
+            return jsonify({"error": "this account is missing an email address"}), 409
+
+        if not auth_user_id:
+            if not password_hash or not password_salt or not _verify_password(password, password_hash, password_salt):
+                return jsonify({"error": "this account has not been migrated to Supabase Auth yet"}), 409
+
+            existing_auth_user_id = _find_auth_user_id_by_email(conn, email)
+            if existing_auth_user_id:
+                signin_res = _supabase_signin(email, password)
+                signin_json = signin_res.json()
+                if signin_res.status_code >= 400:
+                    message = signin_json.get("msg") or signin_json.get("error_description") or signin_json.get("error") or "login failed"
+                    return jsonify({"error": message}), 403 if signin_res.status_code == 400 else signin_res.status_code
+                auth_user_id = _extract_auth_user_id(signin_json) or existing_auth_user_id
+            else:
+                create_res = _supabase_admin_create_user(
+                    email,
+                    password,
+                    username or email.split("@", 1)[0],
+                    display_name or username or email.split("@", 1)[0],
+                )
+                create_json = create_res.json()
+                if create_res.status_code >= 400:
+                    message = create_json.get("msg") or create_json.get("error_description") or create_json.get("error") or "could not migrate account"
+                    return jsonify({"error": message}), 502
+                auth_user_id = _extract_auth_user_id(create_json) or _find_auth_user_id_by_email(conn, email)
+                if not auth_user_id:
+                    return jsonify({"error": "could not finish Supabase Auth migration for this account"}), 502
+                signin_res = _supabase_signin(email, password)
+                signin_json = signin_res.json()
+                if signin_res.status_code >= 400:
+                    message = signin_json.get("msg") or signin_json.get("error_description") or signin_json.get("error") or "login failed"
+                    return jsonify({"error": message}), 403 if signin_res.status_code == 400 else signin_res.status_code
+
+            conn.execute(
+                """UPDATE users
+                      SET auth_user_id = %s,
+                          password_hash = NULL,
+                          password_salt = NULL
+                    WHERE user_id = %s""",
+                (auth_user_id, user_id),
+            )
+        else:
+            signin_res = _supabase_signin(email, password)
+            signin_json = signin_res.json()
+            if signin_res.status_code >= 400:
+                message = signin_json.get("msg") or signin_json.get("error_description") or signin_json.get("error") or "login failed"
+                return jsonify({"error": message}), 403 if signin_res.status_code == 400 else signin_res.status_code
+
         user = signin_json.get("user") or {}
-        if user.get("id") != auth_user_id:
+        signed_in_auth_user_id = user.get("id") or auth_user_id
+        if signed_in_auth_user_id != auth_user_id:
             return jsonify({"error": "account identity mismatch"}), 409
         guest_row = conn.execute(
             "SELECT 1 FROM guests WHERE guest_id = %s",
