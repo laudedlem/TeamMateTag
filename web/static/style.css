@@ -425,6 +425,33 @@ button.danger:hover:not(:disabled) {
   font-size: 0.85rem;
 }
 
+.powerup-panel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+  margin: 0.85rem 0 0.25rem;
+}
+
+.powerup-box {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.7rem 0.8rem;
+}
+
+.powerup-box-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 0.25rem;
+}
+
+.powerup-name {
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+}
+
 .danger-card {
   margin-top: 1rem;
   padding: 1rem 1.1rem;

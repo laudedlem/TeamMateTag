@@ -11,7 +11,7 @@
     <div class="title">
       <div class="brand-row">
         <h1>TeamMateTag</h1>
-        <span class="app-version" title="Current version">0.1.16</span>
+        <span class="app-version" title="Current version">0.1.17</span>
       </div>
       <span class="subtitle" id="brand-subtitle"></span>
     </div>
@@ -46,7 +46,6 @@
           <div id="account-logged-out">
             <div class="auth-grid">
               <input id="account-username-input" type="text" maxlength="120" placeholder="Username or Email" />
-              <input id="account-email-input" type="email" maxlength="160" placeholder="Email (for account creation)" />
               <input id="account-password-input" type="password" maxlength="120" placeholder="Password" />
             </div>
             <div class="auth-actions">
@@ -92,6 +91,16 @@
         <span class="mode-tile-desc">
             Alternating turns, 20s clock, team strikeouts. Outlast your
             opponent.
+        </span>
+        </button>
+        <button class="mode-tile" data-mode="po">
+          <div class="mode-tile-head">
+          <span class="mode-tile-name">Playoffs</span>
+          <span class="mode-tile-tag">2 players</span>
+        </div>
+        <span class="mode-tile-desc">
+            Division Rivalry with one powerup per player. Timer swings and
+            expanded links create a more chaotic battle.
         </span>
         </button>
       </div>
@@ -191,7 +200,7 @@
   <section id="start-screen" class="screen" hidden>
     <div class="start-card">
       <button class="back-btn" data-back="home">&larr; Home</button>
-      <h2>Division Rivalry</h2>
+      <h2 id="match-mode-title">Division Rivalry</h2>
       <p class="muted">
         Find an online opponent using your guest profile. Click the
         <b>?</b> in the header for full rules.
@@ -236,6 +245,19 @@
           <div class="turn-prompt">
             <span class="muted">Name a teammate of</span>
             <span id="current-player-name"></span>
+          </div>
+          <div id="powerup-panel" class="powerup-panel" hidden>
+            <div class="powerup-box">
+              <div class="powerup-box-label">Your Powerup</div>
+              <div id="your-powerup-name" class="powerup-name">--</div>
+              <div id="your-powerup-desc" class="muted small"></div>
+              <button id="use-powerup-btn" type="button" class="secondary">Use Powerup</button>
+            </div>
+            <div class="powerup-box">
+              <div class="powerup-box-label">Opponent Powerup</div>
+              <div id="opp-powerup-name" class="powerup-name">--</div>
+              <div id="opp-powerup-desc" class="muted small"></div>
+            </div>
           </div>
           <form id="guess-form" autocomplete="off" class="guess-form">
             <div class="autocomplete-wrap">

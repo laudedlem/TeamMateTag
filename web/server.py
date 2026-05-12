@@ -49,6 +49,7 @@ from engine import (  # noqa: E402
     GameState,
     MoveOutcome,
     MoveResult,
+    find_player_by_name,
     get_shared_seasons,
     seed_game,
     validate_and_apply_move,
@@ -68,6 +69,60 @@ OPENING_COUNTDOWN_SECONDS = 3.0
 APP_TURN_SECONDS = 20.0
 SUPPORT_EMAIL = "support@teammatetag.com"
 SESSION_COOKIE = "tt_session"
+DEFAULT_PLAYOFF_TURN_SECONDS = 20.0
+QUICK_PITCH_TURN_SECONDS = 10.0
+
+PLAYOFF_POWERUPS = {
+    "bubblegum": {
+        "label": "Bubblegum",
+        "description": "Any batter from the same franchise with a 40+ home run season. +5 seconds.",
+        "kind": "skill",
+        "bonus_seconds": 5.0,
+        "role": "batter",
+    },
+    "pine_tar": {
+        "label": "Pine Tar",
+        "description": "Any pitcher from the same franchise with a 200+ strikeout season. +5 seconds.",
+        "kind": "skill",
+        "bonus_seconds": 5.0,
+        "role": "pitcher",
+    },
+    "bat_donut": {
+        "label": "Bat Donut",
+        "description": "Any player from the same franchise with a Silver Slugger. +5 seconds.",
+        "kind": "skill",
+        "bonus_seconds": 5.0,
+        "role": "any",
+    },
+    "sunglasses": {
+        "label": "Sunglasses",
+        "description": "Any player from the same franchise with an All-Star selection. +5 seconds.",
+        "kind": "skill",
+        "bonus_seconds": 5.0,
+        "role": "any",
+    },
+    "backup_mitt": {
+        "label": "Backup Mitt",
+        "description": "Any player from the same franchise with a Gold Glove. +5 seconds.",
+        "kind": "skill",
+        "bonus_seconds": 5.0,
+        "role": "any",
+    },
+    "abs": {
+        "label": "ABS",
+        "description": "Add 15 seconds to your turn.",
+        "kind": "timer",
+        "bonus_seconds": 15.0,
+        "role": "any",
+    },
+    "quick_pitch": {
+        "label": "Quick Pitch",
+        "description": "Your opponent gets 10 seconds on their next turn.",
+        "kind": "timer",
+        "bonus_seconds": 0.0,
+        "role": "any",
+    },
+}
 
 # Explicit folders so Flask works regardless of CWD on serverless hosts.
 app = Flask(
@@ -409,6 +464,81 @@ def ensure_runtime_schema():
                 "ON dr_friend_challenges(recipient_user_id, status, created_at DESC)"
             )
             conn.execute(
+                """CREATE TABLE IF NOT EXISTS player_powerup_qualifications (
+                       player_id TEXT NOT NULL REFERENCES players(player_id),
+                       powerup_key TEXT NOT NULL,
+                       franchise_id TEXT NOT NULL REFERENCES franchises(franchise_id),
+                       team_id TEXT NOT NULL,
+                       season INTEGER NOT NULL,
+                       PRIMARY KEY (player_id, powerup_key, team_id, season)
+                   )"""
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_ppq_lookup "
+                "ON player_powerup_qualifications(powerup_key, franchise_id, player_id)"
+            )
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS po_games (
+                       game_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                       state JSONB NOT NULL,
+                       finished BOOLEAN NOT NULL DEFAULT false,
+                       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                   )"""
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_po_games_active ON po_games(created_at DESC) WHERE NOT finished"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_po_games_created ON po_games(created_at DESC)"
+            )
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS po_queue (
+                       guest_id UUID PRIMARY KEY REFERENCES guests(guest_id) ON DELETE CASCADE,
+                       display_name TEXT NOT NULL,
+                       avoid_guest_id UUID,
+                       enqueued_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                   )"""
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_po_queue_enqueued ON po_queue(enqueued_at)"
+            )
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS po_invites (
+                       code TEXT PRIMARY KEY,
+                       host_guest_id UUID NOT NULL REFERENCES guests(guest_id) ON DELETE CASCADE,
+                       host_name TEXT NOT NULL,
+                       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                       expires_at TIMESTAMPTZ NOT NULL DEFAULT (now() + interval '30 minutes'),
+                       claimed_at TIMESTAMPTZ
+                   )"""
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_po_invites_host ON po_invites(host_guest_id, created_at DESC)"
+            )
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS po_rematches (
+                       original_game_id UUID NOT NULL,
+                       requester_guest_id UUID NOT NULL REFERENCES guests(guest_id) ON DELETE CASCADE,
+                       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                       PRIMARY KEY (original_game_id, requester_guest_id)
+                   )"""
+            )
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS po_rematch_links (
+                       original_game_id UUID PRIMARY KEY,
+                       new_game_id UUID NOT NULL,
+                       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                   )"""
+            )
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS po_postgame_exits (
+                       original_game_id UUID NOT NULL,
+                       guest_id UUID NOT NULL REFERENCES guests(guest_id) ON DELETE CASCADE,
+                       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                       PRIMARY KEY (original_game_id, guest_id)
+                   )"""
+            )
+            conn.execute(
                 """CREATE TABLE IF NOT EXISTS app_sessions (
                        session_token TEXT PRIMARY KEY,
                        guest_id UUID NOT NULL REFERENCES guests(guest_id) ON DELETE CASCADE,
@@ -723,6 +853,180 @@ def _session_account_guest_id(conn) -> str | None:
 
 def _friendship_pair(a: str, b: str) -> tuple[str, str]:
     return (a, b) if a < b else (b, a)
+
+
+def _random_playoff_powerup() -> str:
+    return secrets.choice(list(PLAYOFF_POWERUPS.keys()))
+
+
+def _playoff_player_role(conn, player_id: str) -> str:
+    row = conn.execute(
+        "SELECT COALESCE(primary_pos, '') FROM players WHERE player_id = %s",
+        (player_id,),
+    ).fetchone()
+    primary_pos = (row[0] or "").upper() if row else ""
+    return "pitcher" if primary_pos == "P" else "batter"
+
+
+def _playoff_powerup_state(blob: dict, viewer_guest_id: str | None) -> dict:
+    p1_side = {
+        "key": blob.get("p1_powerup_key"),
+        "label": PLAYOFF_POWERUPS.get(blob.get("p1_powerup_key"), {}).get("label"),
+        "description": PLAYOFF_POWERUPS.get(blob.get("p1_powerup_key"), {}).get("description"),
+        "used": bool(blob.get("p1_powerup_used")),
+        "owner": blob.get("p1"),
+    }
+    p2_side = {
+        "key": blob.get("p2_powerup_key"),
+        "label": PLAYOFF_POWERUPS.get(blob.get("p2_powerup_key"), {}).get("label"),
+        "description": PLAYOFF_POWERUPS.get(blob.get("p2_powerup_key"), {}).get("description"),
+        "used": bool(blob.get("p2_powerup_used")),
+        "owner": blob.get("p2"),
+    }
+    your_side = None
+    if viewer_guest_id == blob.get("p1_guest_id"):
+        your_side = "p1"
+    elif viewer_guest_id == blob.get("p2_guest_id"):
+        your_side = "p2"
+    your_powerup = p1_side if your_side == "p1" else p2_side if your_side == "p2" else None
+    opponent_powerup = p2_side if your_side == "p1" else p1_side if your_side == "p2" else None
+    active_key = blob.get("active_turn_powerup")
+    return {
+        "your_powerup": your_powerup,
+        "opponent_powerup": opponent_powerup,
+        "active_turn_powerup": {
+            "key": active_key,
+            "label": PLAYOFF_POWERUPS.get(active_key, {}).get("label"),
+        } if active_key else None,
+        "next_turn_seconds_override": blob.get("next_turn_seconds_override"),
+    }
+
+
+def _resolve_pick(conn, raw: str | None = None, player_id: str | None = None) -> tuple[str | None, str | None, str | None, int]:
+    if (raw is None) == (player_id is None):
+        raise ValueError("pass exactly one of raw or player_id")
+    if raw is not None:
+        matches = find_player_by_name(PgEngineConn(conn), raw)
+        if not matches:
+            return None, None, None, 0
+        pid, display_name, disambiguation, _career_games = matches[0]
+        return pid, display_name, disambiguation, len(matches)
+    row = conn.execute(
+        "SELECT display_name, disambiguation FROM players_searchable WHERE player_id = %s",
+        (player_id,),
+    ).fetchone()
+    if not row:
+        return None, None, None, 0
+    return player_id, row[0], row[1], 1
+
+
+def _playoff_qualification_rows(conn, current_player_id: str, candidate_player_id: str, powerup_key: str):
+    return conn.execute(
+        """SELECT q.team_id, q.season, t.name
+             FROM player_powerup_qualifications q
+             JOIN teams t
+               ON t.team_id = q.team_id
+              AND t.season = q.season
+            WHERE q.player_id = %s
+              AND q.powerup_key = %s
+              AND q.franchise_id IN (
+                    SELECT DISTINCT tm.franchise_id
+                      FROM appearances a
+                      JOIN teams tm
+                        ON tm.team_id = a.team_id
+                       AND tm.season = a.season
+                     WHERE a.player_id = %s
+              )
+            ORDER BY q.season, q.team_id""",
+        (candidate_player_id, powerup_key, current_player_id),
+    ).fetchall()
+
+
+def _apply_playoff_powerup_move(conn, state: GameState, blob: dict,
+                                raw: str | None = None, player_id: str | None = None) -> dict | None:
+    powerup_key = blob.get("active_turn_powerup")
+    if not powerup_key or powerup_key not in PLAYOFF_POWERUPS:
+        return None
+    pid, display_name, disambiguation, ambiguous_count = _resolve_pick(
+        conn, raw=raw if raw is not None else None, player_id=player_id,
+    )
+    if not pid:
+        return None
+    if pid in state.chain:
+        return None
+
+    powerup = PLAYOFF_POWERUPS[powerup_key]
+    role_needed = powerup.get("role", "any")
+    candidate_role = _playoff_player_role(conn, pid)
+    if role_needed != "any" and candidate_role != role_needed:
+        return {
+            "outcome": "powerup_not_eligible",
+            "player_id": pid,
+            "display_name": display_name,
+            "disambiguation": disambiguation,
+            "ambiguous_count": ambiguous_count,
+            "powerup_key": powerup_key,
+            "powerup_label": powerup["label"],
+            "reason": f"{powerup['label']} only works on {role_needed}s.",
+        }
+
+    qualifying_rows = _playoff_qualification_rows(conn, state.current_player_id, pid, powerup_key)
+    if not qualifying_rows:
+        return {
+            "outcome": "powerup_not_eligible",
+            "player_id": pid,
+            "display_name": display_name,
+            "disambiguation": disambiguation,
+            "ambiguous_count": ambiguous_count,
+            "powerup_key": powerup_key,
+            "powerup_label": powerup["label"],
+            "reason": f"{display_name} is not a {powerup['label']} match for {state.current_player_name}.",
+        }
+
+    available = [(t, s, name) for t, s, name in qualifying_rows if not state.is_burned((t, s))]
+    if not available:
+        return {
+            "outcome": "blocked_by_burned",
+            "player_id": pid,
+            "display_name": display_name,
+            "disambiguation": disambiguation,
+            "ambiguous_count": ambiguous_count,
+            "powerup_key": powerup_key,
+            "powerup_label": powerup["label"],
+            "shared_seasons": [
+                {"team_id": t, "season": s, "team_name": name}
+                for t, s, name in qualifying_rows
+            ],
+            "burned_seasons": [
+                {"team_id": t, "season": s, "team_name": name}
+                for t, s, name in qualifying_rows
+            ],
+        }
+
+    team_id, season, team_name = available[0]
+    state.strikes[(team_id, season)] = state.strikes.get((team_id, season), 0) + 1
+    state.chain.append(pid)
+    state.chain_names.append(display_name)
+    state.chain_shared_with_prev.append([(team_id, season)])
+    chain_link_meta = list(blob.get("chain_link_meta") or [None] * (len(state.chain) - 1))
+    chain_link_meta.append({
+        "type": "powerup",
+        "powerup_key": powerup_key,
+        "powerup_label": powerup["label"],
+    })
+    blob["chain_link_meta"] = chain_link_meta
+    return {
+        "outcome": "valid",
+        "player_id": pid,
+        "display_name": display_name,
+        "disambiguation": disambiguation,
+        "ambiguous_count": ambiguous_count,
+        "shared_seasons": [{"team_id": team_id, "season": season, "team_name": team_name}],
+        "burned_seasons": [],
+        "powerup_key": powerup_key,
+        "powerup_label": powerup["label"],
+        "move_via_powerup": True,
+    }
 
 
 def _friends_payload(conn, guest_id: str) -> dict:
@@ -1570,10 +1874,15 @@ def account_delete():
             return jsonify({"error": "failed to delete Supabase Auth user"}), 502
 
         _forfeit_active_dr_games(conn, guest_id)
+        _forfeit_active_po_games(conn, guest_id)
         conn.execute("DELETE FROM dr_queue WHERE guest_id = %s", (guest_id,))
         conn.execute("DELETE FROM dr_invites WHERE host_guest_id = %s", (guest_id,))
         conn.execute("DELETE FROM dr_rematches WHERE requester_guest_id = %s", (guest_id,))
         conn.execute("DELETE FROM dr_postgame_exits WHERE guest_id = %s", (guest_id,))
+        conn.execute("DELETE FROM po_queue WHERE guest_id = %s", (guest_id,))
+        conn.execute("DELETE FROM po_invites WHERE host_guest_id = %s", (guest_id,))
+        conn.execute("DELETE FROM po_rematches WHERE requester_guest_id = %s", (guest_id,))
+        conn.execute("DELETE FROM po_postgame_exits WHERE guest_id = %s", (guest_id,))
         _clear_app_session(conn)
         conn.execute("DELETE FROM users WHERE user_id = %s", (guest_id,))
         conn.execute("DELETE FROM guests WHERE guest_id = %s", (guest_id,))
@@ -1975,6 +2284,94 @@ def dr_state_dict(gid: str, blob: dict, state: GameState, conn=None) -> dict:
         "finished": blob["finished"],
         "winner": blob.get("winner"),
         "last_move": blob.get("last_move"),
+    }
+
+
+def po_blob_from_state(state: GameState, p1: str, p2: str, turn_index: int,
+                       turn_seconds: float, turn_started_at: datetime,
+                       countdown_seconds: float, finished: bool = False,
+                       owner_guest_id: str | None = None,
+                       p1_guest_id: str | None = None,
+                       p2_guest_id: str | None = None,
+                       seed_player_id: str = DEFAULT_SEED,
+                       winner: str | None = None,
+                       last_move: dict | None = None) -> dict:
+    return {
+        **serialize_state(state),
+        "p1": p1,
+        "p2": p2,
+        "turn_index": turn_index,
+        "default_turn_seconds": DEFAULT_PLAYOFF_TURN_SECONDS,
+        "turn_seconds": turn_seconds,
+        "turn_started_at": turn_started_at.isoformat(),
+        "countdown_seconds": countdown_seconds,
+        "owner_guest_id": owner_guest_id,
+        "p1_guest_id": p1_guest_id,
+        "p2_guest_id": p2_guest_id,
+        "seed_player_id": seed_player_id,
+        "finished": finished,
+        "winner": winner,
+        "last_move": last_move,
+        "p1_powerup_key": _random_playoff_powerup(),
+        "p2_powerup_key": _random_playoff_powerup(),
+        "p1_powerup_used": False,
+        "p2_powerup_used": False,
+        "active_turn_powerup": None,
+        "next_turn_seconds_override": None,
+        "chain_link_meta": [None],
+    }
+
+
+def po_state_dict(gid: str, blob: dict, state: GameState, conn=None) -> dict:
+    started = datetime.fromisoformat(blob["turn_started_at"])
+    elapsed = (now_utc() - started).total_seconds()
+    countdown_left = max(0.0, blob["countdown_seconds"] - elapsed) if not blob["finished"] else 0.0
+    live_elapsed = max(0.0, elapsed - blob["countdown_seconds"])
+    remaining = max(0.0, blob["turn_seconds"] - live_elapsed) if not blob["finished"] else 0.0
+    cards = _hydrate_player_cards(conn, list(state.chain)) if conn else None
+    viewer_guest_id = blob.get("viewer_guest_id")
+    p1_guest_id = blob.get("p1_guest_id")
+    p2_guest_id = blob.get("p2_guest_id")
+    your_side = (
+        "p1" if viewer_guest_id and viewer_guest_id == p1_guest_id
+        else "p2" if viewer_guest_id and viewer_guest_id == p2_guest_id
+        else None
+    )
+    chain = chain_dict(state, cards=cards)
+    link_meta = blob.get("chain_link_meta") or [None] * len(chain)
+    for i, player in enumerate(chain):
+        player["link_meta_with_prev"] = link_meta[i] if i < len(link_meta) else None
+    return {
+        "game_id": gid,
+        "mode": "po",
+        "current_player": {
+            "id": state.current_player_id,
+            "name": state.current_player_name,
+        },
+        "current_label": [blob["p1"], blob["p2"]][blob["turn_index"]],
+        "p1": blob["p1"],
+        "p2": blob["p2"],
+        "p1_guest_id": p1_guest_id,
+        "p2_guest_id": p2_guest_id,
+        "viewer_guest_id": viewer_guest_id,
+        "your_side": your_side,
+        "your_name": blob["p1"] if your_side == "p1" else blob["p2"] if your_side == "p2" else None,
+        "opponent_name": blob["p2"] if your_side == "p1" else blob["p1"] if your_side == "p2" else None,
+        "your_turn": (
+            (your_side == "p1" and blob["turn_index"] == 0) or
+            (your_side == "p2" and blob["turn_index"] == 1)
+        ) if your_side else False,
+        "turn_index": blob["turn_index"],
+        "turn_seconds": blob["turn_seconds"],
+        "default_turn_seconds": blob["default_turn_seconds"],
+        "countdown_seconds_remaining": countdown_left,
+        "remaining_seconds": remaining,
+        "chain": chain,
+        "strikes": strikes_dict(state),
+        "finished": blob["finished"],
+        "winner": blob.get("winner"),
+        "last_move": blob.get("last_move"),
+        "powerups": _playoff_powerup_state(blob, viewer_guest_id),
     }
 
 
@@ -2602,6 +2999,569 @@ def timeout():
         _save_game(conn, "dr_games", gid, blob)
         return jsonify(dr_state_dict(gid, blob, state, conn=conn))
 
+
+# ============================================================
+# Playoffs (multiplayer with powerups)
+# ============================================================
+
+def _po_authorize(blob: dict, guest_id: str) -> bool:
+    return guest_id in {blob.get("p1_guest_id"), blob.get("p2_guest_id")}
+
+
+def _po_status_payload(conn, guest_id: str):
+    row = conn.execute(
+        """SELECT game_id::text, state, finished
+             FROM po_games
+            WHERE NOT finished
+              AND ((state->>'p1_guest_id') = %s OR (state->>'p2_guest_id') = %s)
+            ORDER BY created_at DESC
+            LIMIT 1""",
+        (guest_id, guest_id),
+    ).fetchone()
+    if row:
+        gid, blob, finished = row
+        blob["finished"] = finished
+        blob["viewer_guest_id"] = guest_id
+        state = deserialize_state(blob)
+        return {"status": "matched", "game": po_state_dict(gid, blob, state, conn=conn)}
+    qrow = conn.execute(
+        "SELECT enqueued_at FROM po_queue WHERE guest_id = %s",
+        (guest_id,),
+    ).fetchone()
+    if qrow:
+        return {
+            "status": "waiting",
+            "guest_id": guest_id,
+            "enqueued_at": qrow[0].isoformat(),
+        }
+    return {"status": "idle"}
+
+
+def _po_create_online_game(conn, guest_a_id: str, name_a: str, guest_b_id: str, name_b: str):
+    first_a = bool(secrets.randbelow(2) == 0)
+    p1_guest_id, p1_name, p2_guest_id, p2_name = (
+        (guest_a_id, name_a, guest_b_id, name_b) if first_a
+        else (guest_b_id, name_b, guest_a_id, name_a)
+    )
+    engine_conn = PgEngineConn(conn)
+    state = seed_game(engine_conn, DEFAULT_SEED)
+    _record_player_usage(conn, DEFAULT_SEED, "dr")
+    blob = po_blob_from_state(
+        state,
+        p1=p1_name,
+        p2=p2_name,
+        turn_index=0,
+        turn_seconds=DEFAULT_PLAYOFF_TURN_SECONDS,
+        turn_started_at=now_utc(),
+        countdown_seconds=OPENING_COUNTDOWN_SECONDS,
+        owner_guest_id=p1_guest_id,
+        p1_guest_id=p1_guest_id,
+        p2_guest_id=p2_guest_id,
+        seed_player_id=DEFAULT_SEED,
+    )
+    gid = _insert_game(conn, "po_games", blob)
+    return gid, blob, state
+
+
+def _forfeit_active_po_games(conn, guest_id: str):
+    rows = conn.execute(
+        """SELECT game_id::text, state, finished
+             FROM po_games
+            WHERE NOT finished
+              AND ((state->>'p1_guest_id') = %s OR (state->>'p2_guest_id') = %s)""",
+        (guest_id, guest_id),
+    ).fetchall()
+    for game_id, blob, finished in rows:
+        blob["finished"] = finished
+        if blob.get("finished"):
+            continue
+        blob["finished"] = True
+        blob["winner"] = blob.get("p2") if guest_id == blob.get("p1_guest_id") else blob.get("p1")
+        blob["last_move"] = {"outcome": "forfeit"}
+        _save_game(conn, "po_games", game_id, blob)
+
+
+@app.route("/api/po/queue", methods=["POST"])
+def po_queue():
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
+    guest_id = (data.get("guest_id") or "").strip()
+    avoid_guest_id = (data.get("avoid_guest_id") or "").strip() or None
+    if not guest_id:
+        return jsonify({"error": "guest_id required"}), 400
+    with db() as conn:
+        exists = conn.execute("SELECT 1 FROM guests WHERE guest_id = %s", (guest_id,)).fetchone()
+        if not exists:
+            return jsonify({"error": "unknown guest_id"}), 404
+        display_name = _guest_label(conn, guest_id)
+        existing = _po_status_payload(conn, guest_id)
+        if existing["status"] == "matched":
+            return jsonify(existing)
+        with conn.transaction():
+            conn.execute("SELECT pg_advisory_xact_lock(4411002)")
+            opp = conn.execute(
+                """SELECT guest_id::text, display_name
+                     FROM po_queue
+                    WHERE guest_id <> %s
+                      AND (avoid_guest_id IS NULL OR avoid_guest_id <> CAST(%s AS uuid))
+                      AND (CAST(%s AS uuid) IS NULL OR guest_id <> CAST(%s AS uuid))
+                    ORDER BY enqueued_at
+                    LIMIT 1
+                    FOR UPDATE SKIP LOCKED""",
+                (guest_id, guest_id, avoid_guest_id, avoid_guest_id),
+            ).fetchone()
+            if opp:
+                opp_guest_id, opp_name = opp
+                conn.execute("DELETE FROM po_queue WHERE guest_id IN (%s, %s)", (guest_id, opp_guest_id))
+                gid, blob, state = _po_create_online_game(conn, opp_guest_id, opp_name, guest_id, display_name)
+                blob["viewer_guest_id"] = guest_id
+                return jsonify({"status": "matched", "game": po_state_dict(gid, blob, state, conn=conn)})
+            conn.execute(
+                """INSERT INTO po_queue (guest_id, display_name, avoid_guest_id, enqueued_at)
+                   VALUES (%s, %s, %s, now())
+                   ON CONFLICT (guest_id) DO UPDATE
+                   SET display_name = EXCLUDED.display_name,
+                       avoid_guest_id = EXCLUDED.avoid_guest_id,
+                       enqueued_at = now()""",
+                (guest_id, display_name, avoid_guest_id),
+            )
+        return jsonify(_po_status_payload(conn, guest_id))
+
+
+@app.route("/api/po/status", methods=["POST"])
+def po_status():
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
+    guest_id = (data.get("guest_id") or "").strip()
+    if not guest_id:
+        return jsonify({"error": "guest_id required"}), 400
+    with db() as conn:
+        return jsonify(_po_status_payload(conn, guest_id))
+
+
+@app.route("/api/po/game", methods=["POST"])
+def po_game():
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
+    guest_id = (data.get("guest_id") or "").strip()
+    gid = (data.get("game_id") or "").strip()
+    if not guest_id or not gid:
+        return jsonify({"error": "guest_id and game_id required"}), 400
+    with db() as conn:
+        blob, state = _load_game(conn, "po_games", gid)
+        if not blob:
+            return jsonify({"error": "unknown game_id"}), 404
+        if not _po_authorize(blob, guest_id):
+            return jsonify({"error": "unauthorized"}), 403
+        blob["viewer_guest_id"] = guest_id
+        return jsonify(po_state_dict(gid, blob, state, conn=conn))
+
+
+@app.route("/api/po/powerup", methods=["POST"])
+def po_powerup():
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
+    guest_id = (data.get("guest_id") or "").strip()
+    gid = (data.get("game_id") or "").strip()
+    if not guest_id or not gid:
+        return jsonify({"error": "guest_id and game_id required"}), 400
+    with db() as conn:
+        blob, state = _load_game(conn, "po_games", gid)
+        if not blob:
+            return jsonify({"error": "unknown game_id"}), 404
+        if not _po_authorize(blob, guest_id):
+            return jsonify({"error": "unauthorized"}), 403
+        blob["viewer_guest_id"] = guest_id
+        if blob["finished"]:
+            return jsonify(po_state_dict(gid, blob, state, conn=conn))
+        expected_turn_guest = [blob.get("p1_guest_id"), blob.get("p2_guest_id")][blob["turn_index"]]
+        if guest_id != expected_turn_guest:
+            return jsonify({"error": "not your turn", **po_state_dict(gid, blob, state, conn=conn)}), 409
+        side = "p1" if guest_id == blob.get("p1_guest_id") else "p2"
+        key = blob.get(f"{side}_powerup_key")
+        if not key:
+            return jsonify({"error": "no powerup assigned", **po_state_dict(gid, blob, state, conn=conn)}), 409
+        if blob.get(f"{side}_powerup_used"):
+            return jsonify({"error": "powerup already used", **po_state_dict(gid, blob, state, conn=conn)}), 409
+        if blob.get("active_turn_powerup"):
+            return jsonify({"error": "powerup already active this turn", **po_state_dict(gid, blob, state, conn=conn)}), 409
+        powerup = PLAYOFF_POWERUPS[key]
+        blob[f"{side}_powerup_used"] = True
+        if key == "abs":
+            blob["turn_seconds"] = float(blob["turn_seconds"]) + float(powerup["bonus_seconds"])
+            blob["last_move"] = {
+                "outcome": "powerup_activated",
+                "powerup_key": key,
+                "powerup_label": powerup["label"],
+                "message": f"{powerup['label']} activated. +15 seconds.",
+            }
+        elif key == "quick_pitch":
+            blob["next_turn_seconds_override"] = QUICK_PITCH_TURN_SECONDS
+            blob["last_move"] = {
+                "outcome": "powerup_activated",
+                "powerup_key": key,
+                "powerup_label": powerup["label"],
+                "message": f"{powerup['label']} activated. Opponent gets 10 seconds next turn.",
+            }
+        else:
+            blob["turn_seconds"] = float(blob["turn_seconds"]) + float(powerup["bonus_seconds"])
+            blob["active_turn_powerup"] = key
+            blob["last_move"] = {
+                "outcome": "powerup_activated",
+                "powerup_key": key,
+                "powerup_label": powerup["label"],
+                "message": f"{powerup['label']} activated. +5 seconds and expanded move rules this turn.",
+            }
+        _save_game(conn, "po_games", gid, blob)
+        return jsonify(po_state_dict(gid, blob, state, conn=conn))
+
+
+@app.route("/api/po/move", methods=["POST"])
+def po_move():
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
+    gid = data.get("game_id")
+    guest_id = (data.get("guest_id") or "").strip()
+    raw = (data.get("raw") or "").strip()
+    player_id = (data.get("player_id") or "").strip() or None
+    with db() as conn:
+        blob, state = _load_game(conn, "po_games", gid)
+        if not blob:
+            return jsonify({"error": "unknown game_id"}), 404
+        if not guest_id or not _po_authorize(blob, guest_id):
+            return jsonify({"error": "unauthorized"}), 403
+        blob["viewer_guest_id"] = guest_id
+        if blob["finished"]:
+            return jsonify(po_state_dict(gid, blob, state, conn=conn))
+        expected_turn_guest = [blob.get("p1_guest_id"), blob.get("p2_guest_id")][blob["turn_index"]]
+        if guest_id != expected_turn_guest:
+            return jsonify({"error": "not your turn", **po_state_dict(gid, blob, state, conn=conn)}), 409
+        started = datetime.fromisoformat(blob["turn_started_at"])
+        elapsed = (now_utc() - started).total_seconds()
+        live_elapsed = max(0.0, elapsed - blob["countdown_seconds"])
+        if live_elapsed > blob["turn_seconds"]:
+            blob["finished"] = True
+            blob["winner"] = [blob["p2"], blob["p1"]][blob["turn_index"]]
+            blob["last_move"] = {"outcome": "timeout"}
+            _save_game(conn, "po_games", gid, blob)
+            return jsonify(po_state_dict(gid, blob, state, conn=conn))
+        if not raw and not player_id:
+            blob["last_move"] = None
+            _save_game(conn, "po_games", gid, blob)
+            return jsonify(po_state_dict(gid, blob, state, conn=conn))
+
+        engine_conn = PgEngineConn(conn)
+        if player_id:
+            result = validate_and_apply_move(state, engine_conn, player_id=player_id)
+        else:
+            result = validate_and_apply_move(state, engine_conn, raw)
+
+        move_payload = None
+        if result.outcome == MoveOutcome.VALID:
+            move_payload = result_to_dict(result)
+            move_payload["move_via_powerup"] = False
+            active_key = blob.get("active_turn_powerup")
+            if active_key:
+                move_payload["powerup_key"] = active_key
+                move_payload["powerup_label"] = PLAYOFF_POWERUPS[active_key]["label"]
+            chain_link_meta = list(blob.get("chain_link_meta") or [None] * (len(state.chain) - 1))
+            if len(chain_link_meta) < len(state.chain):
+                chain_link_meta.append(None)
+            blob["chain_link_meta"] = chain_link_meta
+        else:
+            powerup_move = _apply_playoff_powerup_move(
+                conn,
+                state,
+                blob,
+                raw=raw if raw else None,
+                player_id=player_id,
+            )
+            move_payload = powerup_move or result_to_dict(result)
+
+        blob.update(serialize_state(state))
+        blob["last_move"] = move_payload
+        if move_payload.get("outcome") == "valid":
+            if move_payload.get("player_id"):
+                _record_player_usage(conn, move_payload["player_id"], "dr")
+            blob["turn_index"] = 1 - blob["turn_index"]
+            blob["turn_started_at"] = now_utc().isoformat()
+            blob["countdown_seconds"] = 0.0
+            blob["turn_seconds"] = float(blob.get("next_turn_seconds_override") or blob.get("default_turn_seconds") or DEFAULT_PLAYOFF_TURN_SECONDS)
+            blob["next_turn_seconds_override"] = None
+            blob["active_turn_powerup"] = None
+        _save_game(conn, "po_games", gid, blob)
+        return jsonify(po_state_dict(gid, blob, state, conn=conn))
+
+
+@app.route("/api/po/timeout", methods=["POST"])
+def po_timeout():
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
+    gid = data.get("game_id")
+    guest_id = (data.get("guest_id") or "").strip()
+    with db() as conn:
+        blob, state = _load_game(conn, "po_games", gid)
+        if not blob:
+            return jsonify({"error": "unknown game_id"}), 404
+        if not guest_id or not _po_authorize(blob, guest_id):
+            return jsonify({"error": "unauthorized"}), 403
+        blob["viewer_guest_id"] = guest_id
+        if blob["finished"]:
+            return jsonify(po_state_dict(gid, blob, state, conn=conn))
+        started = datetime.fromisoformat(blob["turn_started_at"])
+        elapsed = (now_utc() - started).total_seconds()
+        live_elapsed = max(0.0, elapsed - blob["countdown_seconds"])
+        if live_elapsed < blob["turn_seconds"] - 0.25:
+            return jsonify(po_state_dict(gid, blob, state, conn=conn))
+        blob["finished"] = True
+        blob["winner"] = [blob["p2"], blob["p1"]][blob["turn_index"]]
+        blob["last_move"] = {"outcome": "timeout"}
+        _save_game(conn, "po_games", gid, blob)
+        return jsonify(po_state_dict(gid, blob, state, conn=conn))
+
+
+@app.route("/api/po/rematch_request", methods=["POST"])
+def po_rematch_request():
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
+    guest_id = (data.get("guest_id") or "").strip()
+    gid = (data.get("game_id") or "").strip()
+    if not guest_id or not gid:
+        return jsonify({"error": "guest_id and game_id required"}), 400
+    with db() as conn:
+        blob, state = _load_game(conn, "po_games", gid)
+        if not blob:
+            return jsonify({"error": "unknown game_id"}), 404
+        if not _po_authorize(blob, guest_id):
+            return jsonify({"error": "unauthorized"}), 403
+        if not blob["finished"]:
+            return jsonify({"error": "game not finished"}), 400
+        if blob.get("last_move", {}).get("outcome") == "forfeit":
+            return jsonify({"error": "rematch unavailable after forfeit"}), 400
+        link = conn.execute("SELECT new_game_id::text FROM po_rematch_links WHERE original_game_id = %s", (gid,)).fetchone()
+        if link:
+            new_gid = link[0]
+            new_blob, new_state = _load_game(conn, "po_games", new_gid)
+            if new_blob:
+                new_blob["viewer_guest_id"] = guest_id
+                return jsonify({"status": "matched", "game": po_state_dict(new_gid, new_blob, new_state, conn=conn)})
+        conn.execute(
+            """INSERT INTO po_rematches (original_game_id, requester_guest_id)
+               VALUES (%s, %s)
+               ON CONFLICT DO NOTHING""",
+            (gid, guest_id),
+        )
+        requesters = {r[0] for r in conn.execute(
+            "SELECT requester_guest_id::text FROM po_rematches WHERE original_game_id = %s",
+            (gid,),
+        ).fetchall()}
+        if {blob.get("p1_guest_id"), blob.get("p2_guest_id")} <= requesters:
+            new_gid, new_blob, new_state = _po_create_online_game(
+                conn, blob.get("p1_guest_id"), blob.get("p1"),
+                blob.get("p2_guest_id"), blob.get("p2"),
+            )
+            conn.execute(
+                """INSERT INTO po_rematch_links (original_game_id, new_game_id)
+                   VALUES (%s, %s)
+                   ON CONFLICT (original_game_id) DO NOTHING""",
+                (gid, new_gid),
+            )
+            new_blob["viewer_guest_id"] = guest_id
+            return jsonify({"status": "matched", "game": po_state_dict(new_gid, new_blob, new_state, conn=conn)})
+        return jsonify({"status": "waiting"})
+
+
+@app.route("/api/po/rematch_status", methods=["POST"])
+def po_rematch_status():
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
+    guest_id = (data.get("guest_id") or "").strip()
+    gid = (data.get("game_id") or "").strip()
+    if not guest_id or not gid:
+        return jsonify({"error": "guest_id and game_id required"}), 400
+    with db() as conn:
+        blob, _state = _load_game(conn, "po_games", gid)
+        if not blob:
+            return jsonify({"error": "unknown game_id"}), 404
+        if not _po_authorize(blob, guest_id):
+            return jsonify({"error": "unauthorized"}), 403
+        link = conn.execute("SELECT new_game_id::text FROM po_rematch_links WHERE original_game_id = %s", (gid,)).fetchone()
+        if link:
+            new_gid = link[0]
+            new_blob, new_state = _load_game(conn, "po_games", new_gid)
+            if new_blob:
+                new_blob["viewer_guest_id"] = guest_id
+                return jsonify({"status": "matched", "game": po_state_dict(new_gid, new_blob, new_state, conn=conn)})
+        requesters = {r[0] for r in conn.execute(
+            "SELECT requester_guest_id::text FROM po_rematches WHERE original_game_id = %s",
+            (gid,),
+        ).fetchall()}
+        self_in_queue = conn.execute("SELECT 1 FROM po_queue WHERE guest_id = %s", (guest_id,)).fetchone()
+        if self_in_queue:
+            return jsonify({"status": "requeued", "you_requested": guest_id in requesters, "opponent_requested": False, "opponent_present": False, "rematch_available": False})
+        other_guest_id = blob.get("p2_guest_id") if guest_id == blob.get("p1_guest_id") else blob.get("p1_guest_id")
+        exited = {r[0] for r in conn.execute(
+            "SELECT guest_id::text FROM po_postgame_exits WHERE original_game_id = %s",
+            (gid,),
+        ).fetchall()}
+        if other_guest_id in exited:
+            return jsonify({"status": "abandoned", "you_requested": guest_id in requesters, "opponent_requested": False, "opponent_present": False, "rematch_available": False})
+        other_in_queue = conn.execute("SELECT 1 FROM po_queue WHERE guest_id = %s", (other_guest_id,)).fetchone()
+        other_in_other_game = conn.execute(
+            """SELECT 1
+                 FROM po_games
+                WHERE NOT finished
+                  AND game_id <> %s
+                  AND ((state->>'p1_guest_id') = %s OR (state->>'p2_guest_id') = %s)""",
+            (gid, other_guest_id, other_guest_id),
+        ).fetchone()
+        opponent_present = not other_in_queue and not other_in_other_game and other_guest_id not in exited
+        return jsonify({
+            "status": "waiting",
+            "you_requested": guest_id in requesters,
+            "opponent_requested": other_guest_id in requesters,
+            "opponent_present": opponent_present,
+            "rematch_available": True,
+        })
+
+
+@app.route("/api/po/postgame_leave", methods=["POST"])
+def po_postgame_leave():
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
+    guest_id = (data.get("guest_id") or "").strip()
+    game_id = (data.get("game_id") or "").strip()
+    if not guest_id or not game_id:
+        return jsonify({"error": "guest_id and game_id required"}), 400
+    with db() as conn:
+        blob, _state = _load_game(conn, "po_games", game_id)
+        if not blob:
+            return jsonify({"status": "gone"})
+        if not _po_authorize(blob, guest_id):
+            return jsonify({"error": "unauthorized"}), 403
+        conn.execute(
+            """INSERT INTO po_postgame_exits (original_game_id, guest_id)
+               VALUES (%s, %s)
+               ON CONFLICT DO NOTHING""",
+            (game_id, guest_id),
+        )
+        conn.execute("DELETE FROM po_rematches WHERE original_game_id = %s AND requester_guest_id = %s", (game_id, guest_id))
+        other_guest_id = blob.get("p2_guest_id") if guest_id == blob.get("p1_guest_id") else blob.get("p1_guest_id")
+        other_requested = conn.execute(
+            """SELECT 1
+                 FROM po_rematches
+                WHERE original_game_id = %s
+                  AND requester_guest_id = %s""",
+            (game_id, other_guest_id),
+        ).fetchone()
+        if other_requested:
+            conn.execute(
+                """INSERT INTO po_queue (guest_id, display_name, avoid_guest_id, enqueued_at)
+                   VALUES (%s, %s, %s, now())
+                   ON CONFLICT (guest_id) DO UPDATE
+                   SET display_name = EXCLUDED.display_name,
+                       avoid_guest_id = EXCLUDED.avoid_guest_id,
+                       enqueued_at = now()""",
+                (other_guest_id, _guest_label(conn, other_guest_id), guest_id),
+            )
+        return jsonify({"status": "gone"})
+
+
+@app.route("/api/po/create_challenge", methods=["POST"])
+def po_create_challenge():
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
+    guest_id = (data.get("guest_id") or "").strip()
+    if not guest_id:
+        return jsonify({"error": "guest_id required"}), 400
+    with db() as conn:
+        display_name = _guest_label(conn, guest_id)
+        conn.execute("DELETE FROM po_queue WHERE guest_id = %s", (guest_id,))
+        conn.execute("DELETE FROM po_invites WHERE host_guest_id = %s AND claimed_at IS NULL", (guest_id,))
+        code = secrets.token_hex(3).upper()
+        conn.execute(
+            """INSERT INTO po_invites (code, host_guest_id, host_name)
+               VALUES (%s, %s, %s)""",
+            (code, guest_id, display_name),
+        )
+        return jsonify({"status": "waiting", "code": code})
+
+
+@app.route("/api/po/join_challenge", methods=["POST"])
+def po_join_challenge():
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
+    guest_id = (data.get("guest_id") or "").strip()
+    code = (data.get("code") or "").strip().upper()
+    if not guest_id or not code:
+        return jsonify({"error": "guest_id and code required"}), 400
+    with db() as conn:
+        display_name = _guest_label(conn, guest_id)
+        with conn.transaction():
+            row = conn.execute(
+                """SELECT host_guest_id::text, host_name
+                     FROM po_invites
+                    WHERE code = %s
+                      AND claimed_at IS NULL
+                      AND expires_at > now()
+                    FOR UPDATE""",
+                (code,),
+            ).fetchone()
+            if not row:
+                return jsonify({"error": "challenge code not found"}), 404
+            host_guest_id, host_name = row
+            if host_guest_id == guest_id:
+                return jsonify({"error": "cannot join your own challenge"}), 400
+            gid, blob, state = _po_create_online_game(conn, host_guest_id, host_name, guest_id, display_name)
+            conn.execute("UPDATE po_invites SET claimed_at = now() WHERE code = %s", (code,))
+            blob["viewer_guest_id"] = guest_id
+            return jsonify({"status": "matched", "game": po_state_dict(gid, blob, state, conn=conn)})
+
+
+@app.route("/api/po/cancel_queue", methods=["POST"])
+def po_cancel_queue():
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
+    guest_id = (data.get("guest_id") or "").strip()
+    if not guest_id:
+        return jsonify({"error": "guest_id required"}), 400
+    with db() as conn:
+        conn.execute("DELETE FROM po_queue WHERE guest_id = %s", (guest_id,))
+    return jsonify({"status": "idle"})
+
+
+@app.route("/api/po/cancel_challenge", methods=["POST"])
+def po_cancel_challenge():
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
+    guest_id = (data.get("guest_id") or "").strip()
+    if not guest_id:
+        return jsonify({"error": "guest_id required"}), 400
+    with db() as conn:
+        conn.execute("DELETE FROM po_invites WHERE host_guest_id = %s AND claimed_at IS NULL", (guest_id,))
+    return jsonify({"status": "idle"})
+
+
+@app.route("/api/po/leave_game", methods=["POST"])
+def po_leave_game():
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
+    guest_id = (data.get("guest_id") or "").strip()
+    gid = (data.get("game_id") or "").strip()
+    if not guest_id or not gid:
+        return jsonify({"error": "guest_id and game_id required"}), 400
+    with db() as conn:
+        blob, state = _load_game(conn, "po_games", gid)
+        if not blob:
+            return jsonify({"error": "unknown game_id"}), 404
+        if not _po_authorize(blob, guest_id):
+            return jsonify({"error": "unauthorized"}), 403
+        if not blob["finished"]:
+            blob["finished"] = True
+            blob["winner"] = blob.get("p2") if guest_id == blob.get("p1_guest_id") else blob.get("p1")
+            blob["last_move"] = {"outcome": "forfeit"}
+            _save_game(conn, "po_games", gid, blob)
+    return jsonify({"status": "gone"})
 
 # ============================================================
 # Batting Practice (solo, timed)

@@ -1,6 +1,7 @@
 // Teammate Tag client. Three modes share this file:
 //   home -> mode picker
-//   mp   -> Lineup Battle (multiplayer)
+//   mp   -> Division Rivalry (multiplayer)
+//   po   -> Playoffs (multiplayer with powerups)
 //   bp   -> Batting Practice (solo timed chain)
 //   fr   -> Film Review (daily puzzle)
 
@@ -57,6 +58,7 @@ const els = {
 
   p1Input: document.getElementById('p1-input'),
   p2Input: document.getElementById('p2-input'),
+  matchModeTitle: document.getElementById('match-mode-title'),
   startBtn: document.getElementById('start-btn'),
   cancelMatchBtn: document.getElementById('cancel-match-btn'),
   mpStatusText: document.getElementById('mp-status-text'),
@@ -69,6 +71,12 @@ const els = {
   turnLabel: document.getElementById('turn-label'),
   timer: document.getElementById('timer'),
   currentPlayerName: document.getElementById('current-player-name'),
+  powerupPanel: document.getElementById('powerup-panel'),
+  yourPowerupName: document.getElementById('your-powerup-name'),
+  yourPowerupDesc: document.getElementById('your-powerup-desc'),
+  usePowerupBtn: document.getElementById('use-powerup-btn'),
+  oppPowerupName: document.getElementById('opp-powerup-name'),
+  oppPowerupDesc: document.getElementById('opp-powerup-desc'),
   guessForm: document.getElementById('guess-form'),
   guessInput: document.getElementById('guess-input'),
   guessBtn: document.getElementById('guess-btn'),
@@ -142,6 +150,18 @@ let userTypedTeamQuery = '';
 let friendsData = null;
 
 const GUEST_ID_KEY = 'tt_guest_id';
+
+function isOnlineMode(mode = currentMode) {
+  return mode === 'mp' || mode === 'po';
+}
+
+function onlineApiBase(mode = currentMode) {
+  return mode === 'po' ? '/api/po' : '/api/dr';
+}
+
+function onlineModeName(mode = currentMode) {
+  return mode === 'po' ? 'Playoffs' : 'Division Rivalry';
+}
 
 async function api(path, body) {
   const r = await fetch(path, {
@@ -255,7 +275,8 @@ async function saveProfileName() {
 async function registerAccount() {
   if (!profile?.guest_id) return;
   const username = els.accountUsernameInput.value.trim();
-  const email = els.accountEmailInput.value.trim();
+  const promptedEmail = window.prompt('Email for password recovery (optional for now, but recommended):', '') || '';
+  const email = promptedEmail.trim();
   const password = els.accountPasswordInput.value;
   const display_name = els.profileNameInput.value.trim() || profile.display_name || username;
   els.accountRegisterBtn.disabled = true;
@@ -481,7 +502,7 @@ async function refreshFriends() {
   }
   friendsData = next;
   renderFriends();
-  if (friendsData.matched_game && currentMode !== 'mp') {
+  if (friendsData.matched_game && !isOnlineMode()) {
     await enterMatchedGame(friendsData.matched_game);
   }
 }
@@ -596,13 +617,13 @@ function showScreen(name) {
   els.profileScreen.hidden = name !== 'profile';
   els.friendsScreen.hidden = name !== 'friends';
   els.startScreen.hidden = name !== 'mp-setup';
-  els.gameScreen.hidden = !(name === 'mp-game' || name === 'bp-game');
+  els.gameScreen.hidden = !(name === 'mp-game' || name === 'bp-game' || name === 'po-game');
   els.frScreen.hidden = name !== 'fr-game';
 
   els.brandSubtitle.textContent = '';
 
   els.exitBtn.hidden = name === 'home';
-  const togglesRelevant = name === 'mp-game' || name === 'bp-game';
+  const togglesRelevant = name === 'mp-game' || name === 'bp-game' || name === 'po-game';
   els.headerToggles.hidden = !togglesRelevant;
   els.lineupSection.hidden = !togglesRelevant || !els.toggleLineup.checked;
   els.outSection.hidden = !togglesRelevant || !els.toggleOut.checked;
@@ -617,20 +638,20 @@ function clearRequeueRelaxTimeout() {
 
 async function goHome() {
   const wasWaiting = !els.startScreen.hidden && !els.cancelMatchBtn.hidden;
-  const activeMpGameId = currentMode === 'mp' && game?.game_id ? game.game_id : '';
-  const finishedMpGameId = currentMode === 'mp' && game?.finished ? game.game_id : '';
+  const activeMpGameId = isOnlineMode() && game?.game_id ? game.game_id : '';
+  const finishedMpGameId = isOnlineMode() && game?.finished ? game.game_id : '';
   clearRequeueRelaxTimeout();
   if (wasWaiting) {
-    await api('/api/dr/cancel_queue', { guest_id: profile?.guest_id || storedGuestId() });
-    await api('/api/dr/cancel_challenge', { guest_id: profile?.guest_id || storedGuestId() });
+    await api(onlineApiBase() + '/cancel_queue', { guest_id: profile?.guest_id || storedGuestId() });
+    await api(onlineApiBase() + '/cancel_challenge', { guest_id: profile?.guest_id || storedGuestId() });
   } else if (activeMpGameId) {
     if (finishedMpGameId) {
-      await api('/api/dr/postgame_leave', {
+      await api(onlineApiBase() + '/postgame_leave', {
         guest_id: profile?.guest_id || storedGuestId(),
         game_id: finishedMpGameId,
       });
     } else {
-      await api('/api/dr/leave_game', {
+      await api(onlineApiBase() + '/leave_game', {
         guest_id: profile?.guest_id || storedGuestId(),
         game_id: activeMpGameId,
       });
@@ -669,8 +690,10 @@ function openProfile() {
 
 function pickMode(mode) {
   clearInterval(friendsPollInterval);
-  if (mode === 'mp') {
+  if (mode === 'mp' || mode === 'po') {
+    currentMode = mode;
     showScreen('mp-setup');
+    els.matchModeTitle.textContent = onlineModeName(mode);
     els.mpStatusText.textContent = `Queue as ${currentHandle()}.`;
     els.startBtn.hidden = false;
     els.cancelMatchBtn.hidden = true;
@@ -688,11 +711,11 @@ function pickMode(mode) {
 
 function startMpPolling() {
   clearInterval(mpPollInterval);
-  if (currentMode !== 'mp' || !game || game.finished) return;
+  if (!isOnlineMode() || !game || game.finished) return;
   mpPollInterval = setInterval(async () => {
     if (!game?.game_id) return;
     const previousGame = game;
-    const next = await api('/api/dr/game', {
+    const next = await api(onlineApiBase() + '/game', {
       guest_id: profile?.guest_id || storedGuestId(),
       game_id: game.game_id,
     });
@@ -714,11 +737,11 @@ function startMpPolling() {
 
 async function enterMatchedGame(nextGame) {
   clearRequeueRelaxTimeout();
-  currentMode = 'mp';
+  currentMode = nextGame.mode || currentMode || 'mp';
   lastChainLength = 0;
   clearInterval(mpRematchPollInterval);
   hideGameOverBanner();
-  showScreen('mp-game');
+  showScreen(currentMode === 'po' ? 'po-game' : 'mp-game');
   clearInterval(mpQueuePollInterval);
   els.startBtn.hidden = false;
   els.cancelMatchBtn.hidden = true;
@@ -731,7 +754,7 @@ async function enterMatchedGame(nextGame) {
 }
 
 async function pollMatchmaking() {
-  const status = await api('/api/dr/status', { guest_id: profile?.guest_id || storedGuestId() });
+  const status = await api(onlineApiBase() + '/status', { guest_id: profile?.guest_id || storedGuestId() });
   if (status.status === 'matched' && status.game) {
     await enterMatchedGame(status.game);
     return;
@@ -751,7 +774,7 @@ async function startMpGame(opts = {}) {
   els.startBtn.hidden = true;
   els.cancelMatchBtn.hidden = false;
   clearInterval(mpQueuePollInterval);
-  const queued = await api('/api/dr/queue', {
+  const queued = await api(onlineApiBase() + '/queue', {
     guest_id: profile?.guest_id || storedGuestId(),
     avoid_guest_id: opts.avoidGuestId || '',
   });
@@ -768,11 +791,11 @@ async function startMpGame(opts = {}) {
   mpQueuePollInterval = setInterval(pollMatchmaking, 1000);
   if (opts.allowSameOpponentAfterMs && opts.avoidGuestId) {
     mpRequeueRelaxTimeout = setTimeout(async () => {
-      if (currentMode !== 'mp' || game) return;
-      const status = await api('/api/dr/status', { guest_id: profile?.guest_id || storedGuestId() });
+      if (!isOnlineMode() || game) return;
+      const status = await api(onlineApiBase() + '/status', { guest_id: profile?.guest_id || storedGuestId() });
       if (status.status !== 'waiting') return;
       clearInterval(mpQueuePollInterval);
-      await api('/api/dr/cancel_queue', { guest_id: profile?.guest_id || storedGuestId() });
+      await api(onlineApiBase() + '/cancel_queue', { guest_id: profile?.guest_id || storedGuestId() });
       await startMpGame();
     }, opts.allowSameOpponentAfterMs);
   }
@@ -781,8 +804,8 @@ async function startMpGame(opts = {}) {
 async function cancelMatchmaking() {
   clearRequeueRelaxTimeout();
   clearInterval(mpQueuePollInterval);
-  await api('/api/dr/cancel_queue', { guest_id: profile?.guest_id || storedGuestId() });
-  await api('/api/dr/cancel_challenge', { guest_id: profile?.guest_id || storedGuestId() });
+  await api(onlineApiBase() + '/cancel_queue', { guest_id: profile?.guest_id || storedGuestId() });
+  await api(onlineApiBase() + '/cancel_challenge', { guest_id: profile?.guest_id || storedGuestId() });
   els.startBtn.hidden = false;
   els.cancelMatchBtn.hidden = true;
   els.mpStatusText.textContent = `Queue as ${currentHandle()}.`;
@@ -790,7 +813,7 @@ async function cancelMatchmaking() {
 }
 
 async function createChallengeCode() {
-  const res = await api('/api/dr/create_challenge', { guest_id: profile?.guest_id || storedGuestId() });
+  const res = await api(onlineApiBase() + '/create_challenge', { guest_id: profile?.guest_id || storedGuestId() });
   if (res.error) {
     els.challengeStatusText.textContent = res.error;
     return;
@@ -807,7 +830,7 @@ async function joinChallengeCode() {
   const code = els.joinCodeInput.value.trim().toUpperCase();
   if (!code) return;
   els.challengeStatusText.textContent = 'Joining challenge...';
-  const res = await api('/api/dr/join_challenge', {
+  const res = await api(onlineApiBase() + '/join_challenge', {
     guest_id: profile?.guest_id || storedGuestId(),
     code,
   });
@@ -880,15 +903,15 @@ function renderLoadingFilmReview() {
 }
 
 async function rematch() {
-  if (currentMode === 'mp') {
+  if (isOnlineMode()) {
     if (!game) return;
     if (game.last_move?.outcome === 'forfeit') {
       goHome();
-      pickMode('mp');
+      pickMode(currentMode);
       await startMpGame();
       return;
     }
-    const res = await api('/api/dr/rematch_request', {
+    const res = await api(onlineApiBase() + '/rematch_request', {
       guest_id: profile?.guest_id || storedGuestId(),
       game_id: game.game_id,
     });
@@ -923,7 +946,7 @@ function showGameOverBanner() {
   els.mpRematchStatus.textContent = '';
   els.requeueBtn.hidden = true;
 
-  if (currentMode === 'mp') {
+  if (isOnlineMode()) {
     const teamsOut = game.strikes.filter((s) => s.count >= 3).length;
     els.winnerText.textContent = game.winner ? `${game.winner} wins!` : 'Game over.';
     els.gameOverSummary.textContent =
@@ -967,15 +990,17 @@ async function requeueForNewMatch(message, options = {}) {
       : game?.p1_guest_id)
     : '';
   if (finishedGameId) {
-    await api('/api/dr/postgame_leave', {
+    await api(onlineApiBase(onlineMode) + '/postgame_leave', {
       guest_id: profile?.guest_id || storedGuestId(),
       game_id: finishedGameId,
     });
   }
   hideGameOverBanner();
   game = null;
-  currentMode = 'mp';
+  const onlineMode = currentMode;
+  currentMode = onlineMode;
   showScreen('mp-setup');
+  els.matchModeTitle.textContent = onlineModeName(onlineMode);
   els.challengeStatusText.textContent = '';
   els.mpStatusText.textContent = message || 'Searching for a new opponent...';
   await startMpGame({
@@ -986,7 +1011,7 @@ async function requeueForNewMatch(message, options = {}) {
 
 function resetTurnTimer() {
   clearInterval(timerInterval);
-  if (!(currentMode === 'mp' || currentMode === 'bp')) {
+  if (!(isOnlineMode() || currentMode === 'bp')) {
     els.timer.textContent = '--';
     activeTimerKey = '';
     return;
@@ -1022,7 +1047,7 @@ function setGuessDisabled(disabled) {
 function runOpeningCountdown() {
   clearInterval(countdownInterval);
   const remaining = Number(game?.countdown_seconds_remaining || 0);
-  if (!(currentMode === 'mp' || currentMode === 'bp') || remaining <= 0) {
+  if (!(isOnlineMode() || currentMode === 'bp') || remaining <= 0) {
     els.timer.classList.remove('countdown');
     activeCountdownKey = '';
     setGuessDisabled(false);
@@ -1057,7 +1082,7 @@ function runOpeningCountdown() {
 }
 
 async function onMpTimeout() {
-  game = await api('/api/timeout', {
+  game = await api((currentMode === 'po' ? '/api/po/timeout' : '/api/timeout'), {
     game_id: game.game_id,
     guest_id: profile?.guest_id || storedGuestId(),
   });
@@ -1087,15 +1112,15 @@ async function submitMove({ raw, player_id }) {
   if (!game || game.finished) return;
   closeAutocomplete();
   els.guessInput.value = '';
-  const path = currentMode === 'bp' ? '/api/bp/move' : '/api/move';
+  const path = currentMode === 'bp' ? '/api/bp/move' : currentMode === 'po' ? '/api/po/move' : '/api/move';
   const previousChainLength = game.chain?.length || 0;
   game = await api(path, {
     game_id: game.game_id,
     raw,
     player_id,
-    guest_id: currentMode === 'mp' ? (profile?.guest_id || storedGuestId()) : undefined,
+    guest_id: isOnlineMode() ? (profile?.guest_id || storedGuestId()) : undefined,
   });
-  if (currentMode === 'mp') {
+  if (isOnlineMode()) {
     animateNewestCard = (game.chain?.length || 0) > previousChainLength;
     renderMpGame();
     syncMpClock(null, game, { force: true });
@@ -1293,6 +1318,12 @@ function renderMpGame() {
   els.timer.classList.toggle('opponent-turn', !game.your_turn);
   setGuessDisabled(game.finished || (game.countdown_seconds_remaining || 0) > 0 || !game.your_turn);
   els.guessInput.placeholder = game.your_turn ? 'Type a name (first or last)...' : '';
+  const prompt = currentMode === 'po' && game.powerups?.active_turn_powerup
+    ? 'Name a player linked to'
+    : 'Name a teammate of';
+  const promptLabel = document.querySelector('#turn-card .turn-prompt .muted');
+  if (promptLabel) promptLabel.textContent = prompt;
+  renderPowerups();
 
   els.feedback.innerHTML = renderMoveFeedback(game.last_move, game);
   renderCardStack(game.chain, game.strikes, true, animateNewestCard);
@@ -1326,7 +1357,7 @@ function timerKey(state) {
 }
 
 function syncMpClock(previousState, nextState, opts = {}) {
-  if (currentMode !== 'mp' || !nextState) return;
+  if (!isOnlineMode() || !nextState) return;
   if (nextState.finished) {
     clearInterval(countdownInterval);
     clearInterval(timerInterval);
@@ -1363,8 +1394,8 @@ function syncMpClock(previousState, nextState, opts = {}) {
 function startRematchPolling() {
   clearInterval(mpRematchPollInterval);
   mpRematchPollInterval = setInterval(async () => {
-    if (currentMode !== 'mp' || !game?.game_id) return;
-    const res = await api('/api/dr/rematch_status', {
+    if (!isOnlineMode() || !game?.game_id) return;
+    const res = await api(onlineApiBase() + '/rematch_status', {
       guest_id: profile?.guest_id || storedGuestId(),
       game_id: game.game_id,
     });
@@ -1446,6 +1477,33 @@ function renderBpGame() {
   animateNewestCard = false;
 }
 
+function renderPowerups() {
+  const isPo = currentMode === 'po' && game?.powerups;
+  els.powerupPanel.hidden = !isPo;
+  if (!isPo) return;
+  const your = game.powerups.your_powerup;
+  const opp = game.powerups.opponent_powerup;
+  els.yourPowerupName.textContent = your?.label || '--';
+  els.yourPowerupDesc.textContent = your?.used ? 'Used' : (your?.description || '');
+  els.usePowerupBtn.textContent = your?.used ? 'Powerup Used' : (your?.label ? `Use ${your.label}` : 'Use Powerup');
+  els.oppPowerupName.textContent = opp?.label || '--';
+  els.oppPowerupDesc.textContent = opp?.used ? 'Used' : (opp?.description || '');
+  els.usePowerupBtn.disabled = !game.your_turn || game.finished || !your || your.used || (game.countdown_seconds_remaining || 0) > 0;
+}
+
+async function usePowerup() {
+  if (currentMode !== 'po' || !game?.game_id) return;
+  const next = await api('/api/po/powerup', {
+    guest_id: profile?.guest_id || storedGuestId(),
+    game_id: game.game_id,
+  });
+  if (!next?.error) {
+    game = next;
+    renderMpGame();
+    syncMpClock(null, game, { force: true });
+  }
+}
+
 function renderCardStack(chain, allStrikes, showStrikes, animateNewest = false) {
   const reversed = chain.slice().reverse();
   els.cardStack.innerHTML = '';
@@ -1455,7 +1513,7 @@ function renderCardStack(chain, allStrikes, showStrikes, animateNewest = false) 
     if (animateNewest && i === 0) playerCard.classList.add('slide-in');
     els.cardStack.appendChild(playerCard);
     if (i < reversed.length - 1) {
-      const bar = makeConnectionBar(player.shared_with_prev, allStrikes, showStrikes);
+      const bar = makeConnectionBar(player.shared_with_prev, allStrikes, showStrikes, player.link_meta_with_prev);
       if (animateNewest && i === 0) bar.classList.add('slide-in');
       els.cardStack.appendChild(bar);
     }
@@ -1494,11 +1552,17 @@ function makePlayerCard(player, isSeed, options = {}) {
   return playerCard;
 }
 
-function makeConnectionBar(sharedSeasons, allStrikes, showStrikes) {
+function makeConnectionBar(sharedSeasons, allStrikes, showStrikes, linkMeta) {
   const bar = document.createElement('div');
   bar.className = 'connection-bar';
   const seasons = document.createElement('div');
   seasons.className = 'connection-seasons';
+  if (linkMeta?.type === 'powerup' && linkMeta?.powerup_label) {
+    const badge = document.createElement('span');
+    badge.className = 'mode-tile-tag';
+    badge.textContent = linkMeta.powerup_label;
+    seasons.appendChild(badge);
+  }
   (sharedSeasons || []).forEach((s) => {
     const strikeRow = (allStrikes || []).find(
       (x) => x.team_id === s.team_id && x.season === s.season
@@ -1544,6 +1608,9 @@ function renderOut(strikes) {
 function renderMoveFeedback(m, g) {
   if (!m) return '';
   if (m.outcome === 'timeout') return '<span class="bad">Time expired.</span>';
+  if (m.outcome === 'powerup_activated') {
+    return `<span class="ok">${escapeHtml(m.message || `${m.powerup_label} activated.`)}</span>`;
+  }
 
   const name = m.display_name
     ? `${escapeHtml(m.display_name)}${m.disambiguation ? ` <span class="muted-inline">(${escapeHtml(m.disambiguation)})</span>` : ''}`
@@ -1561,25 +1628,30 @@ function renderMoveFeedback(m, g) {
           return row && row.count >= 3;
         })
         .map((s) => `${s.team_name} ${s.season}`).join(', ');
-      return `<span class="ok">✓ ${name}${ambig}. Teammates on ${escapeHtml(teams)}.</span>` +
+      const lead = m.move_via_powerup
+        ? `${escapeHtml(m.powerup_label || 'Powerup')}: ${name}${ambig}. Linked through ${escapeHtml(teams)}.`
+        : `${name}${ambig}. Teammates on ${escapeHtml(teams)}.`;
+      return `<span class="ok">${lead}</span>` +
         (newOut ? `<br><span class="burn">STRUCK OUT this move: ${escapeHtml(newOut)}</span>` : '');
     }
     case 'unknown_player':
-      return '<span class="bad">✗ unknown player.</span>';
+      return '<span class="bad">Unknown player.</span>';
     case 'already_used':
-      return `<span class="bad">✗ ${name} already used in this lineup.</span>`;
+      return `<span class="bad">${name} already used in this lineup.</span>`;
     case 'not_teammate': {
       const prev = g.chain[g.chain.length - 1].name;
-      return `<span class="bad">✗ ${name}${ambig} was never a teammate of ${escapeHtml(prev)}.</span>`;
+      return `<span class="bad">${name}${ambig} was never a teammate of ${escapeHtml(prev)}.</span>`;
     }
     case 'blocked_by_burned': {
       const prev = g.chain[g.chain.length - 1].name;
       const allShared = m.shared_seasons.map((s) => `${s.team_name} ${s.season}`).join(', ');
       const out = m.burned_seasons.map((s) => `${s.team_name} ${s.season}`).join(', ');
       const verb = m.burned_seasons.length === 1 ? 'is' : 'are';
-      return `<span class="bad">✗ ${name}${ambig} and ${escapeHtml(prev)} were teammates on ${escapeHtml(allShared)},<br>` +
+      return `<span class="bad">${name}${ambig} and ${escapeHtml(prev)} were linked on ${escapeHtml(allShared)},<br>` +
         `but ${escapeHtml(out)} ${verb} already struck out. Pick someone else.</span>`;
     }
+    case 'powerup_not_eligible':
+      return `<span class="bad">${name}${ambig} does not qualify for ${escapeHtml(m.powerup_label || 'that powerup')}. ${escapeHtml(m.reason || '')}</span>`;
     default:
       return '';
   }
@@ -1732,7 +1804,7 @@ function escapeHtml(s) {
 }
 
 function applyToggles() {
-  if (!(currentMode === 'mp' || currentMode === 'bp')) return;
+  if (!(isOnlineMode() || currentMode === 'bp')) return;
   els.lineupSection.hidden = !els.toggleLineup.checked;
   els.outSection.hidden = !els.toggleOut.checked;
 }
@@ -1746,6 +1818,9 @@ function rulesForMode() {
   }
   if (currentMode === 'mp') {
     return 'Queue into an online match and take turns building one lineup. After the 3 second countdown, the 20 second clock begins. On your turn, name a teammate of the last player before time runs out. Correct guesses pass the turn and reset the clock. Teams collect strikes when used, and Struck Out teams cannot link players again. You win when your opponent runs out of time.';
+  }
+  if (currentMode === 'po') {
+    return 'Playoffs starts like Division Rivalry, but each player gets one random powerup. Some powerups add time, and some let you link a player through a qualified team-year instead of a direct teammate link. Team-year strikeouts still apply, and the match still ends if a player runs out of time.';
   }
   return 'Pick a mode, then build or review a lineup by connecting baseball players through their shared teams.';
 }
@@ -1783,6 +1858,7 @@ els.joinCodeInput.addEventListener('keydown', (e) => {
 els.guessForm.addEventListener('submit', onGuessSubmit);
 els.guessInput.addEventListener('input', onGuessInput);
 els.guessInput.addEventListener('keydown', onGuessKeydown);
+els.usePowerupBtn.addEventListener('click', usePowerup);
 
 els.playAgainBtn.addEventListener('click', rematch);
 els.requeueBtn.addEventListener('click', () => requeueForNewMatch('Searching for a new opponent...', {
