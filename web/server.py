@@ -60,6 +60,7 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
 DEFAULT_SEED = "rizzoan01"
 HEADSHOT_URL = "https://midfield.mlbstatic.com/v1/people/{}/spots/120"
@@ -435,6 +436,12 @@ def _verify_password(password: str, password_hash: str, password_salt: str) -> b
 
 def _supabase_ready() -> bool:
     return bool(SUPABASE_URL and SUPABASE_ANON_KEY and SUPABASE_SERVICE_ROLE_KEY)
+
+
+def _public_app_url() -> str:
+    if PUBLIC_APP_URL:
+        return PUBLIC_APP_URL.rstrip("/")
+    return request.url_root.rstrip("/")
 
 
 def _supabase_headers(use_service: bool = False, bearer: str | None = None) -> dict[str, str]:
@@ -1502,7 +1509,7 @@ def account_reset_password():
         return jsonify({"error": "account not found"}), 404
     reset_res = _supabase_reset_password(
         row[0],
-        request.url_root.rstrip("/") + "/reset-password",
+        _public_app_url() + "/reset-password",
     )
     if reset_res.status_code >= 400:
         payload = reset_res.json()
