@@ -109,6 +109,10 @@ season source refresh.
   source and license per image.
 - Team stints on local cards now consolidate separated returns to one team into
   comma-separated year ranges.
+- `scripts/audit_local_sport_data.py` reports coverage and short career gaps.
+  `scripts/build_local_photo_cache.py` caches league-native NBA, NFL, and NHL
+  headshots locally with source URLs. Do not use Wikimedia fallbacks in public
+  production without a licensing review.
 
 The preferred NBA-history replacement is Kaggle dataset
 `eoinamoore/historical-nba-data-and-player-box-scores`, which is marked CC0

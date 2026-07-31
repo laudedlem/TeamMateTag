@@ -2489,6 +2489,7 @@ def _local_sport_cards(conn: sqlite3.Connection, sport: str, player_ids: list[st
             years = ", ".join(str(start) if start == end else f"{start}-{end}" for start, end in ranges)
             teams.append(f"{team} {years}")
         external_id = row[0] if row else None
+        image_row = conn.execute("SELECT local_path FROM local_player_images WHERE sport_id = ? AND player_id = ?", (sport, player_id)).fetchone() if conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='local_player_images'").fetchone() else None
         if sport == "basketball" and external_id:
             headshot = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{external_id}.png"
         elif sport == "hockey" and external_id:
@@ -2497,6 +2498,8 @@ def _local_sport_cards(conn: sqlite3.Connection, sport: str, player_ids: list[st
             headshot = external_id if str(external_id).startswith("http") else f"https://a.espncdn.com/i/headshots/nfl/players/full/{external_id}.png"
         else:
             headshot = None
+        if image_row:
+            headshot = f"/api/local/headshot/{sport}/{player_id}"
         out[player_id] = {
             "mlbam_id": None, "headshot_url": headshot,
             "debut_year": row[1] if row else None, "final_year": row[2] if row else None,
@@ -2504,6 +2507,16 @@ def _local_sport_cards(conn: sqlite3.Connection, sport: str, player_ids: list[st
             "primary_pos": ({"R": "RW", "L": "LW", "D": "D"}.get(row[5], row[5]) if row else None), "teams": teams,
         }
     return out
+
+
+@app.route("/api/local/headshot/<sport>/<path:player_id>")
+def local_headshot(sport: str, player_id: str):
+    from flask import send_file
+    with _local_sport_conn() as conn:
+        row = conn.execute("SELECT local_path FROM local_player_images WHERE sport_id = ? AND player_id = ?", (sport, player_id)).fetchone()
+    if not row or not Path(row[0]).exists():
+        return "", 404
+    return send_file(row[0], conditional=True)
 
 
 def _local_bp_state(game_id: str, game: dict) -> dict:
