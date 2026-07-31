@@ -123,6 +123,9 @@ season source refresh.
   writes the unresolved-player CSV for the licensed fallback-source decision.
 - `scripts/remove_placeholder_headshots.py` removes known NBA/NFL silhouette
   responses that otherwise return HTTP 200 and would be mistaken for photos.
+- `scripts/apply_verified_photo_overrides.py` holds reviewed Commons fallback
+  images with source and license notes. Current overrides: Devin Hester (public
+  domain) and Lance Briggs (CC BY-SA 3.0).
 
 The preferred NBA-history replacement is Kaggle dataset
 `eoinamoore/historical-nba-data-and-player-box-scores`, which is marked CC0
