@@ -100,8 +100,11 @@ rows and must be validated before changing the stated NBA scope.
 
 1. Data source evaluation and ingestion for NBA, NHL, NFL.
 2. Build season-level roster/appearance records and derived teammate graphs.
-3. Add a sport adapter to the server and frontend APIs.
-4. Enable the four modes sport by sport, starting only after data validation.
+3. `game/engine.py` now supports local sport-aware player lookup and
+   teammate validation through the appearance model. It is backward compatible
+   with the live baseball pair-table engine.
+4. Next implementation: local browser Batting Practice for NFL, NBA, and NHL,
+   then a generic server/frontend adapter before any production data migration.
 
 The new additive schema is `db/cross_sport_schema_postgres.sql`:
 
