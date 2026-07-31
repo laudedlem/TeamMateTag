@@ -22,13 +22,14 @@ the sport in the public UI.
 
 ### NFL
 
+- Implemented loader: `scripts/load_nfl_superbowl_era.py`, covering 1966-2025.
 - Primary candidate: nflverse weekly rosters, 2002 onward.
 - Confirmed reachable source pattern:
   `https://github.com/nflverse/nflverse-data/releases/download/weekly_rosters/roster_weekly_2024.csv`
 - The weekly files preserve in-season team changes. For example, 2024 rows
   contain both Las Vegas and New York Jets weeks for Davante Adams.
-- Use the annual nflverse roster files for 2000 and 2001, then document that
-  those two seasons do not have the same in-season transfer fidelity.
+- Use annual nflverse roster files for 1966-2001, then document that these
+  seasons do not have the same in-season transfer fidelity.
 - Do not use the annual roster file alone for 2002 onward because it is a
   season-end snapshot and loses earlier-team memberships for traded players.
 
@@ -56,7 +57,7 @@ the sport in the public UI.
 
 ## Build order
 
-1. Implement and validate NFL loader using nflverse weekly roster data.
+1. Run and validate the NFL Super Bowl-era loader.
 2. Implement and validate NHL loader using official club roster data.
 3. Resolve NBA source and loader.
 4. Add a sport-aware game adapter and enable Batting Practice first for each

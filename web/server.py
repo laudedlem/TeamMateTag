@@ -367,6 +367,10 @@ def ensure_runtime_schema():
                 "ADD COLUMN IF NOT EXISTS elo INTEGER NOT NULL DEFAULT 1200"
             )
             conn.execute(
+                "ALTER TABLE guests ADD COLUMN IF NOT EXISTS "
+                "playoff_win_condition_preference TEXT NOT NULL DEFAULT 'random'"
+            )
+            conn.execute(
                 """CREATE TABLE IF NOT EXISTS fr_results (
                        result_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                        owner_user_id UUID REFERENCES users(user_id) ON DELETE SET NULL,
@@ -890,6 +894,7 @@ def _guest_profile(conn, guest_id: str, *, authenticated: bool = False) -> dict 
                g.guest_id::text,
                g.display_name,
                g.created_at,
+               g.playoff_win_condition_preference,
                u.username,
                u.email,
                u.auth_user_id::text
@@ -900,7 +905,7 @@ def _guest_profile(conn, guest_id: str, *, authenticated: bool = False) -> dict 
     ).fetchone()
     if not row:
         return None
-    gid, display_name, created_at, username, email, auth_user_id = row
+    gid, display_name, created_at, playoff_preference, username, email, auth_user_id = row
     return {
         "guest_id": gid,
         "display_name": display_name or f"Guest {gid[:8]}",
@@ -910,6 +915,7 @@ def _guest_profile(conn, guest_id: str, *, authenticated: bool = False) -> dict 
             if username or auth_user_id else None
         ),
         "authenticated": bool(authenticated and auth_user_id),
+        "playoff_win_condition_preference": playoff_preference or "random",
         "stats": _guest_stats(conn, gid),
     }
 
@@ -955,6 +961,29 @@ def _all_playoff_powerups() -> list[str]:
 
 def _random_playoff_win_condition() -> str:
     return secrets.choice(list(PLAYOFF_WIN_CONDITIONS.keys()))
+
+
+def _normalized_playoff_preference(value: str | None) -> str:
+    value = (value or "random").strip()
+    return value if value in PLAYOFF_WIN_CONDITIONS else "random"
+
+
+def _playoff_condition_for_guest(conn, guest_id: str) -> str:
+    row = conn.execute(
+        "SELECT playoff_win_condition_preference FROM guests WHERE guest_id = %s",
+        (guest_id,),
+    ).fetchone()
+    preference = _normalized_playoff_preference(row[0] if row else None)
+    return _random_playoff_win_condition() if preference == "random" else preference
+
+
+def _save_playoff_preference(conn, guest_id: str, value: str | None) -> str:
+    preference = _normalized_playoff_preference(value)
+    conn.execute(
+        "UPDATE guests SET playoff_win_condition_preference = %s WHERE guest_id = %s",
+        (preference, guest_id),
+    )
+    return preference
 
 
 def _playoff_player_role(conn, player_id: str) -> str:
@@ -2548,7 +2577,9 @@ def po_blob_from_state(state: GameState, p1: str, p2: str, turn_index: int,
                        p2_guest_id: str | None = None,
                        seed_player_id: str = DEFAULT_SEED,
                        winner: str | None = None,
-                       last_move: dict | None = None) -> dict:
+                       last_move: dict | None = None,
+                       p1_win_condition_key: str | None = None,
+                       p2_win_condition_key: str | None = None) -> dict:
     return {
         **serialize_state(state),
         "p1": p1,
@@ -2576,8 +2607,8 @@ def po_blob_from_state(state: GameState, p1: str, p2: str, turn_index: int,
         "active_turn_powerup": None,
         "next_turn_seconds_override": None,
         "turn_powerup_used": False,
-        "p1_win_condition_key": _random_playoff_win_condition(),
-        "p2_win_condition_key": _random_playoff_win_condition(),
+        "p1_win_condition_key": p1_win_condition_key or _random_playoff_win_condition(),
+        "p2_win_condition_key": p2_win_condition_key or _random_playoff_win_condition(),
         "p1_win_progress": 0,
         "p2_win_progress": 0,
         "p1_win_completed": False,
@@ -3326,6 +3357,8 @@ def _po_create_online_game(conn, guest_a_id: str, name_a: str, guest_b_id: str, 
         p1_guest_id=p1_guest_id,
         p2_guest_id=p2_guest_id,
         seed_player_id=DEFAULT_SEED,
+        p1_win_condition_key=_playoff_condition_for_guest(conn, p1_guest_id),
+        p2_win_condition_key=_playoff_condition_for_guest(conn, p2_guest_id),
     )
     gid = _insert_game(conn, "po_games", blob)
     return gid, blob, state
@@ -3355,12 +3388,15 @@ def po_queue():
     data = request.get_json(silent=True) or {}
     guest_id = (data.get("guest_id") or "").strip()
     avoid_guest_id = (data.get("avoid_guest_id") or "").strip() or None
+    requested_preference = data.get("win_condition_preference")
     if not guest_id:
         return jsonify({"error": "guest_id required"}), 400
     with db() as conn:
         exists = conn.execute("SELECT 1 FROM guests WHERE guest_id = %s", (guest_id,)).fetchone()
         if not exists:
             return jsonify({"error": "unknown guest_id"}), 404
+        if requested_preference is not None:
+            _save_playoff_preference(conn, guest_id, requested_preference)
         display_name = _guest_label(conn, guest_id)
         existing = _po_status_payload(conn, guest_id)
         if existing["status"] == "matched":
@@ -3769,9 +3805,12 @@ def po_create_challenge():
     ensure_runtime_schema()
     data = request.get_json(silent=True) or {}
     guest_id = (data.get("guest_id") or "").strip()
+    requested_preference = data.get("win_condition_preference")
     if not guest_id:
         return jsonify({"error": "guest_id required"}), 400
     with db() as conn:
+        if requested_preference is not None:
+            _save_playoff_preference(conn, guest_id, requested_preference)
         display_name = _guest_label(conn, guest_id)
         conn.execute("DELETE FROM po_queue WHERE guest_id = %s", (guest_id,))
         conn.execute("DELETE FROM po_invites WHERE host_guest_id = %s AND claimed_at IS NULL", (guest_id,))

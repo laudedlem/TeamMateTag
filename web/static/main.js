@@ -67,6 +67,9 @@ const els = {
   joinCodeInput: document.getElementById('join-code-input'),
   joinCodeBtn: document.getElementById('join-code-btn'),
   challengeStatusText: document.getElementById('challenge-status-text'),
+  playoffConditionPicker: document.getElementById('playoff-condition-picker'),
+  playoffConditionSelect: document.getElementById('playoff-condition-select'),
+  playoffRandomBtn: document.getElementById('playoff-random-btn'),
 
   turnCard: document.getElementById('turn-card'),
   turnLabel: document.getElementById('turn-label'),
@@ -158,6 +161,7 @@ let userTypedTeamQuery = '';
 let friendsData = null;
 
 const GUEST_ID_KEY = 'tt_guest_id';
+const CURRENT_SPORT = document.body.dataset.sport || '';
 
 const POWERUP_UI = {
   bubblegum: { icon: 'BG', className: 'bubblegum' },
@@ -640,12 +644,25 @@ function showScreen(name) {
 
   els.brandSubtitle.textContent = '';
 
-  els.exitBtn.hidden = name === 'home';
+  els.exitBtn.hidden = name === 'home' && !CURRENT_SPORT;
   els.referenceBtn.hidden = currentMode !== 'po' || !(name === 'mp-setup' || name === 'po-game');
   const togglesRelevant = name === 'mp-game' || name === 'bp-game' || name === 'po-game';
   els.headerToggles.hidden = !togglesRelevant;
   els.lineupSection.hidden = !togglesRelevant || !els.toggleLineup.checked;
   els.outSection.hidden = !togglesRelevant || !els.toggleOut.checked;
+}
+
+function clearModePanels() {
+  els.winPanel.hidden = true;
+  els.powerupPanel.hidden = true;
+}
+
+function exitToHome() {
+  if (currentMode === 'home' && CURRENT_SPORT) {
+    window.location.assign('/');
+    return;
+  }
+  goHome();
 }
 
 function clearRequeueRelaxTimeout() {
@@ -717,6 +734,11 @@ function pickMode(mode) {
     els.startBtn.hidden = false;
     els.cancelMatchBtn.hidden = true;
     els.challengeStatusText.textContent = '';
+    els.playoffConditionPicker.hidden = mode !== 'po';
+    if (mode === 'po') {
+      const preference = profile?.playoff_win_condition_preference || 'random';
+      els.playoffConditionSelect.value = preference;
+    }
     return;
   }
   if (mode === 'bp') {
@@ -796,6 +818,7 @@ async function startMpGame(opts = {}) {
   const queued = await api(onlineApiBase() + '/queue', {
     guest_id: profile?.guest_id || storedGuestId(),
     avoid_guest_id: opts.avoidGuestId || '',
+    win_condition_preference: currentMode === 'po' ? els.playoffConditionSelect.value : '',
   });
   if (queued.error) {
     alert('error: ' + queued.error);
@@ -832,7 +855,10 @@ async function cancelMatchmaking() {
 }
 
 async function createChallengeCode() {
-  const res = await api(onlineApiBase() + '/create_challenge', { guest_id: profile?.guest_id || storedGuestId() });
+  const res = await api(onlineApiBase() + '/create_challenge', {
+    guest_id: profile?.guest_id || storedGuestId(),
+    win_condition_preference: currentMode === 'po' ? els.playoffConditionSelect.value : '',
+  });
   if (res.error) {
     els.challengeStatusText.textContent = res.error;
     return;
@@ -866,6 +892,7 @@ async function joinChallengeCode() {
 
 async function startBp() {
   currentMode = 'bp';
+  clearModePanels();
   lastChainLength = 0;
   hideGameOverBanner();
   showScreen('bp-game');
@@ -899,6 +926,7 @@ async function startFr() {
 }
 
 function renderLoadingGame(label, prompt) {
+  clearModePanels();
   els.turnCard.hidden = false;
   els.turnLabel.textContent = label;
   els.timer.textContent = '...';
@@ -1539,6 +1567,7 @@ function startRematchPolling() {
 }
 
 function renderBpGame() {
+  clearModePanels();
   els.turnLabel.textContent = 'Batting Practice';
   els.currentPlayerName.textContent = game.current_player.name;
   els.timer.title = 'seconds left';
@@ -1980,13 +2009,16 @@ document.querySelectorAll('.mode-tile').forEach((tile) => {
   tile.addEventListener('click', () => pickMode(tile.dataset.mode));
 });
 
-els.exitBtn.addEventListener('click', goHome);
+els.exitBtn.addEventListener('click', exitToHome);
 
 document.querySelectorAll('[data-back="home"]').forEach((btn) => {
   btn.addEventListener('click', goHome);
 });
 
 els.startBtn.addEventListener('click', startMpGame);
+els.playoffRandomBtn.addEventListener('click', () => {
+  els.playoffConditionSelect.value = 'random';
+});
 els.cancelMatchBtn.addEventListener('click', cancelMatchmaking);
 els.createCodeBtn.addEventListener('click', createChallengeCode);
 els.joinCodeBtn.addEventListener('click', joinChallengeCode);

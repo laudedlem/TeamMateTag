@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.20`
+- Current display version: `0.1.21`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Required environment values are documented in `.env.example`. Never commit
@@ -38,7 +38,8 @@ changes. It is the concise source of truth for another coding assistant.
   Rule B team strikes, matchmaking, challenge codes, friends, rematches,
   requeueing, ELO, and profile statistics.
 - **Playoffs**: Division Rivalry plus one of each powerup per player and a
-  secret win condition. Balance and quality testing are deferred.
+  chosen or random win condition. Each player's latest win-condition choice
+  is remembered for the next match. Balance and quality testing are deferred.
 
 ## Shared lineup rules
 
@@ -53,7 +54,8 @@ changes. It is the concise source of truth for another coding assistant.
 
 ## Baseball data
 
-- Scope loaded: MLB 2000 through 2025.
+- Current production scope: MLB 2000 through 2025. Historical expansion to
+  1871 is staged by `scripts/expand_baseball_history.py`.
 - Production tables: `players`, `teams`, `appearances`, `teammates`,
   `players_searchable`, plus supporting franchise and nickname tables.
 - IDs are Lahman-style player IDs. Pair table invariant:
@@ -89,9 +91,9 @@ python scripts\setup_cross_sport_schema.py
 That migration is additive and safe to run repeatedly.
 
 Data-source research and rollout criteria are maintained in
-`docs/cross_sport_data_plan.md`. Current order: NFL first, NHL second, NBA
-after a permitted and dependable historical player-team-season source is
-selected.
+`docs/cross_sport_data_plan.md`. NFL has a Super Bowl-era loader at
+`scripts/load_nfl_superbowl_era.py`; NHL is next, and NBA follows after a
+permitted and dependable historical player-team-season source is selected.
 
 ## Important files
 
