@@ -252,6 +252,85 @@ button.danger:hover:not(:disabled) {
   margin: 2.5rem auto 0;
 }
 
+.sport-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.sport-tile {
+  min-height: 148px;
+  border: 1px solid var(--border-strong);
+  border-left: 5px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text);
+  padding: 1rem;
+  text-decoration: none;
+  display: flex;
+  flex-direction: column;
+  transition: border-color 0.15s, background 0.15s, transform 0.15s;
+}
+
+.sport-tile:hover {
+  background: var(--bg-hover);
+  border-color: var(--text-muted);
+  transform: translateY(-1px);
+}
+
+.sport-tile-basketball { border-left-color: #e57636; }
+.sport-tile-hockey { border-left-color: #7ec8e3; }
+.sport-tile-football { border-left-color: #8dc16e; }
+
+.sport-tile-league,
+.sport-league {
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.35rem;
+}
+
+.sport-tile-name {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.sport-tile-status {
+  color: var(--text-muted);
+  font-size: 0.86rem;
+  margin-top: auto;
+}
+
+.sport-coming-soon {
+  border-top: 1px solid var(--border);
+  padding-top: 0.75rem;
+}
+
+.sport-coming-soon h2 {
+  margin: 0.1rem 0 0.55rem;
+}
+
+.mode-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+
+.mode-preview-grid span {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  padding: 0.65rem 0.75rem;
+  text-align: center;
+}
+
+.sport-back-link {
+  display: inline-block;
+  text-decoration: none;
+}
+
 .profile-card {
   background: var(--bg-elevated);
   border: 1px solid var(--border);
@@ -865,6 +944,11 @@ button.secondary:hover { border-color: var(--accent); color: var(--accent); }
 }
 
 @media (max-width: 700px) {
+  .sport-tiles,
+  .mode-preview-grid {
+    grid-template-columns: 1fr;
+  }
+
   .profile-name-row {
     flex-direction: column;
     align-items: stretch;

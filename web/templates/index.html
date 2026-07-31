@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Teammate Tag</title>
+  <title>TeamMateTag{% if sport %} | {{ sport.name }}{% endif %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
 </head>
 <body class="dark">
@@ -11,7 +11,7 @@
     <div class="title">
       <div class="brand-row">
         <h1>TeamMateTag</h1>
-        <span class="app-version" title="Current version">0.1.19</span>
+        <span class="app-version" title="Current version">0.1.20</span>
       </div>
       <span class="subtitle" id="brand-subtitle"></span>
     </div>
@@ -62,6 +62,7 @@
           <p id="account-status" class="muted small"></p>
         </div>
       </div>
+      {% if sport and sport_ready %}
       <h2>Step Into The Box</h2>
       <div class="mode-tiles">
         <button class="mode-tile" data-mode="bp">
@@ -105,6 +106,44 @@
         </span>
         </button>
       </div>
+      {% elif sport %}
+      <div class="sport-coming-soon">
+        <p class="sport-league">{{ sport.league }}</p>
+        <h2>{{ sport.name }} Is On Deck</h2>
+        <p class="muted">Roster and teammate data are being built now. The same four modes will be ready here once the league is loaded.</p>
+        <div class="mode-preview-grid" aria-label="Upcoming game modes">
+          <span>Batting Practice</span>
+          <span>Film Review</span>
+          <span>Division Rivalry</span>
+          <span>Playoffs</span>
+        </div>
+        <a class="secondary sport-back-link" href="/">Choose another sport</a>
+      </div>
+      {% else %}
+      <h2>Choose Your Sport</h2>
+      <div class="sport-tiles">
+        <a class="sport-tile sport-tile-baseball" href="/baseball">
+          <span class="sport-tile-league">MLB</span>
+          <span class="sport-tile-name">Baseball</span>
+          <span class="sport-tile-status">Play now</span>
+        </a>
+        <a class="sport-tile sport-tile-basketball" href="/basketball">
+          <span class="sport-tile-league">NBA</span>
+          <span class="sport-tile-name">Basketball</span>
+          <span class="sport-tile-status">Coming soon</span>
+        </a>
+        <a class="sport-tile sport-tile-hockey" href="/hockey">
+          <span class="sport-tile-league">NHL</span>
+          <span class="sport-tile-name">Hockey</span>
+          <span class="sport-tile-status">Coming soon</span>
+        </a>
+        <a class="sport-tile sport-tile-football" href="/football">
+          <span class="sport-tile-league">NFL</span>
+          <span class="sport-tile-name">Football</span>
+          <span class="sport-tile-status">Coming soon</span>
+        </a>
+      </div>
+      {% endif %}
     </div>
   </section>
 

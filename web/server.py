@@ -1742,7 +1742,29 @@ def _insert_game(conn, table: str, blob: dict) -> str:
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    return render_template("index.html", sport=None, sport_ready=False)
+
+
+SPORT_HUBS = {
+    "baseball": {"name": "Baseball", "league": "MLB", "ready": True},
+    "basketball": {"name": "Basketball", "league": "NBA", "ready": False},
+    "hockey": {"name": "Hockey", "league": "NHL", "ready": False},
+    "football": {"name": "Football", "league": "NFL", "ready": False},
+}
+
+
+@app.route("/baseball")
+@app.route("/basketball")
+@app.route("/hockey")
+@app.route("/football")
+def sport_hub():
+    sport_key = request.path.strip("/")
+    sport = SPORT_HUBS[sport_key]
+    return render_template(
+        "index.html",
+        sport={"key": sport_key, **sport},
+        sport_ready=sport["ready"],
+    )
 
 
 @app.route("/privacy")
