@@ -75,12 +75,30 @@ class GameState:
         return sorted(ts for ts, n in self.strikes.items() if n >= STRIKES_TO_BURN)
 
 
-def find_player_by_name(conn: sqlite3.Connection, raw: str) -> list[tuple[str, str, str, int]]:
+def find_player_by_name(conn: sqlite3.Connection, raw: str, sport: str | None = None) -> list[tuple[str, str, str, int]]:
     """Return [(player_id, display_name, disambiguation, career_games), ...]
     sorted by career_games DESC (most famous first). Empty list = no match."""
     q = normalize(raw)
     if not q:
         return []
+    if sport:
+        q = re.sub(r"[^a-z0-9]", "", q)
+        rows = conn.execute(
+            """SELECT player_id, display_name, disambiguation, career_games
+                 FROM sport_players_searchable
+                WHERE sport_id = ? AND search_key = ?
+                ORDER BY career_games DESC""",
+            (sport, q),
+        ).fetchall()
+        if rows:
+            return rows
+        return conn.execute(
+            """SELECT player_id, display_name, disambiguation, career_games
+                 FROM sport_players_searchable
+                WHERE sport_id = ? AND last_key = ?
+                ORDER BY career_games DESC""",
+            (sport, q),
+        ).fetchall()
     rows = conn.execute(
         """SELECT player_id, display_name, disambiguation, career_games
              FROM players_searchable
@@ -100,9 +118,20 @@ def find_player_by_name(conn: sqlite3.Connection, raw: str) -> list[tuple[str, s
     ).fetchall()
 
 
-def get_shared_seasons(conn: sqlite3.Connection, a: str, b: str) -> list[tuple[str, int]]:
+def get_shared_seasons(conn: sqlite3.Connection, a: str, b: str, sport: str | None = None) -> list[tuple[str, int]]:
     if a == b:
         return []
+    if sport:
+        rows = conn.execute(
+            """SELECT a.team_id, a.season
+                 FROM sport_appearances a
+                 JOIN sport_appearances b
+                   ON b.sport_id = a.sport_id AND b.team_id = a.team_id AND b.season = a.season
+                WHERE a.sport_id = ? AND a.player_id = ? AND b.player_id = ?
+                ORDER BY a.season, a.team_id""",
+            (sport, a, b),
+        ).fetchall()
+        return [(t, s) for t, s in rows]
     a, b = sorted([a, b])
     rows = conn.execute(
         """SELECT team_id, season FROM teammates
@@ -120,6 +149,7 @@ def validate_and_apply_move(
     *,
     player_id: str | None = None,
     track_strikes: bool = True,
+    sport: str | None = None,
 ) -> MoveResult:
     """Resolve the candidate (by typed text or known id), validate, mutate
     state on success. Pass exactly one of raw_input or player_id.
@@ -136,16 +166,22 @@ def validate_and_apply_move(
         raise ValueError("pass exactly one of raw_input or player_id")
 
     if raw_input is not None:
-        matches = find_player_by_name(conn, raw_input)
+        matches = find_player_by_name(conn, raw_input, sport=sport)
         if not matches:
             return MoveResult(MoveOutcome.UNKNOWN_PLAYER)
         player_id, display_name, disambiguation, _ = matches[0]
         ambiguous_count = len(matches)
     else:
-        row = conn.execute(
-            "SELECT display_name, disambiguation FROM players_searchable WHERE player_id = ?",
-            (player_id,),
-        ).fetchone()
+        if sport:
+            row = conn.execute(
+                "SELECT display_name, disambiguation FROM sport_players_searchable WHERE sport_id = ? AND player_id = ?",
+                (sport, player_id),
+            ).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT display_name, disambiguation FROM players_searchable WHERE player_id = ?",
+                (player_id,),
+            ).fetchone()
         if not row:
             return MoveResult(MoveOutcome.UNKNOWN_PLAYER)
         display_name, disambiguation = row
@@ -160,7 +196,7 @@ def validate_and_apply_move(
             ambiguous_count=ambiguous_count,
         )
 
-    shared = get_shared_seasons(conn, state.current_player_id, player_id)
+    shared = get_shared_seasons(conn, state.current_player_id, player_id, sport=sport)
     if not shared:
         return MoveResult(
             MoveOutcome.NOT_TEAMMATE,
@@ -198,11 +234,17 @@ def validate_and_apply_move(
     )
 
 
-def seed_game(conn: sqlite3.Connection, player_id: str) -> GameState:
-    row = conn.execute(
-        "SELECT display_name FROM players_searchable WHERE player_id = ?",
-        (player_id,),
-    ).fetchone()
+def seed_game(conn: sqlite3.Connection, player_id: str, sport: str | None = None) -> GameState:
+    if sport:
+        row = conn.execute(
+            "SELECT display_name FROM sport_players_searchable WHERE sport_id = ? AND player_id = ?",
+            (sport, player_id),
+        ).fetchone()
+    else:
+        row = conn.execute(
+            "SELECT display_name FROM players_searchable WHERE player_id = ?",
+            (player_id,),
+        ).fetchone()
     if not row:
         raise ValueError(f"seed player_id {player_id!r} not found in players_searchable")
     state = GameState()

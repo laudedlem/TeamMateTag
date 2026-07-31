@@ -20,12 +20,15 @@ queries. It deliberately does not store every player pair.
 | --- | --- | --- |
 | MLB | 1871-2025 | Lahman CSVs |
 | NFL | 1966-2025 | nflverse annual and weekly rosters |
-| NBA | 2002-2025 | SportsDataverse ESPN player box scores |
+| NBA | 2002-2025, pending historical import | SportsDataverse ESPN player box scores |
 | NHL | 1917-2025 | NHL public roster API |
 
-The NBA pipeline does not yet include a reusable pre-2002 source. This is a
-known scope gap, not a claim that NBA history is complete. Raw data and the
-generated local SQLite database are ignored by Git.
+The preferred full-history NBA source is Kaggle dataset
+`eoinamoore/historical-nba-data-and-player-box-scores`, marked CC0 and
+reporting box scores from 1947 onward. It is roughly 1.86 GB and must be
+downloaded and extracted locally into `raw/nba_kaggle/`, then imported with
+`scripts/import_nba_kaggle.py`. Validate before claiming full NBA history.
+Raw data and the generated local SQLite database are ignored by Git.
 
 ## Data model
 

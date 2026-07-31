@@ -91,6 +91,13 @@ resolved. Raw downloads and the SQLite database are intentionally ignored by
 Git and must not be committed. This local dataset has not been loaded to
 Supabase.
 
+The preferred NBA-history replacement is Kaggle dataset
+`eoinamoore/historical-nba-data-and-player-box-scores`, which is marked CC0
+and reports player box scores from 1947 onward. It is about 1.86 GB. After
+extracting it into `raw/nba_kaggle/`, run
+`python scripts\import_nba_kaggle.py`. The importer replaces only local NBA
+rows and must be validated before changing the stated NBA scope.
+
 1. Data source evaluation and ingestion for NBA, NHL, NFL.
 2. Build season-level roster/appearance records and derived teammate graphs.
 3. Add a sport adapter to the server and frontend APIs.
