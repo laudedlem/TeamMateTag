@@ -17,6 +17,10 @@ OVERRIDES = {
         "https://upload.wikimedia.org/wikipedia/commons/thumb/5/56/Lance_Briggs.JPG/330px-Lance_Briggs.JPG",
         "Wikimedia Commons, CC BY-SA 3.0",
     ),
+    ("football", "nfl:00-0019699"): (
+        "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4c/Mike_Brown.jpg/330px-Mike_Brown.jpg",
+        "Wikimedia Commons, license metadata reviewed before production use",
+    ),
 }
 
 
