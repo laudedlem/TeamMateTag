@@ -7,6 +7,26 @@ enabling their game modes. A player is connected to other qualifying players
 through indexed team-season appearances. Materialized pair graphs are optional
 because large league roster histories can exceed Supabase storage limits.
 
+## Local development dataset
+
+The current development artifact is the ignored SQLite file
+`db/teammatetag_local.sqlite`, built with
+`scripts/build_local_sports_dataset.py` and validated by
+`scripts/verify_local_sports_dataset.py`. It stores player-team-season
+appearances and indexes the two directions needed for on-demand teammate
+queries. It deliberately does not store every player pair.
+
+| Sport | Current local source scope | Source |
+| --- | --- | --- |
+| MLB | 1871-2025 | Lahman CSVs |
+| NFL | 1966-2025 | nflverse annual and weekly rosters |
+| NBA | 2002-2025 | SportsDataverse ESPN player box scores |
+| NHL | 1917-2025 | NHL public roster API |
+
+The NBA pipeline does not yet include a reusable pre-2002 source. This is a
+known scope gap, not a claim that NBA history is complete. Raw data and the
+generated local SQLite database are ignored by Git.
+
 ## Data model
 
 The production tables are defined in `db/cross_sport_schema_postgres.sql`.
@@ -40,36 +60,33 @@ the sport in the public UI.
 
 ### NHL
 
-- Primary candidate: NHL public club endpoints.
-- Confirmed reachable source patterns:
-  `https://api-web.nhle.com/v1/roster/BOS/20242025`
-  and `https://api-web.nhle.com/v1/club-stats/BOS/20242025/2`.
-- The loader should fetch every active team code for every season, combine
-  skaters and goalies, and deduplicate each player-team-season.
-- Before the full load, validate historic franchise codes and relocations,
-  especially Atlanta/Winnipeg, Minnesota, and Arizona/Utah.
+- Implemented in the local builder with NHL public roster endpoints.
+- The loader discovers each club code's available roster seasons, fetches
+  forwards, defensemen, and goalies, and retries temporary API throttling.
+- Local validation covers 1,658 team-seasons and 54,270 player-team-seasons
+  across 1917-2025. Team display-name and franchise-history normalization will
+  be completed as part of the sport adapter, before the NHL UI is enabled.
 
 ### NBA
 
-- The official `stats.nba.com` player-season endpoint was tested but reset the
-  connection from this environment. NBA CDN endpoints returned HTTP 403.
-- Basketball Reference is technically reachable, but its terms should be
-  reviewed or a license obtained before using it as an automated production
-  source. Do not make the public game depend on undocumented scraping.
-- Next decision: locate a reusable licensed NBA player-team-season dataset or
-  confirm a permitted official API access path. This is the current blocker
-  for a fully automated NBA ingestion pipeline.
+- SportsDataverse ESPN player box scores provide a repeatable 2002-2025 local
+  pipeline. A player is retained only when the box score records nonzero
+  minutes, which produces 13,757 player-team-seasons.
+- The official `stats.nba.com` endpoint still reset this environment and NBA
+  CDN endpoints returned HTTP 403. Do not depend on undocumented scraping.
+- Pre-2002 NBA history remains a future licensed-source or permitted-API task.
 
 ## Build order
 
-1. Move the data layer to a plan or database with enough capacity, or implement
-   an on-demand connection model that does not persist every pair.
-2. Reload and validate NFL Super Bowl-era roster data.
-3. Implement and validate NHL loader using official club roster data.
-4. Resolve NBA source and loader.
-5. Add a sport-aware game adapter and enable Batting Practice first for each
+1. Implement a sport-aware, on-demand connection adapter against the local
+   schema, replacing the baseball-only pair-table assumptions.
+2. Add team/franchise display-name normalization for NFL, NBA, and NHL.
+3. Enable Batting Practice first for each
    loaded league.
-6. Expand Film Review, Division Rivalry, and Playoffs after solo validation.
+4. Expand Film Review, Division Rivalry, and Playoffs after solo validation.
+5. Select a production database plan only after measuring the on-demand query
+   load and data size. Do not load the full local histories to the existing
+   free Supabase project.
 
 ## Validation requirements
 

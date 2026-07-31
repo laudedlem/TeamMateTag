@@ -71,6 +71,26 @@ changes. It is the concise source of truth for another coding assistant.
 Goal: NBA, NHL, and NFL should use the same four-mode structure as baseball.
 Baseball terminology can be generalized later, after the game data works.
 
+### Local multi-sport dataset
+
+`scripts/build_local_sports_dataset.py` builds the ignored local SQLite file
+`db/teammatetag_local.sqlite`. It uses indexed player-team-season appearances,
+not a materialized player-pair graph, so the full local histories remain
+practical to build and query. Validate it with:
+
+```powershell
+python scripts\build_local_sports_dataset.py
+python scripts\verify_local_sports_dataset.py
+```
+
+Current source scopes are MLB 1871-2025 (Lahman), NFL 1966-2025 (nflverse),
+NBA 2002-2025 (SportsDataverse ESPN box scores), and NHL 1917-2025 (NHL public
+roster API). The NBA source has no reusable pre-2002 history in this pipeline;
+do not describe it as a full NBA-history dataset until that source gap is
+resolved. Raw downloads and the SQLite database are intentionally ignored by
+Git and must not be committed. This local dataset has not been loaded to
+Supabase.
+
 1. Data source evaluation and ingestion for NBA, NHL, NFL.
 2. Build season-level roster/appearance records and derived teammate graphs.
 3. Add a sport adapter to the server and frontend APIs.
@@ -93,11 +113,10 @@ python scripts\setup_cross_sport_schema.py
 That migration is additive and safe to run repeatedly.
 
 Data-source research and rollout criteria are maintained in
-`docs/cross_sport_data_plan.md`. NFL has a Super Bowl-era loader at
-`scripts/load_nfl_superbowl_era.py`; its 1966-2025 raw source cache is local,
-but production loading is blocked by the current Supabase storage limit. NHL
-is next only after this storage decision. NBA follows after a permitted and
-dependable historical player-team-season source is selected.
+`docs/cross_sport_data_plan.md`. `scripts/load_nfl_superbowl_era.py` remains a
+production loader only for a future larger database. Do not run it against the
+current free Supabase project. The local builder is now the source-of-truth
+development artifact until the generic on-demand connection engine is built.
 
 ## Important files
 
@@ -108,6 +127,8 @@ dependable historical player-team-season source is selected.
 - `game/engine.py`: shared baseball lineup validation.
 - `db/schema_postgres.sql`: original baseball production schema.
 - `db/cross_sport_schema_postgres.sql`: generic NBA/NHL/NFL schema.
+- `scripts/build_local_sports_dataset.py`: local all-sport dataset builder.
+- `scripts/verify_local_sports_dataset.py`: local scope and teammate validator.
 
 ## Known follow-ups
 
