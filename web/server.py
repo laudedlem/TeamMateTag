@@ -2516,7 +2516,9 @@ def local_headshot(sport: str, player_id: str):
         row = conn.execute("SELECT local_path FROM local_player_images WHERE sport_id = ? AND player_id = ?", (sport, player_id)).fetchone()
     if not row or not Path(row[0]).exists():
         return "", 404
-    return send_file(row[0], conditional=True)
+    response = send_file(row[0], conditional=True)
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 def _local_bp_state(game_id: str, game: dict) -> dict:

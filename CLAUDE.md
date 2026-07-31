@@ -121,6 +121,8 @@ season source refresh.
   complete; NHL is missing 7 players; NFL is missing 8,741, mostly historical
   records without a native image URL. `scripts/report_missing_headshots.py`
   writes the unresolved-player CSV for the licensed fallback-source decision.
+- `scripts/remove_placeholder_headshots.py` removes known NBA/NFL silhouette
+  responses that otherwise return HTTP 200 and would be mistaken for photos.
 
 The preferred NBA-history replacement is Kaggle dataset
 `eoinamoore/historical-nba-data-and-player-box-scores`, which is marked CC0
