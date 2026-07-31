@@ -2475,15 +2475,19 @@ def _local_sport_cards(conn: sqlite3.Connection, sport: str, player_ids: list[st
                 WHERE a.sport_id = ? AND a.player_id = ? ORDER BY a.season, t.name""",
             (sport, player_id),
         ).fetchall()
-        spans = []
+        spans_by_team = {}
         for team, season in appearances:
             if sport == "hockey":
                 team = NHL_TEAM_NAMES.get(team, team)
-            if spans and spans[-1][0] == team and spans[-1][2] == season - 1:
-                spans[-1][2] = season
+            spans = spans_by_team.setdefault(team, [])
+            if spans and spans[-1][1] == season - 1:
+                spans[-1][1] = season
             else:
-                spans.append([team, season, season])
-        teams = [f"{team} {start}" if start == end else f"{team} {start}-{end}" for team, start, end in spans]
+                spans.append([season, season])
+        teams = []
+        for team, ranges in spans_by_team.items():
+            years = ", ".join(str(start) if start == end else f"{start}-{end}" for start, end in ranges)
+            teams.append(f"{team} {years}")
         external_id = row[0] if row else None
         if sport == "basketball" and external_id:
             headshot = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{external_id}.png"

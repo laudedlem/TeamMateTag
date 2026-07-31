@@ -92,6 +92,11 @@ resolved. Raw downloads and the SQLite database are intentionally ignored by
 Git and must not be committed. This local dataset has not been loaded to
 Supabase.
 
+Do not label data as complete through 2026 yet. As of July 2026, Lahman only
+contains completed seasons through 2025. NFL and NHL can be refreshed during
+their active seasons from their roster sources; NBA needs a verified current
+season source refresh.
+
 The preferred NBA-history replacement is Kaggle dataset
 `eoinamoore/historical-nba-data-and-player-box-scores`, which is marked CC0
 and reports player box scores from 1947 onward. It is about 1.86 GB. After
