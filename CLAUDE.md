@@ -54,8 +54,10 @@ changes. It is the concise source of truth for another coding assistant.
 
 ## Baseball data
 
-- Current production scope: MLB 2000 through 2025. Historical expansion to
-  1871 is staged by `scripts/expand_baseball_history.py`.
+- Current production scope: MLB 2000 through 2025. Lahman files locally cover
+  1871-2025, but the full historical pair graph does not fit alongside the
+  live graph in the current free Supabase database. Historical expansion is
+  blocked on storage migration or a game-engine move to on-demand connections.
 - Production tables: `players`, `teams`, `appearances`, `teammates`,
   `players_searchable`, plus supporting franchise and nickname tables.
 - IDs are Lahman-style player IDs. Pair table invariant:
@@ -77,7 +79,7 @@ Baseball terminology can be generalized later, after the game data works.
 The new additive schema is `db/cross_sport_schema_postgres.sql`:
 
 - `sports`, `sport_franchises`, `sport_teams`
-- `sport_players`, `sport_appearances`, `sport_teammates`
+- `sport_players`, `sport_appearances`, optional `sport_teammates`
 - `sport_players_searchable`, `sport_player_aliases`,
   `sport_data_provenance`
 
@@ -92,8 +94,10 @@ That migration is additive and safe to run repeatedly.
 
 Data-source research and rollout criteria are maintained in
 `docs/cross_sport_data_plan.md`. NFL has a Super Bowl-era loader at
-`scripts/load_nfl_superbowl_era.py`; NHL is next, and NBA follows after a
-permitted and dependable historical player-team-season source is selected.
+`scripts/load_nfl_superbowl_era.py`; its 1966-2025 raw source cache is local,
+but production loading is blocked by the current Supabase storage limit. NHL
+is next only after this storage decision. NBA follows after a permitted and
+dependable historical player-team-season source is selected.
 
 ## Important files
 
@@ -117,3 +121,7 @@ permitted and dependable historical player-team-season source is selected.
 - Update `README.md` after the cross-sport data sources and first loader are
   selected. It is currently stale.
 - Complete a later baseball quality, rules, and Playoffs balance pass.
+- Supabase storage: full NFL roster data (118,070 player-team-seasons) plus
+  baseball pair edges exceeded the free project capacity. Do not rerun the
+  historical NFL or baseball loaders against production until moving to a
+  larger database or changing the connection storage/query strategy.

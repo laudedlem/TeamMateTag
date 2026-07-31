@@ -162,7 +162,7 @@ def upsert_season(conn, season: int, rows: list[dict], source: str, url: str) ->
         teams[raw_team] = (franchise_id, team_name)
         appearances[(pid, raw_team)] += 1
         players[pid] = (
-            "football", pid, (row.get("gsis_id") or "").strip() or None,
+            "football", pid, pid,
             name, (row.get("first_name") or "").strip() or None,
             (row.get("last_name") or "").strip() or None,
             int((row.get("birth_date") or "")[:4]) if (row.get("birth_date") or "")[:4].isdigit() else None,
@@ -170,20 +170,20 @@ def upsert_season(conn, season: int, rows: list[dict], source: str, url: str) ->
         )
 
     franchises = {(franchise, team_name) for franchise, team_name in teams.values()}
-    conn.executemany(
+    conn.cursor().executemany(
         """INSERT INTO sport_franchises (sport_id, franchise_id, name)
            VALUES ('football', %s, %s)
            ON CONFLICT (sport_id, franchise_id) DO NOTHING""",
         list(franchises),
     )
-    conn.executemany(
+    conn.cursor().executemany(
         """INSERT INTO sport_teams (sport_id, team_id, season, franchise_id, name)
            VALUES ('football', %s, %s, %s, %s)
            ON CONFLICT (sport_id, team_id, season) DO UPDATE
            SET franchise_id = EXCLUDED.franchise_id, name = EXCLUDED.name""",
         [(team, season, franchise, name) for team, (franchise, name) in teams.items()],
     )
-    conn.executemany(
+    conn.cursor().executemany(
         """INSERT INTO sport_players
            (sport_id, player_id, external_id, display_name, first_name, last_name,
             birth_year, debut_year, final_year, primary_pos)
@@ -198,7 +198,7 @@ def upsert_season(conn, season: int, rows: list[dict], source: str, url: str) ->
                primary_pos = COALESCE(EXCLUDED.primary_pos, sport_players.primary_pos)""",
         list(players.values()),
     )
-    conn.executemany(
+    conn.cursor().executemany(
         """INSERT INTO sport_appearances
            (sport_id, player_id, team_id, season, games_total)
            VALUES ('football', %s, %s, %s, %s)
@@ -218,24 +218,25 @@ def upsert_season(conn, season: int, rows: list[dict], source: str, url: str) ->
     return len(players), len(appearances)
 
 
-def rebuild_graph_and_search(conn) -> tuple[int, int]:
-    conn.execute("DELETE FROM sport_teammates WHERE sport_id = 'football'")
-    graph_count = conn.execute(
-        """WITH inserted AS (
-               INSERT INTO sport_teammates
-                   (sport_id, player_a_id, player_b_id, team_id, season)
-               SELECT 'football', a.player_id, b.player_id, a.team_id, a.season
-                 FROM sport_appearances a
-                 JOIN sport_appearances b
-                   ON b.sport_id = a.sport_id
-                  AND b.team_id = a.team_id
-                  AND b.season = a.season
-                  AND a.player_id < b.player_id
-                WHERE a.sport_id = 'football'
-               RETURNING 1
-           ) SELECT COUNT(*) FROM inserted"""
-    ).fetchone()[0]
-
+def rebuild_search(conn, materialize_graph: bool) -> tuple[int, int]:
+    graph_count = 0
+    if materialize_graph:
+        conn.execute("DELETE FROM sport_teammates WHERE sport_id = 'football'")
+        graph_count = conn.execute(
+            """WITH inserted AS (
+                   INSERT INTO sport_teammates
+                       (sport_id, player_a_id, player_b_id, team_id, season)
+                   SELECT 'football', a.player_id, b.player_id, a.team_id, a.season
+                     FROM sport_appearances a
+                     JOIN sport_appearances b
+                       ON b.sport_id = a.sport_id
+                      AND b.team_id = a.team_id
+                      AND b.season = a.season
+                      AND a.player_id < b.player_id
+                    WHERE a.sport_id = 'football'
+                   RETURNING 1
+               ) SELECT COUNT(*) FROM inserted"""
+        ).fetchone()[0]
     rows = conn.execute(
         """SELECT p.player_id, p.display_name, p.debut_year, p.final_year,
                   COALESCE(SUM(a.games_total), 0) AS roster_weeks,
@@ -258,7 +259,7 @@ def rebuild_graph_and_search(conn) -> tuple[int, int]:
             GROUP BY p.player_id, p.display_name, p.debut_year, p.final_year, d.degree"""
     ).fetchall()
     conn.execute("DELETE FROM sport_players_searchable WHERE sport_id = 'football'")
-    conn.executemany(
+    conn.cursor().executemany(
         """INSERT INTO sport_players_searchable
            (sport_id, player_id, display_name, disambiguation, search_key, last_key,
             career_games, teammate_count)
@@ -275,11 +276,29 @@ def rebuild_graph_and_search(conn) -> tuple[int, int]:
     return graph_count, len(rows)
 
 
+def clear_football_data(conn) -> None:
+    """Remove only derived/source NFL records so interrupted loads can restart."""
+    conn.execute("DELETE FROM sport_players_searchable WHERE sport_id = 'football'")
+    conn.execute("DELETE FROM sport_player_aliases WHERE sport_id = 'football'")
+    conn.execute("DELETE FROM sport_teammates WHERE sport_id = 'football'")
+    conn.execute("DELETE FROM sport_appearances WHERE sport_id = 'football'")
+    conn.execute("DELETE FROM sport_data_provenance WHERE sport_id = 'football'")
+    conn.execute("DELETE FROM sport_players WHERE sport_id = 'football'")
+    conn.execute("DELETE FROM sport_teams WHERE sport_id = 'football'")
+    conn.execute("DELETE FROM sport_franchises WHERE sport_id = 'football'")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--start-season", type=int, default=1966)
     parser.add_argument("--end-season", type=int, default=2025)
     parser.add_argument("--cache-dir", default=str(ROOT / "raw" / "nfl"))
+    parser.add_argument("--resume", action="store_true",
+                        help="keep existing NFL rows instead of rebuilding from scratch")
+    parser.add_argument("--finalize-only", action="store_true",
+                        help="rebuild search from already-loaded NFL roster data")
+    parser.add_argument("--materialize-graph", action="store_true",
+                        help="build redundant pair edges; requires substantially more database storage")
     args = parser.parse_args()
     database_url = os.environ.get("DATABASE_URL")
     if not database_url:
@@ -289,14 +308,17 @@ def main() -> None:
     with psycopg.connect(database_url, autocommit=True, prepare_threshold=None) as conn:
         conn.execute("SET default_transaction_read_only = off")
         ensure_schema(conn)
+        if not args.resume and not args.finalize_only:
+            clear_football_data(conn)
         total_players = total_appearances = 0
-        for season in range(args.start_season, args.end_season + 1):
-            source, rows, url = load_csv(season, cache_dir)
-            player_count, appearance_count = upsert_season(conn, season, rows, source, url)
-            total_players += player_count
-            total_appearances += appearance_count
-            print(f"{season}: {player_count:,} players, {appearance_count:,} player-team-seasons")
-        edges, searchable = rebuild_graph_and_search(conn)
+        if not args.finalize_only:
+            for season in range(args.start_season, args.end_season + 1):
+                source, rows, url = load_csv(season, cache_dir)
+                player_count, appearance_count = upsert_season(conn, season, rows, source, url)
+                total_players += player_count
+                total_appearances += appearance_count
+                print(f"{season}: {player_count:,} players, {appearance_count:,} player-team-seasons")
+        edges, searchable = rebuild_search(conn, args.materialize_graph)
     print(f"Loaded NFL {args.start_season}-{args.end_season}: "
           f"{total_players:,} source player records, {total_appearances:,} appearances, "
           f"{edges:,} teammate edges, {searchable:,} searchable players.")

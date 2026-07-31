@@ -75,19 +75,27 @@ def main() -> None:
         franchises.setdefault(franchise_id, row.get("name") or franchise_id)
         teams.append((row["teamID"], season, franchise_id, row.get("lgID") or None, row.get("name") or None))
 
+    valid_player_ids = {row[0] for row in people}
     appearances = []
+    skipped_orphans = 0
     for row in read_rows(raw_dir / "Appearances.csv"):
         season = int(row["yearID"])
         games_total = int(row.get("G_all") or 0)
         if args.start_year <= season <= args.end_year and games_total > 0:
+            if row["playerID"] not in valid_player_ids:
+                skipped_orphans += 1
+                continue
             appearances.append((
                 row["playerID"], row["teamID"], season, games_total,
                 int(row.get("G_p") or 0), int(row.get("G_batting") or 0),
             ))
 
+    if skipped_orphans:
+        print(f"Skipping {skipped_orphans:,} Lahman appearances with no matching player record.")
+
     with psycopg.connect(database_url, autocommit=True, prepare_threshold=None) as conn:
         conn.execute("SET default_transaction_read_only = off")
-        conn.executemany(
+        conn.cursor().executemany(
             """INSERT INTO players
                (player_id, bbref_id, retro_id, name_first, name_last, name_given,
                 birth_year, debut_year, final_year, bats, throws)
@@ -105,12 +113,12 @@ def main() -> None:
                    throws = COALESCE(players.throws, EXCLUDED.throws)""",
             people,
         )
-        conn.executemany(
+        conn.cursor().executemany(
             """INSERT INTO franchises (franchise_id, name)
                VALUES (%s, %s) ON CONFLICT (franchise_id) DO NOTHING""",
             list(franchises.items()),
         )
-        conn.executemany(
+        conn.cursor().executemany(
             """INSERT INTO teams (team_id, season, franchise_id, league, name)
                VALUES (%s, %s, %s, %s, %s)
                ON CONFLICT (team_id, season) DO UPDATE
@@ -118,7 +126,7 @@ def main() -> None:
                    league = EXCLUDED.league, name = EXCLUDED.name""",
             teams,
         )
-        conn.executemany(
+        conn.cursor().executemany(
             """INSERT INTO appearances
                (player_id, team_id, season, games_total, games_pitched, games_batted)
                VALUES (%s, %s, %s, %s, %s, %s)
@@ -170,7 +178,7 @@ def main() -> None:
                  ) d ON d.player_id = p.player_id"""
         ).fetchall()
         conn.execute("DELETE FROM players_searchable")
-        conn.executemany(
+        conn.cursor().executemany(
             """INSERT INTO players_searchable
                (player_id, display_name, disambiguation, search_key, last_key,
                 career_games, teammate_count)

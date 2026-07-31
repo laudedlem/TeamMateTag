@@ -2,10 +2,10 @@
 
 ## Goal
 
-Build a validated season-level teammate graph for NBA, NHL, and NFL before
-enabling their game modes. A player is connected to every other qualifying
-player on the same team in the same season. This matches the existing baseball
-model and makes shared game rules portable.
+Build validated season-level teammate data for NBA, NHL, and NFL before
+enabling their game modes. A player is connected to other qualifying players
+through indexed team-season appearances. Materialized pair graphs are optional
+because large league roster histories can exceed Supabase storage limits.
 
 ## Data model
 
@@ -32,6 +32,11 @@ the sport in the public UI.
   seasons do not have the same in-season transfer fidelity.
 - Do not use the annual roster file alone for 2002 onward because it is a
   season-end snapshot and loses earlier-team memberships for traded players.
+- Load attempt result: all 1966-2025 raw files were downloaded and 118,070
+  player-team-season records were validated, but the free Supabase project
+  could not retain those records alongside the existing baseball pair graph.
+  The production NFL rows were removed to restore baseball. The cached raw
+  files remain in `raw/nfl/` and are ignored by Git.
 
 ### NHL
 
@@ -57,16 +62,18 @@ the sport in the public UI.
 
 ## Build order
 
-1. Run and validate the NFL Super Bowl-era loader.
-2. Implement and validate NHL loader using official club roster data.
-3. Resolve NBA source and loader.
-4. Add a sport-aware game adapter and enable Batting Practice first for each
+1. Move the data layer to a plan or database with enough capacity, or implement
+   an on-demand connection model that does not persist every pair.
+2. Reload and validate NFL Super Bowl-era roster data.
+3. Implement and validate NHL loader using official club roster data.
+4. Resolve NBA source and loader.
+5. Add a sport-aware game adapter and enable Batting Practice first for each
    loaded league.
-5. Expand Film Review, Division Rivalry, and Playoffs after solo validation.
+6. Expand Film Review, Division Rivalry, and Playoffs after solo validation.
 
 ## Validation requirements
 
-- Count players, player-team-seasons, team-seasons, and teammate edges.
+- Count players, player-team-seasons, team-seasons, and on-demand teammate links.
 - Verify each league has one usable graph component or document isolates.
 - Test known traded-player records for each sport.
 - Check autocomplete disambiguation for duplicate player names.
