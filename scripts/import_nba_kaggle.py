@@ -38,6 +38,16 @@ def season_year(value: str) -> int | None:
     return None
 
 
+def nba_season(row: dict) -> int | None:
+    """Use the season start year; the Kaggle player file records game dates."""
+    date = field(row, "gameDate", "gameDateTimeEst")
+    year = season_year(date)
+    if not year:
+        return None
+    month = int(date[5:7]) if len(date) >= 7 and date[5:7].isdigit() else 10
+    return year - 1 if month <= 6 else year
+
+
 def main() -> None:
     stats_path = SOURCE_DIR / "PlayerStatistics.csv"
     players_path = SOURCE_DIR / "Players.csv"
@@ -51,17 +61,19 @@ def main() -> None:
         with players_path.open(encoding="utf-8-sig", newline="") as handle:
             for row in csv.DictReader(handle):
                 source_id = field(row, "playerid", "player_id", "id")
-                name = field(row, "player", "playername", "name", "display_name")
+                name = " ".join(part for part in (field(row, "firstName"), field(row, "lastName")) if part)
+                name = name or field(row, "player", "playername", "name", "display_name")
                 if source_id and name:
                     bio[source_id] = (name, field(row, "position", "pos"))
 
     players, teams, appearances = {}, {}, defaultdict(int)
     with stats_path.open(encoding="utf-8-sig", newline="") as handle:
         for row in csv.DictReader(handle):
-            season = season_year(field(row, "season", "seasonyear", "season_year", "year"))
-            team = field(row, "team", "teamabbreviation", "team_abbreviation", "teamid", "team_id")
+            season = nba_season(row) or season_year(field(row, "season", "seasonyear", "season_year", "year"))
+            team = field(row, "playerteamId", "team", "teamabbreviation", "team_abbreviation", "teamid", "team_id")
             source_id = field(row, "playerid", "player_id", "personid", "person_id")
-            name = field(row, "player", "playername", "player_name", "name")
+            name = " ".join(part for part in (field(row, "firstName"), field(row, "lastName")) if part)
+            name = name or field(row, "player", "playername", "player_name", "name")
             if not season or not team or not (source_id or name):
                 continue
             source_id = source_id or key(name)
@@ -74,7 +86,8 @@ def main() -> None:
             debut = min(previous[5], season) if previous else season
             final = max(previous[6], season) if previous else season
             players[pid] = (source_id, name, first or None, last or name, None, debut, final, position or None)
-            teams[(team, season)] = (team, team)
+            team_name = " ".join(part for part in (field(row, "playerteamCity"), field(row, "playerteamName")) if part)
+            teams[(team, season)] = (team, team_name or team)
             appearances[(pid, team, season)] = 1
 
     if not appearances:
