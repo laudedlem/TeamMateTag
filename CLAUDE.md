@@ -117,6 +117,10 @@ season source refresh.
   `scripts/build_local_photo_cache.py` caches league-native NBA, NFL, and NHL
   headshots locally with source URLs. Do not use Wikimedia fallbacks in public
   production without a licensing review.
+- Native cache result: 30,561 images, 19.82 GiB. NBA native coverage is
+  complete; NHL is missing 7 players; NFL is missing 8,741, mostly historical
+  records without a native image URL. `scripts/report_missing_headshots.py`
+  writes the unresolved-player CSV for the licensed fallback-source decision.
 
 The preferred NBA-history replacement is Kaggle dataset
 `eoinamoore/historical-nba-data-and-player-box-scores`, which is marked CC0
