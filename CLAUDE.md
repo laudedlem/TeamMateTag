@@ -97,6 +97,19 @@ contains completed seasons through 2025. NFL and NHL can be refreshed during
 their active seasons from their roster sources; NBA needs a verified current
 season source refresh.
 
+### Current data-quality blockers
+
+- The NHL builder includes the `20252026` source season, but the official
+  roster snapshot cached at `raw/nhl/WPG/20252026.json` does not contain
+  Jonathan Toews. Treat historical NHL roster snapshots as incomplete until a
+  second source based on player-game appearances or transactions is added.
+- Do not promise a headshot for every historical player yet. Native NBA and
+  NFL URLs leave legacy gaps. Before production, build a cached photo resolver
+  with league-native URLs first and a rights-cleared fallback source, recording
+  source and license per image.
+- Team stints on local cards now consolidate separated returns to one team into
+  comma-separated year ranges.
+
 The preferred NBA-history replacement is Kaggle dataset
 `eoinamoore/historical-nba-data-and-player-box-scores`, which is marked CC0
 and reports player box scores from 1947 onward. It is about 1.86 GB. After
