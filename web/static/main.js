@@ -907,7 +907,7 @@ async function startBp() {
   hideGameOverBanner();
   showScreen('bp-game');
   const localModeName = ({ football: 'Gridiron Reps', basketball: 'Shooting Practice', hockey: 'Skating Sets' })[CURRENT_SPORT] || 'Batting Practice';
-  renderLoadingGame(localModeName, 'Loading leadoff...');
+  renderLoadingGame(localModeName, 'Loading ' + ({ football: 'snapper', basketball: 'tipoff', hockey: 'faceoff' })[CURRENT_SPORT] + '...');
   game = await api(LOCAL_SOLO_SPORTS.has(CURRENT_SPORT) ? localSoloPath('new') : '/api/bp/new',
     { guest_id: profile?.guest_id || storedGuestId() });
   if (game.error) {
@@ -1029,7 +1029,7 @@ function showGameOverBanner() {
     els.requeueBtn.hidden = true;
     els.winnerText.textContent = `Lineup of ${game.longest_chain - 1}.`;
     els.gameOverSummary.textContent = 'Time expired. Try to beat your longest lineup.';
-    els.playAgainBtn.textContent = 'Take more cuts';
+    els.playAgainBtn.textContent = ({ football: 'Run it back', basketball: 'Shoot again', hockey: 'Skate again' })[CURRENT_SPORT] || 'Take more cuts';
   }
 }
 
@@ -1680,7 +1680,7 @@ function makePlayerCard(player, isSeed, options = {}) {
   info.className = 'player-info';
   const yrs = formatYears(player.debut_year, player.final_year);
   const position = player.primary_pos ? `<div class="years">${escapeHtml(player.primary_pos)}</div>` : '';
-  const seedBadge = isSeed ? '<span class="seed-badge">leadoff</span>' : '';
+  const seedBadge = isSeed ? `<span class="seed-badge">${({ football: 'snapper', basketball: 'tipoff', hockey: 'faceoff' })[CURRENT_SPORT] || 'leadoff'}</span>` : '';
   info.innerHTML = `
     <h3 class="name">${escapeHtml(player.name)}${seedBadge}</h3>
     <div class="years">${escapeHtml(yrs)}</div>

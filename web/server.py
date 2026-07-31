@@ -77,6 +77,18 @@ LOCAL_SPORT_MODE_NAMES = {
     "basketball": "Shooting Practice",
     "hockey": "Skating Sets",
 }
+NHL_TEAM_NAMES = {
+    "ANA": "Anaheim Ducks", "ARI": "Arizona Coyotes", "ATL": "Atlanta Thrashers", "BOS": "Boston Bruins",
+    "BUF": "Buffalo Sabres", "CAR": "Carolina Hurricanes", "CBJ": "Columbus Blue Jackets", "CGY": "Calgary Flames",
+    "CHI": "Chicago Blackhawks", "COL": "Colorado Avalanche", "DAL": "Dallas Stars", "DET": "Detroit Red Wings",
+    "EDM": "Edmonton Oilers", "FLA": "Florida Panthers", "HFD": "Hartford Whalers", "LAK": "Los Angeles Kings",
+    "MIN": "Minnesota Wild", "MTL": "Montreal Canadiens", "NJD": "New Jersey Devils", "NSH": "Nashville Predators",
+    "NYI": "New York Islanders", "NYR": "New York Rangers", "OTT": "Ottawa Senators", "PHI": "Philadelphia Flyers",
+    "PHX": "Phoenix Coyotes", "PIT": "Pittsburgh Penguins", "QUE": "Quebec Nordiques", "SEA": "Seattle Kraken",
+    "SJS": "San Jose Sharks", "STL": "St. Louis Blues", "TBL": "Tampa Bay Lightning", "TOR": "Toronto Maple Leafs",
+    "UTA": "Utah Mammoth", "VAN": "Vancouver Canucks", "VGK": "Vegas Golden Knights", "WIN": "Winnipeg Jets",
+    "WPG": "Winnipeg Jets", "WSH": "Washington Capitals",
+}
 LOCAL_BP_GAMES: dict[str, dict] = {}
 LOCAL_BP_LOCK = Lock()
 HEADSHOT_URL = "https://midfield.mlbstatic.com/v1/people/{}/spots/120"
@@ -2465,6 +2477,8 @@ def _local_sport_cards(conn: sqlite3.Connection, sport: str, player_ids: list[st
         ).fetchall()
         spans = []
         for team, season in appearances:
+            if sport == "hockey":
+                team = NHL_TEAM_NAMES.get(team, team)
             if spans and spans[-1][0] == team and spans[-1][2] == season - 1:
                 spans[-1][2] = season
             else:
@@ -2483,7 +2497,7 @@ def _local_sport_cards(conn: sqlite3.Connection, sport: str, player_ids: list[st
             "mlbam_id": None, "headshot_url": headshot,
             "debut_year": row[1] if row else None, "final_year": row[2] if row else None,
             "name_first": row[3] if row else None, "name_last": row[4] if row else None,
-            "primary_pos": row[5] if row else None, "teams": teams,
+            "primary_pos": ({"R": "RW", "L": "LW", "D": "D"}.get(row[5], row[5]) if row else None), "teams": teams,
         }
     return out
 
@@ -2493,7 +2507,7 @@ def _local_bp_state(game_id: str, game: dict) -> dict:
     with _local_sport_conn() as conn:
         cards = _local_sport_cards(conn, sport, state.chain)
         team_names = {
-            (team, season): name for team, season, name in conn.execute(
+            (team, season): (NHL_TEAM_NAMES.get(team, team) if sport == "hockey" else name) for team, season, name in conn.execute(
                 "SELECT team_id, season, name FROM sport_teams WHERE sport_id = ?", (sport,)
             )
         }

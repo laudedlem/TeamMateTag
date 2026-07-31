@@ -81,6 +81,7 @@ practical to build and query. Validate it with:
 ```powershell
 python scripts\build_local_sports_dataset.py
 python scripts\verify_local_sports_dataset.py
+python scripts\clean_local_sport_data.py
 ```
 
 Current source scopes are MLB 1871-2025 (Lahman), NFL 1966-2025 (nflverse),
