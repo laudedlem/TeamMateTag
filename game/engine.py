@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import sqlite3
 import sys
+import re
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
