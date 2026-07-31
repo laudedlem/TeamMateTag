@@ -70,7 +70,10 @@ def main() -> None:
                 continue
             pid = f"nba:{source_id}"
             first, _, last = name.rpartition(" ")
-            players[pid] = (source_id, name, first or None, last or name, None, season, season, position or None)
+            previous = players.get(pid)
+            debut = min(previous[5], season) if previous else season
+            final = max(previous[6], season) if previous else season
+            players[pid] = (source_id, name, first or None, last or name, None, debut, final, position or None)
             teams[(team, season)] = (team, team)
             appearances[(pid, team, season)] = 1
 

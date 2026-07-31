@@ -162,6 +162,11 @@ let friendsData = null;
 
 const GUEST_ID_KEY = 'tt_guest_id';
 const CURRENT_SPORT = document.body.dataset.sport || '';
+const LOCAL_SOLO_SPORTS = new Set(['football', 'basketball', 'hockey']);
+
+function localSoloPath(suffix) {
+  return '/api/local/' + CURRENT_SPORT + '/bp/' + suffix;
+}
 
 const POWERUP_UI = {
   bubblegum: { icon: 'BG', className: 'bubblegum' },
@@ -625,7 +630,10 @@ async function cancelFriendChallenge(challengeId) {
 }
 
 async function getAutocomplete(q) {
-  const r = await fetch('/api/autocomplete?q=' + encodeURIComponent(q));
+  const endpoint = LOCAL_SOLO_SPORTS.has(CURRENT_SPORT)
+    ? '/api/local/' + CURRENT_SPORT + '/autocomplete'
+    : '/api/autocomplete';
+  const r = await fetch(endpoint + '?q=' + encodeURIComponent(q));
   return r.json();
 }
 
@@ -896,8 +904,10 @@ async function startBp() {
   lastChainLength = 0;
   hideGameOverBanner();
   showScreen('bp-game');
-  renderLoadingGame('Batting Practice', 'Loading leadoff...');
-  game = await api('/api/bp/new', { guest_id: profile?.guest_id || storedGuestId() });
+  const localModeName = ({ football: 'Gridiron Reps', basketball: 'Shooting Practice', hockey: 'Skating Sets' })[CURRENT_SPORT] || 'Batting Practice';
+  renderLoadingGame(localModeName, 'Loading leadoff...');
+  game = await api(LOCAL_SOLO_SPORTS.has(CURRENT_SPORT) ? localSoloPath('new') : '/api/bp/new',
+    { guest_id: profile?.guest_id || storedGuestId() });
   if (game.error) {
     alert('error: ' + game.error);
     return;
@@ -1149,7 +1159,8 @@ async function onMpTimeout() {
 }
 
 async function onBpTimeout() {
-  game = await api('/api/bp/timeout', { game_id: game.game_id });
+  game = await api(LOCAL_SOLO_SPORTS.has(CURRENT_SPORT) ? localSoloPath('move') : '/api/bp/timeout',
+    LOCAL_SOLO_SPORTS.has(CURRENT_SPORT) ? { game_id: game.game_id } : { game_id: game.game_id });
   if (game.finished) {
     renderBpGame();
     showGameOverBanner();
@@ -1164,7 +1175,9 @@ async function submitMove({ raw, player_id }) {
   if (!game || game.finished) return;
   closeAutocomplete();
   els.guessInput.value = '';
-  const path = currentMode === 'bp' ? '/api/bp/move' : currentMode === 'po' ? '/api/po/move' : '/api/move';
+  const path = currentMode === 'bp'
+    ? (LOCAL_SOLO_SPORTS.has(CURRENT_SPORT) ? localSoloPath('move') : '/api/bp/move')
+    : currentMode === 'po' ? '/api/po/move' : '/api/move';
   const previousChainLength = game.chain?.length || 0;
   game = await api(path, {
     game_id: game.game_id,

@@ -67,7 +67,7 @@
       <div class="mode-tiles">
         <button class="mode-tile" data-mode="bp">
           <div class="mode-tile-head">
-          <span class="mode-tile-name">Batting Practice</span>
+          <span class="mode-tile-name">{% if sport.key == 'football' %}Gridiron Reps{% elif sport.key == 'basketball' %}Shooting Practice{% elif sport.key == 'hockey' %}Skating Sets{% else %}Batting Practice{% endif %}</span>
           <span class="mode-tile-tag">solo</span>
         </div>
         <span class="mode-tile-desc">
@@ -75,6 +75,7 @@
             apply. Goal: build the longest lineup you can.
         </span>
         </button>
+        {% if sport.key == 'baseball' %}
         <button class="mode-tile" data-mode="fr">
           <div class="mode-tile-head">
             <span class="mode-tile-name">Film Review</span>
@@ -105,6 +106,7 @@
             expanded links create a more chaotic battle.
         </span>
         </button>
+        {% endif %}
       </div>
       {% elif sport %}
       <div class="sport-coming-soon">

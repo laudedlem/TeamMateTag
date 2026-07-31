@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import os
 import secrets
+import sqlite3
 import sys
 import uuid
 import hashlib
@@ -24,7 +25,7 @@ import hmac
 from urllib.parse import urljoin
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from threading import Lock
 
@@ -64,6 +65,20 @@ SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
 DEFAULT_SEED = "rizzoan01"
+LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
+LOCAL_SPORT_DATA = ROOT / "db" / "teammatetag_local.sqlite"
+LOCAL_SPORT_SEEDS = {
+    "football": "nfl:00-0023459",  # Aaron Rodgers
+    "basketball": "nba:1966",       # LeBron James
+    "hockey": "nhl:8471675",        # Sidney Crosby
+}
+LOCAL_SPORT_MODE_NAMES = {
+    "football": "Gridiron Reps",
+    "basketball": "Shooting Practice",
+    "hockey": "Skating Sets",
+}
+LOCAL_BP_GAMES: dict[str, dict] = {}
+LOCAL_BP_LOCK = Lock()
 HEADSHOT_URL = "https://midfield.mlbstatic.com/v1/people/{}/spots/120"
 OPENING_COUNTDOWN_SECONDS = 3.0
 APP_TURN_SECONDS = 20.0
@@ -1776,9 +1791,9 @@ def index():
 
 SPORT_HUBS = {
     "baseball": {"name": "Baseball", "league": "MLB", "ready": True},
-    "basketball": {"name": "Basketball", "league": "NBA", "ready": False},
-    "hockey": {"name": "Hockey", "league": "NHL", "ready": False},
-    "football": {"name": "Football", "league": "NFL", "ready": False},
+    "basketball": {"name": "Basketball", "league": "NBA", "ready": LOCAL_SPORTS_ENABLED},
+    "hockey": {"name": "Hockey", "league": "NHL", "ready": LOCAL_SPORTS_ENABLED},
+    "football": {"name": "Football", "league": "NFL", "ready": LOCAL_SPORTS_ENABLED},
 }
 
 
@@ -2425,6 +2440,126 @@ def bp_leaderboard():
     ensure_runtime_schema()
     with db() as conn:
         return jsonify(_bp_daily_leaderboard(conn))
+
+
+# ----- Local cross-sport Batting Practice -----
+
+def _local_sport_conn() -> sqlite3.Connection:
+    if not LOCAL_SPORTS_ENABLED or not LOCAL_SPORT_DATA.exists():
+        raise RuntimeError("Local sport playtesting is not enabled.")
+    return sqlite3.connect(LOCAL_SPORT_DATA)
+
+
+def _local_sport_cards(conn: sqlite3.Connection, sport: str, player_ids: list[str]) -> dict[str, dict]:
+    out = {}
+    for player_id in player_ids:
+        row = conn.execute(
+            "SELECT debut_year, final_year, first_name, last_name FROM sport_players WHERE sport_id = ? AND player_id = ?",
+            (sport, player_id),
+        ).fetchone()
+        teams = conn.execute(
+            """SELECT DISTINCT t.name FROM sport_appearances a
+                 JOIN sport_teams t ON t.sport_id = a.sport_id AND t.team_id = a.team_id AND t.season = a.season
+                WHERE a.sport_id = ? AND a.player_id = ? ORDER BY t.name""",
+            (sport, player_id),
+        ).fetchall()
+        out[player_id] = {
+            "mlbam_id": None, "headshot_url": None,
+            "debut_year": row[0] if row else None, "final_year": row[1] if row else None,
+            "name_first": row[2] if row else None, "name_last": row[3] if row else None,
+            "teams": [team[0] for team in teams],
+        }
+    return out
+
+
+def _local_bp_state(game_id: str, game: dict) -> dict:
+    state, sport = game["state"], game["sport"]
+    with _local_sport_conn() as conn:
+        cards = _local_sport_cards(conn, sport, state.chain)
+        team_names = {
+            (team, season): name for team, season, name in conn.execute(
+                "SELECT team_id, season, name FROM sport_teams WHERE sport_id = ?", (sport,)
+            )
+        }
+    now = now_utc()
+    elapsed = (now - game["started_at"]).total_seconds()
+    countdown = max(0.0, OPENING_COUNTDOWN_SECONDS - elapsed) if not game["finished"] else 0.0
+    remaining = max(0.0, APP_TURN_SECONDS - max(0.0, elapsed - OPENING_COUNTDOWN_SECONDS)) if not game["finished"] else 0.0
+    chain = []
+    for index, (player_id, name) in enumerate(zip(state.chain, state.chain_names)):
+        card = cards[player_id]
+        chain.append({"id": player_id, "name": name, **card, "shared_with_prev": [
+            {"team_id": team, "season": season, "team_name": team_names.get((team, season), team)}
+            for team, season in state.chain_shared_with_prev[index]
+        ]})
+    return {"game_id": game_id, "mode": "bp", "sport": sport, "mode_name": LOCAL_SPORT_MODE_NAMES[sport],
+            "current_player": {"id": state.current_player_id, "name": state.current_player_name},
+            "chain": chain, "strikes": [{"team_id": team, "season": season, "count": count,
+            "team_name": team_names.get((team, season), team)} for (team, season), count in state.strikes.items()],
+            "chain_length": len(state.chain), "longest_chain": len(state.chain), "turn_seconds": APP_TURN_SECONDS,
+            "countdown_seconds_remaining": countdown, "remaining_seconds": remaining,
+            "finished": game["finished"], "last_move": game.get("last_move")}
+
+
+@app.route("/api/local/<sport>/autocomplete")
+def local_sport_autocomplete(sport: str):
+    q = (request.args.get("q") or "").strip()
+    if sport not in LOCAL_SPORT_SEEDS or not q:
+        return jsonify([])
+    normalized = "".join(char for char in normalize(q) if char.isalnum())
+    with _local_sport_conn() as conn:
+        rows = conn.execute(
+            """SELECT p.player_id, p.display_name, sp.debut_year, sp.final_year, p.career_games
+                 FROM sport_players_searchable p JOIN sport_players sp ON sp.sport_id = p.sport_id AND sp.player_id = p.player_id
+                WHERE p.sport_id = ? AND (p.search_key LIKE ? OR p.last_key LIKE ?)
+                ORDER BY p.career_games DESC LIMIT 4""",
+            (sport, normalized + "%", normalized + "%"),
+        ).fetchall()
+    return jsonify([{"player_id": pid, "display_name": name, "debut_year": debut, "final_year": final,
+                     "career_games": games} for pid, name, debut, final, games in rows])
+
+
+@app.route("/api/local/<sport>/bp/new", methods=["POST"])
+def local_bp_new(sport: str):
+    if sport not in LOCAL_SPORT_SEEDS:
+        return jsonify({"error": "unsupported local sport"}), 404
+    with _local_sport_conn() as conn:
+        state = seed_game(conn, LOCAL_SPORT_SEEDS[sport], sport=sport)
+    game_id = str(uuid.uuid4())
+    game = {"sport": sport, "state": state, "started_at": now_utc(), "finished": False, "last_move": None}
+    with LOCAL_BP_LOCK:
+        LOCAL_BP_GAMES[game_id] = game
+    return jsonify(_local_bp_state(game_id, game))
+
+
+@app.route("/api/local/<sport>/bp/move", methods=["POST"])
+def local_bp_move(sport: str):
+    data = request.get_json(silent=True) or {}
+    game_id = data.get("game_id")
+    with LOCAL_BP_LOCK:
+        game = LOCAL_BP_GAMES.get(game_id)
+        if not game or game["sport"] != sport:
+            return jsonify({"error": "unknown local game"}), 404
+        if (now_utc() - game["started_at"]).total_seconds() > APP_TURN_SECONDS + OPENING_COUNTDOWN_SECONDS:
+            game["finished"] = True
+            game["last_move"] = {"outcome": "timeout"}
+        elif not game["finished"]:
+            with _local_sport_conn() as conn:
+                picked_id = (data.get("player_id") or "").strip() or None
+                result = validate_and_apply_move(
+                    game["state"], conn,
+                    player_id=picked_id,
+                    raw_input=None if picked_id else (data.get("raw") or "").strip(),
+                    track_strikes=True, sport=sport,
+                )
+                game["last_move"] = {"outcome": result.outcome.value, "player_id": result.player_id,
+                    "display_name": result.display_name, "disambiguation": result.disambiguation,
+                    "ambiguous_count": result.ambiguous_count, "shared_seasons": [
+                    {"team_id": t, "season": s, "team_name": t} for t, s in result.shared_seasons],
+                    "burned_seasons": [{"team_id": t, "season": s, "team_name": t} for t, s in result.burned_seasons]}
+                if result.outcome == MoveOutcome.VALID:
+                    game["started_at"] = now_utc() - timedelta(seconds=OPENING_COUNTDOWN_SECONDS)
+        return jsonify(_local_bp_state(game_id, game))
 
 
 # ----- Player autocomplete (used by MP + BP) -----
