@@ -103,6 +103,10 @@ season source refresh.
   roster snapshot cached at `raw/nhl/WPG/20252026.json` does not contain
   Jonathan Toews. Treat historical NHL roster snapshots as incomplete until a
   second source based on player-game appearances or transactions is added.
+- Jonathan Toews is a confirmed example: his official player landing record
+  reports Winnipeg Jets, 82 games, 2025-26. The local appearance was inserted
+  and `scripts/refresh_nhl_player_seasons.py` generalizes this player-season
+  backfill method.
 - Do not promise a headshot for every historical player yet. Native NBA and
   NFL URLs leave legacy gaps. Before production, build a cached photo resolver
   with league-native URLs first and a rights-cleared fallback source, recording
