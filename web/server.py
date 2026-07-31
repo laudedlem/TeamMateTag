@@ -2490,7 +2490,7 @@ def _local_sport_cards(conn: sqlite3.Connection, sport: str, player_ids: list[st
         elif sport == "hockey" and external_id:
             headshot = f"https://assets.nhle.com/mugs/nhl/latest/{external_id}.png"
         elif sport == "football" and external_id:
-            headshot = f"https://a.espncdn.com/i/headshots/nfl/players/full/{external_id}.png"
+            headshot = external_id if str(external_id).startswith("http") else f"https://a.espncdn.com/i/headshots/nfl/players/full/{external_id}.png"
         else:
             headshot = None
         out[player_id] = {

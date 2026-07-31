@@ -64,7 +64,11 @@ def main() -> None:
                 name = " ".join(part for part in (field(row, "firstName"), field(row, "lastName")) if part)
                 name = name or field(row, "player", "playername", "name", "display_name")
                 if source_id and name:
-                    bio[source_id] = (name, field(row, "position", "pos"))
+                    groups = []
+                    if field(row, "guard") == "1": groups.append("G")
+                    if field(row, "forward") == "1": groups.append("F")
+                    if field(row, "center") == "1": groups.append("C")
+                    bio[source_id] = (name, "/".join(groups))
 
     players, teams, appearances, positions = {}, {}, defaultdict(int), defaultdict(lambda: defaultdict(int))
     with stats_path.open(encoding="utf-8-sig", newline="") as handle:
@@ -86,7 +90,8 @@ def main() -> None:
             debut = min(previous[5], season) if previous else season
             final = max(previous[6], season) if previous else season
             players[pid] = (source_id, name, first or None, last or name, None, debut, final, position or None)
-            position = field(row, "startingPosition", "position", "pos")
+            # Kaggle's starter field can mark players at emergency positions.
+            # Player biography group positions are the stable source here.
             if position:
                 positions[pid][position.upper()] += 1
             team_name = " ".join(part for part in (field(row, "playerteamCity"), field(row, "playerteamName")) if part)

@@ -21,7 +21,7 @@
       <button id="reference-btn" class="icon-btn" title="Powerup reference" aria-label="Powerup reference">Ref</button>
       <div class="header-toggles" id="header-toggles" hidden>
         <label><input type="checkbox" id="toggle-lineup" checked> Lineup</label>
-        <label><input type="checkbox" id="toggle-out" checked> Struck Out</label>
+        <label><input type="checkbox" id="toggle-out" checked> {% if sport and sport.key == 'football' %}Punted{% elif sport and sport.key == 'basketball' %}Fouled Out{% elif sport and sport.key == 'hockey' %}Game Misconduct{% else %}Struck Out{% endif %}</label>
       </div>
     </div>
   </header>
@@ -63,7 +63,7 @@
         </div>
       </div>{% endif %}
       {% if sport and sport_ready %}
-      <h2>Step Into The Box</h2>
+      <h2>{% if sport and sport.key == 'football' %}Hit The Gridiron{% elif sport and sport.key == 'basketball' %}Take The Court{% elif sport and sport.key == 'hockey' %}Hit The Ice{% else %}Step Into The Box{% endif %}</h2>
       <div class="mode-tiles">
         <button class="mode-tile" data-mode="bp">
           <div class="mode-tile-head">
@@ -362,9 +362,9 @@
           <ol id="lineup" class="lineup-list"></ol>
         </div>
         <div class="side-section" id="out-section">
-          <h3>Struck Out</h3>
+          <h3>{% if sport and sport.key == 'football' %}Punted{% elif sport and sport.key == 'basketball' %}Fouled Out{% elif sport and sport.key == 'hockey' %}Game Misconduct{% else %}Struck Out{% endif %}</h3>
           <ul id="out-list" class="out-list"></ul>
-          <p id="out-empty" class="muted small">No teams struck out yet.</p>
+          <p id="out-empty" class="muted small">No teams {% if sport and sport.key == 'football' %}punted{% elif sport and sport.key == 'basketball' %}fouled out{% elif sport and sport.key == 'hockey' %}given game misconducts{% else %}struck out{% endif %} yet.</p>
         </div>
       </aside>
     </div>
