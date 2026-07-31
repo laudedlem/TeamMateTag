@@ -1679,10 +1679,12 @@ function makePlayerCard(player, isSeed, options = {}) {
   const info = document.createElement('div');
   info.className = 'player-info';
   const yrs = formatYears(player.debut_year, player.final_year);
+  const position = player.primary_pos ? `<div class="years">${escapeHtml(player.primary_pos)}</div>` : '';
   const seedBadge = isSeed ? '<span class="seed-badge">leadoff</span>' : '';
   info.innerHTML = `
     <h3 class="name">${escapeHtml(player.name)}${seedBadge}</h3>
     <div class="years">${escapeHtml(yrs)}</div>
+    ${position}
     ${showTeams ? `<div class="teams-label">Teams</div><ul class="teams">${(player.teams || []).map((t) => `<li>${escapeHtml(t)}</li>`).join('')}</ul>` : ''}`;
   playerCard.appendChild(info);
   return playerCard;

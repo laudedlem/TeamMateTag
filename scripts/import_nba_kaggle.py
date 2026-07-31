@@ -66,7 +66,7 @@ def main() -> None:
                 if source_id and name:
                     bio[source_id] = (name, field(row, "position", "pos"))
 
-    players, teams, appearances = {}, {}, defaultdict(int)
+    players, teams, appearances, positions = {}, {}, defaultdict(int), defaultdict(lambda: defaultdict(int))
     with stats_path.open(encoding="utf-8-sig", newline="") as handle:
         for row in csv.DictReader(handle):
             season = nba_season(row) or season_year(field(row, "season", "seasonyear", "season_year", "year"))
@@ -86,12 +86,18 @@ def main() -> None:
             debut = min(previous[5], season) if previous else season
             final = max(previous[6], season) if previous else season
             players[pid] = (source_id, name, first or None, last or name, None, debut, final, position or None)
+            position = field(row, "startingPosition", "position", "pos")
+            if position:
+                positions[pid][position.upper()] += 1
             team_name = " ".join(part for part in (field(row, "playerteamCity"), field(row, "playerteamName")) if part)
             teams[(team, season)] = (team, team_name or team)
             appearances[(pid, team, season)] = 1
 
     if not appearances:
         raise SystemExit("No NBA player-team-season rows were recognized. Check the Kaggle CSV column names.")
+    for pid, values in list(players.items()):
+        top_positions = sorted(positions[pid], key=positions[pid].get, reverse=True)[:2]
+        players[pid] = (*values[:-1], "/".join(top_positions) or values[-1])
     conn = sqlite3.connect(DATABASE)
     try:
         conn.executescript(SCHEMA)

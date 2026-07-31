@@ -29,7 +29,7 @@
   <!-- ===================== HOME SCREEN ====================== -->
   <section id="home-screen" class="screen">
     <div class="home">
-      <div class="profile-card" id="profile-card">
+      {% if not sport %}<div class="profile-card" id="profile-card">
         <div class="profile-head">
           <div>
             <div class="profile-label">Profile</div>
@@ -61,7 +61,7 @@
           </div>
           <p id="account-status" class="muted small"></p>
         </div>
-      </div>
+      </div>{% endif %}
       {% if sport and sport_ready %}
       <h2>Step Into The Box</h2>
       <div class="mode-tiles">

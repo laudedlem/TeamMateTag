@@ -2454,20 +2454,36 @@ def _local_sport_cards(conn: sqlite3.Connection, sport: str, player_ids: list[st
     out = {}
     for player_id in player_ids:
         row = conn.execute(
-            "SELECT debut_year, final_year, first_name, last_name FROM sport_players WHERE sport_id = ? AND player_id = ?",
+            "SELECT external_id, debut_year, final_year, first_name, last_name, primary_pos FROM sport_players WHERE sport_id = ? AND player_id = ?",
             (sport, player_id),
         ).fetchone()
-        teams = conn.execute(
-            """SELECT DISTINCT t.name FROM sport_appearances a
+        appearances = conn.execute(
+            """SELECT t.name, a.season FROM sport_appearances a
                  JOIN sport_teams t ON t.sport_id = a.sport_id AND t.team_id = a.team_id AND t.season = a.season
-                WHERE a.sport_id = ? AND a.player_id = ? ORDER BY t.name""",
+                WHERE a.sport_id = ? AND a.player_id = ? ORDER BY a.season, t.name""",
             (sport, player_id),
         ).fetchall()
+        spans = []
+        for team, season in appearances:
+            if spans and spans[-1][0] == team and spans[-1][2] == season - 1:
+                spans[-1][2] = season
+            else:
+                spans.append([team, season, season])
+        teams = [f"{team} {start}" if start == end else f"{team} {start}-{end}" for team, start, end in spans]
+        external_id = row[0] if row else None
+        if sport == "basketball" and external_id:
+            headshot = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{external_id}.png"
+        elif sport == "hockey" and external_id:
+            headshot = f"https://assets.nhle.com/mugs/nhl/latest/{external_id}.png"
+        elif sport == "football" and external_id:
+            headshot = f"https://a.espncdn.com/i/headshots/nfl/players/full/{external_id}.png"
+        else:
+            headshot = None
         out[player_id] = {
-            "mlbam_id": None, "headshot_url": None,
-            "debut_year": row[0] if row else None, "final_year": row[1] if row else None,
-            "name_first": row[2] if row else None, "name_last": row[3] if row else None,
-            "teams": [team[0] for team in teams],
+            "mlbam_id": None, "headshot_url": headshot,
+            "debut_year": row[1] if row else None, "final_year": row[2] if row else None,
+            "name_first": row[3] if row else None, "name_last": row[4] if row else None,
+            "primary_pos": row[5] if row else None, "teams": teams,
         }
     return out
 
@@ -2492,13 +2508,17 @@ def _local_bp_state(game_id: str, game: dict) -> dict:
             {"team_id": team, "season": season, "team_name": team_names.get((team, season), team)}
             for team, season in state.chain_shared_with_prev[index]
         ]})
+    last_move = dict(game["last_move"] or {})
+    for field in ("shared_seasons", "burned_seasons"):
+        for item in last_move.get(field, []):
+            item["team_name"] = team_names.get((item["team_id"], item["season"]), item["team_id"])
     return {"game_id": game_id, "mode": "bp", "sport": sport, "mode_name": LOCAL_SPORT_MODE_NAMES[sport],
             "current_player": {"id": state.current_player_id, "name": state.current_player_name},
             "chain": chain, "strikes": [{"team_id": team, "season": season, "count": count,
             "team_name": team_names.get((team, season), team)} for (team, season), count in state.strikes.items()],
             "chain_length": len(state.chain), "longest_chain": len(state.chain), "turn_seconds": APP_TURN_SECONDS,
             "countdown_seconds_remaining": countdown, "remaining_seconds": remaining,
-            "finished": game["finished"], "last_move": game.get("last_move")}
+            "finished": game["finished"], "last_move": last_move}
 
 
 @app.route("/api/local/<sport>/autocomplete")
