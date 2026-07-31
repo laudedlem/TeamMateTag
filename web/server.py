@@ -68,9 +68,9 @@ DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
 LOCAL_SPORT_DATA = ROOT / "db" / "teammatetag_local.sqlite"
 LOCAL_SPORT_SEEDS = {
-    "football": "nfl:00-0023459",  # Aaron Rodgers
-    "basketball": "nba:1966",       # LeBron James
-    "hockey": "nhl:8471675",        # Sidney Crosby
+    "football": "nfl:00-0024272",  # Devin Hester
+    "basketball": "nba:201565",     # Derrick Rose
+    "hockey": "nhl:8474141",        # Patrick Kane
 }
 LOCAL_SPORT_MODE_NAMES = {
     "football": "Gridiron Reps",

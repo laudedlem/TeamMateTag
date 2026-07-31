@@ -663,6 +663,8 @@ function showScreen(name) {
 function clearModePanels() {
   els.winPanel.hidden = true;
   els.powerupPanel.hidden = true;
+  els.winPanel.style.display = 'none';
+  els.powerupPanel.style.display = 'none';
 }
 
 function exitToHome() {
@@ -1417,6 +1419,7 @@ function renderWinPips(progress, target) {
 function renderWinConditions() {
   const isPo = currentMode === 'po' && game?.win_conditions;
   els.winPanel.hidden = !isPo;
+  els.winPanel.style.display = isPo ? '' : 'none';
   if (!isPo) return;
   const your = game.win_conditions.your_condition;
   const opp = game.win_conditions.opponent_condition;
@@ -1581,7 +1584,7 @@ function startRematchPolling() {
 
 function renderBpGame() {
   clearModePanels();
-  els.turnLabel.textContent = 'Batting Practice';
+  els.turnLabel.textContent = game.mode_name || 'Batting Practice';
   els.currentPlayerName.textContent = game.current_player.name;
   els.timer.title = 'seconds left';
   setGuessDisabled(game.finished || (game.countdown_seconds_remaining || 0) > 0);
@@ -1601,6 +1604,7 @@ function renderBpGame() {
 function renderPowerups() {
   const isPo = currentMode === 'po' && game?.powerups;
   els.powerupPanel.hidden = !isPo;
+  els.powerupPanel.style.display = isPo ? '' : 'none';
   if (!isPo) return;
   const your = game.powerups.your_powerups || [];
   const opp = game.powerups.opponent_powerups || [];
