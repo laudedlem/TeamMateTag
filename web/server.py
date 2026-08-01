@@ -104,6 +104,13 @@ LOCAL_DR_REMATCH_REQUESTS: dict[str, set[str]] = {}
 LOCAL_DR_REMATCH_LINKS: dict[str, str] = {}
 LOCAL_DR_POSTGAME_EXITS: dict[str, set[str]] = {}
 LOCAL_DR_LOCK = Lock()
+LOCAL_PO_GAMES: dict[str, dict] = {}
+LOCAL_PO_QUEUE: dict[str, list[dict]] = {sport: [] for sport in LOCAL_SPORT_SEEDS}
+LOCAL_PO_MATCH_BY_PLAYER: dict[tuple[str, str], str] = {}
+LOCAL_PO_REMATCH_REQUESTS: dict[str, set[str]] = {}
+LOCAL_PO_REMATCH_LINKS: dict[str, str] = {}
+LOCAL_PO_POSTGAME_EXITS: dict[str, set[str]] = {}
+LOCAL_PO_LOCK = Lock()
 HEADSHOT_URL = "https://midfield.mlbstatic.com/v1/people/{}/spots/120"
 OPENING_COUNTDOWN_SECONDS = 3.0
 APP_TURN_SECONDS = 20.0
@@ -111,6 +118,57 @@ SUPPORT_EMAIL = "support@teammatetag.com"
 SESSION_COOKIE = "tt_session"
 DEFAULT_PLAYOFF_TURN_SECONDS = 20.0
 QUICK_PITCH_TURN_SECONDS = 10.0
+
+# These are intentionally based only on fields in the local cross-sport
+# dataset. Production scoring and award traits can be added without changing
+# the local Playoffs API or client contract.
+LOCAL_PLAYOFF_CONFIG = {
+    "basketball": {
+        "powerups": {
+            "heat_check": {"label": "Heat Check", "description": "Any player from a franchise shared with the top player. +5 seconds.", "kind": "franchise", "bonus_seconds": 5},
+            "sixth_man": {"label": "Sixth Man", "description": "A 500-game veteran from a franchise shared with the top player. +5 seconds.", "kind": "veteran", "bonus_seconds": 5, "career_games": 500},
+            "switch": {"label": "Switch", "description": "A player in the same position group from a franchise shared with the top player. +5 seconds.", "kind": "position", "bonus_seconds": 5},
+            "timeout": {"label": "Timeout", "description": "+15 seconds on your turn.", "kind": "time", "bonus_seconds": 15},
+            "full_court_press": {"label": "Full-Court Press", "description": "Your opponent gets 10 seconds on their next turn.", "kind": "pressure"},
+        },
+        "conditions": {
+            "ironman": {"label": "Ironman", "description": "Name 3 players with 500 career games", "target": 3, "kind": "career_games", "threshold": 500},
+            "one_team": {"label": "Home Court", "description": "Name 2 players with 8 seasons for one franchise", "target": 2, "kind": "one_franchise", "threshold": 8},
+            "journeyman": {"label": "Frequent Flyer", "description": "Name 2 players who played for 5 teams", "target": 2, "kind": "team_count", "threshold": 5},
+            "backcourt": {"label": "Backcourt", "description": "Name 3 guards", "target": 3, "kind": "position_group", "group": "guard"},
+        },
+    },
+    "football": {
+        "powerups": {
+            "trick_play": {"label": "Trick Play", "description": "Any player from a franchise shared with the top player. +5 seconds.", "kind": "franchise", "bonus_seconds": 5},
+            "iron_man": {"label": "Iron Man", "description": "A 100-game veteran from a franchise shared with the top player. +5 seconds.", "kind": "veteran", "bonus_seconds": 5, "career_games": 100},
+            "package_change": {"label": "Package Change", "description": "A player in the same unit from a franchise shared with the top player. +5 seconds.", "kind": "position", "bonus_seconds": 5},
+            "timeout": {"label": "Timeout", "description": "+15 seconds on your turn.", "kind": "time", "bonus_seconds": 15},
+            "blitz": {"label": "Blitz", "description": "Your opponent gets 10 seconds on their next turn.", "kind": "pressure"},
+        },
+        "conditions": {
+            "ironman": {"label": "Iron Man", "description": "Name 3 players with 100 career games", "target": 3, "kind": "career_games", "threshold": 100},
+            "one_team": {"label": "One Club", "description": "Name 2 players with 10 seasons for one franchise", "target": 2, "kind": "one_franchise", "threshold": 10},
+            "journeyman": {"label": "Journeyman", "description": "Name 2 players who played for 5 teams", "target": 2, "kind": "team_count", "threshold": 5},
+            "defense": {"label": "Defense Wins", "description": "Name 3 defensive players", "target": 3, "kind": "position_group", "group": "defense"},
+        },
+    },
+    "hockey": {
+        "powerups": {
+            "breakaway": {"label": "Breakaway", "description": "Any player from a franchise shared with the top player. +5 seconds.", "kind": "franchise", "bonus_seconds": 5},
+            "veteran_presence": {"label": "Veteran Presence", "description": "A 500-game veteran from a franchise shared with the top player. +5 seconds.", "kind": "veteran", "bonus_seconds": 5, "career_games": 500},
+            "line_change": {"label": "Line Change", "description": "A player in the same position group from a franchise shared with the top player. +5 seconds.", "kind": "position", "bonus_seconds": 5},
+            "timeout": {"label": "Timeout", "description": "+15 seconds on your turn.", "kind": "time", "bonus_seconds": 15},
+            "forecheck": {"label": "Forecheck", "description": "Your opponent gets 10 seconds on their next turn.", "kind": "pressure"},
+        },
+        "conditions": {
+            "ironman": {"label": "Ironman", "description": "Name 3 players with 500 career games", "target": 3, "kind": "career_games", "threshold": 500},
+            "one_team": {"label": "Lifer", "description": "Name 2 players with 10 seasons for one franchise", "target": 2, "kind": "one_franchise", "threshold": 10},
+            "journeyman": {"label": "Journeyman", "description": "Name 2 players who played for 5 teams", "target": 2, "kind": "team_count", "threshold": 5},
+            "blue_line": {"label": "Blue Line", "description": "Name 3 defensemen", "target": 3, "kind": "position_group", "group": "defense"},
+        },
+    },
+}
 
 PLAYOFF_POWERUPS = {
     "bubblegum": {
@@ -3119,6 +3177,375 @@ def local_dr_cancel_queue(sport: str):
 def local_dr_cancel_challenge(sport: str):
     # Challenge codes remain a production-baseball feature until account-backed
     # cross-sport games are migrated from the local data store.
+    return jsonify({"status": "idle"})
+
+
+# ----- Local cross-sport Playoffs -----
+
+def _local_position_group(sport: str, position: str | None) -> str:
+    value = (position or "").upper()
+    if sport == "basketball":
+        return "guard" if "G" in value else "big" if "C" in value or "F" in value else "other"
+    if sport == "hockey":
+        return "defense" if value == "D" else "goalie" if value == "G" else "forward"
+    defensive = {"CB", "S", "FS", "SS", "LB", "OLB", "ILB", "MLB", "MIKE", "DT", "DE", "EDGE", "DL", "NT"}
+    special = {"K", "P", "LS"}
+    return "defense" if value in defensive else "special" if value in special else "offense"
+
+
+def _local_po_traits(conn: sqlite3.Connection, sport: str, player_id: str) -> dict:
+    row = conn.execute(
+        """SELECT p.primary_pos, s.career_games,
+                  COUNT(DISTINCT a.team_id), COUNT(DISTINCT t.franchise_id), COUNT(DISTINCT a.season)
+             FROM sport_players p
+             JOIN sport_players_searchable s ON s.sport_id=p.sport_id AND s.player_id=p.player_id
+             LEFT JOIN sport_appearances a ON a.sport_id=p.sport_id AND a.player_id=p.player_id
+             LEFT JOIN sport_teams t ON t.sport_id=a.sport_id AND t.team_id=a.team_id AND t.season=a.season
+            WHERE p.sport_id=? AND p.player_id=?
+            GROUP BY p.primary_pos, s.career_games""",
+        (sport, player_id),
+    ).fetchone()
+    if not row:
+        return {"position": "", "career_games": 0, "team_count": 0, "franchise_count": 0, "season_count": 0}
+    return dict(zip(("position", "career_games", "team_count", "franchise_count", "season_count"), row))
+
+
+def _local_po_condition_increment(conn: sqlite3.Connection, sport: str, key: str, player_id: str) -> int:
+    condition = LOCAL_PLAYOFF_CONFIG[sport]["conditions"][key]
+    traits = _local_po_traits(conn, sport, player_id)
+    kind, threshold = condition["kind"], int(condition.get("threshold") or 0)
+    if kind == "career_games":
+        return int(traits["career_games"] >= threshold)
+    if kind == "team_count":
+        return int(traits["team_count"] >= threshold)
+    if kind == "one_franchise":
+        return int(traits["franchise_count"] == 1 and traits["season_count"] >= threshold)
+    if kind == "position_group":
+        return int(_local_position_group(sport, traits["position"]) == condition["group"])
+    return 0
+
+
+def _local_po_powerup_state(game: dict, viewer_guest_id: str) -> dict:
+    config = LOCAL_PLAYOFF_CONFIG[game["sport"]]["powerups"]
+    def payload(side: str) -> list[dict]:
+        used = set(game.get(f"{side}_powerup_used_keys") or [])
+        return [{"key": key, "label": meta["label"], "description": meta["description"],
+                 "kind": meta["kind"], "used": key in used,
+                 "owner": game[side]}
+                for key, meta in config.items()]
+    your_side = "p1" if viewer_guest_id == game["p1_guest_id"] else "p2"
+    other = "p2" if your_side == "p1" else "p1"
+    active = game.get("active_turn_powerup")
+    return {
+        "your_powerups": payload(your_side), "opponent_powerups": payload(other),
+        "active_turn_powerup": {"key": active, "label": config[active]["label"]} if active else None,
+        "turn_powerup_used": bool(game.get("turn_powerup_used")),
+    }
+
+
+def _local_po_state(game_id: str, game: dict, viewer_guest_id: str) -> dict:
+    _local_dr_expire(game)
+    elapsed = (now_utc() - game["turn_started_at"]).total_seconds()
+    countdown_left = max(0.0, game["countdown_seconds"] - elapsed) if not game["finished"] else 0.0
+    remaining = max(0.0, game["turn_seconds"] - max(0.0, elapsed - game["countdown_seconds"])) if not game["finished"] else 0.0
+    state = game["state"]
+    chain, strikes = _local_dr_chain(state, game["sport"])
+    link_meta = game.get("chain_link_meta") or [None] * len(chain)
+    hits = game.get("chain_win_condition_hits") or [False] * len(chain)
+    for index, player in enumerate(chain):
+        player["link_meta_with_prev"] = link_meta[index] if index < len(link_meta) else None
+        player["win_condition_hit"] = bool(hits[index]) if index < len(hits) else False
+    your_side = "p1" if viewer_guest_id == game["p1_guest_id"] else "p2"
+    other_side = "p2" if your_side == "p1" else "p1"
+    conditions = LOCAL_PLAYOFF_CONFIG[game["sport"]]["conditions"]
+    def condition_payload(side: str) -> dict:
+        key = game[f"{side}_win_condition_key"]
+        condition = conditions[key]
+        return {"key": key, "label": condition["label"], "description": condition["description"],
+                "target": condition["target"], "progress": game.get(f"{side}_win_progress", 0),
+                "completed": game.get(f"{side}_win_completed", False)}
+    last_move = dict(game.get("last_move") or {})
+    if last_move.get("shared_seasons") or last_move.get("burned_seasons"):
+        with _local_sport_conn() as conn:
+            for field in ("shared_seasons", "burned_seasons"):
+                for item in last_move.get(field, []):
+                    item["team_name"] = _local_team_name(game["sport"], item["team_id"], item["season"], conn)
+    return {
+        "game_id": game_id, "mode": "po", "sport": game["sport"],
+        "current_player": {"id": state.current_player_id, "name": state.current_player_name},
+        "current_label": game["p1"] if game["turn_index"] == 0 else game["p2"],
+        "p1": game["p1"], "p2": game["p2"],
+        "p1_guest_id": game["p1_guest_id"], "p2_guest_id": game["p2_guest_id"],
+        "viewer_guest_id": viewer_guest_id, "your_side": your_side,
+        "your_name": game[your_side], "opponent_name": game[other_side],
+        "your_turn": not game["finished"] and ((your_side == "p1" and game["turn_index"] == 0) or (your_side == "p2" and game["turn_index"] == 1)),
+        "turn_index": game["turn_index"], "turn_seconds": game["turn_seconds"],
+        "default_turn_seconds": APP_TURN_SECONDS, "countdown_seconds_remaining": countdown_left,
+        "remaining_seconds": remaining, "chain": chain, "strikes": strikes,
+        "finished": game["finished"], "winner": game.get("winner"), "last_move": last_move,
+        "powerups": _local_po_powerup_state(game, viewer_guest_id),
+        "win_conditions": {"your_condition": condition_payload(your_side), "opponent_condition": condition_payload(other_side)},
+    }
+
+
+def _local_po_create_game(sport: str, first: dict, second: dict, preferences: dict[str, str] | None = None) -> tuple[str, dict]:
+    p1, p2 = (first, second) if secrets.randbelow(2) == 0 else (second, first)
+    conditions = LOCAL_PLAYOFF_CONFIG[sport]["conditions"]
+    preferences = preferences or {}
+    def selected(player: dict) -> str:
+        preference = preferences.get(player["guest_id"], "random")
+        return preference if preference in conditions else secrets.choice(list(conditions))
+    with _local_sport_conn() as conn:
+        state = seed_game(conn, LOCAL_SPORT_SEEDS[sport], sport=sport)
+    game_id = str(uuid.uuid4())
+    game = {
+        "sport": sport, "state": state, "p1": p1["name"], "p2": p2["name"],
+        "p1_guest_id": p1["guest_id"], "p2_guest_id": p2["guest_id"], "turn_index": 0,
+        "turn_seconds": APP_TURN_SECONDS, "turn_started_at": now_utc(), "countdown_seconds": OPENING_COUNTDOWN_SECONDS,
+        "finished": False, "winner": None, "last_move": None, "active_turn_powerup": None,
+        "next_turn_seconds_override": None, "turn_powerup_used": False,
+        "p1_powerup_used_keys": [], "p2_powerup_used_keys": [],
+        "p1_win_condition_key": selected(p1), "p2_win_condition_key": selected(p2),
+        "p1_win_progress": 0, "p2_win_progress": 0, "p1_win_completed": False, "p2_win_completed": False,
+        "chain_win_condition_hits": [False], "chain_link_meta": [None],
+    }
+    LOCAL_PO_GAMES[game_id] = game
+    LOCAL_PO_MATCH_BY_PLAYER[_local_dr_player_key(sport, p1["guest_id"])] = game_id
+    LOCAL_PO_MATCH_BY_PLAYER[_local_dr_player_key(sport, p2["guest_id"])] = game_id
+    return game_id, game
+
+
+def _local_po_status(sport: str, guest_id: str) -> dict:
+    game_id = LOCAL_PO_MATCH_BY_PLAYER.get(_local_dr_player_key(sport, guest_id))
+    game = LOCAL_PO_GAMES.get(game_id) if game_id else None
+    if game and not game["finished"]:
+        return {"status": "matched", "game": _local_po_state(game_id, game, guest_id)}
+    if any(row["guest_id"] == guest_id for row in LOCAL_PO_QUEUE[sport]):
+        return {"status": "waiting", "guest_id": guest_id}
+    return {"status": "idle"}
+
+
+def _local_po_pick(conn: sqlite3.Connection, sport: str, raw: str, player_id: str | None) -> tuple[str | None, str | None, str | None, int]:
+    if player_id:
+        row = conn.execute("SELECT display_name, disambiguation FROM sport_players_searchable WHERE sport_id=? AND player_id=?", (sport, player_id)).fetchone()
+        return (player_id, row[0], row[1], 1) if row else (None, None, None, 0)
+    matches = find_player_by_name(conn, raw, sport=sport)
+    return (matches[0][0], matches[0][1], matches[0][2], len(matches)) if matches else (None, None, None, 0)
+
+
+def _local_po_powerup_move(conn: sqlite3.Connection, game: dict, raw: str, player_id: str | None) -> dict | None:
+    key = game.get("active_turn_powerup")
+    if not key:
+        return None
+    sport, state, meta = game["sport"], game["state"], LOCAL_PLAYOFF_CONFIG[game["sport"]]["powerups"][key]
+    candidate_id, name, disambiguation, ambiguous_count = _local_po_pick(conn, sport, raw, player_id)
+    if not candidate_id or candidate_id in state.chain:
+        return None
+    current_franchises = {row[0] for row in conn.execute(
+        """SELECT DISTINCT t.franchise_id FROM sport_appearances a JOIN sport_teams t
+               ON t.sport_id=a.sport_id AND t.team_id=a.team_id AND t.season=a.season
+             WHERE a.sport_id=? AND a.player_id=?""", (sport, state.current_player_id))}
+    traits = _local_po_traits(conn, sport, candidate_id)
+    eligible = bool(current_franchises)
+    if meta["kind"] == "veteran":
+        eligible = eligible and traits["career_games"] >= meta["career_games"]
+    elif meta["kind"] == "position":
+        current_traits = _local_po_traits(conn, sport, state.current_player_id)
+        eligible = eligible and _local_position_group(sport, traits["position"]) == _local_position_group(sport, current_traits["position"])
+    if not eligible:
+        return {"outcome": "powerup_not_eligible", "player_id": candidate_id, "display_name": name,
+                "disambiguation": disambiguation, "ambiguous_count": ambiguous_count, "powerup_key": key,
+                "powerup_label": meta["label"], "reason": f"{name} is not eligible for {meta['label']}."}
+    rows = conn.execute(
+        """SELECT a.team_id, a.season FROM sport_appearances a JOIN sport_teams t
+               ON t.sport_id=a.sport_id AND t.team_id=a.team_id AND t.season=a.season
+             WHERE a.sport_id=? AND a.player_id=? AND t.franchise_id IN ({}) ORDER BY a.season, a.team_id""".format(
+            ",".join("?" for _ in current_franchises)), (sport, candidate_id, *sorted(current_franchises))).fetchall()
+    available = [(team, season) for team, season in rows if not state.is_burned((team, season))]
+    if not available:
+        return {"outcome": "blocked_by_burned", "player_id": candidate_id, "display_name": name,
+                "disambiguation": disambiguation, "ambiguous_count": ambiguous_count, "powerup_key": key,
+                "powerup_label": meta["label"], "shared_seasons": [{"team_id": team, "season": season} for team, season in rows],
+                "burned_seasons": [{"team_id": team, "season": season} for team, season in rows]}
+    team, season = available[0]
+    state.strikes[(team, season)] = state.strikes.get((team, season), 0) + 1
+    state.chain.append(candidate_id); state.chain_names.append(name); state.chain_shared_with_prev.append([(team, season)])
+    game["chain_link_meta"].append({"type": "powerup", "powerup_key": key, "powerup_label": meta["label"]})
+    return {"outcome": "valid", "player_id": candidate_id, "display_name": name, "disambiguation": disambiguation,
+            "ambiguous_count": ambiguous_count, "shared_seasons": [{"team_id": team, "season": season}], "burned_seasons": [],
+            "powerup_key": key, "powerup_label": meta["label"], "move_via_powerup": True}
+
+
+@app.route("/api/local/<sport>/po/queue", methods=["POST"])
+def local_po_queue(sport: str):
+    data = request.get_json(silent=True) or {}
+    guest_id = (data.get("guest_id") or "").strip()
+    if sport not in LOCAL_PLAYOFF_CONFIG or not guest_id:
+        return jsonify({"error": "supported sport and guest_id required"}), 400
+    name = (data.get("display_name") or "Player").strip()[:24] or "Player"
+    avoid = (data.get("avoid_guest_id") or "").strip()
+    preference = (data.get("win_condition_preference") or "random").strip()
+    with LOCAL_PO_LOCK:
+        current = _local_po_status(sport, guest_id)
+        if current["status"] == "matched": return jsonify(current)
+        queue = LOCAL_PO_QUEUE[sport]; queue[:] = [row for row in queue if row["guest_id"] != guest_id]
+        opponent_index = next((i for i, row in enumerate(queue) if row["guest_id"] != guest_id and row["guest_id"] != avoid), None)
+        own = {"guest_id": guest_id, "name": name, "preference": preference}
+        if opponent_index is None:
+            queue.append(own); return jsonify({"status": "waiting", "guest_id": guest_id})
+        opponent = queue.pop(opponent_index)
+        preferences = {guest_id: preference, opponent["guest_id"]: opponent.get("preference", "random")}
+        game_id, game = _local_po_create_game(sport, opponent, own, preferences)
+        return jsonify({"status": "matched", "game": _local_po_state(game_id, game, guest_id)})
+
+
+@app.route("/api/local/<sport>/po/status", methods=["POST"])
+def local_po_status(sport: str):
+    guest_id = ((request.get_json(silent=True) or {}).get("guest_id") or "").strip()
+    if sport not in LOCAL_PLAYOFF_CONFIG or not guest_id: return jsonify({"error": "supported sport and guest_id required"}), 400
+    with LOCAL_PO_LOCK: return jsonify(_local_po_status(sport, guest_id))
+
+
+@app.route("/api/local/<sport>/po/game", methods=["POST"])
+def local_po_game(sport: str):
+    data = request.get_json(silent=True) or {}; guest_id = (data.get("guest_id") or "").strip(); game_id = (data.get("game_id") or "").strip()
+    with LOCAL_PO_LOCK:
+        game = LOCAL_PO_GAMES.get(game_id)
+        if not game or game["sport"] != sport: return jsonify({"error": "unknown game_id"}), 404
+        if not _local_dr_authorized(game, guest_id): return jsonify({"error": "unauthorized"}), 403
+        return jsonify(_local_po_state(game_id, game, guest_id))
+
+
+@app.route("/api/local/<sport>/po/powerup", methods=["POST"])
+def local_po_powerup(sport: str):
+    data = request.get_json(silent=True) or {}; guest_id = (data.get("guest_id") or "").strip(); game_id = (data.get("game_id") or "").strip(); key = (data.get("powerup_key") or "").strip()
+    with LOCAL_PO_LOCK:
+        game = LOCAL_PO_GAMES.get(game_id)
+        if not game or game["sport"] != sport: return jsonify({"error": "unknown game_id"}), 404
+        if not _local_dr_authorized(game, guest_id): return jsonify({"error": "unauthorized"}), 403
+        _local_dr_expire(game)
+        side = "p1" if guest_id == game["p1_guest_id"] else "p2"
+        config = LOCAL_PLAYOFF_CONFIG[sport]["powerups"]
+        if game["finished"] or game["turn_index"] != (0 if side == "p1" else 1) or game["turn_powerup_used"] or key not in config or key in game[f"{side}_powerup_used_keys"]:
+            return jsonify({"error": "powerup is not available", **_local_po_state(game_id, game, guest_id)}), 409
+        meta = config[key]; game[f"{side}_powerup_used_keys"].append(key); game["turn_powerup_used"] = True
+        if meta["kind"] == "time":
+            game["turn_seconds"] += meta["bonus_seconds"]; game["last_move"] = {"outcome": "powerup_activated", "powerup_key": key, "powerup_label": meta["label"], "message": f"{meta['label']} activated. +15 seconds."}
+        elif meta["kind"] == "pressure":
+            game["next_turn_seconds_override"] = QUICK_PITCH_TURN_SECONDS; game["last_move"] = {"outcome": "powerup_activated", "powerup_key": key, "powerup_label": meta["label"], "message": f"{meta['label']} activated. Opponent gets 10 seconds next turn."}
+        else:
+            game["turn_seconds"] += meta["bonus_seconds"]; game["active_turn_powerup"] = key; game["last_move"] = {"outcome": "powerup_activated", "powerup_key": key, "powerup_label": meta["label"], "message": f"{meta['label']} activated. +5 seconds and an expanded link this turn."}
+        return jsonify(_local_po_state(game_id, game, guest_id))
+
+
+@app.route("/api/local/<sport>/po/move", methods=["POST"])
+def local_po_move(sport: str):
+    data = request.get_json(silent=True) or {}; guest_id = (data.get("guest_id") or "").strip(); game_id = (data.get("game_id") or "").strip(); raw = (data.get("raw") or "").strip(); player_id = (data.get("player_id") or "").strip() or None
+    with LOCAL_PO_LOCK:
+        game = LOCAL_PO_GAMES.get(game_id)
+        if not game or game["sport"] != sport: return jsonify({"error": "unknown game_id"}), 404
+        if not _local_dr_authorized(game, guest_id): return jsonify({"error": "unauthorized"}), 403
+        _local_dr_expire(game)
+        side = "p1" if guest_id == game["p1_guest_id"] else "p2"
+        if game["finished"]: return jsonify(_local_po_state(game_id, game, guest_id))
+        if game["turn_index"] != (0 if side == "p1" else 1): return jsonify({"error": "not your turn", **_local_po_state(game_id, game, guest_id)}), 409
+        if (now_utc() - game["turn_started_at"]).total_seconds() < game["countdown_seconds"]: return jsonify(_local_po_state(game_id, game, guest_id))
+        with _local_sport_conn() as conn:
+            direct = validate_and_apply_move(game["state"], conn, player_id=player_id, raw_input=None if player_id else raw, track_strikes=True, sport=sport)
+            payload = {"outcome": direct.outcome.value, "player_id": direct.player_id, "display_name": direct.display_name, "disambiguation": direct.disambiguation, "ambiguous_count": direct.ambiguous_count, "shared_seasons": [{"team_id": t, "season": s} for t, s in direct.shared_seasons], "burned_seasons": [{"team_id": t, "season": s} for t, s in direct.burned_seasons]}
+            if direct.outcome == MoveOutcome.VALID:
+                game["chain_link_meta"].append(None)
+            else:
+                power_move = _local_po_powerup_move(conn, game, raw, player_id)
+                if power_move: payload = power_move
+            if payload["outcome"] == "valid":
+                key = game[f"{side}_win_condition_key"]; increment = _local_po_condition_increment(conn, sport, key, payload["player_id"])
+                game["chain_win_condition_hits"].append(increment > 0)
+                game[f"{side}_win_progress"] += increment
+                target = LOCAL_PLAYOFF_CONFIG[sport]["conditions"][key]["target"]
+                completed = game[f"{side}_win_progress"] >= target
+                game[f"{side}_win_completed"] = completed
+                payload.update({"win_condition_hit": increment > 0, "win_condition_label": LOCAL_PLAYOFF_CONFIG[sport]["conditions"][key]["label"], "win_condition_progress": game[f"{side}_win_progress"], "win_condition_target": target, "win_condition_completed": completed})
+                if completed:
+                    game["finished"] = True; game["winner"] = game[side]
+                else:
+                    game["turn_index"] = 1 - game["turn_index"]; game["turn_started_at"] = now_utc(); game["countdown_seconds"] = 0.0
+                    game["turn_seconds"] = game.get("next_turn_seconds_override") or APP_TURN_SECONDS; game["next_turn_seconds_override"] = None; game["active_turn_powerup"] = None; game["turn_powerup_used"] = False
+        game["last_move"] = payload
+        return jsonify(_local_po_state(game_id, game, guest_id))
+
+
+def _local_po_postgame_response(sport: str, game_id: str, guest_id: str, action: str):
+    game = LOCAL_PO_GAMES.get(game_id)
+    if not game or game["sport"] != sport: return {"status": "gone"}
+    if action == "leave" and not game["finished"]:
+        game["finished"] = True; game["winner"] = game["p2"] if guest_id == game["p1_guest_id"] else game["p1"]; game["last_move"] = {"outcome": "forfeit"}
+    return {"status": "gone"}
+
+
+@app.route("/api/local/<sport>/po/leave_game", methods=["POST"])
+def local_po_leave_game(sport: str):
+    data = request.get_json(silent=True) or {}
+    with LOCAL_PO_LOCK: return jsonify(_local_po_postgame_response(sport, (data.get("game_id") or "").strip(), (data.get("guest_id") or "").strip(), "leave"))
+
+
+@app.route("/api/local/<sport>/po/rematch_request", methods=["POST"])
+def local_po_rematch_request(sport: str):
+    data = request.get_json(silent=True) or {}; guest_id = (data.get("guest_id") or "").strip(); game_id = (data.get("game_id") or "").strip()
+    with LOCAL_PO_LOCK:
+        game = LOCAL_PO_GAMES.get(game_id)
+        if not game or game["sport"] != sport: return jsonify({"error": "unknown game_id"}), 404
+        if not _local_dr_authorized(game, guest_id): return jsonify({"error": "unauthorized"}), 403
+        if not game["finished"] or game.get("last_move", {}).get("outcome") == "forfeit": return jsonify({"error": "rematch unavailable"}), 400
+        linked = LOCAL_PO_REMATCH_LINKS.get(game_id)
+        if linked: return jsonify({"status": "matched", "game": _local_po_state(linked, LOCAL_PO_GAMES[linked], guest_id)})
+        requests = LOCAL_PO_REMATCH_REQUESTS.setdefault(game_id, set()); requests.add(guest_id)
+        if {game["p1_guest_id"], game["p2_guest_id"]} <= requests:
+            first = {"guest_id": game["p1_guest_id"], "name": game["p1"]}; second = {"guest_id": game["p2_guest_id"], "name": game["p2"]}
+            linked, new_game = _local_po_create_game(sport, first, second)
+            LOCAL_PO_REMATCH_LINKS[game_id] = linked
+            return jsonify({"status": "matched", "game": _local_po_state(linked, new_game, guest_id)})
+        return jsonify({"status": "waiting"})
+
+
+@app.route("/api/local/<sport>/po/rematch_status", methods=["POST"])
+def local_po_rematch_status(sport: str):
+    data = request.get_json(silent=True) or {}; guest_id = (data.get("guest_id") or "").strip(); game_id = (data.get("game_id") or "").strip()
+    with LOCAL_PO_LOCK:
+        game = LOCAL_PO_GAMES.get(game_id)
+        if not game or game["sport"] != sport: return jsonify({"error": "unknown game_id"}), 404
+        linked = LOCAL_PO_REMATCH_LINKS.get(game_id)
+        if linked: return jsonify({"status": "matched", "game": _local_po_state(linked, LOCAL_PO_GAMES[linked], guest_id)})
+        other = game["p2_guest_id"] if guest_id == game["p1_guest_id"] else game["p1_guest_id"]
+        if other in LOCAL_PO_POSTGAME_EXITS.get(game_id, set()): return jsonify({"status": "abandoned", "opponent_present": False})
+        return jsonify({"status": "waiting", "opponent_present": True})
+
+
+@app.route("/api/local/<sport>/po/postgame_leave", methods=["POST"])
+def local_po_postgame_leave(sport: str):
+    data = request.get_json(silent=True) or {}; guest_id = (data.get("guest_id") or "").strip(); game_id = (data.get("game_id") or "").strip()
+    with LOCAL_PO_LOCK:
+        game = LOCAL_PO_GAMES.get(game_id)
+        if not game or game["sport"] != sport: return jsonify({"status": "gone"})
+        LOCAL_PO_POSTGAME_EXITS.setdefault(game_id, set()).add(guest_id)
+        LOCAL_PO_REMATCH_REQUESTS.setdefault(game_id, set()).discard(guest_id)
+        other = game["p2_guest_id"] if guest_id == game["p1_guest_id"] else game["p1_guest_id"]
+        if other in LOCAL_PO_REMATCH_REQUESTS.get(game_id, set()):
+            LOCAL_PO_QUEUE[sport] = [row for row in LOCAL_PO_QUEUE[sport] if row["guest_id"] != other]
+            LOCAL_PO_QUEUE[sport].append({"guest_id": other, "name": game["p2"] if other == game["p2_guest_id"] else game["p1"], "preference": "random"})
+        return jsonify({"status": "gone"})
+
+
+@app.route("/api/local/<sport>/po/cancel_queue", methods=["POST"])
+def local_po_cancel_queue(sport: str):
+    guest_id = ((request.get_json(silent=True) or {}).get("guest_id") or "").strip()
+    with LOCAL_PO_LOCK:
+        if sport in LOCAL_PO_QUEUE: LOCAL_PO_QUEUE[sport][:] = [row for row in LOCAL_PO_QUEUE[sport] if row["guest_id"] != guest_id]
+    return jsonify({"status": "idle"})
+
+
+@app.route("/api/local/<sport>/po/cancel_challenge", methods=["POST"])
+def local_po_cancel_challenge(sport: str):
     return jsonify({"status": "idle"})
 
 

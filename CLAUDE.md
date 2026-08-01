@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.27`
+- Current display version: `0.1.28`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Required environment values are documented in `.env.example`. Never commit
@@ -53,6 +53,15 @@ changes. It is the concise source of truth for another coding assistant.
 - The frontend selects the local adapter only for non-baseball sports. A
   production migration can preserve the client endpoints and replace the
   local adapter with a database-backed implementation.
+- Basketball, hockey, and football now also have local Playoffs at
+  `/api/local/<sport>/po/*`. Each has sport-specific names for five tactical
+  powerups and four selectable win conditions. This first pass intentionally
+  uses only verified local traits: franchise membership, career games,
+  position group, seasons with one franchise, and team count.
+- Do not claim stat or award powerups for the local leagues yet. Points,
+  touchdowns, goals, awards, and championships are not stored in the local
+  normalized graph. Add a sport trait table and an ingestion job before using
+  those facts in game rules.
 
 ## Shared lineup rules
 

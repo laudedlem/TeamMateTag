@@ -177,6 +177,10 @@ function usesLocalFilmReview() {
   return LOCAL_SOLO_SPORTS.has(CURRENT_SPORT);
 }
 
+function usesLocalPlayoffs() {
+  return LOCAL_SOLO_SPORTS.has(CURRENT_SPORT);
+}
+
 function localFilmReviewPath(suffix) {
   return '/api/local/' + CURRENT_SPORT + '/fr/' + suffix;
 }
@@ -189,6 +193,19 @@ const POWERUP_UI = {
   backup_mitt: { icon: 'BM', className: 'backup-mitt' },
   abs: { icon: 'ABS', className: 'abs' },
   quick_pitch: { icon: 'QP', className: 'quick-pitch' },
+  heat_check: { icon: 'HC', className: 'bubblegum' },
+  sixth_man: { icon: '6M', className: 'pine-tar' },
+  switch: { icon: 'SW', className: 'bat-donut' },
+  timeout: { icon: 'TO', className: 'abs' },
+  full_court_press: { icon: 'FP', className: 'quick-pitch' },
+  trick_play: { icon: 'TP', className: 'bubblegum' },
+  iron_man: { icon: 'IM', className: 'pine-tar' },
+  package_change: { icon: 'PC', className: 'bat-donut' },
+  blitz: { icon: 'BZ', className: 'quick-pitch' },
+  breakaway: { icon: 'BA', className: 'bubblegum' },
+  veteran_presence: { icon: 'VP', className: 'pine-tar' },
+  line_change: { icon: 'LC', className: 'bat-donut' },
+  forecheck: { icon: 'FC', className: 'quick-pitch' },
 };
 
 function isOnlineMode(mode = currentMode) {
@@ -196,10 +213,41 @@ function isOnlineMode(mode = currentMode) {
 }
 
 function onlineApiBase(mode = currentMode) {
+  if (mode === 'po' && usesLocalPlayoffs()) {
+    return '/api/local/' + CURRENT_SPORT + '/po';
+  }
   if (mode === 'mp' && LOCAL_SOLO_SPORTS.has(CURRENT_SPORT)) {
     return '/api/local/' + CURRENT_SPORT + '/dr';
   }
   return mode === 'po' ? '/api/po' : '/api/dr';
+}
+
+const LOCAL_PLAYOFF_OPTIONS = {
+  basketball: [
+    ['random', 'Random'], ['ironman', 'Ironman: 3 players with 500 career games'],
+    ['one_team', 'Home Court: 2 players with 8 seasons for one franchise'],
+    ['journeyman', 'Frequent Flyer: 2 players who played for 5 teams'], ['backcourt', 'Backcourt: 3 guards'],
+  ],
+  football: [
+    ['random', 'Random'], ['ironman', 'Iron Man: 3 players with 100 career games'],
+    ['one_team', 'One Club: 2 players with 10 seasons for one franchise'],
+    ['journeyman', 'Journeyman: 2 players who played for 5 teams'], ['defense', 'Defense Wins: 3 defensive players'],
+  ],
+  hockey: [
+    ['random', 'Random'], ['ironman', 'Ironman: 3 players with 500 career games'],
+    ['one_team', 'Lifer: 2 players with 10 seasons for one franchise'],
+    ['journeyman', 'Journeyman: 2 players who played for 5 teams'], ['blue_line', 'Blue Line: 3 defensemen'],
+  ],
+};
+
+function configureLocalPlayoffPicker() {
+  const options = LOCAL_PLAYOFF_OPTIONS[CURRENT_SPORT];
+  if (!options) return;
+  const storageKey = 'tt_local_playoff_condition_' + CURRENT_SPORT;
+  const saved = window.localStorage.getItem(storageKey) || 'random';
+  els.playoffConditionSelect.innerHTML = options.map(([value, label]) =>
+    `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`).join('');
+  els.playoffConditionSelect.value = options.some(([value]) => value === saved) ? saved : 'random';
 }
 
 function onlineModeName(mode = currentMode) {
@@ -671,7 +719,8 @@ function showScreen(name) {
   els.brandSubtitle.textContent = '';
 
   els.exitBtn.hidden = name === 'home' && !CURRENT_SPORT;
-  els.referenceBtn.hidden = currentMode !== 'po' || !(name === 'mp-setup' || name === 'po-game');
+  els.referenceBtn.hidden = currentMode !== 'po' || !(name === 'mp-setup' || name === 'po-game') ||
+    (usesLocalPlayoffs() && name === 'mp-setup');
   const togglesRelevant = name === 'mp-game' || name === 'bp-game' || name === 'po-game';
   els.headerToggles.hidden = !togglesRelevant;
   els.lineupSection.hidden = !togglesRelevant || !els.toggleLineup.checked;
@@ -762,11 +811,11 @@ function pickMode(mode) {
     els.startBtn.hidden = false;
     els.cancelMatchBtn.hidden = true;
     els.challengeStatusText.textContent = '';
-    els.challengeBox.hidden = mode === 'mp' && LOCAL_SOLO_SPORTS.has(CURRENT_SPORT);
+    els.challengeBox.hidden = (mode === 'mp' || mode === 'po') && LOCAL_SOLO_SPORTS.has(CURRENT_SPORT);
     els.playoffConditionPicker.hidden = mode !== 'po';
     if (mode === 'po') {
-      const preference = profile?.playoff_win_condition_preference || 'random';
-      els.playoffConditionSelect.value = preference;
+      if (usesLocalPlayoffs()) configureLocalPlayoffPicker();
+      else els.playoffConditionSelect.value = profile?.playoff_win_condition_preference || 'random';
     }
     return;
   }
@@ -1173,7 +1222,7 @@ function runOpeningCountdown() {
 }
 
 async function onMpTimeout() {
-  const timeoutPath = currentMode === 'po'
+  const timeoutPath = (currentMode === 'po' && !usesLocalPlayoffs())
     ? '/api/po/timeout'
     : (LOCAL_SOLO_SPORTS.has(CURRENT_SPORT) ? onlineApiBase() + '/game' : '/api/timeout');
   game = await api(timeoutPath, {
@@ -1209,7 +1258,7 @@ async function submitMove({ raw, player_id }) {
   els.guessInput.value = '';
   const path = currentMode === 'bp'
     ? (LOCAL_SOLO_SPORTS.has(CURRENT_SPORT) ? localSoloPath('move') : '/api/bp/move')
-    : currentMode === 'po' ? '/api/po/move' : (LOCAL_SOLO_SPORTS.has(CURRENT_SPORT) ? onlineApiBase() + '/move' : '/api/move');
+    : currentMode === 'po' ? (usesLocalPlayoffs() ? onlineApiBase() + '/move' : '/api/po/move') : (LOCAL_SOLO_SPORTS.has(CURRENT_SPORT) ? onlineApiBase() + '/move' : '/api/move');
   const previousChainLength = game.chain?.length || 0;
   game = await api(path, {
     game_id: game.game_id,
@@ -1656,7 +1705,7 @@ function renderPowerups() {
 
 async function usePowerup(powerupKey) {
   if (currentMode !== 'po' || !game?.game_id || !powerupKey) return;
-  const next = await api('/api/po/powerup', {
+  const next = await api(usesLocalPlayoffs() ? onlineApiBase() + '/powerup' : '/api/po/powerup', {
     guest_id: profile?.guest_id || storedGuestId(),
     game_id: game.game_id,
     powerup_key: powerupKey,
@@ -2061,6 +2110,25 @@ function renderFrLineupBoard() {
 }
 
 function renderPowerupReferenceHtml() {
+  if (usesLocalPlayoffs() && game?.powerups?.your_powerups) {
+    const rows = game.powerups.your_powerups;
+    return `
+      <p class="muted">Each Playoffs game gives both players one use of every powerup. You can activate one powerup on a turn.</p>
+      <div class="reference-key">
+        ${rows.map((powerup) => `
+          <div class="reference-row powerup-${powerupClass(powerup.key)}">
+            <div class="reference-chip powerup-chip powerup-chip-static powerup-${powerupClass(powerup.key)}">
+              <span class="powerup-icon">${escapeHtml(powerupIcon(powerup.key))}</span>
+              <span class="powerup-label">${escapeHtml(powerup.label || powerup.key)}</span>
+            </div>
+            <div class="reference-copy">
+              <div class="reference-name">${escapeHtml(powerup.label || powerup.key)}</div>
+              <div class="muted small">${escapeHtml(powerup.description || '')}</div>
+            </div>
+          </div>
+        `).join('')}
+      </div>`;
+  }
   const names = {
     bubblegum: 'Bubblegum',
     pine_tar: 'Pine Tar',
@@ -2126,6 +2194,14 @@ document.querySelectorAll('[data-back="home"]').forEach((btn) => {
 els.startBtn.addEventListener('click', startMpGame);
 els.playoffRandomBtn.addEventListener('click', () => {
   els.playoffConditionSelect.value = 'random';
+  if (usesLocalPlayoffs()) {
+    window.localStorage.setItem('tt_local_playoff_condition_' + CURRENT_SPORT, 'random');
+  }
+});
+els.playoffConditionSelect.addEventListener('change', () => {
+  if (usesLocalPlayoffs()) {
+    window.localStorage.setItem('tt_local_playoff_condition_' + CURRENT_SPORT, els.playoffConditionSelect.value);
+  }
 });
 els.cancelMatchBtn.addEventListener('click', cancelMatchmaking);
 els.createCodeBtn.addEventListener('click', createChallengeCode);
