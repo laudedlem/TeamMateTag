@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.40`
+- Current display version: `0.1.41`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Required environment values are documented in `.env.example`. Never commit
@@ -115,6 +115,14 @@ changes. It is the concise source of truth for another coding assistant.
   and 36 NHL.
 - Pro Bowl source positions now combine with season and career dates to resolve
   same-name NFL players. The active queue is 103: 4 NBA, 71 NFL, and 28 NHL.
+- `scripts/supplement_nba_historical_ids.py` preserves evidence-backed
+  NBA/BAA historical identities absent from the base archive. It resolves the
+  final four NBA award references: the 1980-81 Atlanta guard Eddie Johnson and
+  Alex Groza's Indianapolis Olympians seasons.
+- `scripts/supplement_nhl_official_ids.py` now also compares source career-game
+  totals with official NHL records to split same-name players. The active
+  identity queue is now 96: 71 NFL and 25 NHL. There are no active NBA
+  references.
 
 ## Shared lineup rules
 

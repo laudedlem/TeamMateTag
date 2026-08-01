@@ -18,6 +18,7 @@ from name_normalize import normalize
 CACHE = ROOT / "raw" / "nhl_identity"
 SEARCH_URL = "https://search.d3.nhle.com/api/v1/search/player"
 GAME_LOG_URL = "https://api-web.nhle.com/v1/player/{player_id}/game-log/{season_id}/2"
+LANDING_URL = "https://api-web.nhle.com/v1/player/{player_id}/landing"
 SOURCE = "kaggle_nhl_stat_audit"
 SOURCE_ARCHIVE = ROOT / "raw" / "nhl_player_database.zip"
 
@@ -50,9 +51,9 @@ def game_log(player_id: int, season: int) -> list[dict]:
     return payload.get("gameLog", [])
 
 
-def source_profiles() -> dict[tuple[str, int], set[str]]:
-    """Keep source position and first NHL year as identity evidence."""
-    profiles: dict[tuple[str, int], set[str]] = {}
+def source_profiles() -> dict[tuple[str, int], dict[str, set[int] | set[str]]]:
+    """Keep source position, first NHL year, and career games as evidence."""
+    profiles: dict[tuple[str, int], dict[str, set[int] | set[str]]] = {}
     if not SOURCE_ARCHIVE.exists():
         return profiles
     with zipfile.ZipFile(SOURCE_ARCHIVE) as archive:
@@ -67,7 +68,14 @@ def source_profiles() -> dict[tuple[str, int], set[str]]:
                     except ValueError:
                         continue
                     position = (row.get("position") or "G").upper()
-                    profiles.setdefault((normalize(name), season), set()).add(position)
+                    try:
+                        games = int(row.get("games") or "")
+                    except ValueError:
+                        games = 0
+                    profile = profiles.setdefault((normalize(name), season), {"positions": set(), "games": set()})
+                    profile["positions"].add(position)
+                    if games:
+                        profile["games"].add(games)
     return profiles
 
 
@@ -80,6 +88,29 @@ def position_matches(source_positions: set[str], candidate_position: str) -> boo
         or source == "F" and candidate_position in {"C", "L", "R"}
         for source in source_positions
     )
+
+
+def career_games(player_id: int) -> int:
+    """Return official regular-season games; cached for deterministic reruns."""
+    payload = cached_json(CACHE / "landing" / f"{player_id}.json", LANDING_URL.format(player_id=player_id))
+    return int(payload.get("careerTotals", {}).get("regularSeason", {}).get("gamesPlayed") or 0)
+
+
+def select_candidate(matches: list[tuple[dict, list[dict]]], source_games: set[int]) -> tuple[dict, list[dict]] | None:
+    if not matches:
+        return None
+    if len(matches) == 1:
+        return matches[0]
+    if not source_games:
+        return None
+    expected = max(source_games)
+    ranked = sorted((abs(career_games(int(candidate["playerId"])) - expected), candidate, logs) for candidate, logs in matches)
+    # The source is a completed snapshot, so tolerate a small current-season
+    # difference but require a meaningful gap from the next same-name player.
+    if ranked[0][0] <= 12 and (len(ranked) == 1 or ranked[1][0] - ranked[0][0] >= 10):
+        _, candidate, logs = ranked[0]
+        return candidate, logs
+    return None
 
 
 def main() -> None:
@@ -97,9 +128,10 @@ def main() -> None:
         profiles = source_profiles()
         resolved = 0
         for source, reference_key, name, season in refs:
+            profile = profiles.get((normalize(name), season), {"positions": set(), "games": set()})
             matches = []
             for candidate in search_candidates(name):
-                if not position_matches(profiles.get((normalize(name), season), set()), candidate.get("positionCode") or ""):
+                if not position_matches(profile["positions"], candidate.get("positionCode") or ""):
                     continue
                 player_numeric_id = candidate.get("playerId")
                 if not player_numeric_id:
@@ -107,9 +139,10 @@ def main() -> None:
                 logs = game_log(int(player_numeric_id), season)
                 if logs:
                     matches.append((candidate, logs))
-            if len(matches) != 1:
+            selected = select_candidate(matches, profile["games"])
+            if not selected:
                 continue
-            candidate, logs = matches[0]
+            candidate, logs = selected
             numeric_id = str(candidate["playerId"])
             player_id = f"nhl:{numeric_id}"
             position = candidate.get("positionCode") or "?"
