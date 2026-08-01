@@ -2741,7 +2741,7 @@ def local_fr_reveal_answer(sport: str):
         return jsonify({
             "full_cards": [_local_fr_card(player_id, cards[player_id]) for player_id in blob["deck"]],
             "canonical_links": [
-                {"team_id": pair[0], "season": pair[1], "team_name": pair[2]} if pair else None
+                {"team_id": pair[0][0], "season": pair[0][1], "team_name": pair[0][2]} if pair else None
                 for pair in blob["shared_per_pair"]
             ],
         })

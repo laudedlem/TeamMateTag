@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.24`
+- Current display version: `0.1.25`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Required environment values are documented in `.env.example`. Never commit
@@ -233,7 +233,12 @@ sizes: basketball 12, hockey 11, football 12 per selected unit. Football asks
 the player to choose offense (11 positions plus K) or defense (11 positions
 plus P). Film Review returns explicit lineup slots so the frontend can fill a
 baseball diamond, basketball rotation, hockey lines, or football formation as
-players are revealed. They use the same team-plus-year
+players are revealed. The board begins with only the leadoff player filled;
+each later position fills only after the preceding team/year connection is
+solved. Hockey presents two rows under adjacent LW, C, RW, LD, RD, and G
+columns. Film Review feedback is sport-specific: baseball Hit/Foul/Strike,
+basketball Bucket/Rim Out/Turnover, hockey Goal/Offside/Penalty, and football
+Complete/Incomplete/Turnover. They use the same team-plus-year
 guessing, foul streak, three-strike, and full-lineup reveal behavior as
 baseball. Do not describe the non-baseball modes as deployed until the
 cross-sport data is moved out of the ignored local SQLite database.

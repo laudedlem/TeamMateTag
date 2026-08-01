@@ -1853,10 +1853,11 @@ async function frSubmit(e) {
 
 function renderFrGame(initialRender) {
   const s = frGame.stats;
+  const terms = frTerms();
   els.frStats.innerHTML =
-    `<span class="stat-hit">${s.hits}H</span> <span class="stat-sep">|</span> ` +
-    `<span class="stat-foul">${s.fouls}F</span> <span class="stat-sep">|</span> ` +
-    `<span class="stat-strike">${s.strikes}/${s.max_strikes}K</span>`;
+    `<span class="stat-hit">${s.hits}${terms.hitShort}</span> <span class="stat-sep">|</span> ` +
+    `<span class="stat-foul">${s.fouls}${terms.foulShort}</span> <span class="stat-sep">|</span> ` +
+    `<span class="stat-strike">${s.strikes}/${s.max_strikes}${terms.strikeShort}</span>`;
 
   if (frGame.pair_names[0] && frGame.pair_names[1]) {
     els.frPairNames.innerHTML =
@@ -1909,16 +1910,16 @@ function renderFrFeedback(g) {
   if (g.outcome === 'hit') {
     const m = g.matched && g.matched[0];
     const detail = m ? ` (${escapeHtml(m.team_name)} ${m.season})` : '';
-    return `<span class="ok">✓ HIT${escapeHtml(detail)}.</span>`;
+    return `<span class="ok">${frTerms().hit}${escapeHtml(detail)}.</span>`;
   }
   if (g.outcome === 'foul') {
-    return '<span class="burn">FOUL. One of team or year is right. Try again.</span>';
+    return `<span class="burn">${frTerms().foul}. One of team or year is right. Try again.</span>`;
   }
   if (g.outcome === 'strike') {
     if (g.converted_from_foul) {
-      return '<span class="bad">STRIKE. Another foul in the same streak counts as a strike.</span>';
+      return `<span class="bad">${frTerms().strike}. Another ${frTerms().foul.toLowerCase()} in the same streak counts as a ${frTerms().strike.toLowerCase()}.</span>`;
     }
-    return '<span class="bad">STRIKE. Neither team nor year is right.</span>';
+    return `<span class="bad">${frTerms().strike}. Neither team nor year is right.</span>`;
   }
   return '';
 }
@@ -1926,14 +1927,15 @@ function renderFrFeedback(g) {
 function showFrSummaryBanner() {
   els.frTurnCard.hidden = true;
   els.frSummaryBanner.hidden = false;
+  const terms = frTerms();
   if (frGame.won) {
     els.frSummaryText.textContent = "That's the lineup!";
     els.frSummaryDetail.textContent =
-      `${frGame.stats.hits} hits, ${frGame.stats.fouls} fouls, ${frGame.stats.strikes} strikes.`;
+      `${frGame.stats.hits} ${terms.hit.toLowerCase()}, ${frGame.stats.fouls} ${terms.foul.toLowerCase()}, ${frGame.stats.strikes} ${terms.strike.toLowerCase()}.`;
   } else {
     els.frSummaryText.textContent = 'Game called.';
     els.frSummaryDetail.textContent =
-      `${frGame.stats.hits} hits before 3 strikes.`;
+      `${frGame.stats.hits} ${terms.hit.toLowerCase()} before 3 ${terms.strikePlural}.`;
     loadFrAnswers();
   }
 }
@@ -1947,7 +1949,7 @@ function hideFrSummaryBanner() {
 async function loadFrAnswers() {
   if (!frGame?.game_id || frGame?.won) return;
   const res = await api(usesLocalFilmReview() ? localFilmReviewPath('reveal_answer') : '/api/fr/reveal_answer', { game_id: frGame.game_id });
-  if (!res.answers) return;
+  if (!res.full_cards || !res.canonical_links) return;
   if (res.full_cards && res.canonical_links) {
     frGame.revealed_cards = res.full_cards;
     frGame.solved_links = res.canonical_links;
@@ -1982,7 +1984,8 @@ function rulesForMode() {
     return 'Build the longest lineup you can. You have 20 seconds to name a teammate of the last player, and a correct guess resets the clock. Each team shared by two linked players gets a strike. Once a team is Struck Out, that team cannot be used to link players again. Your run ends when the clock hits zero.';
   }
   if (currentMode === 'fr') {
-    return 'Review the revealed players and guess the team and year that links each pair. A correct team and year is a hit and reveals the next player. One correct field is a foul. The first foul in a streak is safe, then every foul after that in the same streak counts as a strike. Three strikes ends the review.';
+    const terms = frTerms();
+    return `Review the revealed players and guess the team and year that links each pair. A correct team and year is a ${terms.hit.toLowerCase()} and reveals the next player. One correct field is a ${terms.foul.toLowerCase()}. The first ${terms.foul.toLowerCase()} in a streak is safe, then every ${terms.foul.toLowerCase()} after that in the same streak counts as a ${terms.strike.toLowerCase()}. Three ${terms.strikePlural} end the review.`;
   }
   if (currentMode === 'mp') {
     return 'Queue into an online match and take turns building one lineup. After the 3 second countdown, the 20 second clock begins. On your turn, name a teammate of the last player before time runs out. Correct guesses pass the turn and reset the clock. Teams collect strikes when used, and Struck Out teams cannot link players again. You win when your opponent runs out of time.';
@@ -2002,6 +2005,15 @@ function frTeamPlaceholder() {
   })[CURRENT_SPORT] || 'Team';
 }
 
+function frTerms() {
+  return ({
+    baseball: { hit: 'HIT', foul: 'FOUL', strike: 'STRIKE', strikePlural: 'strikes', hitShort: 'H', foulShort: 'F', strikeShort: 'K' },
+    basketball: { hit: 'BUCKET', foul: 'RIM OUT', strike: 'TURNOVER', strikePlural: 'turnovers', hitShort: 'B', foulShort: 'R', strikeShort: 'T' },
+    hockey: { hit: 'GOAL', foul: 'OFFSIDE', strike: 'PENALTY', strikePlural: 'penalties', hitShort: 'G', foulShort: 'O', strikeShort: 'P' },
+    football: { hit: 'COMPLETE', foul: 'INCOMPLETE', strike: 'TURNOVER', strikePlural: 'turnovers', hitShort: 'C', foulShort: 'I', strikeShort: 'T' },
+  })[frGame?.sport || CURRENT_SPORT || 'baseball'];
+}
+
 function renderFrLineupBoard() {
   const slots = frGame?.slots || [];
   if (!slots.length) {
@@ -2010,16 +2022,19 @@ function renderFrLineupBoard() {
   }
   const sport = frGame.sport || CURRENT_SPORT || 'baseball';
   const unit = frGame.unit || 'full';
-  const revealed = frGame.revealed_cards || [];
+  const filledCount = Math.max(1, (frGame.revealed_count || 0) - 1);
+  const revealed = (frGame.revealed_cards || []).slice(0, filledCount);
   els.frLineupBoard.className = `fr-lineup-board sport-${sport} unit-${unit}`;
   els.frLineupBoard.innerHTML = `
     <div class="fr-board-title">${sport === 'football' ? (unit === 'defense' ? 'Defensive Formation' : 'Offensive Formation') : 'Lineup Board'}</div>
     <div class="fr-board-grid">
       ${slots.map((slot, index) => {
         const player = revealed[index];
-        const label = `${slot}${slots.slice(0, index).filter((item) => item === slot).length + 1}`;
+        const role = sport === 'hockey' && slot === 'D'
+          ? (index < 8 ? 'LD' : 'RD')
+          : slot;
         return `<div class="fr-board-slot slot-${slot.toLowerCase()} slot-index-${index} ${player ? 'filled' : ''}">
-          <span class="fr-board-role">${escapeHtml(slot)}</span>
+          <span class="fr-board-role">${escapeHtml(role)}</span>
           <span class="fr-board-player">${player ? escapeHtml(player.name) : ''}</span>
         </div>`;
       }).join('')}
