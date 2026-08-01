@@ -2590,6 +2590,8 @@ def _local_fr_state(game_id: str, game: dict) -> dict:
         "mode": "fr",
         "sport": sport,
         "puzzle_id": blob["puzzle_id"],
+        "slots": blob["slots"],
+        "unit": blob.get("unit"),
         "total_cards": len(deck),
         "revealed_count": blob["revealed_count"],
         "revealed_cards": [card_dicts[player_id] for player_id in deck[:blob["revealed_count"]]],
@@ -2657,15 +2659,18 @@ def local_fr_new(sport: str):
     if sport not in LOCAL_SPORT_SEEDS:
         return jsonify({"error": "unsupported local sport"}), 404
     try:
+        unit = (request.get_json(silent=True) or {}).get("unit")
+        unit = unit.strip().lower() if isinstance(unit, str) else None
         with _local_sport_conn() as conn:
-            puzzle = generate_local_film_review(conn, sport)
+            puzzle = generate_local_film_review(conn, sport, unit=unit)
             shared_per_pair = [_local_fr_shared(conn, sport, puzzle.deck[index], puzzle.deck[index + 1])
                                for index in range(len(puzzle.deck) - 1)]
     except (RuntimeError, ValueError) as error:
         return jsonify({"error": f"could not build today's Film Review: {error}"}), 500
     game_id = str(uuid.uuid4())
     blob = {
-        "puzzle_id": f"local_{sport}_{puzzle.puzzle_date}", "deck": list(puzzle.deck),
+        "puzzle_id": f"local_{sport}_{puzzle.puzzle_date}_{puzzle.unit or 'full'}", "deck": list(puzzle.deck),
+        "slots": list(puzzle.slots), "unit": puzzle.unit,
         "pair_index": 0, "revealed_count": 2, "hits": 0, "fouls": 0, "strikes": 0,
         "consec_fouls": 0, "solved_links": [None] * (len(puzzle.deck) - 1),
         "shared_per_pair": shared_per_pair, "finished": False, "won": False, "last_guess": None,
@@ -4444,6 +4449,7 @@ FR_PUZZLES: list[dict] = [
     {
         "id": "fr_baseball_starting_lineup_001",
         "title": "Starting Lineup",
+        "slots": ["C", "1B", "2B", "3B", "SS", "LF", "CF", "RF", "DH", "SP"],
         "deck": [
             # C, 1B, 2B, 3B, SS, LF, CF, RF, DH, SP. The canonical links
             # use nine separate team-seasons, so none repeats within the deck.
@@ -4502,6 +4508,8 @@ def fr_state_dict(gid: str, blob: dict, conn=None) -> dict:
         "game_id": gid,
         "mode": "fr",
         "puzzle_id": blob["puzzle_id"],
+        "slots": blob.get("slots", []),
+        "unit": blob.get("unit"),
         "total_cards": len(deck),
         "revealed_count": blob["revealed_count"],
         "revealed_cards": [
@@ -4542,6 +4550,8 @@ def fr_blob_from_puzzle(
 ) -> dict:
     return {
         "puzzle_id": puzzle["id"],
+        "slots": list(puzzle.get("slots", [])),
+        "unit": None,
         "deck": list(puzzle["deck"]),
         "pair_index": 0,
         "revealed_count": 2,

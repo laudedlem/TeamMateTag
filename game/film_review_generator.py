@@ -20,6 +20,11 @@ LINEUP_SLOTS = {
     "basketball": ("PG", "PG", "SG", "SG", "SF", "SF", "PF", "PF", "C", "C", "ANY", "ANY"),
 }
 
+FOOTBALL_UNITS = {
+    "offense": ("QB", "RB", "WR", "WR", "WR", "TE", "OL", "OL", "OL", "OL", "OL", "K"),
+    "defense": ("DL", "DL", "DL", "DL", "LB", "LB", "LB", "CB", "CB", "S", "S", "P"),
+}
+
 FOOTBALL_ROLE_POSITIONS = {
     "QB": {"QB"}, "RB": {"RB", "HB", "FB"}, "WR": {"WR"}, "TE": {"TE"},
     "OL": {"C", "G", "OG", "T", "OT", "OL"}, "K": {"K"},
@@ -45,6 +50,15 @@ class GeneratedPuzzle:
     slots: tuple[str, ...]
     deck: tuple[str, ...]
     links: tuple[tuple[str, int], ...]
+    unit: str | None = None
+
+
+def lineup_slots(sport: str, unit: str | None = None) -> tuple[str, ...]:
+    if sport == "football" and unit:
+        if unit not in FOOTBALL_UNITS:
+            raise ValueError("football Film Review unit must be offense or defense")
+        return FOOTBALL_UNITS[unit]
+    return LINEUP_SLOTS[sport]
 
 
 def _eligible(conn: sqlite3.Connection, sport: str, slot: str) -> dict[str, int]:
@@ -86,11 +100,11 @@ def _candidate_links(conn: sqlite3.Connection, sport: str, player_id: str,
 
 
 def generate(conn: sqlite3.Connection, sport: str, puzzle_day: date | None = None,
-             attempts: int = 300) -> GeneratedPuzzle:
+             attempts: int = 300, unit: str | None = None) -> GeneratedPuzzle:
     if sport not in LINEUP_SLOTS:
         raise ValueError(f"unsupported sport {sport!r}")
     puzzle_day = puzzle_day or date.today()
-    slots = LINEUP_SLOTS[sport]
+    slots = lineup_slots(sport, unit)
     pools = {slot: _eligible(conn, sport, slot) for slot in set(slots)}
     missing = [slot for slot in set(slots) if not pools[slot]]
     if missing:
@@ -116,5 +130,5 @@ def generate(conn: sqlite3.Connection, sport: str, puzzle_day: date | None = Non
             used_players.add(next_player)
             used_links.add(link)
         if not failed:
-            return GeneratedPuzzle(sport, puzzle_day.isoformat(), slots, tuple(deck), tuple(links))
+            return GeneratedPuzzle(sport, puzzle_day.isoformat(), slots, tuple(deck), tuple(links), unit)
     raise RuntimeError(f"could not generate a {sport} puzzle after {attempts} attempts")

@@ -49,6 +49,7 @@ const els = {
   startScreen: document.getElementById('start-screen'),
   gameScreen: document.getElementById('game-screen'),
   frScreen: document.getElementById('fr-screen'),
+  frSetupScreen: document.getElementById('fr-setup-screen'),
 
   brandSubtitle: document.getElementById('brand-subtitle'),
   exitBtn: document.getElementById('exit-btn'),
@@ -118,6 +119,9 @@ const els = {
   frGuessForm: document.getElementById('fr-guess-form'),
   frFeedback: document.getElementById('fr-feedback'),
   frCardStack: document.getElementById('fr-card-stack'),
+  frLineupBoard: document.getElementById('fr-lineup-board'),
+  frOffenseBtn: document.getElementById('fr-offense-btn'),
+  frDefenseBtn: document.getElementById('fr-defense-btn'),
   frSummaryBanner: document.getElementById('fr-summary-banner'),
   frSummaryText: document.getElementById('fr-summary-text'),
   frSummaryDetail: document.getElementById('fr-summary-detail'),
@@ -655,6 +659,7 @@ function showScreen(name) {
   els.homeScreen.hidden = name !== 'home';
   els.profileScreen.hidden = name !== 'profile';
   els.friendsScreen.hidden = name !== 'friends';
+  els.frSetupScreen.hidden = name !== 'fr-setup';
   els.startScreen.hidden = name !== 'mp-setup';
   els.gameScreen.hidden = !(name === 'mp-game' || name === 'bp-game' || name === 'po-game');
   els.frScreen.hidden = name !== 'fr-game';
@@ -765,6 +770,11 @@ function pickMode(mode) {
     return;
   }
   if (mode === 'fr') {
+    if (CURRENT_SPORT === 'football') {
+      currentMode = 'fr';
+      showScreen('fr-setup');
+      return;
+    }
     startFr();
   }
 }
@@ -929,7 +939,7 @@ async function startBp() {
   runOpeningCountdown();
 }
 
-async function startFr() {
+async function startFr(unit = null) {
   currentMode = 'fr';
   hideFrSummaryBanner();
   closeTeamAutocomplete();
@@ -938,7 +948,7 @@ async function startFr() {
   showScreen('fr-game');
   renderLoadingFilmReview();
   frGame = await api(usesLocalFilmReview() ? localFilmReviewPath('new') : '/api/fr/new',
-    { guest_id: profile?.guest_id || storedGuestId() });
+    { guest_id: profile?.guest_id || storedGuestId(), unit });
   if (frGame.error) {
     alert('error: ' + frGame.error);
     return;
@@ -967,6 +977,7 @@ function renderLoadingFilmReview() {
   els.frPairNames.textContent = 'Loading review...';
   els.frFeedback.innerHTML = '';
   els.frCardStack.innerHTML = '';
+  els.frLineupBoard.innerHTML = '';
   els.frTeamInput.disabled = true;
   els.frYearInput.disabled = true;
 }
@@ -1857,6 +1868,7 @@ function renderFrGame(initialRender) {
   }
 
   els.frFeedback.innerHTML = renderFrFeedback(frGame.last_guess);
+  renderFrLineupBoard();
 
   const reversed = frGame.revealed_cards.slice().reverse();
   const solvedLinks = frGame.solved_links || [];
@@ -1981,6 +1993,40 @@ function rulesForMode() {
   return 'Pick a mode, then build or review a lineup by connecting baseball players through their shared teams.';
 }
 
+function frTeamPlaceholder() {
+  return ({
+    baseball: 'Team (e.g., Chicago Cubs)',
+    basketball: 'Team (e.g., Chicago Bulls)',
+    hockey: 'Team (e.g., Chicago Blackhawks)',
+    football: 'Team (e.g., Chicago Bears)',
+  })[CURRENT_SPORT] || 'Team';
+}
+
+function renderFrLineupBoard() {
+  const slots = frGame?.slots || [];
+  if (!slots.length) {
+    els.frLineupBoard.innerHTML = '';
+    return;
+  }
+  const sport = frGame.sport || CURRENT_SPORT || 'baseball';
+  const unit = frGame.unit || 'full';
+  const revealed = frGame.revealed_cards || [];
+  els.frLineupBoard.className = `fr-lineup-board sport-${sport} unit-${unit}`;
+  els.frLineupBoard.innerHTML = `
+    <div class="fr-board-title">${sport === 'football' ? (unit === 'defense' ? 'Defensive Formation' : 'Offensive Formation') : 'Lineup Board'}</div>
+    <div class="fr-board-grid">
+      ${slots.map((slot, index) => {
+        const player = revealed[index];
+        const label = `${slot}${slots.slice(0, index).filter((item) => item === slot).length + 1}`;
+        return `<div class="fr-board-slot slot-${slot.toLowerCase()} slot-index-${index} ${player ? 'filled' : ''}">
+          <span class="fr-board-role">${escapeHtml(slot)}</span>
+          <span class="fr-board-player">${player ? escapeHtml(player.name) : ''}</span>
+        </div>`;
+      }).join('')}
+    </div>`;
+  els.frTeamInput.placeholder = frTeamPlaceholder();
+}
+
 function renderPowerupReferenceHtml() {
   const names = {
     bubblegum: 'Bubblegum',
@@ -2074,6 +2120,8 @@ els.frGuessForm.addEventListener('submit', frSubmit);
 els.frTeamInput.addEventListener('input', onTeamInput);
 els.frTeamInput.addEventListener('keydown', onTeamKeydown);
 els.frHomeBtn.addEventListener('click', goHome);
+els.frOffenseBtn.addEventListener('click', () => startFr('offense'));
+els.frDefenseBtn.addEventListener('click', () => startFr('defense'));
 
 document.addEventListener('click', (e) => {
   if (els.guessForm.contains(e.target) || els.autocompleteList.contains(e.target)) {

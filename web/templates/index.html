@@ -11,7 +11,7 @@
     <div class="title">
       <div class="brand-row">
         <h1>TeamMateTag</h1>
-        <span class="app-version" title="Current version">0.1.23</span>
+        <span class="app-version" title="Current version">0.1.24</span>
       </div>
       <span class="subtitle" id="brand-subtitle"></span>
     </div>
@@ -238,6 +238,18 @@
     </div>
   </section>
 
+  <section id="fr-setup-screen" class="screen" hidden>
+    <div class="start-card">
+      <button class="back-btn" data-back="home">&larr; Home</button>
+      <h2>Film Review</h2>
+      <p class="muted">Choose the unit you want to fill.</p>
+      <div class="fr-unit-actions">
+        <button id="fr-offense-btn" class="primary" type="button">Offense</button>
+        <button id="fr-defense-btn" class="secondary" type="button">Defense</button>
+      </div>
+    </div>
+  </section>
+
   <!-- ===================== MP SETUP SCREEN =================== -->
   <section id="start-screen" class="screen" hidden>
     <div class="start-card">
@@ -395,7 +407,7 @@
           <form id="fr-guess-form" autocomplete="off" class="guess-form fr-guess-form">
             <div class="autocomplete-wrap team-autocomplete-wrap">
               <input id="fr-team-input" type="text" autocomplete="off" spellcheck="false"
-                     placeholder="Team (e.g., Chicago Cubs)" />
+                     placeholder="Team" />
               <ul id="fr-team-autocomplete-list" class="autocomplete-list" hidden></ul>
             </div>
             <input id="fr-year-input" type="text" autocomplete="off" spellcheck="false"
@@ -406,6 +418,7 @@
           <div id="fr-feedback" class="feedback"></div>
         </div>
 
+        <div id="fr-lineup-board" class="fr-lineup-board" aria-label="Film Review lineup board"></div>
         <div id="fr-card-stack" class="card-stack"></div>
       </div>
     </div>

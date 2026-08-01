@@ -18,10 +18,13 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("sport", choices=("baseball", "football", "hockey", "basketball"))
     parser.add_argument("--date", type=date.fromisoformat, default=date.today())
+    parser.add_argument("--unit", choices=("offense", "defense"),
+                        help="Choose a football unit to generate its 12-card puzzle.")
     args = parser.parse_args()
     conn = sqlite3.connect(ROOT / "db" / "teammatetag_local.sqlite")
-    puzzle = generate(conn, args.sport, args.date)
-    print(f"{args.sport.title()} Film Review, {puzzle.puzzle_date}")
+    puzzle = generate(conn, args.sport, args.date, unit=args.unit)
+    unit = f" {puzzle.unit.title()}" if puzzle.unit else ""
+    print(f"{args.sport.title()}{unit} Film Review key, {puzzle.puzzle_date}")
     for index, player_id in enumerate(puzzle.deck):
         name = conn.execute("SELECT display_name FROM sport_players WHERE sport_id=? AND player_id=?",
                             (args.sport, player_id)).fetchone()[0]

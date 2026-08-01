@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.23`
+- Current display version: `0.1.24`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Required environment values are documented in `.env.example`. Never commit
@@ -229,10 +229,17 @@ Film Review is available on every ready sport page. Baseball continues to use
 the production Postgres Film Review API. Basketball, hockey, and football use
 the local SQLite daily-deck adapter at `/api/local/<sport>/fr/*` while their
 appearance data remains local. The new local decks use the required lineup
-sizes: basketball 12, hockey 11, football 24. They use the same team-plus-year
+sizes: basketball 12, hockey 11, football 12 per selected unit. Football asks
+the player to choose offense (11 positions plus K) or defense (11 positions
+plus P). Film Review returns explicit lineup slots so the frontend can fill a
+baseball diamond, basketball rotation, hockey lines, or football formation as
+players are revealed. They use the same team-plus-year
 guessing, foul streak, three-strike, and full-lineup reveal behavior as
 baseball. Do not describe the non-baseball modes as deployed until the
 cross-sport data is moved out of the ignored local SQLite database.
+
+Use `python scripts\generate_film_review_local.py football --unit offense`
+or `--unit defense` to print a daily Film Review test key.
 
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.
