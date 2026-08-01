@@ -126,6 +126,9 @@ season source refresh.
 - `scripts/apply_verified_photo_overrides.py` holds reviewed Commons fallback
   images with source and license notes. Current overrides: Devin Hester (public
   domain) and Lance Briggs (CC BY-SA 3.0).
+- `scripts/find_wikimedia_photo_candidates.py` records explicit Commons
+  candidates or `no_candidate` states for native-image misses. It does not
+  publish candidates until the image/player match and license are reviewed.
 
 The preferred NBA-history replacement is Kaggle dataset
 `eoinamoore/historical-nba-data-and-player-box-scores`, which is marked CC0
