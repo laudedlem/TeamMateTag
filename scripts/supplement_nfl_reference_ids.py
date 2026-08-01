@@ -66,9 +66,9 @@ def main() -> None:
             with path.open(encoding="utf-8-sig", newline="") as handle:
                 for row in csv.DictReader(handle):
                     gsis, pfr = (row.get("gsis_id") or "").strip(), (row.get("pfr_id") or "").strip()
-                    if not gsis or not pfr:
+                    if not pfr:
                         continue
-                    player_id = f"nfl:{gsis}"
+                    player_id = f"nfl:{gsis or pfr}"
                     if conn.execute("SELECT 1 FROM sport_players WHERE sport_id='football' AND player_id=?", (player_id,)).fetchone():
                         conn.execute("INSERT OR IGNORE INTO sport_player_external_ids VALUES ('football', ?, 'pfr', ?)", (player_id, pfr))
                         inserted += 1
