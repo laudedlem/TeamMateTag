@@ -20,6 +20,7 @@ db/*.sqlite
 db/*.sqlite-journal
 db/*.sqlite-shm
 db/*.sqlite-wal
+db/identity_review_queue.csv
 
 # Lahman raw data (too large to commit; ETL scripts can re-download).
 raw/

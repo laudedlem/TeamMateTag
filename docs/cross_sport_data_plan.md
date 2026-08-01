@@ -41,6 +41,15 @@ For all three leagues, retain raw source files outside Git, save source and
 row-count metadata in `sport_data_provenance`, and validate before activating
 the sport in the public UI.
 
+## Identity Reconciliation
+
+The local database now has a source-aware reconciliation layer. It separates
+raw source player references and facts from TeamMateTag's canonical player
+graph, then stores ranked candidate matches and reviewed decisions. Start with
+`docs/player_identity_reconciliation.md` before importing a new historical
+award, roster, or career-stat source. This prevents one provider's name format
+or identifier from silently overwriting another provider's information.
+
 ## Source evaluation as of 2026-07-31
 
 ### NFL

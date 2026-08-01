@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.34`
+- Current display version: `0.1.35`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Required environment values are documented in `.env.example`. Never commit
@@ -91,6 +91,11 @@ changes. It is the concise source of truth for another coding assistant.
   NBA, 565 NHL, and 825 NFL source records without guessing among duplicate
   players. The loader explicitly excludes the cancelled 2004-05 NHL season
   from Stanley Cup credits.
+- `scripts/reconcile_local_identities.py` is the durable, source-aware local
+  identity layer. It imports raw honors observations, accepted legacy links,
+  and ranked candidates into separate SQLite tables, then writes
+  `db/identity_review_queue.csv` for review. Manual accepted matches are
+  preserved across refreshes. See `docs/player_identity_reconciliation.md`.
 
 ## Shared lineup rules
 
