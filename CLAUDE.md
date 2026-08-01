@@ -114,6 +114,8 @@ season source refresh.
 - Team stints on local cards now consolidate separated returns to one team into
   comma-separated year ranges.
 - `scripts/audit_local_sport_data.py` reports coverage and short career gaps.
+  `scripts/run_local_data_quality_pass.py` recomputes football/hockey career
+  positions from raw source rows and writes a structural quality report.
   `scripts/build_local_photo_cache.py` caches league-native NBA, NFL, and NHL
   headshots locally with source URLs. Do not use Wikimedia fallbacks in public
   production without a licensing review.
