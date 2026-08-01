@@ -11,6 +11,8 @@ from urllib.parse import quote
 import requests
 
 from build_local_sports_dataset import DEFAULT_DB, ROOT
+from load_local_honors_history import PRO_BOWL_PAGES, wiki_tables
+from name_normalize import normalize
 
 
 RAW_NFL = ROOT / "raw" / "nfl"
@@ -55,6 +57,58 @@ def cache_pfr_id(name: str) -> str | None:
                     break
     path.write_text(json.dumps({"name": name, "pfr_id": pfr}), encoding="utf-8")
     return pfr
+
+
+def position_matches(source_position: str, local_position: str) -> bool:
+    source = (source_position or "").upper().replace(" ", "")
+    local = {(value or "").upper() for value in (local_position or "").split("/")}
+    if source in local:
+        return True
+    groups = {
+        "LB": {"LB", "ILB", "OLB", "MLB"}, "DL": {"DL", "DE", "DT", "NT"},
+        "DB": {"DB", "CB", "FS", "SS", "S"}, "S": {"S", "FS", "SS"},
+        "OL": {"OL", "OT", "OG", "C"}, "RB": {"RB", "FB", "HB"},
+    }
+    return bool(groups.get(source, {source}) & local)
+
+
+def resolve_pro_bowl_positions(conn: sqlite3.Connection) -> int:
+    """Use source-table position plus season to split same-name NFL players."""
+    candidates = {}
+    for player_id, display, position, debut, final in conn.execute(
+        "SELECT player_id,display_name,primary_pos,debut_year,final_year FROM sport_players WHERE sport_id='football'"
+    ):
+        candidates.setdefault(normalize(display), []).append((player_id, position, debut, final))
+    active = {
+        (name, season) for name, season in conn.execute(
+            """SELECT r.source_name,r.season FROM source_player_references r
+               WHERE r.sport_id='football' AND r.source='wikipedia_nfl_honors'
+                 AND NOT EXISTS (SELECT 1 FROM player_identity_claims c WHERE c.sport_id=r.sport_id AND c.source=r.source AND c.reference_key=r.reference_key AND c.status='accepted')
+                 AND NOT EXISTS (SELECT 1 FROM source_reference_dispositions d WHERE d.sport_id=r.sport_id AND d.source=r.source AND d.reference_key=r.reference_key)"""
+        )
+    }
+    resolved = 0
+    for suffix in PRO_BOWL_PAGES:
+        for table in wiki_tables(f"List_of_Pro_Bowl_players%2C_{suffix}"):
+            if not table or table[0][:3] != ["Name", "Position", "Year(s) selected"]:
+                continue
+            for row in table[1:]:
+                if len(row) < 3:
+                    continue
+                for season_text in re.findall(r"(?:19|20)\d{2}", row[2]):
+                    season = int(season_text)
+                    if (row[0], season) not in active:
+                        continue
+                    matches = [item for item in candidates.get(normalize(row[0]), []) if position_matches(row[1], item[1]) and (not item[2] or item[2] <= season + 1) and (not item[3] or item[3] >= season - 1)]
+                    if len(matches) != 1:
+                        continue
+                    player_id = matches[0][0]
+                    reference_key = __import__('hashlib').sha256(f"{normalize(row[0])}|{season}".encode()).hexdigest()[:24]
+                    conn.execute("INSERT OR REPLACE INTO player_identity_claims (sport_id,source,reference_key,player_id,status,method,confidence,evidence,reviewed_by) VALUES ('football','wikipedia_nfl_honors',? ,?,'accepted','pro_bowl_position',100,?,'source_position')", (reference_key, player_id, f"Wikipedia Pro Bowl position: {row[1]}"))
+                    conn.execute("INSERT OR REPLACE INTO sport_honors SELECT 'football', ?, f.fact_type, f.season, r.source_name, f.source_url, r.source FROM source_fact_observations f JOIN source_player_references r ON r.sport_id=f.sport_id AND r.source=f.source AND r.reference_key=f.reference_key WHERE f.sport_id='football' AND f.source='wikipedia_nfl_honors' AND f.reference_key=?", (player_id, reference_key))
+                    conn.execute("DELETE FROM sport_honor_unresolved WHERE sport_id='football' AND source='wikipedia_nfl_honors' AND category='pro_bowl' AND season=? AND source_name=?", (season, row[0]))
+                    resolved += 1
+    return resolved
 
 
 def main() -> None:
@@ -124,6 +178,7 @@ def main() -> None:
         for player_id, source, name, category, fact_season, source_url in verified:
             conn.execute("INSERT OR REPLACE INTO sport_honors VALUES ('football', ?, ?, ?, ?, ?, ?)", (player_id, category, fact_season, name, source_url, source))
             conn.execute("DELETE FROM sport_honor_unresolved WHERE sport_id='football' AND category=? AND season=? AND source_name=? AND source=?", (category, fact_season, name, source))
+        position_resolved = resolve_pro_bowl_positions(conn)
         conn.execute("""UPDATE sport_player_traits SET mvp_count=(SELECT COUNT(*) FROM sport_honors h WHERE h.sport_id='football' AND h.player_id=sport_player_traits.player_id AND h.honor='mvp'),
             roty_count=(SELECT COUNT(*) FROM sport_honors h WHERE h.sport_id='football' AND h.player_id=sport_player_traits.player_id AND h.honor IN ('offensive_roty','defensive_roty')),
             all_star_count=(SELECT COUNT(*) FROM sport_honors h WHERE h.sport_id='football' AND h.player_id=sport_player_traits.player_id AND h.honor='pro_bowl')
@@ -131,7 +186,7 @@ def main() -> None:
         conn.commit()
     finally:
         conn.close()
-    print(f"Indexed {inserted:,} nflverse PFR identifiers and resolved {resolved:,} award references.")
+    print(f"Indexed {inserted:,} nflverse PFR identifiers and resolved {resolved:,} ID references plus {position_resolved:,} position references.")
 
 
 if __name__ == "__main__":

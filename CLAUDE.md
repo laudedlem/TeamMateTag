@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.39`
+- Current display version: `0.1.40`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Required environment values are documented in `.env.example`. Never commit
@@ -113,6 +113,8 @@ changes. It is the concise source of truth for another coding assistant.
   through official NHL search and per-season game logs. It records brief
   call-up team stints and reduced the active queue to 131: 4 NBA, 91 NFL,
   and 36 NHL.
+- Pro Bowl source positions now combine with season and career dates to resolve
+  same-name NFL players. The active queue is 103: 4 NBA, 71 NFL, and 28 NHL.
 
 ## Shared lineup rules
 

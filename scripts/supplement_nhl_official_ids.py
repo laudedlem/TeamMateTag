@@ -4,6 +4,9 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+import csv
+import io
+import zipfile
 from pathlib import Path
 
 import requests
@@ -16,6 +19,7 @@ CACHE = ROOT / "raw" / "nhl_identity"
 SEARCH_URL = "https://search.d3.nhle.com/api/v1/search/player"
 GAME_LOG_URL = "https://api-web.nhle.com/v1/player/{player_id}/game-log/{season_id}/2"
 SOURCE = "kaggle_nhl_stat_audit"
+SOURCE_ARCHIVE = ROOT / "raw" / "nhl_player_database.zip"
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS sport_player_external_ids (
@@ -46,6 +50,38 @@ def game_log(player_id: int, season: int) -> list[dict]:
     return payload.get("gameLog", [])
 
 
+def source_profiles() -> dict[tuple[str, int], set[str]]:
+    """Keep source position and first NHL year as identity evidence."""
+    profiles: dict[tuple[str, int], set[str]] = {}
+    if not SOURCE_ARCHIVE.exists():
+        return profiles
+    with zipfile.ZipFile(SOURCE_ARCHIVE) as archive:
+        for filename in archive.namelist():
+            if not filename.lower().endswith(".csv"):
+                continue
+            with archive.open(filename) as raw:
+                for row in csv.DictReader(io.TextIOWrapper(raw, encoding="utf-8-sig", newline="")):
+                    name = (row.get("name") or row.get("player") or "").strip()
+                    try:
+                        season = int(row.get("first") or "") - 1
+                    except ValueError:
+                        continue
+                    position = (row.get("position") or "G").upper()
+                    profiles.setdefault((normalize(name), season), set()).add(position)
+    return profiles
+
+
+def position_matches(source_positions: set[str], candidate_position: str) -> bool:
+    candidate_position = (candidate_position or "").upper()
+    if not source_positions:
+        return True
+    return any(
+        source == candidate_position
+        or source == "F" and candidate_position in {"C", "L", "R"}
+        for source in source_positions
+    )
+
+
 def main() -> None:
     conn = sqlite3.connect(DEFAULT_DB)
     try:
@@ -58,10 +94,13 @@ def main() -> None:
                   AND NOT EXISTS (SELECT 1 FROM source_reference_dispositions d WHERE d.sport_id=r.sport_id AND d.source=r.source AND d.reference_key=r.reference_key)""",
             (SOURCE,),
         ).fetchall()
+        profiles = source_profiles()
         resolved = 0
         for source, reference_key, name, season in refs:
             matches = []
             for candidate in search_candidates(name):
+                if not position_matches(profiles.get((normalize(name), season), set()), candidate.get("positionCode") or ""):
+                    continue
                 player_numeric_id = candidate.get("playerId")
                 if not player_numeric_id:
                     continue
