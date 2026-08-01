@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.32`
+- Current display version: `0.1.33`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Required environment values are documented in `.env.example`. Never commit
@@ -71,13 +71,14 @@ changes. It is the concise source of truth for another coding assistant.
 - NBA awards resolve 498 local players with MVP, Rookie of the Year, or
   All-Star counts. NHL awards now resolve 322 players with Hart, Calder, or
   First/Second Team All-Star counts through season-aware Hockey Databank name
-  matching. NFL awards remain pending a reusable identifier-level source.
+  matching. NFL honors are stored in the local honors table.
 - Championship counts are now roster-season totals, not a claim that every
   player received a physical ring. NBA derives 73 Finals champion seasons from
   local box scores; NFL derives 26 Super Bowl seasons from nflverse schedules
   (1999-2024); NHL resolves 39 Stanley Cup seasons from 1986 forward using
   NHL schedule/records data plus a season archive. NHL 1917-85 and NFL
-  pre-1999 championship-roster totals remain intentionally uncredited.
+  pre-1999 championship-roster totals were initially deferred, but are now
+  loaded by the honors-history supplement.
 - `scripts/load_local_honors_history.py` now closes those roster-title gaps:
   NFL Super Bowl I-LIX and NHL pre-1986 `SC` seasons are locally credited from
   the roster graph. It also creates `sport_honors` and

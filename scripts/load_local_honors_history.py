@@ -32,6 +32,15 @@ SUPER_BOWL_URL = "https://www.kaggle.com/api/v1/datasets/download/ronitagarwal1/
 WIKI = "https://en.wikipedia.org/wiki/"
 WIKI_HEADERS = {"User-Agent": "TeamMateTag/0.1 data refresh (contact@teammatetag.com)"}
 PRO_BOWL_PAGES = ("A", "B", "C%E2%80%93F", "G%E2%80%93H", "I%E2%80%93K", "L%E2%80%93M", "N%E2%80%93R", "S%E2%80%93V", "W%E2%80%93Z")
+# Source names used for well-known nicknames or translated NHL first names.
+# These are only applied where the canonical local display name is unique.
+NAME_ALIASES = {
+    "tiny archibald": "nate archibald",
+    "fat lever": "lafayette lever",
+    "cadillac williams": "carnell williams",
+    "patrick surtain ii": "pat surtain ii",
+    "yegor zamula": "egor zamula",
+}
 
 
 SCHEMA = """
@@ -162,7 +171,16 @@ def player_resolver(conn: sqlite3.Connection, sport: str):
         by_last[normalize(row[3] or row[1].rsplit(" ", 1)[-1])].append(row)
 
     def resolve(name: str, season: int | None = None) -> tuple[str | None, str]:
-        candidates = exact.get(normalize(clean_name(name)), [])
+        key = normalize(clean_name(name))
+        candidates = exact.get(key, [])
+        if not candidates and key in NAME_ALIASES:
+            candidates = exact.get(normalize(NAME_ALIASES[key]), [])
+            if len(candidates) == 1:
+                return candidates[0][0], "known_alias"
+        if len(candidates) > 1 and season:
+            active = [row for row in candidates if (not row[4] or row[4] <= season + 1) and (not row[5] or row[5] >= season - 1)]
+            if len(active) == 1:
+                return active[0][0], "exact_name_career"
         if len(candidates) == 1:
             return candidates[0][0], "exact_name"
         bits = clean_name(name).split()
@@ -324,6 +342,8 @@ def load_nhl_pre1986_championships(conn: sqlite3.Connection) -> tuple[int, int]:
 
 def audit_existing_gaps(conn: sqlite3.Connection) -> dict[str, int]:
     """Persist the source rows still unmatched by the traits loader."""
+    conn.execute("""DELETE FROM sport_honors WHERE source IN ('nba_award_audit', 'hockeydb_award_audit', 'kaggle_nhl_stat_audit')""")
+    conn.execute("""DELETE FROM sport_honor_unresolved WHERE source IN ('nba_award_audit', 'hockeydb_award_audit', 'kaggle_nhl_stat_audit')""")
     resolve_nba = player_resolver(conn, "basketball")
     resolve_nhl = player_resolver(conn, "hockey")
     totals: dict[str, int] = defaultdict(int)
