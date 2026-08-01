@@ -17,6 +17,7 @@ Run the existing loaders first, then build the reconciliation layer:
 
 ```powershell
 python scripts\load_local_sport_traits.py --nfl-last 2024
+python scripts\supplement_hockeydb_history.py
 python scripts\load_local_honors_history.py
 python scripts\reconcile_local_identities.py
 ```
@@ -35,6 +36,11 @@ The final command creates or refreshes these ignored local SQLite tables:
 It also writes `db/identity_review_queue.csv`, which can be opened in Excel.
 It lists every unmatched source reference and up to five candidates with the
 matching rationale.
+
+Records outside the currently playable scope are retained but closed with an
+auditable disposition. This includes ABA-only basketball records and NFL
+honors before the Super Bowl-era NFL roster graph begins in 1966. They are not
+silently deleted and will return to active review if that graph scope expands.
 
 ## Review Rules
 

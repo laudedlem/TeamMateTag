@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.35`
+- Current display version: `0.1.36`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Required environment values are documented in `.env.example`. Never commit
@@ -96,6 +96,13 @@ changes. It is the concise source of truth for another coding assistant.
   and ranked candidates into separate SQLite tables, then writes
   `db/identity_review_queue.csv` for review. Manual accepted matches are
   preserved across refreshes. See `docs/player_identity_reconciliation.md`.
+- `scripts/supplement_hockeydb_history.py` is the NHL historical graph
+  supplement. It stores HockeyDB external IDs, fills NHL player-team-season
+  stints missing from the roster API, and adds official NHL stats IDs and
+  appearances for 2024-25 and 2025-26. Run it before honors and reconciliation
+  refreshes. The active identity review queue is now 285 references: 4 NBA,
+  179 NFL, and 102 NHL. NFL's remaining entries are same-name collisions and
+  require source-page identifier extraction rather than name matching.
 
 ## Shared lineup rules
 

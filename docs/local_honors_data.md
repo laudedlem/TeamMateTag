@@ -4,7 +4,9 @@ Run these commands in order to refresh the ignored local SQLite dataset:
 
 ```powershell
 python scripts\load_local_sport_traits.py --nfl-last 2024
+python scripts\supplement_hockeydb_history.py
 python scripts\load_local_honors_history.py
+python scripts\reconcile_local_identities.py
 ```
 
 The second loader enriches `db/teammatetag_local.sqlite` with:
@@ -23,6 +25,10 @@ Current honor coverage (last refreshed 2026-07-31):
 - Super Bowl champion roster-season counts, Super Bowl I through LIX.
 - Stanley Cup champion roster-season counts, including Hockey Databank `SC`
   results before 1986 and the existing modern NHL source.
+- HockeyDB NHL player IDs and 48,000-plus historical player-team-season
+  scoring stints, used as a supplement to the NHL roster API.
+- Official NHL stats player IDs and team-season appearances for 2024-25 and
+  2025-26, including recent call-ups omitted by the roster-history source.
 
 These are roster-season counts. They indicate that a player appeared for the
 champion in that season and do not assert that every club issued a ring.

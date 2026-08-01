@@ -41,6 +41,7 @@ NAME_ALIASES = {
     "patrick surtain ii": "pat surtain ii",
     "yegor zamula": "egor zamula",
 }
+NAME_SUFFIXES = {"jr", "sr", "ii", "iii", "iv", "v"}
 
 
 SCHEMA = """
@@ -159,6 +160,16 @@ def clean_name(value: str) -> str:
     return re.sub(r"\s+", " ", value)
 
 
+def match_keys(value: str) -> list[str]:
+    """Return full and suffix-free keys without changing public display names."""
+    cleaned = clean_name(value)
+    keys = [normalize(cleaned)]
+    parts = cleaned.split()
+    if len(parts) >= 3 and normalize(parts[-1]) in NAME_SUFFIXES:
+        keys.append(normalize(" ".join(parts[:-1])))
+    return list(dict.fromkeys(key for key in keys if key))
+
+
 def player_resolver(conn: sqlite3.Connection, sport: str):
     rows = conn.execute(
         "SELECT player_id, display_name, first_name, last_name, debut_year, final_year FROM sport_players WHERE sport_id=?",
@@ -167,12 +178,17 @@ def player_resolver(conn: sqlite3.Connection, sport: str):
     exact: dict[str, list[tuple]] = defaultdict(list)
     by_last: dict[str, list[tuple]] = defaultdict(list)
     for row in rows:
-        exact[normalize(row[1])].append(row)
+        for key in match_keys(row[1]):
+            exact[key].append(row)
         by_last[normalize(row[3] or row[1].rsplit(" ", 1)[-1])].append(row)
 
     def resolve(name: str, season: int | None = None) -> tuple[str | None, str]:
-        key = normalize(clean_name(name))
-        candidates = exact.get(key, [])
+        keys = match_keys(name)
+        key = keys[0]
+        candidates = []
+        for candidate_key in keys:
+            candidates.extend(exact.get(candidate_key, []))
+        candidates = list(dict.fromkeys(candidates))
         if not candidates and key in NAME_ALIASES:
             candidates = exact.get(normalize(NAME_ALIASES[key]), [])
             if len(candidates) == 1:
@@ -184,6 +200,8 @@ def player_resolver(conn: sqlite3.Connection, sport: str):
         if len(candidates) == 1:
             return candidates[0][0], "exact_name"
         bits = clean_name(name).split()
+        if len(bits) >= 3 and normalize(bits[-1]) in NAME_SUFFIXES:
+            bits = bits[:-1]
         if len(bits) >= 2:
             candidates = [row for row in by_last.get(normalize(bits[-1]), []) if normalize(row[2] or row[1])[:1] == normalize(bits[0])[:1]]
             if season:
@@ -226,6 +244,15 @@ def record(conn: sqlite3.Connection, sport: str, category: str, name: str, seaso
         (sport, category, season or None, clean_name(name), url, source, reason),
     )
     return False
+
+
+def record_known_player(conn: sqlite3.Connection, sport: str, category: str, player_id: str,
+                        name: str, season: int, url: str, source: str) -> None:
+    """Store a fact supplied with a verified source-specific player ID."""
+    conn.execute(
+        "INSERT OR REPLACE INTO sport_honors VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (sport, player_id, category, season, clean_name(name), url, source),
+    )
 
 
 def wiki_tables(page: str) -> list[list[list[str]]]:
@@ -374,10 +401,25 @@ def audit_existing_gaps(conn: sqlite3.Connection) -> dict[str, int]:
             if not record(conn, "basketball", "nba_all_star_source", row.get("player") or "", integer(row.get("season")), NBA_AWARDS_URL, "nba_award_audit", resolve_nba):
                 totals["nba_all_star"] += 1
     master = {row.get("playerID"): row for row in csv.DictReader(io.StringIO(requests.get(HOCKEYDB_MASTER_URL, timeout=90).text))}
+    hdb_ids: dict[str, str] = {}
+    try:
+        hdb_ids = {
+            external_id: player_id for external_id, player_id in conn.execute(
+                """SELECT external_id, player_id FROM sport_player_external_ids
+                   WHERE sport_id='hockey' AND source='hockeydb'"""
+            )
+        }
+    except sqlite3.OperationalError:
+        # The supplemental HockeyDB identity loader is optional but should run
+        # before this script when historical NHL awards are required.
+        pass
     for row in csv.DictReader(io.StringIO(requests.get(HOCKEYDB_AWARDS_URL, timeout=90).text)):
         player = master.get(row.get("playerID"), {})
         name = f"{player.get('nameGiven', '')} {player.get('lastName', '')}".strip()
-        if name and not record(conn, "hockey", "nhl_award_source", name, integer(row.get("year")), HOCKEYDB_AWARDS_URL, "hockeydb_award_audit", resolve_nhl):
+        player_id = hdb_ids.get(row.get("playerID") or "")
+        if player_id:
+            record_known_player(conn, "hockey", "nhl_award_source", player_id, name, integer(row.get("year")), HOCKEYDB_AWARDS_URL, "hockeydb_award_audit")
+        elif name and not record(conn, "hockey", "nhl_award_source", name, integer(row.get("year")), HOCKEYDB_AWARDS_URL, "hockeydb_award_audit", resolve_nhl):
             totals["nhl_awards"] += 1
     if NHL_STATS_CACHE.exists():
         with zipfile.ZipFile(NHL_STATS_CACHE) as archive:
@@ -385,7 +427,12 @@ def audit_existing_gaps(conn: sqlite3.Connection) -> dict[str, int]:
                 with archive.open(filename) as raw:
                     for row in csv.DictReader(io.TextIOWrapper(raw, encoding="utf-8-sig", newline="")):
                         name = (row.get("name") or row.get("player") or "").strip()
-                        if name and not record(conn, "hockey", "nhl_career_stat_source", name, 0, NHL_STATS_CACHE.as_uri(), "kaggle_nhl_stat_audit", resolve_nhl):
+                        # This source's `first` field is the player's first
+                        # NHL season, not a stat. Preserve it as matching
+                        # evidence so same-name historical players are not
+                        # forced through a name-only resolver.
+                        first_season = integer(row.get("first"))
+                        if name and not record(conn, "hockey", "nhl_career_stat_source", name, first_season, NHL_STATS_CACHE.as_uri(), "kaggle_nhl_stat_audit", resolve_nhl):
                             totals["nhl_career_stats"] += 1
     return totals
 
