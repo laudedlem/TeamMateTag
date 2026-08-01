@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.41`
+- Current display version: `0.1.42`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Required environment values are documented in `.env.example`. Never commit
@@ -123,6 +123,9 @@ changes. It is the concise source of truth for another coding assistant.
   totals with official NHL records to split same-name players. The active
   identity queue is now 96: 71 NFL and 25 NHL. There are no active NBA
   references.
+- Official NHL search-name aliases resolve transliteration and punctuation
+  differences only after position and season-game-log verification. This
+  reduced the active queue to 90: 71 NFL and 19 NHL.
 
 ## Shared lineup rules
 

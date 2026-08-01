@@ -22,6 +22,22 @@ LANDING_URL = "https://api-web.nhle.com/v1/player/{player_id}/landing"
 SOURCE = "kaggle_nhl_stat_audit"
 SOURCE_ARCHIVE = ROOT / "raw" / "nhl_player_database.zip"
 
+# The Kaggle career source preserves native spellings while the official NHL
+# search index frequently uses an English transliteration or punctuation-free
+# form. These aliases are reviewed name variants, never player-ID guesses.
+OFFICIAL_SEARCH_ALIASES = {
+    "Vasiliy Ponomarev": "Vasily Ponomarev",
+    "Nikita Okhotyuk": "Nikita Okhotiuk",
+    "Jonas Røndbjerg": "Jonas Rondbjerg",
+    "Mads Søgaard": "Mads Sogaard",
+    "Frédéric St. Denis": "Frederic St-Denis",
+    "Jonas Holøs": "Jonas Holos",
+    "Mikkel Bødker": "Mikkel Boedker",
+    "Kaspars Astašenko": "Kaspars Astashenko",
+    "Viktors Ignatjevs": "Viktor Ignatyev",
+    "Sandis Ozoliņš": "Sandis Ozolinsh",
+}
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS sport_player_external_ids (
   sport_id TEXT NOT NULL, player_id TEXT NOT NULL, source TEXT NOT NULL, external_id TEXT NOT NULL,
@@ -41,9 +57,10 @@ def cached_json(path: Path, url: str, params: dict | None = None) -> object:
 
 
 def search_candidates(name: str) -> list[dict]:
-    filename = re.sub(r"[^a-z0-9]+", "_", normalize(name)).strip("_") + ".json"
-    rows = cached_json(CACHE / "search" / filename, SEARCH_URL, {"culture": "en-us", "limit": 20, "q": name})
-    return [row for row in rows if normalize(row.get("name") or "") == normalize(name)]
+    search_name = OFFICIAL_SEARCH_ALIASES.get(name, name)
+    filename = re.sub(r"[^a-z0-9]+", "_", normalize(search_name)).strip("_") + ".json"
+    rows = cached_json(CACHE / "search" / filename, SEARCH_URL, {"culture": "en-us", "limit": 20, "q": search_name})
+    return [row for row in rows if normalize(row.get("name") or "") == normalize(search_name)]
 
 
 def game_log(player_id: int, season: int) -> list[dict]:
