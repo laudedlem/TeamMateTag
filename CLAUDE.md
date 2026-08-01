@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.43`
+- Current display version: `0.1.44`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Required environment values are documented in `.env.example`. Never commit
@@ -133,6 +133,10 @@ changes. It is the concise source of truth for another coding assistant.
   `scripts/supplement_hockeydb_identity_claims.py` resolves historical NHL
   identities only when HockeyDB's name, first season, position, and career
   games all agree. The active queue is now 43: 27 NFL and 16 NHL.
+- `scripts/supplement_hockey_reference_identities.py` uses verified
+  Hockey-Reference player IDs for historical names unavailable or differently
+  spelled in HockeyDB and the NHL API. NHL's active reconciliation queue is
+  now zero; the remaining queue is 27 NFL references.
 
 ## Shared lineup rules
 
