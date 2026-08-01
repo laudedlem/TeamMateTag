@@ -69,6 +69,13 @@ CREATE TABLE IF NOT EXISTS sport_appearances (
   season INTEGER NOT NULL, games_total INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (sport_id, player_id, team_id, season)
 );
+CREATE TABLE IF NOT EXISTS sport_player_positions (
+  sport_id TEXT NOT NULL, player_id TEXT NOT NULL, position TEXT NOT NULL,
+  games INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (sport_id, player_id, position)
+);
+CREATE INDEX IF NOT EXISTS idx_local_player_positions
+  ON sport_player_positions(sport_id, position, player_id);
 CREATE INDEX IF NOT EXISTS idx_local_appearances_team
   ON sport_appearances(sport_id, team_id, season, player_id);
 CREATE INDEX IF NOT EXISTS idx_local_appearances_player
@@ -97,7 +104,7 @@ def key(value: str) -> str:
 
 
 def clear_sport(conn: sqlite3.Connection, sport: str) -> None:
-    for table in ("sport_data_provenance", "sport_players_searchable", "sport_appearances",
+    for table in ("sport_data_provenance", "sport_players_searchable", "sport_player_positions", "sport_appearances",
                   "sport_players", "sport_teams", "sport_franchises"):
         conn.execute(f"DELETE FROM {table} WHERE sport_id = ?", (sport,))
 

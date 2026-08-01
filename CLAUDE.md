@@ -183,6 +183,38 @@ development artifact until the generic on-demand connection engine is built.
 
 ## Known follow-ups
 
+### Film Review lineup generation (in progress)
+
+Film Review is moving from a static nine-card baseball deck to deterministic
+daily lineup chains. The requested card counts and slots are documented in
+`docs/film_review_lineups.md`:
+
+- Baseball: 10 cards: C, 1B, 2B, 3B, SS, LF, CF, RF, DH, SP.
+- Football: 24 cards: a complete 11-player offense plus K, then a complete
+  11-player defense plus P.
+- Hockey: 11 cards: 2 LW, 2 C, 2 RW, 4 D, G.
+- Basketball: 12 cards: 2 PG, 2 SG, 2 SF, 2 PF, 2 C, 2 flexible cards.
+
+`game/film_review_generator.py` creates deterministic local chains for a
+given sport and calendar day. It requires every adjacent pair to share a
+unique team-season, never repeats a player, and favors modern established
+players. `scripts/run_local_data_quality_pass.py` now populates
+`sport_player_positions`, which preserves all usable player positions rather
+than reducing each player to one card label.
+
+Use these local checks before connecting generated decks to the web mode:
+
+```powershell
+python scripts\run_local_data_quality_pass.py
+python scripts\generate_film_review_local.py baseball
+python scripts\validate_film_review_local.py --days 14
+```
+
+Baseball, football, and hockey can generate valid role-constrained chains.
+Basketball remains intentionally blocked because the current source only
+provides broad G/F/C labels. Do not map those labels to PG/SG/SF/PF. A source
+with real basketball positions is required before activating its lineup mode.
+
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.
   This explains the Firefox failure and can also affect Chrome when its cache

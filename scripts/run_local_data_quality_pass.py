@@ -51,10 +51,59 @@ def hockey_positions() -> dict[str, Counter]:
     return counts
 
 
+def baseball_positions() -> dict[str, Counter]:
+    """Read Lahman's appearance counts so Film Review can require real roles."""
+    counts = defaultdict(Counter)
+    columns = {
+        "G_c": "C", "G_1b": "1B", "G_2b": "2B", "G_3b": "3B", "G_ss": "SS",
+        "G_lf": "LF", "G_cf": "CF", "G_rf": "RF", "G_dh": "DH", "G_p": "SP",
+    }
+    with (ROOT / "raw" / "Appearances.csv").open(encoding="utf-8-sig", newline="") as handle:
+        for row in csv.DictReader(handle):
+            player_id = row.get("playerID")
+            if not player_id:
+                continue
+            for column, position in columns.items():
+                games = int(row.get(column) or 0)
+                if games:
+                    counts[player_id][position] += games
+    return counts
+
+
+def write_position_rows(conn: sqlite3.Connection, sport: str, positions: dict[str, Counter],
+                        aliases: dict[str, str] | None = None) -> None:
+    aliases = aliases or {}
+    conn.execute("DELETE FROM sport_player_positions WHERE sport_id=?", (sport,))
+    rows = []
+    for player_id, counts in positions.items():
+        for position, games in counts.items():
+            normalized = aliases.get(position, position)
+            rows.append((sport, player_id, normalized, games))
+    conn.executemany("""INSERT INTO sport_player_positions(sport_id, player_id, position, games)
+                        VALUES (?, ?, ?, ?)
+                        ON CONFLICT(sport_id, player_id, position) DO UPDATE SET games=games + excluded.games""", rows)
+
+
 def main() -> None:
     conn = sqlite3.connect(DATABASE)
     nfl = football_positions()
     nhl = hockey_positions()
+    mlb = baseball_positions()
+    conn.execute("""CREATE TABLE IF NOT EXISTS sport_player_positions (
+        sport_id TEXT NOT NULL, player_id TEXT NOT NULL, position TEXT NOT NULL,
+        games INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (sport_id, player_id, position))""")
+    conn.execute("""CREATE INDEX IF NOT EXISTS idx_local_player_positions
+                    ON sport_player_positions(sport_id, position, player_id)""")
+    write_position_rows(conn, "baseball", mlb)
+    write_position_rows(conn, "football", nfl)
+    write_position_rows(conn, "hockey", nhl, {"R": "RW", "L": "LW"})
+    basketball = defaultdict(Counter)
+    for player_id, position in conn.execute("SELECT player_id, primary_pos FROM sport_players WHERE sport_id='basketball'"):
+        if position:
+            for item in position.split("/"):
+                basketball[player_id][item] += 1
+    write_position_rows(conn, "basketball", basketball)
     conn.executemany("UPDATE sport_players SET primary_pos=? WHERE sport_id='football' AND player_id=?",
                      [(top_positions(counts), pid) for pid, counts in nfl.items()])
     conn.executemany("UPDATE sport_players SET primary_pos=? WHERE sport_id='hockey' AND player_id=?",
