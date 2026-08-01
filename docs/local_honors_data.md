@@ -15,7 +15,7 @@ The second loader enriches `db/teammatetag_local.sqlite` with:
 - Updated `sport_player_traits`: NFL MVP, offensive/defensive Rookie of the
   Year, Pro Bowl counts, and full Super Bowl-era roster championship counts.
 
-Current honor coverage:
+Current honor coverage (last refreshed 2026-07-31):
 
 - NFL AP MVP and offensive/defensive Rookie of the Year.
 - NFL Pro Bowl selections from the Wikipedia player lists.
@@ -42,13 +42,18 @@ champion in that season and do not assert that every club issued a ring.
 
 ## Remaining Gaps
 
-- 62 NBA archive rows are unresolved, primarily ABA-era players, nicknames,
-  and same-name players. Four NBA award-winner rows remain unresolved.
-- 984 NHL source rows remain unresolved: 498 award rows and 486 career-stat
-  rows. Most either contain only a surname in the historical source or are not
-  present in the local NHL roster graph.
-- 925 NFL honor rows remain unresolved, mostly Pro Bowl names that collide with
-  another player or historical players absent from the local roster graph.
+- 43 NBA archive rows are unresolved: 41 All-Star rows and 2 award-winner
+  rows. They are primarily ABA-era players, nicknames, and same-name players
+  without a safe local graph match.
+- 565 NHL source rows remain unresolved: 130 award rows and 435 career-stat
+  rows. The award loader now resolves formal names and surname-only records
+  whenever there is one safe local match. The remainder are ambiguous or
+  missing from the local NHL roster graph.
+- 825 NFL honor rows remain unresolved: 789 Pro Bowl rows, 24 All-Pro rows,
+  9 MVP rows, 2 offensive ROY rows, and 1 defensive ROY row. They mostly
+  refer to historical players absent from the local roster graph or names that
+  collide with another player.
 - First-team NFL All-Pro coverage is currently 1999-2025. Earlier All-Pro
   history is not yet imported because the public yearly source format changes
   by era.
+- `sport_honors` currently contains 19,051 resolved player-level records.

@@ -184,15 +184,30 @@ def player_resolver(conn: sqlite3.Connection, sport: str):
         if len(candidates) == 1:
             return candidates[0][0], "exact_name"
         bits = clean_name(name).split()
-        if len(bits) < 2:
-            return None, "no_full_name"
-        candidates = [row for row in by_last.get(normalize(bits[-1]), []) if normalize(row[2] or row[1])[:1] == normalize(bits[0])[:1]]
+        if len(bits) >= 2:
+            candidates = [row for row in by_last.get(normalize(bits[-1]), []) if normalize(row[2] or row[1])[:1] == normalize(bits[0])[:1]]
+            if season:
+                active = [row for row in candidates if (not row[4] or row[4] <= season + 1) and (not row[5] or row[5] >= season - 1)]
+                if active:
+                    candidates = active
+            if len(candidates) == 1:
+                return candidates[0][0], "last_name_initial_career"
+        # Historical hockey sources frequently use a formal given name while
+        # the local roster uses a nickname, and newer rows can contain only a
+        # surname. A unique surname among players active in the source season
+        # is a defensible link; multiple candidates remain unresolved.
+        last_candidates = by_last.get(normalize(bits[-1]), [])
         if season:
-            active = [row for row in candidates if (not row[4] or row[4] <= season + 1) and (not row[5] or row[5] >= season - 1)]
-            if active:
-                candidates = active
-        if len(candidates) == 1:
-            return candidates[0][0], "last_name_initial_career"
+            last_candidates = [row for row in last_candidates if (not row[4] or row[4] <= season + 1) and (not row[5] or row[5] >= season - 1)]
+        if len(last_candidates) == 1:
+            return last_candidates[0][0], "unique_last_name_career"
+
+        # The official NHL roster history has incomplete debut/final years for
+        # a portion of early players. A globally unique surname is still a
+        # safe identity match, while shared surnames remain unresolved.
+        all_last_candidates = by_last.get(normalize(bits[-1]), [])
+        if len(all_last_candidates) == 1:
+            return all_last_candidates[0][0], "unique_last_name"
         return None, "ambiguous_or_missing"
 
     return resolve
@@ -284,6 +299,7 @@ def load_nfl_all_pro(conn: sqlite3.Connection) -> tuple[int, int]:
     conn.execute("DELETE FROM sport_honors WHERE sport_id='football' AND source='wikipedia_nfl_all_pro'")
     conn.execute("DELETE FROM sport_honor_unresolved WHERE sport_id='football' AND source='wikipedia_nfl_all_pro'")
     loaded = unresolved = 0
+    team_names = {normalize(name) for (name,) in conn.execute("SELECT DISTINCT name FROM sport_teams WHERE sport_id='football'")}
     for season in range(1999, 2026):
         page = f"{season}_All-Pro_Team"
         try:
@@ -298,6 +314,8 @@ def load_nfl_all_pro(conn: sqlite3.Connection) -> tuple[int, int]:
                     continue
                 # Cells link player then team, repeatedly for tied positions.
                 for name in row[1][::2]:
+                    if normalize(name) in team_names:
+                        continue
                     if record(conn, "football", "all_pro_first_team", name, season, WIKI + page, "wikipedia_nfl_all_pro", resolve):
                         loaded += 1
                     else:

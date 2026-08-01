@@ -479,6 +479,9 @@ def load_nhl_championships(conn: sqlite3.Connection, first_season: int, last_sea
     for season, team_id in NHL_RECENT_CHAMPIONS.items():
         if first_season <= season <= last_season:
             champions[season] = team_id
+    # The 2004-05 NHL season was cancelled during the lockout, so no Stanley
+    # Cup champion can be credited even if a third-party source includes one.
+    champions.pop(2004, None)
     missing = [season for season in range(first_season, last_season + 1) if season not in champions]
     players, matched = update_championship_counts(
         conn, "hockey", champions, "nhl_championship_results", NHL_CHAMPION_FALLBACK_URL,
