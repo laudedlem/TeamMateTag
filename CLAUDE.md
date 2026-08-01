@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.42`
+- Current display version: `0.1.43`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Required environment values are documented in `.env.example`. Never commit
@@ -126,6 +126,13 @@ changes. It is the concise source of truth for another coding assistant.
 - Official NHL search-name aliases resolve transliteration and punctuation
   differences only after position and season-game-log verification. This
   reduced the active queue to 90: 71 NFL and 19 NHL.
+- `scripts/download_nfl_rosters.py` caches the missing 2002-25 nflverse
+  roster releases. `scripts/supplement_nfl_roster_identities.py` uses a
+  unique player-year roster identity to add missing canonical players and
+  promote source honors, including initials written with or without spaces.
+  `scripts/supplement_hockeydb_identity_claims.py` resolves historical NHL
+  identities only when HockeyDB's name, first season, position, and career
+  games all agree. The active queue is now 43: 27 NFL and 16 NHL.
 
 ## Shared lineup rules
 
