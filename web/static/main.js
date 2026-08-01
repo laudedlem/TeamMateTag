@@ -168,6 +168,14 @@ function localSoloPath(suffix) {
   return '/api/local/' + CURRENT_SPORT + '/bp/' + suffix;
 }
 
+function usesLocalFilmReview() {
+  return LOCAL_SOLO_SPORTS.has(CURRENT_SPORT);
+}
+
+function localFilmReviewPath(suffix) {
+  return '/api/local/' + CURRENT_SPORT + '/fr/' + suffix;
+}
+
 const POWERUP_UI = {
   bubblegum: { icon: 'BG', className: 'bubblegum' },
   pine_tar: { icon: 'PT', className: 'pine-tar' },
@@ -638,7 +646,8 @@ async function getAutocomplete(q) {
 }
 
 async function getTeamAutocomplete(q) {
-  const r = await fetch('/api/fr/team_autocomplete?q=' + encodeURIComponent(q));
+  const endpoint = usesLocalFilmReview() ? localFilmReviewPath('team_autocomplete') : '/api/fr/team_autocomplete';
+  const r = await fetch(endpoint + '?q=' + encodeURIComponent(q));
   return r.json();
 }
 
@@ -928,7 +937,8 @@ async function startFr() {
   els.frYearInput.value = '';
   showScreen('fr-game');
   renderLoadingFilmReview();
-  frGame = await api('/api/fr/new', { guest_id: profile?.guest_id || storedGuestId() });
+  frGame = await api(usesLocalFilmReview() ? localFilmReviewPath('new') : '/api/fr/new',
+    { guest_id: profile?.guest_id || storedGuestId() });
   if (frGame.error) {
     alert('error: ' + frGame.error);
     return;
@@ -1813,7 +1823,7 @@ async function frSubmit(e) {
   const year = els.frYearInput.value.trim();
   if (!team || !year) return;
   closeTeamAutocomplete({ keepValue: true });
-  frGame = await api('/api/fr/guess', {
+  frGame = await api(usesLocalFilmReview() ? localFilmReviewPath('guess') : '/api/fr/guess', {
     game_id: frGame.game_id,
     team,
     year,
@@ -1924,7 +1934,7 @@ function hideFrSummaryBanner() {
 
 async function loadFrAnswers() {
   if (!frGame?.game_id || frGame?.won) return;
-  const res = await api('/api/fr/reveal_answer', { game_id: frGame.game_id });
+  const res = await api(usesLocalFilmReview() ? localFilmReviewPath('reveal_answer') : '/api/fr/reveal_answer', { game_id: frGame.game_id });
   if (!res.answers) return;
   if (res.full_cards && res.canonical_links) {
     frGame.revealed_cards = res.full_cards;

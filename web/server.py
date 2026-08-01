@@ -55,6 +55,7 @@ from engine import (  # noqa: E402
     seed_game,
     validate_and_apply_move,
 )
+from film_review_generator import generate as generate_local_film_review  # noqa: E402
 sys.path.insert(0, str(ROOT / "scripts"))
 from name_normalize import normalize  # noqa: E402
 
@@ -91,6 +92,8 @@ NHL_TEAM_NAMES = {
 }
 LOCAL_BP_GAMES: dict[str, dict] = {}
 LOCAL_BP_LOCK = Lock()
+LOCAL_FR_GAMES: dict[str, dict] = {}
+LOCAL_FR_LOCK = Lock()
 HEADSHOT_URL = "https://midfield.mlbstatic.com/v1/people/{}/spots/120"
 OPENING_COUNTDOWN_SECONDS = 3.0
 APP_TURN_SECONDS = 20.0
@@ -2552,6 +2555,191 @@ def _local_bp_state(game_id: str, game: dict) -> dict:
             "chain_length": len(state.chain), "longest_chain": len(state.chain), "turn_seconds": APP_TURN_SECONDS,
             "countdown_seconds_remaining": countdown, "remaining_seconds": remaining,
             "finished": game["finished"], "last_move": last_move}
+
+
+def _local_team_name(sport: str, team_id: str, season: int, conn: sqlite3.Connection) -> str:
+    row = conn.execute(
+        "SELECT name FROM sport_teams WHERE sport_id=? AND team_id=? AND season=?",
+        (sport, team_id, season),
+    ).fetchone()
+    name = row[0] if row else team_id
+    return NHL_TEAM_NAMES.get(name, NHL_TEAM_NAMES.get(team_id, name)) if sport == "hockey" else name
+
+
+def _local_fr_card(player_id: str, card: dict) -> dict:
+    return {
+        "id": player_id,
+        "name": f"{card.get('name_first') or ''} {card.get('name_last') or ''}".strip(),
+        "mlbam_id": None,
+        "headshot_url": card.get("headshot_url"),
+        "debut_year": card.get("debut_year"),
+        "final_year": card.get("final_year"),
+        "primary_pos": card.get("primary_pos"),
+        "teams": [],
+    }
+
+
+def _local_fr_state(game_id: str, game: dict) -> dict:
+    sport, blob = game["sport"], game["blob"]
+    deck, pair_index = blob["deck"], blob["pair_index"]
+    with _local_sport_conn() as conn:
+        cards = _local_sport_cards(conn, sport, deck)
+    card_dicts = {player_id: _local_fr_card(player_id, card) for player_id, card in cards.items()}
+    return {
+        "game_id": game_id,
+        "mode": "fr",
+        "sport": sport,
+        "puzzle_id": blob["puzzle_id"],
+        "total_cards": len(deck),
+        "revealed_count": blob["revealed_count"],
+        "revealed_cards": [card_dicts[player_id] for player_id in deck[:blob["revealed_count"]]],
+        "pair_index": pair_index,
+        "pair_names": [
+            card_dicts[deck[pair_index]]["name"] if pair_index < len(deck) else None,
+            card_dicts[deck[pair_index + 1]]["name"] if pair_index + 1 < len(deck) else None,
+        ],
+        "solved_links": blob["solved_links"][:max(0, blob["revealed_count"] - 1)],
+        "stats": {
+            "hits": blob["hits"], "fouls": blob["fouls"], "strikes": blob["strikes"],
+            "max_strikes": FR_MAX_STRIKES, "consec_fouls": blob["consec_fouls"],
+            "total_pairs": len(deck) - 1,
+        },
+        "finished": blob["finished"], "won": blob["won"], "last_guess": blob["last_guess"],
+    }
+
+
+def _local_fr_shared(conn: sqlite3.Connection, sport: str, first: str, second: str) -> list[list]:
+    rows = conn.execute("""
+        SELECT a.team_id, a.season FROM sport_appearances a
+        JOIN sport_appearances b
+          ON b.sport_id=a.sport_id AND b.team_id=a.team_id AND b.season=a.season
+        WHERE a.sport_id=? AND a.player_id=? AND b.player_id=?
+        ORDER BY a.season, a.team_id
+    """, (sport, first, second)).fetchall()
+    return [[team_id, season, _local_team_name(sport, team_id, season, conn)] for team_id, season in rows]
+
+
+def _classify_local_fr_guess(team_text: str, year_text: str, shared: list[list]) -> tuple[str, list]:
+    try:
+        year = int(year_text)
+    except (TypeError, ValueError):
+        year = None
+    query = normalize(team_text)
+    team_matches, year_match = [], False
+    for team_id, season, team_name in shared:
+        aliases = {normalize(team_id), normalize(team_name)}
+        team_hit = bool(query) and any(query == alias or query in alias or alias in query for alias in aliases)
+        if team_hit:
+            team_matches.append([team_id, season, team_name])
+        if season == year:
+            year_match = True
+    hits = [row for row in team_matches if row[1] == year]
+    return ("hit", hits) if hits else (("foul", []) if team_matches or year_match else ("strike", []))
+
+
+@app.route("/api/local/<sport>/fr/team_autocomplete")
+def local_fr_team_autocomplete(sport: str):
+    query = normalize(request.args.get("q") or "")
+    if sport not in LOCAL_SPORT_SEEDS or not query:
+        return jsonify([])
+    with _local_sport_conn() as conn:
+        names = sorted({_local_team_name(sport, team_id, season, conn)
+                        for team_id, season in conn.execute(
+                            "SELECT team_id, season FROM sport_teams WHERE sport_id=?", (sport,)
+                        )})
+    prefix = [name for name in names if normalize(name).startswith(query)]
+    contains = [name for name in names if query in normalize(name) and not normalize(name).startswith(query)]
+    return jsonify((prefix + contains)[:6])
+
+
+@app.route("/api/local/<sport>/fr/new", methods=["POST"])
+def local_fr_new(sport: str):
+    if sport not in LOCAL_SPORT_SEEDS:
+        return jsonify({"error": "unsupported local sport"}), 404
+    try:
+        with _local_sport_conn() as conn:
+            puzzle = generate_local_film_review(conn, sport)
+            shared_per_pair = [_local_fr_shared(conn, sport, puzzle.deck[index], puzzle.deck[index + 1])
+                               for index in range(len(puzzle.deck) - 1)]
+    except (RuntimeError, ValueError) as error:
+        return jsonify({"error": f"could not build today's Film Review: {error}"}), 500
+    game_id = str(uuid.uuid4())
+    blob = {
+        "puzzle_id": f"local_{sport}_{puzzle.puzzle_date}", "deck": list(puzzle.deck),
+        "pair_index": 0, "revealed_count": 2, "hits": 0, "fouls": 0, "strikes": 0,
+        "consec_fouls": 0, "solved_links": [None] * (len(puzzle.deck) - 1),
+        "shared_per_pair": shared_per_pair, "finished": False, "won": False, "last_guess": None,
+    }
+    game = {"sport": sport, "blob": blob}
+    with LOCAL_FR_LOCK:
+        LOCAL_FR_GAMES[game_id] = game
+    return jsonify(_local_fr_state(game_id, game))
+
+
+@app.route("/api/local/<sport>/fr/guess", methods=["POST"])
+def local_fr_guess(sport: str):
+    data = request.get_json(silent=True) or {}
+    game_id = data.get("game_id")
+    team_text, year_text = (data.get("team") or "").strip(), (data.get("year") or "").strip()
+    with LOCAL_FR_LOCK:
+        game = LOCAL_FR_GAMES.get(game_id)
+        if not game or game["sport"] != sport:
+            return jsonify({"error": "unknown local game"}), 404
+        blob = game["blob"]
+        if blob["finished"]:
+            return jsonify(_local_fr_state(game_id, game))
+        if not team_text or not year_text:
+            blob["last_guess"] = {"outcome": "invalid", "team": team_text, "year": year_text}
+            return jsonify(_local_fr_state(game_id, game))
+        outcome, matched = _classify_local_fr_guess(team_text, year_text, blob["shared_per_pair"][blob["pair_index"]])
+        converted = outcome == "foul" and blob["consec_fouls"] + 1 >= 2
+        if outcome == "foul":
+            blob["consec_fouls"] += 1
+            if converted:
+                outcome = "strike"
+        else:
+            blob["consec_fouls"] = 0
+        if outcome == "hit":
+            blob["hits"] += 1
+            team_id, season, team_name = matched[0]
+            blob["solved_links"][blob["pair_index"]] = {"team_id": team_id, "season": season, "team_name": team_name}
+            blob["pair_index"] += 1
+            blob["revealed_count"] = min(blob["revealed_count"] + 1, len(blob["deck"]))
+            if blob["hits"] == len(blob["deck"]) - 1:
+                blob["finished"], blob["won"] = True, True
+        elif outcome == "foul":
+            blob["fouls"] += 1
+        else:
+            blob["strikes"] += 1
+            if blob["strikes"] >= FR_MAX_STRIKES:
+                blob["finished"] = True
+        blob["last_guess"] = {
+            "outcome": outcome, "team": team_text, "year": year_text,
+            "converted_from_foul": converted,
+            "matched": [{"team_id": item[0], "season": item[1], "team_name": item[2]} for item in matched],
+        }
+        return jsonify(_local_fr_state(game_id, game))
+
+
+@app.route("/api/local/<sport>/fr/reveal_answer", methods=["POST"])
+def local_fr_reveal_answer(sport: str):
+    game_id = (request.get_json(silent=True) or {}).get("game_id")
+    with LOCAL_FR_LOCK:
+        game = LOCAL_FR_GAMES.get(game_id)
+        if not game or game["sport"] != sport:
+            return jsonify({"error": "unknown local game"}), 404
+        blob = game["blob"]
+        if not blob["finished"]:
+            return jsonify({"error": "game not finished"}), 400
+        with _local_sport_conn() as conn:
+            cards = _local_sport_cards(conn, sport, blob["deck"])
+        return jsonify({
+            "full_cards": [_local_fr_card(player_id, cards[player_id]) for player_id in blob["deck"]],
+            "canonical_links": [
+                {"team_id": pair[0], "season": pair[1], "team_name": pair[2]} if pair else None
+                for pair in blob["shared_per_pair"]
+            ],
+        })
 
 
 @app.route("/api/local/<sport>/autocomplete")

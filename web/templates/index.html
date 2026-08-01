@@ -11,7 +11,7 @@
     <div class="title">
       <div class="brand-row">
         <h1>TeamMateTag</h1>
-        <span class="app-version" title="Current version">0.1.22</span>
+        <span class="app-version" title="Current version">0.1.23</span>
       </div>
       <span class="subtitle" id="brand-subtitle"></span>
     </div>
@@ -75,17 +75,17 @@
             apply. Goal: build the longest lineup you can.
         </span>
         </button>
-        {% if sport.key == 'baseball' %}
         <button class="mode-tile" data-mode="fr">
           <div class="mode-tile-head">
             <span class="mode-tile-name">Film Review</span>
             <span class="mode-tile-tag">daily</span>
           </div>
           <span class="mode-tile-desc">
-            Nine players, eight connections. Guess the team and year that links
-            each pair. 3 strikes you're out.
+            {% if sport.key == 'football' %}24 players, 23 connections.{% elif sport.key == 'basketball' %}12 players, 11 connections.{% elif sport.key == 'hockey' %}11 players, 10 connections.{% else %}10 players, 9 connections.{% endif %}
+            Guess the team and year that links each pair. 3 strikes ends the review.
           </span>
         </button>
+        {% if sport.key == 'baseball' %}
         <button class="mode-tile" data-mode="mp">
           <div class="mode-tile-head">
           <span class="mode-tile-name">Division Rivalry</span>
