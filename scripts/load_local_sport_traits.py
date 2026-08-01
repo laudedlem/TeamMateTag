@@ -14,9 +14,11 @@ from __future__ import annotations
 import argparse
 import csv
 import io
+import json
 import sqlite3
 import zipfile
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import requests
@@ -31,8 +33,28 @@ NHL_URL = "https://www.kaggle.com/api/v1/datasets/download/flynn28/nhl-player-da
 NBA_AWARDS_URL = "https://www.kaggle.com/api/v1/datasets/download/sumitrodatta/nba-aba-baa-stats"
 NFL_URL = "https://github.com/nflverse/nflverse-data/releases/download/player_stats/stats_player_week_{season}.csv"
 NFL_SEASON_URL = "https://github.com/nflverse/nflverse-data/releases/download/player_stats/stats_player_reg_{season}.csv"
+NFL_SCHEDULES_URL = "https://github.com/nflverse/nflverse-data/releases/download/schedules/games.csv"
 HOCKEYDB_MASTER_URL = "https://raw.githubusercontent.com/rippinrobr/hockey-databank/master/Master.csv"
 HOCKEYDB_AWARDS_URL = "https://raw.githubusercontent.com/rippinrobr/hockey-databank/master/AwardsPlayers.csv"
+NHL_SCHEDULE_URL = "https://api-web.nhle.com/v1/club-schedule-season/{team}/{season}"
+NHL_CHAMPION_FALLBACK_URL = "https://gist.githubusercontent.com/cperera1997/5f22ac67099c16937e54e96b28a9b037/raw/52c84459973b018a42c39aa6405161518b649cbb/stanley%20cup%20champions%20playoff%20data.csv"
+NHL_TEAM_CODES = (
+    "ANA", "ARI", "ATL", "BOS", "BUF", "CAR", "CBJ", "CGY", "CHI", "CLE", "COL", "DAL",
+    "DET", "EDM", "FLA", "HFD", "KCS", "LAK", "MDA", "MIN", "MNS", "MTL", "NJD", "NSH",
+    "NYI", "NYR", "OTT", "PHI", "PHX", "PIT", "QUE", "SEA", "SJS", "STL", "TBL", "TOR",
+    "UTA", "VAN", "VGK", "WIN", "WPG", "WSH",
+)
+NHL_CHAMPION_TEAM_CODES = {
+    "anaheim ducks": "ANA", "boston bruins": "BOS", "calgary flames": "CGY",
+    "carolina hurricanes": "CAR", "chicago blackhawks": "CHI", "colorado avalanche": "COL",
+    "dallas stars": "DAL", "detroit red wings": "DET", "edmonton oilers": "EDM",
+    "los angeles kings": "LAK", "montreal canadiens": "MTL", "new jersey devils": "NJD",
+    "new york rangers": "NYR", "pittsburgh penguins": "PIT", "st louis blues": "STL",
+    "tampa bay lightning": "TBL", "washington capitals": "WSH",
+}
+# Season-start year: champion. Verified against NHL Records because the club
+# schedule feed omits several recent final series.
+NHL_RECENT_CHAMPIONS = {2020: "TBL", 2021: "COL", 2022: "VGK", 2023: "FLA", 2024: "FLA", 2025: "CAR"}
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS sport_player_traits (
@@ -107,6 +129,42 @@ def replace_traits(conn: sqlite3.Connection, sport: str, rows: list[tuple], sour
     )
 
 
+def update_championship_counts(
+    conn: sqlite3.Connection, sport: str, champions: dict[int, str], source: str, url: str, coverage: str
+) -> tuple[int, int]:
+    """Credit rostered players for a champion's season.
+
+    The teammate graph stores season-level appearances, so this deliberately
+    measures championship-roster membership rather than attempting to infer
+    who received an official ring from every club's front office.
+    """
+    counts: dict[str, int] = defaultdict(int)
+    matched_seasons = 0
+    for season, team_id in champions.items():
+        rows = conn.execute(
+            """SELECT DISTINCT player_id FROM sport_appearances
+                 WHERE sport_id=? AND season=? AND team_id=?""",
+            (sport, season, team_id),
+        ).fetchall()
+        if rows:
+            matched_seasons += 1
+        for (player_id,) in rows:
+            counts[player_id] += 1
+    conn.execute("UPDATE sport_player_traits SET championship_count=0 WHERE sport_id=?", (sport,))
+    conn.executemany(
+        """UPDATE sport_player_traits
+              SET championship_count=?, updated_at=CURRENT_TIMESTAMP
+            WHERE sport_id=? AND player_id=?""",
+        [(count, sport, player_id) for player_id, count in counts.items()],
+    )
+    conn.execute("DELETE FROM sport_trait_provenance WHERE sport_id=? AND source=?", (sport, source))
+    conn.execute(
+        "INSERT INTO sport_trait_provenance (sport_id, source, source_url, coverage) VALUES (?, ?, ?, ?)",
+        (sport, source, url, coverage),
+    )
+    return len(counts), matched_seasons
+
+
 def load_nba(conn: sqlite3.Connection) -> int:
     if not NBA_STATS.exists():
         raise RuntimeError(f"Missing NBA source file: {NBA_STATS}")
@@ -168,6 +226,32 @@ def load_nba_awards(conn: sqlite3.Connection) -> tuple[int, int]:
     return len(counts), unresolved
 
 
+def load_nba_championships(conn: sqlite3.Connection) -> tuple[int, int]:
+    """Derive NBA champions from the decisive NBA Finals game in the local archive."""
+    finalists: dict[int, tuple[str, int, str]] = {}
+    with NBA_STATS.open(encoding="utf-8-sig", newline="") as handle:
+        for row in csv.DictReader(handle):
+            if row.get("gameType") != "Playoffs" or row.get("gameLabel") != "NBA Finals":
+                continue
+            if integer(row.get("win")) != 1:
+                continue
+            date = (row.get("gameDate") or row.get("gameDateTimeEst") or "")[:10]
+            if len(date) < 4:
+                continue
+            year = integer(date[:4])
+            # Finals end the season in the following calendar year.
+            season = year - 1 if len(date) >= 7 and integer(date[5:7]) <= 7 else year
+            candidate = (date, integer(row.get("seriesGameNumber")), row.get("playerteamId") or "")
+            if candidate[2] and (season not in finalists or candidate[:2] > finalists[season][:2]):
+                finalists[season] = candidate
+    champions = {season: value[2] for season, value in finalists.items()}
+    return update_championship_counts(
+        conn, "basketball", champions, "nba_finals_boxscores",
+        "https://www.kaggle.com/datasets/eoinamoore/historical-nba-data-and-player-box-scores",
+        "NBA Finals decisive-game winners derived from local player box scores",
+    )
+
+
 def load_nfl(conn: sqlite3.Connection, first_season: int, last_season: int) -> tuple[int, list[int]]:
     totals: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
     skipped = []
@@ -194,6 +278,25 @@ def load_nfl(conn: sqlite3.Connection, first_season: int, last_season: int) -> t
     rows = [("football", player_id, int(stat["games"]), 0, 0, 0, int(stat["touchdowns"]), int(stat["passing_tds"]), int(stat["rushing_tds"]), int(stat["receiving_tds"]), stat["sacks"], int(stat["interceptions"]), "nflverse_player_stats") for player_id, stat in totals.items()]
     replace_traits(conn, "football", rows, "nflverse_player_stats", "https://github.com/nflverse/nflverse-data/releases/tag/player_stats", f"weekly player stats, {first_season}-{last_season}; unavailable seasons: {','.join(map(str, skipped)) or 'none'}")
     return len(rows), skipped
+
+
+def load_nfl_championships(conn: sqlite3.Connection) -> tuple[int, int]:
+    """Derive Super Bowl champions from nflverse's game schedule results."""
+    response = requests.get(NFL_SCHEDULES_URL, timeout=120)
+    response.raise_for_status()
+    champions: dict[int, str] = {}
+    for row in csv.DictReader(io.StringIO(response.text)):
+        if row.get("game_type") != "SB":
+            continue
+        season = integer(row.get("season"))
+        away_score = integer(row.get("away_score")); home_score = integer(row.get("home_score"))
+        if not season or away_score == home_score:
+            continue
+        champions[season] = row.get("away_team") if away_score > home_score else row.get("home_team")
+    return update_championship_counts(
+        conn, "football", champions, "nflverse_schedules", NFL_SCHEDULES_URL,
+        "Super Bowl winners from nflverse schedules; roster-season membership, 1999-present",
+    )
 
 
 def load_nhl(conn: sqlite3.Connection, download: bool) -> tuple[int, int]:
@@ -230,9 +333,21 @@ def load_nhl_awards(conn: sqlite3.Connection) -> tuple[int, int]:
     awards = requests.get(HOCKEYDB_AWARDS_URL, timeout=90)
     master.raise_for_status(); awards.raise_for_status()
     index = make_name_index(conn, "hockey")
+    award_rows = list(csv.DictReader(io.StringIO(awards.text)))
+    award_source_ids = {row.get("playerID") for row in award_rows if row.get("playerID")}
+    local_rows = conn.execute(
+        """SELECT player_id, display_name, first_name, last_name, debut_year, final_year
+             FROM sport_players WHERE sport_id='hockey'"""
+    ).fetchall()
+    by_last: dict[str, list[tuple]] = defaultdict(list)
+    for local in local_rows:
+        by_last[normalize(local[3] or local[1].rsplit(" ", 1)[-1])].append(local)
     source_to_local: dict[str, str] = {}
-    unresolved = 0
+    unresolved_ids: set[str] = set()
     for row in csv.DictReader(io.StringIO(master.text)):
+        source_id = row.get("playerID") or ""
+        if source_id not in award_source_ids:
+            continue
         given = (row.get("nameGiven") or "").strip()
         last = (row.get("lastName") or "").strip()
         name = " ".join(part for part in (given, last) if part).strip()
@@ -242,11 +357,30 @@ def load_nhl_awards(conn: sqlite3.Connection) -> tuple[int, int]:
             # roster source uses the player's common first name.
             player_ids = index.get(normalize(f"{given.split()[0]} {last}"), [])
         if len(player_ids) == 1:
-            source_to_local[row["playerID"]] = player_ids[0]
-        elif name:
-            unresolved += 1
+            source_to_local[source_id] = player_ids[0]
+            continue
+        candidates = by_last.get(normalize(last), [])
+        first_initial = normalize(given)[:1]
+        source_first = integer(row.get("firstNHL")); source_last = integer(row.get("lastNHL"))
+        scored: list[tuple[int, str]] = []
+        for candidate in candidates:
+            player_id, display_name, first_name, _last_name, debut, final = candidate
+            candidate_initial = normalize(first_name or display_name)[:1]
+            if not first_initial or first_initial != candidate_initial:
+                continue
+            score = 10
+            if normalize(display_name) == normalize(name):
+                score += 100
+            if source_first and source_last and debut and final and not (final < source_first - 1 or debut > source_last + 1):
+                score += 20
+            scored.append((score, player_id))
+        scored.sort(reverse=True)
+        if len(scored) == 1 or (len(scored) > 1 and scored[0][0] > scored[1][0]):
+            source_to_local[source_id] = scored[0][1]
+        else:
+            unresolved_ids.add(source_id)
     counts: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
-    for row in csv.DictReader(io.StringIO(awards.text)):
+    for row in award_rows:
         player_id = source_to_local.get(row.get("playerID") or "")
         if not player_id:
             continue
@@ -265,7 +399,98 @@ def load_nhl_awards(conn: sqlite3.Connection) -> tuple[int, int]:
         "INSERT INTO sport_trait_provenance (sport_id, source, source_url, coverage) VALUES (?, ?, ?, ?)",
         ("hockey", "hockey_databank_awards", HOCKEYDB_AWARDS_URL, "Hart, Calder, and First/Second Team All-Star counts through Hockey Databank coverage"),
     )
-    return len(counts), unresolved
+    return len(counts), len(unresolved_ids)
+
+
+def load_nhl_championships(conn: sqlite3.Connection, first_season: int, last_season: int) -> tuple[int, int, list[int]]:
+    """Derive Stanley Cup champions from official NHL club schedule results.
+
+    The final game contains a round marker in modern responses. Older response
+    formats retain the playoff-round portion of the game id, so both forms are
+    accepted. Responses are cached because this checks historical schedules for
+    every NHL franchise code.
+    """
+    cache_root = ROOT / "raw" / "nhl_champion_schedules"
+    champions: dict[int, str] = {}
+    missing: list[int] = []
+    fallback = requests.get(NHL_CHAMPION_FALLBACK_URL, timeout=60)
+    fallback.raise_for_status()
+    fallback_seasons = 0
+    for row in csv.DictReader(io.StringIO(fallback.text)):
+        # The source's 2020 means the 2019-20 champion, while this database
+        # stores season start years.
+        season = integer(row.get("Season")) - 1
+        code = NHL_CHAMPION_TEAM_CODES.get(normalize(row.get("Team") or ""))
+        if first_season <= season <= last_season and code:
+            champions[season] = code
+            fallback_seasons += 1
+
+    # The public endpoint is complete enough for modern seasons but leaves
+    # most pre-1986 playoff rounds absent. The explicit fallback above covers
+    # 1986-2019, so only use the slow official calls for recent seasons.
+    schedule_first = max(first_season, 2020)
+    for season in range(schedule_first, last_season + 1):
+        season_key = f"{season}{season + 1}"
+        winner_codes: set[str] = set()
+        def fetch_schedule(team: str) -> dict | None:
+            path = cache_root / team / f"{season_key}.json"
+            if path.exists():
+                return json.loads(path.read_text(encoding="utf-8"))
+            try:
+                response = requests.get(NHL_SCHEDULE_URL.format(team=team, season=season_key), timeout=45)
+                if response.status_code == 404:
+                    return None
+                response.raise_for_status()
+                payload = response.json()
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(response.text, encoding="utf-8")
+                return payload
+            except requests.RequestException:
+                return None
+
+        # Several historical franchises return 404. Parallel requests keep a
+        # full season refresh practical and cached responses make later runs fast.
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            futures = [pool.submit(fetch_schedule, team) for team in NHL_TEAM_CODES]
+            payloads = [future.result() for future in as_completed(futures)]
+        for payload in payloads:
+            if not payload:
+                continue
+            for game in payload.get("games", []):
+                if integer(game.get("gameType")) != 3:
+                    continue
+                status = game.get("seriesStatus") or {}
+                round_number = integer(status.get("round"))
+                game_id = str(game.get("id") or "")
+                is_final = round_number == 4 or (len(game_id) >= 10 and game_id[8:10] == "04")
+                needed = integer(status.get("neededToWin"))
+                clinched = needed and (integer(status.get("topSeedWins")) >= needed or integer(status.get("bottomSeedWins")) >= needed)
+                if not is_final or not clinched:
+                    continue
+                away = game.get("awayTeam") or {}; home = game.get("homeTeam") or {}
+                away_score = integer(away.get("score")); home_score = integer(home.get("score"))
+                if away_score == home_score:
+                    continue
+                winner_codes.add(str(away.get("abbrev") if away_score > home_score else home.get("abbrev") or ""))
+        if len(winner_codes) == 1:
+            champions[season] = winner_codes.pop()
+        if season % 10 == 0:
+            print(f"NHL champion source through {season}: {len(champions)} resolved")
+    for season, team_id in NHL_RECENT_CHAMPIONS.items():
+        if first_season <= season <= last_season:
+            champions[season] = team_id
+    missing = [season for season in range(first_season, last_season + 1) if season not in champions]
+    players, matched = update_championship_counts(
+        conn, "hockey", champions, "nhl_championship_results", NHL_CHAMPION_FALLBACK_URL,
+        "Official NHL decisive-final schedules plus a season-level champion fallback",
+    )
+    conn.execute("DELETE FROM sport_trait_provenance WHERE sport_id='hockey' AND source='nhl_official_club_schedules'")
+    # Replace the generic provenance coverage with the actual resolved scope.
+    conn.execute(
+        "UPDATE sport_trait_provenance SET coverage=? WHERE sport_id='hockey' AND source='nhl_championship_results'",
+        (f"{len(champions)} Stanley Cup champion seasons: official NHL schedules, {fallback_seasons} archived seasons, and recent NHL Records winners; unresolved: {','.join(map(str, missing)) or 'none'}",),
+    )
+    return players, matched, missing
 
 
 def main() -> None:
@@ -273,23 +498,33 @@ def main() -> None:
     parser.add_argument("--download-nhl", action="store_true")
     parser.add_argument("--nfl-first", type=int, default=1999)
     parser.add_argument("--nfl-last", type=int, default=2024)
+    parser.add_argument("--nhl-champion-first", type=int, default=1917)
+    parser.add_argument("--nhl-champion-last", type=int, default=2025)
     args = parser.parse_args()
     conn = sqlite3.connect(DATABASE)
     try:
         conn.executescript(SCHEMA)
         nba = load_nba(conn)
         nba_awards, nba_award_unresolved = load_nba_awards(conn)
+        nba_champions, nba_champion_seasons = load_nba_championships(conn)
         nfl, skipped = load_nfl(conn, args.nfl_first, args.nfl_last)
+        nfl_champions, nfl_champion_seasons = load_nfl_championships(conn)
         nhl, unresolved = load_nhl(conn, args.download_nhl)
         nhl_awards, nhl_award_unresolved = load_nhl_awards(conn)
+        nhl_champions, nhl_champion_seasons, nhl_champion_missing = load_nhl_championships(
+            conn, args.nhl_champion_first, args.nhl_champion_last
+        )
         conn.commit()
     finally:
         conn.close()
     print(f"NBA traits: {nba}")
     print(f"NBA awards: {nba_awards}; unresolved source names: {nba_award_unresolved}")
+    print(f"NBA championship roster counts: {nba_champions}; champion seasons: {nba_champion_seasons}")
     print(f"NFL traits: {nfl}; unavailable seasons: {skipped or 'none'}")
+    print(f"NFL championship roster counts: {nfl_champions}; champion seasons: {nfl_champion_seasons}")
     print(f"NHL traits: {nhl}; unresolved source names: {unresolved}")
     print(f"NHL awards: {nhl_awards}; unresolved Hockey Databank names: {nhl_award_unresolved}")
+    print(f"NHL championship roster counts: {nhl_champions}; champion seasons: {nhl_champion_seasons}; missing: {nhl_champion_missing or 'none'}")
 
 
 if __name__ == "__main__":
