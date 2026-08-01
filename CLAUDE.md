@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.25`
+- Current display version: `0.1.26`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Required environment values are documented in `.env.example`. Never commit
@@ -242,6 +242,10 @@ Complete/Incomplete/Turnover. They use the same team-plus-year
 guessing, foul streak, three-strike, and full-lineup reveal behavior as
 baseball. Do not describe the non-baseball modes as deployed until the
 cross-sport data is moved out of the ignored local SQLite database.
+
+Football board order is fixed for presentation: offense has OT, OG, C, OG, OT;
+then WR, WR, WR, TE, RB; then QB and K. Defense has EDGE, DT, DT, EDGE; then
+OLB, MIKE, OLB; then CB, S, P, S, CB.
 
 Use `python scripts\generate_film_review_local.py football --unit offense`
 or `--unit defense` to print a daily Film Review test key.

@@ -2014,6 +2014,17 @@ function frTerms() {
   })[frGame?.sport || CURRENT_SPORT || 'baseball'];
 }
 
+function frBoardRole(sport, unit, slot, index) {
+  if (sport === 'hockey' && slot === 'D') return index < 8 ? 'LD' : 'RD';
+  if (sport === 'football' && unit === 'offense') {
+    return ({ 6: 'OT', 7: 'OG', 8: 'C', 9: 'OG', 10: 'OT' })[index] || slot;
+  }
+  if (sport === 'football' && unit === 'defense') {
+    return ({ 0: 'EDGE', 1: 'DT', 2: 'DT', 3: 'EDGE', 4: 'OLB', 5: 'MIKE', 6: 'OLB' })[index] || slot;
+  }
+  return slot;
+}
+
 function renderFrLineupBoard() {
   const slots = frGame?.slots || [];
   if (!slots.length) {
@@ -2030,9 +2041,7 @@ function renderFrLineupBoard() {
     <div class="fr-board-grid">
       ${slots.map((slot, index) => {
         const player = revealed[index];
-        const role = sport === 'hockey' && slot === 'D'
-          ? (index < 8 ? 'LD' : 'RD')
-          : slot;
+        const role = frBoardRole(sport, unit, slot, index);
         return `<div class="fr-board-slot slot-${slot.toLowerCase()} slot-index-${index} ${player ? 'filled' : ''}">
           <span class="fr-board-role">${escapeHtml(role)}</span>
           <span class="fr-board-player">${player ? escapeHtml(player.name) : ''}</span>
