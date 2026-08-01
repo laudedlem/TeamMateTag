@@ -226,7 +226,7 @@ const LOCAL_PLAYOFF_OPTIONS = {
   basketball: [
     ['random', 'Random'], ['ironman', 'Bucket Getter: 3 players with 10,000 career points'],
     ['one_team', 'Home Court: 2 players with 8 seasons for one franchise'],
-    ['journeyman', 'Frequent Flyer: 2 players who played for 5 teams'], ['backcourt', 'Backcourt: 3 guards'],
+    ['journeyman', 'Frequent Flyer: 2 players who played for 5 teams'], ['mvp_circle', 'MVP Circle: 3 MVP winners'],
   ],
   football: [
     ['random', 'Random'], ['ironman', 'End Zone: 3 players with 20 career touchdowns'],

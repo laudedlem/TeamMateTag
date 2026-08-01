@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.29`
+- Current display version: `0.1.30`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Required environment values are documented in `.env.example`. Never commit
@@ -62,12 +62,16 @@ changes. It is the concise source of truth for another coding assistant.
   additive `sport_player_traits` table. It currently loads NBA regular-season
   totals from the local CC0 Kaggle archive, NFL weekly totals from nflverse,
   and NHL career totals from the CC BY Kaggle player database.
-- Local Playoffs now uses verified career points, touchdowns, and goals for
-  selected powerups and win conditions. Awards and championship counts remain
-  zero until a separate verified award/championship source is ingested.
-- Current source gaps are explicit in `sport_trait_provenance`: NFL's public
-  weekly release was unavailable for 2002 and 2019, and 746 NHL source names
-  did not uniquely resolve to local player IDs. Do not infer values for these.
+- Local Playoffs now uses verified career points, touchdowns, goals, and NBA
+  MVP counts for selected powerups and win conditions. The NBA awards import
+  matches MVP, Rookie of the Year, and All-Star selections from the current
+  `sumitrodatta/nba-aba-baa-stats` Kaggle archive.
+- Current source gaps are explicit in `sport_trait_provenance`: 746 NHL
+  career-stat source names and 6,112 Hockey Databank award names did not
+  uniquely resolve to local player IDs. Do not infer values for these.
+- NHL awards import currently resolves 157 local players with Hart, Calder,
+  or First/Second Team All-Star counts. NFL awards and all three leagues'
+  player championship counts remain pending an identifier-level source.
 
 ## Shared lineup rules
 

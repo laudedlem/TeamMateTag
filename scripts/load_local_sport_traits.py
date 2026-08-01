@@ -28,7 +28,11 @@ from name_normalize import normalize
 DATABASE = ROOT / "db" / "teammatetag_local.sqlite"
 NBA_STATS = ROOT / "raw" / "nba_kaggle" / "PlayerStatistics.csv"
 NHL_URL = "https://www.kaggle.com/api/v1/datasets/download/flynn28/nhl-player-database"
+NBA_AWARDS_URL = "https://www.kaggle.com/api/v1/datasets/download/sumitrodatta/nba-aba-baa-stats"
 NFL_URL = "https://github.com/nflverse/nflverse-data/releases/download/player_stats/stats_player_week_{season}.csv"
+NFL_SEASON_URL = "https://github.com/nflverse/nflverse-data/releases/download/player_stats/stats_player_reg_{season}.csv"
+HOCKEYDB_MASTER_URL = "https://raw.githubusercontent.com/rippinrobr/hockey-databank/master/Master.csv"
+HOCKEYDB_AWARDS_URL = "https://raw.githubusercontent.com/rippinrobr/hockey-databank/master/AwardsPlayers.csv"
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS sport_player_traits (
@@ -124,11 +128,55 @@ def load_nba(conn: sqlite3.Connection) -> int:
     return len(rows)
 
 
+def load_nba_awards(conn: sqlite3.Connection) -> tuple[int, int]:
+    """Load MVP, Rookie of the Year, and All-Star counts from a public archive."""
+    response = requests.get(NBA_AWARDS_URL, timeout=120)
+    response.raise_for_status()
+    index = make_name_index(conn, "basketball")
+    counts: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    unresolved = 0
+    with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+        with archive.open("Player Award Shares.csv") as raw:
+            for row in csv.DictReader(io.TextIOWrapper(raw, encoding="utf-8-sig", newline="")):
+                if (row.get("winner") or "").upper() != "TRUE":
+                    continue
+                player_ids = index.get(normalize(row.get("player") or ""), [])
+                if len(player_ids) != 1:
+                    unresolved += 1
+                    continue
+                award = (row.get("award") or "").lower()
+                if award in {"nba mvp", "aba mvp"}: counts[player_ids[0]]["mvp"] += 1
+                elif award in {"nba roy", "aba roy", "baa roy"}: counts[player_ids[0]]["roty"] += 1
+        with archive.open("All-Star Selections.csv") as raw:
+            for row in csv.DictReader(io.TextIOWrapper(raw, encoding="utf-8-sig", newline="")):
+                player_ids = index.get(normalize(row.get("player") or ""), [])
+                if len(player_ids) == 1:
+                    counts[player_ids[0]]["all_star"] += 1
+                else:
+                    unresolved += 1
+    conn.executemany(
+        """UPDATE sport_player_traits
+              SET mvp_count=?, roty_count=?, all_star_count=?, updated_at=CURRENT_TIMESTAMP
+            WHERE sport_id='basketball' AND player_id=?""",
+        [(values["mvp"], values["roty"], values["all_star"], player_id) for player_id, values in counts.items()],
+    )
+    conn.execute("DELETE FROM sport_trait_provenance WHERE sport_id='basketball' AND source='kaggle_sumitrodatta_nba_awards'")
+    conn.execute(
+        "INSERT INTO sport_trait_provenance (sport_id, source, source_url, coverage) VALUES (?, ?, ?, ?)",
+        ("basketball", "kaggle_sumitrodatta_nba_awards", "https://www.kaggle.com/datasets/sumitrodatta/nba-aba-baa-stats", "MVP, Rookie of the Year, and All-Star selections, 1947-present source archive"),
+    )
+    return len(counts), unresolved
+
+
 def load_nfl(conn: sqlite3.Connection, first_season: int, last_season: int) -> tuple[int, list[int]]:
     totals: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
     skipped = []
     for season in range(first_season, last_season + 1):
         response = requests.get(NFL_URL.format(season=season), timeout=90)
+        is_season_total = False
+        if response.status_code == 404:
+            response = requests.get(NFL_SEASON_URL.format(season=season), timeout=90)
+            is_season_total = True
         if response.status_code == 404:
             skipped.append(season)
             continue
@@ -138,7 +186,7 @@ def load_nfl(conn: sqlite3.Connection, first_season: int, last_season: int) -> t
             if not player_id:
                 continue
             stats = totals[f"nfl:{player_id}"]
-            stats["games"] += 1
+            stats["games"] += integer(row.get("games")) if is_season_total else 1
             passing = integer(row.get("passing_tds")); rushing = integer(row.get("rushing_tds")); receiving = integer(row.get("receiving_tds"))
             stats["passing_tds"] += passing; stats["rushing_tds"] += rushing; stats["receiving_tds"] += receiving
             stats["touchdowns"] += passing + rushing + receiving + integer(row.get("special_teams_tds")) + integer(row.get("def_tds")) + integer(row.get("fumble_recovery_tds"))
@@ -176,6 +224,50 @@ def load_nhl(conn: sqlite3.Connection, download: bool) -> tuple[int, int]:
     return len(rows), unresolved
 
 
+def load_nhl_awards(conn: sqlite3.Connection) -> tuple[int, int]:
+    """Load historical Hart, Calder, and All-Star counts through HockeyDB's coverage."""
+    master = requests.get(HOCKEYDB_MASTER_URL, timeout=90)
+    awards = requests.get(HOCKEYDB_AWARDS_URL, timeout=90)
+    master.raise_for_status(); awards.raise_for_status()
+    index = make_name_index(conn, "hockey")
+    source_to_local: dict[str, str] = {}
+    unresolved = 0
+    for row in csv.DictReader(io.StringIO(master.text)):
+        given = (row.get("nameGiven") or "").strip()
+        last = (row.get("lastName") or "").strip()
+        name = " ".join(part for part in (given, last) if part).strip()
+        player_ids = index.get(normalize(name), [])
+        if len(player_ids) != 1 and given and last:
+            # Hockey Databank often records middle names while the local NHL
+            # roster source uses the player's common first name.
+            player_ids = index.get(normalize(f"{given.split()[0]} {last}"), [])
+        if len(player_ids) == 1:
+            source_to_local[row["playerID"]] = player_ids[0]
+        elif name:
+            unresolved += 1
+    counts: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    for row in csv.DictReader(io.StringIO(awards.text)):
+        player_id = source_to_local.get(row.get("playerID") or "")
+        if not player_id:
+            continue
+        award = row.get("award") or ""
+        if award == "Hart": counts[player_id]["mvp"] += 1
+        elif award == "Calder": counts[player_id]["roty"] += 1
+        elif award in {"First Team All-Star", "Second Team All-Star"}: counts[player_id]["all_star"] += 1
+    conn.executemany(
+        """UPDATE sport_player_traits
+              SET mvp_count=?, roty_count=?, all_star_count=?, updated_at=CURRENT_TIMESTAMP
+            WHERE sport_id='hockey' AND player_id=?""",
+        [(values["mvp"], values["roty"], values["all_star"], player_id) for player_id, values in counts.items()],
+    )
+    conn.execute("DELETE FROM sport_trait_provenance WHERE sport_id='hockey' AND source='hockey_databank_awards'")
+    conn.execute(
+        "INSERT INTO sport_trait_provenance (sport_id, source, source_url, coverage) VALUES (?, ?, ?, ?)",
+        ("hockey", "hockey_databank_awards", HOCKEYDB_AWARDS_URL, "Hart, Calder, and First/Second Team All-Star counts through Hockey Databank coverage"),
+    )
+    return len(counts), unresolved
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--download-nhl", action="store_true")
@@ -186,14 +278,18 @@ def main() -> None:
     try:
         conn.executescript(SCHEMA)
         nba = load_nba(conn)
+        nba_awards, nba_award_unresolved = load_nba_awards(conn)
         nfl, skipped = load_nfl(conn, args.nfl_first, args.nfl_last)
         nhl, unresolved = load_nhl(conn, args.download_nhl)
+        nhl_awards, nhl_award_unresolved = load_nhl_awards(conn)
         conn.commit()
     finally:
         conn.close()
     print(f"NBA traits: {nba}")
+    print(f"NBA awards: {nba_awards}; unresolved source names: {nba_award_unresolved}")
     print(f"NFL traits: {nfl}; unavailable seasons: {skipped or 'none'}")
     print(f"NHL traits: {nhl}; unresolved source names: {unresolved}")
+    print(f"NHL awards: {nhl_awards}; unresolved Hockey Databank names: {nhl_award_unresolved}")
 
 
 if __name__ == "__main__":
