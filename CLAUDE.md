@@ -137,6 +137,11 @@ changes. It is the concise source of truth for another coding assistant.
   Hockey-Reference player IDs for historical names unavailable or differently
   spelled in HockeyDB and the NHL API. NHL's active reconciliation queue is
   now zero; the remaining queue is 27 NFL references.
+- `scripts/supplement_pfr_identity_claims.py` resolves the final NFL
+  same-name records using reviewed Pro Football Reference player IDs, position,
+  and career-window evidence. The active cross-sport identity reconciliation
+  queue is now zero. Data-only reconciliation passes update this file but do
+  not change the visible application version.
 
 ## Shared lineup rules
 
