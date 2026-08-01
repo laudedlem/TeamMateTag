@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.26`
+- Current display version: `0.1.27`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Required environment values are documented in `.env.example`. Never commit
@@ -20,8 +20,9 @@ changes. It is the concise source of truth for another coding assistant.
 - `/` is the sport-selection home. It includes account/profile access and
   links to Baseball, Basketball, Hockey, and Football.
 - `/baseball` is the live baseball game hub with four modes.
-- `/basketball`, `/hockey`, and `/football` are intentionally visible but
-  unavailable until their roster graphs are loaded.
+- `/basketball`, `/hockey`, and `/football` are local playtesting hubs when
+  `TEAMMATETAG_LOCAL_SPORTS=1`. Their roster graphs live in local SQLite and
+  are not yet deployed to Vercel.
 - The header brand is `TeamMateTag`; version number is shown beside it.
 - Use ASCII in code and player-facing strings. Do not use em dashes.
 
@@ -40,6 +41,18 @@ changes. It is the concise source of truth for another coding assistant.
 - **Playoffs**: Division Rivalry plus one of each powerup per player and a
   chosen or random win condition. Each player's latest win-condition choice
   is remembered for the next match. Balance and quality testing are deferred.
+
+## Cross-sport multiplayer staging
+
+- Basketball, hockey, and football now expose local Division Rivalry through
+  `/api/local/<sport>/dr/*`. The client uses the same queue, game, move,
+  server-clock, forfeit, rematch, and requeue contract as production baseball.
+- These local matches are process-memory playtesting only. They intentionally
+  omit account statistics, challenge codes, and friends until the sports data
+  moves to persistent shared storage for deployment.
+- The frontend selects the local adapter only for non-baseball sports. A
+  production migration can preserve the client endpoints and replace the
+  local adapter with a database-backed implementation.
 
 ## Shared lineup rules
 

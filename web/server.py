@@ -94,6 +94,16 @@ LOCAL_BP_GAMES: dict[str, dict] = {}
 LOCAL_BP_LOCK = Lock()
 LOCAL_FR_GAMES: dict[str, dict] = {}
 LOCAL_FR_LOCK = Lock()
+# Local cross-sport Division Rivalry is intentionally shaped like the
+# production /api/dr contract. It is a staging adapter until these leagues
+# move to persistent, shared database tables.
+LOCAL_DR_GAMES: dict[str, dict] = {}
+LOCAL_DR_QUEUE: dict[str, list[dict]] = {sport: [] for sport in LOCAL_SPORT_SEEDS}
+LOCAL_DR_MATCH_BY_PLAYER: dict[tuple[str, str], str] = {}
+LOCAL_DR_REMATCH_REQUESTS: dict[str, set[str]] = {}
+LOCAL_DR_REMATCH_LINKS: dict[str, str] = {}
+LOCAL_DR_POSTGAME_EXITS: dict[str, set[str]] = {}
+LOCAL_DR_LOCK = Lock()
 HEADSHOT_URL = "https://midfield.mlbstatic.com/v1/people/{}/spots/120"
 OPENING_COUNTDOWN_SECONDS = 3.0
 APP_TURN_SECONDS = 20.0
@@ -2806,6 +2816,310 @@ def local_bp_move(sport: str):
                 if result.outcome == MoveOutcome.VALID:
                     game["started_at"] = now_utc() - timedelta(seconds=OPENING_COUNTDOWN_SECONDS)
         return jsonify(_local_bp_state(game_id, game))
+
+
+# ----- Local cross-sport Division Rivalry -----
+
+def _local_dr_player_key(sport: str, guest_id: str) -> tuple[str, str]:
+    return sport, guest_id
+
+
+def _local_dr_authorized(game: dict, guest_id: str) -> bool:
+    return guest_id in {game["p1_guest_id"], game["p2_guest_id"]}
+
+
+def _local_dr_expire(game: dict) -> None:
+    if game["finished"]:
+        return
+    elapsed = (now_utc() - game["turn_started_at"]).total_seconds()
+    live_elapsed = max(0.0, elapsed - game["countdown_seconds"])
+    if live_elapsed >= game["turn_seconds"]:
+        loser = game["turn_index"]
+        game["finished"] = True
+        game["winner"] = game["p2"] if loser == 0 else game["p1"]
+        game["last_move"] = {"outcome": "timeout"}
+
+
+def _local_dr_chain(state: GameState, sport: str) -> tuple[list[dict], list[dict]]:
+    with _local_sport_conn() as conn:
+        cards = _local_sport_cards(conn, sport, state.chain)
+        team_names = {
+            (team, season): _local_team_name(sport, team, season, conn)
+            for team, season in conn.execute(
+                "SELECT team_id, season FROM sport_teams WHERE sport_id = ?", (sport,)
+            )
+        }
+    chain = []
+    for index, (player_id, name) in enumerate(zip(state.chain, state.chain_names)):
+        chain.append({
+            "id": player_id,
+            "name": name,
+            **cards[player_id],
+            "shared_with_prev": [
+                {"team_id": team, "season": season, "team_name": team_names.get((team, season), team)}
+                for team, season in state.chain_shared_with_prev[index]
+            ],
+        })
+    strikes = [
+        {"team_id": team, "season": season, "count": count,
+         "team_name": team_names.get((team, season), team)}
+        for (team, season), count in state.strikes.items()
+    ]
+    return chain, strikes
+
+
+def _local_dr_state(game_id: str, game: dict, viewer_guest_id: str) -> dict:
+    _local_dr_expire(game)
+    elapsed = (now_utc() - game["turn_started_at"]).total_seconds()
+    countdown_left = max(0.0, game["countdown_seconds"] - elapsed) if not game["finished"] else 0.0
+    remaining = max(0.0, game["turn_seconds"] - max(0.0, elapsed - game["countdown_seconds"])) \
+        if not game["finished"] else 0.0
+    state = game["state"]
+    chain, strikes = _local_dr_chain(state, game["sport"])
+    your_side = "p1" if viewer_guest_id == game["p1_guest_id"] else "p2"
+    last_move = dict(game.get("last_move") or {})
+    for field in ("shared_seasons", "burned_seasons"):
+        for item in last_move.get(field, []):
+            # The chain has already normalized names for display; resolve move feedback too.
+            with _local_sport_conn() as conn:
+                item["team_name"] = _local_team_name(game["sport"], item["team_id"], item["season"], conn)
+    return {
+        "game_id": game_id,
+        "mode": "mp",
+        "sport": game["sport"],
+        "current_player": {"id": state.current_player_id, "name": state.current_player_name},
+        "current_label": game["p1"] if game["turn_index"] == 0 else game["p2"],
+        "p1": game["p1"], "p2": game["p2"],
+        "p1_guest_id": game["p1_guest_id"], "p2_guest_id": game["p2_guest_id"],
+        "viewer_guest_id": viewer_guest_id,
+        "your_side": your_side,
+        "your_name": game[your_side],
+        "opponent_name": game["p2" if your_side == "p1" else "p1"],
+        "your_turn": not game["finished"] and (
+            (your_side == "p1" and game["turn_index"] == 0) or
+            (your_side == "p2" and game["turn_index"] == 1)
+        ),
+        "turn_index": game["turn_index"],
+        "turn_seconds": game["turn_seconds"],
+        "countdown_seconds_remaining": countdown_left,
+        "remaining_seconds": remaining,
+        "chain": chain,
+        "strikes": strikes,
+        "finished": game["finished"],
+        "winner": game.get("winner"),
+        "last_move": last_move,
+    }
+
+
+def _local_dr_create_game(sport: str, first: dict, second: dict) -> tuple[str, dict]:
+    p1, p2 = (first, second) if secrets.randbelow(2) == 0 else (second, first)
+    with _local_sport_conn() as conn:
+        state = seed_game(conn, LOCAL_SPORT_SEEDS[sport], sport=sport)
+    game_id = str(uuid.uuid4())
+    game = {
+        "sport": sport,
+        "state": state,
+        "p1": p1["name"], "p2": p2["name"],
+        "p1_guest_id": p1["guest_id"], "p2_guest_id": p2["guest_id"],
+        "turn_index": 0,
+        "turn_seconds": APP_TURN_SECONDS,
+        "turn_started_at": now_utc(),
+        "countdown_seconds": OPENING_COUNTDOWN_SECONDS,
+        "finished": False, "winner": None, "last_move": None,
+    }
+    LOCAL_DR_GAMES[game_id] = game
+    LOCAL_DR_MATCH_BY_PLAYER[_local_dr_player_key(sport, p1["guest_id"])] = game_id
+    LOCAL_DR_MATCH_BY_PLAYER[_local_dr_player_key(sport, p2["guest_id"])] = game_id
+    return game_id, game
+
+
+def _local_dr_status(sport: str, guest_id: str) -> dict:
+    game_id = LOCAL_DR_MATCH_BY_PLAYER.get(_local_dr_player_key(sport, guest_id))
+    game = LOCAL_DR_GAMES.get(game_id) if game_id else None
+    if game and not game["finished"]:
+        return {"status": "matched", "game": _local_dr_state(game_id, game, guest_id)}
+    if any(row["guest_id"] == guest_id for row in LOCAL_DR_QUEUE[sport]):
+        return {"status": "waiting", "guest_id": guest_id}
+    return {"status": "idle"}
+
+
+@app.route("/api/local/<sport>/dr/queue", methods=["POST"])
+def local_dr_queue(sport: str):
+    data = request.get_json(silent=True) or {}
+    guest_id = (data.get("guest_id") or "").strip()
+    if sport not in LOCAL_SPORT_SEEDS or not guest_id:
+        return jsonify({"error": "supported sport and guest_id required"}), 400
+    name = (data.get("display_name") or data.get("name") or "Player").strip()[:24] or "Player"
+    avoid_guest_id = (data.get("avoid_guest_id") or "").strip()
+    with LOCAL_DR_LOCK:
+        current = _local_dr_status(sport, guest_id)
+        if current["status"] == "matched":
+            return jsonify(current)
+        queue = LOCAL_DR_QUEUE[sport]
+        queue[:] = [row for row in queue if row["guest_id"] != guest_id]
+        opponent_index = next((index for index, row in enumerate(queue)
+                               if row["guest_id"] != guest_id and row["guest_id"] != avoid_guest_id), None)
+        if opponent_index is None:
+            queue.append({"guest_id": guest_id, "name": name, "avoid_guest_id": avoid_guest_id})
+            return jsonify({"status": "waiting", "guest_id": guest_id})
+        opponent = queue.pop(opponent_index)
+        game_id, game = _local_dr_create_game(sport, opponent, {"guest_id": guest_id, "name": name})
+        return jsonify({"status": "matched", "game": _local_dr_state(game_id, game, guest_id)})
+
+
+@app.route("/api/local/<sport>/dr/status", methods=["POST"])
+def local_dr_status(sport: str):
+    guest_id = ((request.get_json(silent=True) or {}).get("guest_id") or "").strip()
+    if sport not in LOCAL_SPORT_SEEDS or not guest_id:
+        return jsonify({"error": "supported sport and guest_id required"}), 400
+    with LOCAL_DR_LOCK:
+        return jsonify(_local_dr_status(sport, guest_id))
+
+
+@app.route("/api/local/<sport>/dr/game", methods=["POST"])
+def local_dr_game(sport: str):
+    data = request.get_json(silent=True) or {}
+    guest_id, game_id = (data.get("guest_id") or "").strip(), (data.get("game_id") or "").strip()
+    with LOCAL_DR_LOCK:
+        game = LOCAL_DR_GAMES.get(game_id)
+        if not game or game["sport"] != sport:
+            return jsonify({"error": "unknown game_id"}), 404
+        if not _local_dr_authorized(game, guest_id):
+            return jsonify({"error": "unauthorized"}), 403
+        return jsonify(_local_dr_state(game_id, game, guest_id))
+
+
+@app.route("/api/local/<sport>/dr/move", methods=["POST"])
+def local_dr_move(sport: str):
+    data = request.get_json(silent=True) or {}
+    guest_id, game_id = (data.get("guest_id") or "").strip(), (data.get("game_id") or "").strip()
+    with LOCAL_DR_LOCK:
+        game = LOCAL_DR_GAMES.get(game_id)
+        if not game or game["sport"] != sport:
+            return jsonify({"error": "unknown game_id"}), 404
+        if not _local_dr_authorized(game, guest_id):
+            return jsonify({"error": "unauthorized"}), 403
+        _local_dr_expire(game)
+        if game["finished"]:
+            return jsonify(_local_dr_state(game_id, game, guest_id))
+        expected = game["p1_guest_id"] if game["turn_index"] == 0 else game["p2_guest_id"]
+        if guest_id != expected:
+            return jsonify({"error": "not your turn", **_local_dr_state(game_id, game, guest_id)}), 409
+        elapsed = (now_utc() - game["turn_started_at"]).total_seconds()
+        if elapsed < game["countdown_seconds"]:
+            return jsonify(_local_dr_state(game_id, game, guest_id))
+        picked_id = (data.get("player_id") or "").strip() or None
+        with _local_sport_conn() as conn:
+            result = validate_and_apply_move(
+                game["state"], conn, player_id=picked_id,
+                raw_input=None if picked_id else (data.get("raw") or "").strip(),
+                track_strikes=True, sport=sport,
+            )
+        game["last_move"] = {
+            "outcome": result.outcome.value, "player_id": result.player_id,
+            "display_name": result.display_name, "disambiguation": result.disambiguation,
+            "ambiguous_count": result.ambiguous_count,
+            "shared_seasons": [{"team_id": team, "season": season} for team, season in result.shared_seasons],
+            "burned_seasons": [{"team_id": team, "season": season} for team, season in result.burned_seasons],
+        }
+        if result.outcome == MoveOutcome.VALID:
+            game["turn_index"] = 1 - game["turn_index"]
+            game["turn_started_at"] = now_utc()
+            game["countdown_seconds"] = 0.0
+        return jsonify(_local_dr_state(game_id, game, guest_id))
+
+
+@app.route("/api/local/<sport>/dr/leave_game", methods=["POST"])
+def local_dr_leave_game(sport: str):
+    data = request.get_json(silent=True) or {}
+    guest_id, game_id = (data.get("guest_id") or "").strip(), (data.get("game_id") or "").strip()
+    with LOCAL_DR_LOCK:
+        game = LOCAL_DR_GAMES.get(game_id)
+        if not game or game["sport"] != sport:
+            return jsonify({"status": "gone"})
+        if not _local_dr_authorized(game, guest_id):
+            return jsonify({"error": "unauthorized"}), 403
+        if not game["finished"]:
+            game["finished"] = True
+            game["winner"] = game["p2"] if guest_id == game["p1_guest_id"] else game["p1"]
+            game["last_move"] = {"outcome": "forfeit"}
+        return jsonify({"status": "gone"})
+
+
+@app.route("/api/local/<sport>/dr/rematch_request", methods=["POST"])
+def local_dr_rematch_request(sport: str):
+    data = request.get_json(silent=True) or {}
+    guest_id, game_id = (data.get("guest_id") or "").strip(), (data.get("game_id") or "").strip()
+    with LOCAL_DR_LOCK:
+        game = LOCAL_DR_GAMES.get(game_id)
+        if not game or game["sport"] != sport:
+            return jsonify({"error": "unknown game_id"}), 404
+        if not _local_dr_authorized(game, guest_id):
+            return jsonify({"error": "unauthorized"}), 403
+        if not game["finished"] or game.get("last_move", {}).get("outcome") == "forfeit":
+            return jsonify({"error": "rematch unavailable"}), 400
+        new_game_id = LOCAL_DR_REMATCH_LINKS.get(game_id)
+        if new_game_id:
+            return jsonify({"status": "matched", "game": _local_dr_state(new_game_id, LOCAL_DR_GAMES[new_game_id], guest_id)})
+        requests = LOCAL_DR_REMATCH_REQUESTS.setdefault(game_id, set())
+        requests.add(guest_id)
+        if {game["p1_guest_id"], game["p2_guest_id"]} <= requests:
+            first = {"guest_id": game["p1_guest_id"], "name": game["p1"]}
+            second = {"guest_id": game["p2_guest_id"], "name": game["p2"]}
+            new_game_id, new_game = _local_dr_create_game(sport, first, second)
+            LOCAL_DR_REMATCH_LINKS[game_id] = new_game_id
+            return jsonify({"status": "matched", "game": _local_dr_state(new_game_id, new_game, guest_id)})
+        return jsonify({"status": "waiting"})
+
+
+@app.route("/api/local/<sport>/dr/rematch_status", methods=["POST"])
+def local_dr_rematch_status(sport: str):
+    data = request.get_json(silent=True) or {}
+    guest_id, game_id = (data.get("guest_id") or "").strip(), (data.get("game_id") or "").strip()
+    with LOCAL_DR_LOCK:
+        game = LOCAL_DR_GAMES.get(game_id)
+        if not game or game["sport"] != sport:
+            return jsonify({"error": "unknown game_id"}), 404
+        new_game_id = LOCAL_DR_REMATCH_LINKS.get(game_id)
+        if new_game_id:
+            return jsonify({"status": "matched", "game": _local_dr_state(new_game_id, LOCAL_DR_GAMES[new_game_id], guest_id)})
+        other = game["p2_guest_id"] if guest_id == game["p1_guest_id"] else game["p1_guest_id"]
+        if other in LOCAL_DR_POSTGAME_EXITS.get(game_id, set()):
+            return jsonify({"status": "abandoned", "opponent_present": False})
+        return jsonify({"status": "waiting", "opponent_present": True})
+
+
+@app.route("/api/local/<sport>/dr/postgame_leave", methods=["POST"])
+def local_dr_postgame_leave(sport: str):
+    data = request.get_json(silent=True) or {}
+    guest_id, game_id = (data.get("guest_id") or "").strip(), (data.get("game_id") or "").strip()
+    with LOCAL_DR_LOCK:
+        game = LOCAL_DR_GAMES.get(game_id)
+        if not game or game["sport"] != sport:
+            return jsonify({"status": "gone"})
+        LOCAL_DR_POSTGAME_EXITS.setdefault(game_id, set()).add(guest_id)
+        LOCAL_DR_REMATCH_REQUESTS.setdefault(game_id, set()).discard(guest_id)
+        other = game["p2_guest_id"] if guest_id == game["p1_guest_id"] else game["p1_guest_id"]
+        if other in LOCAL_DR_REMATCH_REQUESTS.get(game_id, set()):
+            LOCAL_DR_QUEUE[sport] = [row for row in LOCAL_DR_QUEUE[sport] if row["guest_id"] != other]
+            LOCAL_DR_QUEUE[sport].append({"guest_id": other, "name": game["p2"] if other == game["p2_guest_id"] else game["p1"], "avoid_guest_id": guest_id})
+        return jsonify({"status": "gone"})
+
+
+@app.route("/api/local/<sport>/dr/cancel_queue", methods=["POST"])
+def local_dr_cancel_queue(sport: str):
+    guest_id = ((request.get_json(silent=True) or {}).get("guest_id") or "").strip()
+    with LOCAL_DR_LOCK:
+        if sport in LOCAL_DR_QUEUE:
+            LOCAL_DR_QUEUE[sport][:] = [row for row in LOCAL_DR_QUEUE[sport] if row["guest_id"] != guest_id]
+    return jsonify({"status": "idle"})
+
+
+@app.route("/api/local/<sport>/dr/cancel_challenge", methods=["POST"])
+def local_dr_cancel_challenge(sport: str):
+    # Challenge codes remain a production-baseball feature until account-backed
+    # cross-sport games are migrated from the local data store.
+    return jsonify({"status": "idle"})
 
 
 # ----- Player autocomplete (used by MP + BP) -----

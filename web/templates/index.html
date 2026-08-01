@@ -11,7 +11,7 @@
     <div class="title">
       <div class="brand-row">
         <h1>TeamMateTag</h1>
-        <span class="app-version" title="Current version">0.1.26</span>
+        <span class="app-version" title="Current version">0.1.27</span>
       </div>
       <span class="subtitle" id="brand-subtitle"></span>
     </div>
@@ -85,7 +85,6 @@
             Guess the team and year that links each pair. 3 strikes ends the review.
           </span>
         </button>
-        {% if sport.key == 'baseball' %}
         <button class="mode-tile" data-mode="mp">
           <div class="mode-tile-head">
           <span class="mode-tile-name">Division Rivalry</span>
@@ -96,6 +95,7 @@
             opponent.
         </span>
         </button>
+        {% if sport.key == 'baseball' %}
         <button class="mode-tile" data-mode="po">
           <div class="mode-tile-head">
           <span class="mode-tile-name">Playoffs</span>

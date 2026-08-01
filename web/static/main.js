@@ -68,6 +68,7 @@ const els = {
   joinCodeInput: document.getElementById('join-code-input'),
   joinCodeBtn: document.getElementById('join-code-btn'),
   challengeStatusText: document.getElementById('challenge-status-text'),
+  challengeBox: document.querySelector('.challenge-box'),
   playoffConditionPicker: document.getElementById('playoff-condition-picker'),
   playoffConditionSelect: document.getElementById('playoff-condition-select'),
   playoffRandomBtn: document.getElementById('playoff-random-btn'),
@@ -195,6 +196,9 @@ function isOnlineMode(mode = currentMode) {
 }
 
 function onlineApiBase(mode = currentMode) {
+  if (mode === 'mp' && LOCAL_SOLO_SPORTS.has(CURRENT_SPORT)) {
+    return '/api/local/' + CURRENT_SPORT + '/dr';
+  }
   return mode === 'po' ? '/api/po' : '/api/dr';
 }
 
@@ -758,6 +762,7 @@ function pickMode(mode) {
     els.startBtn.hidden = false;
     els.cancelMatchBtn.hidden = true;
     els.challengeStatusText.textContent = '';
+    els.challengeBox.hidden = mode === 'mp' && LOCAL_SOLO_SPORTS.has(CURRENT_SPORT);
     els.playoffConditionPicker.hidden = mode !== 'po';
     if (mode === 'po') {
       const preference = profile?.playoff_win_condition_preference || 'random';
@@ -846,6 +851,7 @@ async function startMpGame(opts = {}) {
   clearInterval(mpQueuePollInterval);
   const queued = await api(onlineApiBase() + '/queue', {
     guest_id: profile?.guest_id || storedGuestId(),
+    display_name: currentHandle(),
     avoid_guest_id: opts.avoidGuestId || '',
     win_condition_preference: currentMode === 'po' ? els.playoffConditionSelect.value : '',
   });
@@ -1167,7 +1173,10 @@ function runOpeningCountdown() {
 }
 
 async function onMpTimeout() {
-  game = await api((currentMode === 'po' ? '/api/po/timeout' : '/api/timeout'), {
+  const timeoutPath = currentMode === 'po'
+    ? '/api/po/timeout'
+    : (LOCAL_SOLO_SPORTS.has(CURRENT_SPORT) ? onlineApiBase() + '/game' : '/api/timeout');
+  game = await api(timeoutPath, {
     game_id: game.game_id,
     guest_id: profile?.guest_id || storedGuestId(),
   });
@@ -1200,7 +1209,7 @@ async function submitMove({ raw, player_id }) {
   els.guessInput.value = '';
   const path = currentMode === 'bp'
     ? (LOCAL_SOLO_SPORTS.has(CURRENT_SPORT) ? localSoloPath('move') : '/api/bp/move')
-    : currentMode === 'po' ? '/api/po/move' : '/api/move';
+    : currentMode === 'po' ? '/api/po/move' : (LOCAL_SOLO_SPORTS.has(CURRENT_SPORT) ? onlineApiBase() + '/move' : '/api/move');
   const previousChainLength = game.chain?.length || 0;
   game = await api(path, {
     game_id: game.game_id,
