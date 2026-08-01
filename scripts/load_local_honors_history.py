@@ -430,11 +430,11 @@ def audit_existing_gaps(conn: sqlite3.Connection) -> dict[str, int]:
                 with archive.open(filename) as raw:
                     for row in csv.DictReader(io.TextIOWrapper(raw, encoding="utf-8-sig", newline="")):
                         name = (row.get("name") or row.get("player") or "").strip()
-                        # This source's `first` field is the player's first
-                        # NHL season, not a stat. Preserve it as matching
-                        # evidence so same-name historical players are not
-                        # forced through a name-only resolver.
-                        first_season = integer(row.get("first"))
+                        # This source records the ending calendar year of an
+                        # NHL season. TeamMateTag uses the starting year, so a
+                        # 2024-25 debut is stored as 2024 here.
+                        first_year = integer(row.get("first"))
+                        first_season = first_year - 1 if first_year else 0
                         if name and not record(conn, "hockey", "nhl_career_stat_source", name, first_season, NHL_STATS_CACHE.as_uri(), "kaggle_nhl_stat_audit", resolve_nhl):
                             totals["nhl_career_stats"] += 1
     return totals

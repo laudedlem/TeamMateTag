@@ -30,14 +30,29 @@ CREATE TABLE IF NOT EXISTS sport_player_external_ids (
 def cache_pfr_id(name: str) -> str | None:
     CACHE.mkdir(parents=True, exist_ok=True)
     path = CACHE / (re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_") + ".json")
-    if path.exists():
-        return json.loads(path.read_text(encoding="utf-8")).get("pfr_id")
-    response = requests.get(WIKI + quote(name.replace(" ", "_")), headers=HEADERS, timeout=60)
-    pfr = None
-    if response.ok:
+    cached = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    if cached.get("pfr_id"):
+        return cached["pfr_id"]
+
+    def pfr_from_title(title: str) -> str | None:
+        response = requests.get(WIKI + quote(title.replace(" ", "_")), headers=HEADERS, timeout=60)
+        if not response.ok:
+            return None
         match = re.search(r"pro-football-reference\.com/players/[A-Z]/([^/?#\"']+)", response.text, flags=re.I)
-        if match:
-            pfr = match.group(1).removesuffix(".htm")
+        return match.group(1).removesuffix(".htm") if match else None
+
+    pfr = pfr_from_title(name)
+    if not pfr:
+        search = requests.get(
+            "https://en.wikipedia.org/w/api.php",
+            params={"action": "query", "list": "search", "srsearch": f"{name} NFL", "srlimit": 5, "format": "json"},
+            headers=HEADERS, timeout=60,
+        )
+        if search.ok:
+            for result in search.json().get("query", {}).get("search", []):
+                pfr = pfr_from_title(result.get("title") or "")
+                if pfr:
+                    break
     path.write_text(json.dumps({"name": name, "pfr_id": pfr}), encoding="utf-8")
     return pfr
 
