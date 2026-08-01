@@ -4254,11 +4254,13 @@ def bp_timeout():
 
 FR_PUZZLES: list[dict] = [
     {
-        "id": "fr_001",
-        "title": "Full Lineup",
+        "id": "fr_baseball_starting_lineup_001",
+        "title": "Starting Lineup",
         "deck": [
-            "pujolal01", "hunteto01", "cabremi01", "pierrju01",
-            "rolliji01", "gonzaad01", "ortizda01", "pierzaj01", "beltrad01",
+            # C, 1B, 2B, 3B, SS, LF, CF, RF, DH, SP. The canonical links
+            # use nine separate team-seasons, so none repeats within the deck.
+            "varitja01", "ortizda01", "bettsmo01", "tayloch03", "bloomwi01",
+            "jonesad01", "markani01", "wiggity01", "huffau01", "beimejo01",
         ],
     },
 ]
