@@ -22,9 +22,6 @@ def main() -> None:
     conn = sqlite3.connect(ROOT / "db" / "teammatetag_local.sqlite")
     failures = []
     for sport in LINEUP_SLOTS:
-        if sport == "basketball":
-            print("basketball: blocked pending exact PG/SG/SF/PF/C source")
-            continue
         passed = 0
         for offset in range(args.days):
             puzzle_day = args.start + timedelta(days=offset)

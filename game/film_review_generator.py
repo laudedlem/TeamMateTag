@@ -32,7 +32,9 @@ QUALITY_FLOORS = {
     "football": (32, 1990),
     # NHL roster-history rows currently count seasons rather than games.
     "hockey": (5, 1995),
-    "basketball": (100, 2000),
+    # The local NBA importer stores one row per player-team-season, so its
+    # career count is seasons rather than total games.
+    "basketball": (5, 2000),
 }
 
 

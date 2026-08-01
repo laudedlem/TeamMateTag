@@ -210,10 +210,18 @@ python scripts\generate_film_review_local.py baseball
 python scripts\validate_film_review_local.py --days 14
 ```
 
-Baseball, football, and hockey can generate valid role-constrained chains.
-Basketball remains intentionally blocked because the current source only
-provides broad G/F/C labels. Do not map those labels to PG/SG/SF/PF. A source
-with real basketball positions is required before activating its lineup mode.
+Baseball, football, hockey, and basketball can generate valid
+role-constrained chains. Basketball uses a Wikidata cache keyed by NBA.com
+player ID for exact PG/SG/SF/PF/C eligibility. Its game-by-game source still
+provides only broad G/F/C, so do not claim that the listed order of multiple
+career roles measures minutes or starts at each position.
+
+The initial exact basketball-position coverage is 93.01% (4,548 of 4,890
+local NBA players). `scripts/refresh_bref_nba_position_gaps.py` is a slow,
+resumable Basketball-Reference fallback for the remaining records. It must be
+run conservatively because the source rate-limits requests. Do not call the
+NBA position metadata complete until the fallback resolves the remaining
+eligible players and a quality pass is rerun.
 
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.

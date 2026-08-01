@@ -11,5 +11,8 @@ elsewhere in the same deck.
 | Hockey | 11 | 2 LW, 2 C, 2 RW, 4 D, G |
 | Basketball | 12 | 2 PG, 2 SG, 2 SF, 2 PF, 2 C, 2 random |
 
-Basketball activation is blocked on exact PG/SG/SF/PF/C metadata. Broad G/F/C
-labels are intentionally insufficient for daily roster construction.
+Basketball uses exact PG/SG/SF/PF/C eligibility from Wikidata's NBA.com player
+ID and position-played properties. The game-by-game NBA source supplies the
+teammate data; the position source only supplies roster eligibility. For
+players with multiple career roles, it must not be interpreted as a count of
+minutes or starts at each position.
