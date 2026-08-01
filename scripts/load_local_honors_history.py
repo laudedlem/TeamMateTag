@@ -395,10 +395,13 @@ def audit_existing_gaps(conn: sqlite3.Connection) -> dict[str, int]:
     nba = requests.get(NBA_AWARDS_URL, timeout=120); nba.raise_for_status()
     with zipfile.ZipFile(io.BytesIO(nba.content)) as archive:
         for row in csv.DictReader(io.TextIOWrapper(archive.open("Player Award Shares.csv"), encoding="utf-8-sig")):
-            if (row.get("winner") or "").upper() == "TRUE" and not record(conn, "basketball", "nba_award_source", row.get("player") or "", integer(row.get("season")), NBA_AWARDS_URL, "nba_award_audit", resolve_nba):
+            # The source contains NBA, BAA, and ABA history. NBA gameplay
+            # includes the BAA predecessor but excludes the separate ABA.
+            is_aba = (row.get("award") or "").strip().lower().startswith("aba ")
+            if not is_aba and (row.get("winner") or "").upper() == "TRUE" and not record(conn, "basketball", "nba_award_source", row.get("player") or "", integer(row.get("season")), NBA_AWARDS_URL, "nba_award_audit", resolve_nba):
                 totals["nba_awards"] += 1
         for row in csv.DictReader(io.TextIOWrapper(archive.open("All-Star Selections.csv"), encoding="utf-8-sig")):
-            if not record(conn, "basketball", "nba_all_star_source", row.get("player") or "", integer(row.get("season")), NBA_AWARDS_URL, "nba_award_audit", resolve_nba):
+            if (row.get("lg") or "").upper() in {"NBA", "BAA"} and not record(conn, "basketball", "nba_all_star_source", row.get("player") or "", integer(row.get("season")), NBA_AWARDS_URL, "nba_award_audit", resolve_nba):
                 totals["nba_all_star"] += 1
     master = {row.get("playerID"): row for row in csv.DictReader(io.StringIO(requests.get(HOCKEYDB_MASTER_URL, timeout=90).text))}
     hdb_ids: dict[str, str] = {}

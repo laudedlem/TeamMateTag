@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.36`
+- Current display version: `0.1.37`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Required environment values are documented in `.env.example`. Never commit
@@ -103,6 +103,10 @@ changes. It is the concise source of truth for another coding assistant.
   refreshes. The active identity review queue is now 285 references: 4 NBA,
   179 NFL, and 102 NHL. NFL's remaining entries are same-name collisions and
   require source-page identifier extraction rather than name matching.
+- Historical source scope is MLB 1903 onward, NBA/BAA 1946-47 onward (never
+  ABA), NHL 1917-18 onward, and NFL 1966 onward. Run
+  `scripts/supplement_nfl_reference_ids.py` after honors and before
+  reconciliation to bridge Wikipedia award pages to nflverse roster IDs.
 
 ## Shared lineup rules
 

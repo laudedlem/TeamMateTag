@@ -19,6 +19,7 @@ Run the existing loaders first, then build the reconciliation layer:
 python scripts\load_local_sport_traits.py --nfl-last 2024
 python scripts\supplement_hockeydb_history.py
 python scripts\load_local_honors_history.py
+python scripts\supplement_nfl_reference_ids.py
 python scripts\reconcile_local_identities.py
 ```
 
@@ -38,9 +39,19 @@ It lists every unmatched source reference and up to five candidates with the
 matching rationale.
 
 Records outside the currently playable scope are retained but closed with an
-auditable disposition. This includes ABA-only basketball records and NFL
-honors before the Super Bowl-era NFL roster graph begins in 1966. They are not
-silently deleted and will return to active review if that graph scope expands.
+auditable disposition. NFL honors before the Super Bowl-era roster graph begins
+in 1966 are retained but not active review items. ABA data is filtered from the
+NBA source at ingestion, rather than inferred from its date.
+
+## Historical Product Scope
+
+- MLB: 1903 World Series era onward.
+- NBA: 1946-47 BAA season and all NBA seasons, never ABA facts.
+- NHL: 1917-18 NHL season onward.
+- NFL: 1966 Super Bowl era onward.
+
+Each sport needs player identity, player-team-season appearances, season and
+career statistics, individual awards, and championship roster membership.
 
 ## Review Rules
 

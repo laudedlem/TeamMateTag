@@ -372,10 +372,6 @@ def close_known_scope_boundaries(conn: sqlite3.Connection) -> int:
     """Close documented, non-playable historical scope records with evidence."""
     rules = (
         (
-            "basketball", "nba_award_audit", "season BETWEEN 1967 AND 1975",
-            "out_of_scope", "ABA-era source record. The current game graph is NBA-only.",
-        ),
-        (
             "football", "wikipedia_nfl_honors", "season < 1966",
             "out_of_scope", "Pre-Super Bowl-era honor. The playable NFL roster graph begins in 1966.",
         ),
@@ -384,6 +380,10 @@ def close_known_scope_boundaries(conn: sqlite3.Connection) -> int:
             "source_artifact", "Wikipedia table parser captured a team link rather than a player.",
         ),
     )
+    # ABA records are filtered by the source league field before they reach
+    # this layer. Clear old date-only dispositions from prior refreshes so an
+    # actual NBA record in the same era cannot be hidden from review.
+    conn.execute("DELETE FROM source_reference_dispositions WHERE disposition='out_of_scope' AND evidence LIKE 'ABA-era source record%'")
     closed = 0
     for sport, source, where, disposition, evidence in rules:
         rows = conn.execute(
