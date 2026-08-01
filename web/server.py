@@ -125,14 +125,14 @@ QUICK_PITCH_TURN_SECONDS = 10.0
 LOCAL_PLAYOFF_CONFIG = {
     "basketball": {
         "powerups": {
-            "heat_check": {"label": "Heat Check", "description": "Any player from a franchise shared with the top player. +5 seconds.", "kind": "franchise", "bonus_seconds": 5},
+            "heat_check": {"label": "Heat Check", "description": "A 10,000-point scorer from a franchise shared with the top player. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "career_points", "threshold": 10000},
             "sixth_man": {"label": "Sixth Man", "description": "A 500-game veteran from a franchise shared with the top player. +5 seconds.", "kind": "veteran", "bonus_seconds": 5, "career_games": 500},
             "switch": {"label": "Switch", "description": "A player in the same position group from a franchise shared with the top player. +5 seconds.", "kind": "position", "bonus_seconds": 5},
             "timeout": {"label": "Timeout", "description": "+15 seconds on your turn.", "kind": "time", "bonus_seconds": 15},
             "full_court_press": {"label": "Full-Court Press", "description": "Your opponent gets 10 seconds on their next turn.", "kind": "pressure"},
         },
         "conditions": {
-            "ironman": {"label": "Ironman", "description": "Name 3 players with 500 career games", "target": 3, "kind": "career_games", "threshold": 500},
+            "ironman": {"label": "Bucket Getter", "description": "Name 3 players with 10,000 career points", "target": 3, "kind": "trait", "trait": "career_points", "threshold": 10000},
             "one_team": {"label": "Home Court", "description": "Name 2 players with 8 seasons for one franchise", "target": 2, "kind": "one_franchise", "threshold": 8},
             "journeyman": {"label": "Frequent Flyer", "description": "Name 2 players who played for 5 teams", "target": 2, "kind": "team_count", "threshold": 5},
             "backcourt": {"label": "Backcourt", "description": "Name 3 guards", "target": 3, "kind": "position_group", "group": "guard"},
@@ -140,14 +140,14 @@ LOCAL_PLAYOFF_CONFIG = {
     },
     "football": {
         "powerups": {
-            "trick_play": {"label": "Trick Play", "description": "Any player from a franchise shared with the top player. +5 seconds.", "kind": "franchise", "bonus_seconds": 5},
+            "trick_play": {"label": "Trick Play", "description": "A 20-touchdown scorer from a franchise shared with the top player. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "career_touchdowns", "threshold": 20},
             "iron_man": {"label": "Iron Man", "description": "A 100-game veteran from a franchise shared with the top player. +5 seconds.", "kind": "veteran", "bonus_seconds": 5, "career_games": 100},
             "package_change": {"label": "Package Change", "description": "A player in the same unit from a franchise shared with the top player. +5 seconds.", "kind": "position", "bonus_seconds": 5},
             "timeout": {"label": "Timeout", "description": "+15 seconds on your turn.", "kind": "time", "bonus_seconds": 15},
             "blitz": {"label": "Blitz", "description": "Your opponent gets 10 seconds on their next turn.", "kind": "pressure"},
         },
         "conditions": {
-            "ironman": {"label": "Iron Man", "description": "Name 3 players with 100 career games", "target": 3, "kind": "career_games", "threshold": 100},
+            "ironman": {"label": "End Zone", "description": "Name 3 players with 20 career touchdowns", "target": 3, "kind": "trait", "trait": "career_touchdowns", "threshold": 20},
             "one_team": {"label": "One Club", "description": "Name 2 players with 10 seasons for one franchise", "target": 2, "kind": "one_franchise", "threshold": 10},
             "journeyman": {"label": "Journeyman", "description": "Name 2 players who played for 5 teams", "target": 2, "kind": "team_count", "threshold": 5},
             "defense": {"label": "Defense Wins", "description": "Name 3 defensive players", "target": 3, "kind": "position_group", "group": "defense"},
@@ -155,14 +155,14 @@ LOCAL_PLAYOFF_CONFIG = {
     },
     "hockey": {
         "powerups": {
-            "breakaway": {"label": "Breakaway", "description": "Any player from a franchise shared with the top player. +5 seconds.", "kind": "franchise", "bonus_seconds": 5},
-            "veteran_presence": {"label": "Veteran Presence", "description": "A 500-game veteran from a franchise shared with the top player. +5 seconds.", "kind": "veteran", "bonus_seconds": 5, "career_games": 500},
+            "breakaway": {"label": "Breakaway", "description": "A 250-goal scorer from a franchise shared with the top player. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "career_goals", "threshold": 250},
+            "veteran_presence": {"label": "Veteran Presence", "description": "A 500-point scorer from a franchise shared with the top player. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "career_points", "threshold": 500},
             "line_change": {"label": "Line Change", "description": "A player in the same position group from a franchise shared with the top player. +5 seconds.", "kind": "position", "bonus_seconds": 5},
             "timeout": {"label": "Timeout", "description": "+15 seconds on your turn.", "kind": "time", "bonus_seconds": 15},
             "forecheck": {"label": "Forecheck", "description": "Your opponent gets 10 seconds on their next turn.", "kind": "pressure"},
         },
         "conditions": {
-            "ironman": {"label": "Ironman", "description": "Name 3 players with 500 career games", "target": 3, "kind": "career_games", "threshold": 500},
+            "ironman": {"label": "Sniper", "description": "Name 3 players with 250 career goals", "target": 3, "kind": "trait", "trait": "career_goals", "threshold": 250},
             "one_team": {"label": "Lifer", "description": "Name 2 players with 10 seasons for one franchise", "target": 2, "kind": "one_franchise", "threshold": 10},
             "journeyman": {"label": "Journeyman", "description": "Name 2 players who played for 5 teams", "target": 2, "kind": "team_count", "threshold": 5},
             "blue_line": {"label": "Blue Line", "description": "Name 3 defensemen", "target": 3, "kind": "position_group", "group": "defense"},
@@ -3195,19 +3195,24 @@ def _local_position_group(sport: str, position: str | None) -> str:
 
 def _local_po_traits(conn: sqlite3.Connection, sport: str, player_id: str) -> dict:
     row = conn.execute(
-        """SELECT p.primary_pos, s.career_games,
-                  COUNT(DISTINCT a.team_id), COUNT(DISTINCT t.franchise_id), COUNT(DISTINCT a.season)
+        """SELECT p.primary_pos, COALESCE(NULLIF(pt.career_games, 0), s.career_games),
+                  COUNT(DISTINCT a.team_id), COUNT(DISTINCT t.franchise_id), COUNT(DISTINCT a.season),
+                  COALESCE(pt.career_points, 0), COALESCE(pt.career_goals, 0), COALESCE(pt.career_assists, 0),
+                  COALESCE(pt.career_touchdowns, 0)
              FROM sport_players p
              JOIN sport_players_searchable s ON s.sport_id=p.sport_id AND s.player_id=p.player_id
              LEFT JOIN sport_appearances a ON a.sport_id=p.sport_id AND a.player_id=p.player_id
              LEFT JOIN sport_teams t ON t.sport_id=a.sport_id AND t.team_id=a.team_id AND t.season=a.season
+             LEFT JOIN sport_player_traits pt ON pt.sport_id=p.sport_id AND pt.player_id=p.player_id
             WHERE p.sport_id=? AND p.player_id=?
-            GROUP BY p.primary_pos, s.career_games""",
+            GROUP BY p.primary_pos, s.career_games, pt.career_points, pt.career_goals, pt.career_assists, pt.career_touchdowns""",
         (sport, player_id),
     ).fetchone()
     if not row:
-        return {"position": "", "career_games": 0, "team_count": 0, "franchise_count": 0, "season_count": 0}
-    return dict(zip(("position", "career_games", "team_count", "franchise_count", "season_count"), row))
+        return {"position": "", "career_games": 0, "team_count": 0, "franchise_count": 0, "season_count": 0,
+                "career_points": 0, "career_goals": 0, "career_assists": 0, "career_touchdowns": 0}
+    return dict(zip(("position", "career_games", "team_count", "franchise_count", "season_count",
+                     "career_points", "career_goals", "career_assists", "career_touchdowns"), row))
 
 
 def _local_po_condition_increment(conn: sqlite3.Connection, sport: str, key: str, player_id: str) -> int:
@@ -3220,6 +3225,8 @@ def _local_po_condition_increment(conn: sqlite3.Connection, sport: str, key: str
         return int(traits["team_count"] >= threshold)
     if kind == "one_franchise":
         return int(traits["franchise_count"] == 1 and traits["season_count"] >= threshold)
+    if kind == "trait":
+        return int(int(traits.get(condition["trait"], 0)) >= threshold)
     if kind == "position_group":
         return int(_local_position_group(sport, traits["position"]) == condition["group"])
     return 0
@@ -3349,6 +3356,8 @@ def _local_po_powerup_move(conn: sqlite3.Connection, game: dict, raw: str, playe
     eligible = bool(current_franchises)
     if meta["kind"] == "veteran":
         eligible = eligible and traits["career_games"] >= meta["career_games"]
+    elif meta["kind"] == "stat":
+        eligible = eligible and int(traits.get(meta["stat"], 0)) >= int(meta["threshold"])
     elif meta["kind"] == "position":
         current_traits = _local_po_traits(conn, sport, state.current_player_id)
         eligible = eligible and _local_position_group(sport, traits["position"]) == _local_position_group(sport, current_traits["position"])

@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.28`
+- Current display version: `0.1.29`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Required environment values are documented in `.env.example`. Never commit
@@ -58,10 +58,16 @@ changes. It is the concise source of truth for another coding assistant.
   powerups and four selectable win conditions. This first pass intentionally
   uses only verified local traits: franchise membership, career games,
   position group, seasons with one franchise, and team count.
-- Do not claim stat or award powerups for the local leagues yet. Points,
-  touchdowns, goals, awards, and championships are not stored in the local
-  normalized graph. Add a sport trait table and an ingestion job before using
-  those facts in game rules.
+- `scripts/load_local_sport_traits.py --download-nhl` builds the ignored,
+  additive `sport_player_traits` table. It currently loads NBA regular-season
+  totals from the local CC0 Kaggle archive, NFL weekly totals from nflverse,
+  and NHL career totals from the CC BY Kaggle player database.
+- Local Playoffs now uses verified career points, touchdowns, and goals for
+  selected powerups and win conditions. Awards and championship counts remain
+  zero until a separate verified award/championship source is ingested.
+- Current source gaps are explicit in `sport_trait_provenance`: NFL's public
+  weekly release was unavailable for 2002 and 2019, and 746 NHL source names
+  did not uniquely resolve to local player IDs. Do not infer values for these.
 
 ## Shared lineup rules
 

@@ -224,17 +224,17 @@ function onlineApiBase(mode = currentMode) {
 
 const LOCAL_PLAYOFF_OPTIONS = {
   basketball: [
-    ['random', 'Random'], ['ironman', 'Ironman: 3 players with 500 career games'],
+    ['random', 'Random'], ['ironman', 'Bucket Getter: 3 players with 10,000 career points'],
     ['one_team', 'Home Court: 2 players with 8 seasons for one franchise'],
     ['journeyman', 'Frequent Flyer: 2 players who played for 5 teams'], ['backcourt', 'Backcourt: 3 guards'],
   ],
   football: [
-    ['random', 'Random'], ['ironman', 'Iron Man: 3 players with 100 career games'],
+    ['random', 'Random'], ['ironman', 'End Zone: 3 players with 20 career touchdowns'],
     ['one_team', 'One Club: 2 players with 10 seasons for one franchise'],
     ['journeyman', 'Journeyman: 2 players who played for 5 teams'], ['defense', 'Defense Wins: 3 defensive players'],
   ],
   hockey: [
-    ['random', 'Random'], ['ironman', 'Ironman: 3 players with 500 career games'],
+    ['random', 'Random'], ['ironman', 'Sniper: 3 players with 250 career goals'],
     ['one_team', 'Lifer: 2 players with 10 seasons for one franchise'],
     ['journeyman', 'Journeyman: 2 players who played for 5 teams'], ['blue_line', 'Blue Line: 3 defensemen'],
   ],
