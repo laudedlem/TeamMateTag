@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.31`
+- Current display version: `0.1.32`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Required environment values are documented in `.env.example`. Never commit
@@ -78,6 +78,13 @@ changes. It is the concise source of truth for another coding assistant.
   (1999-2024); NHL resolves 39 Stanley Cup seasons from 1986 forward using
   NHL schedule/records data plus a season archive. NHL 1917-85 and NFL
   pre-1999 championship-roster totals remain intentionally uncredited.
+- `scripts/load_local_honors_history.py` now closes those roster-title gaps:
+  NFL Super Bowl I-LIX and NHL pre-1986 `SC` seasons are locally credited from
+  the roster graph. It also creates `sport_honors` and
+  `sport_honor_unresolved`, preserving honors facts and any unresolved source
+  rows for later matching. NFL coverage includes AP MVP, offensive/defensive
+  ROY, Pro Bowl selections, and AP first-team All-Pro selections (1999-2025).
+  See `docs/local_honors_data.md` for the required refresh order.
 
 ## Shared lineup rules
 
