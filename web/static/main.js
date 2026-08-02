@@ -227,20 +227,23 @@ const LOCAL_PLAYOFF_OPTIONS = {
   basketball: [
     ['random', 'Random'], ['ironman', 'Bucket Getter: 3 players with 10,000 career points'],
     ['one_team', 'Home Court: 2 players with 8 seasons for one franchise'],
-    ['journeyman', 'Frequent Flyer: 2 players who played for 5 teams'], ['mvp_circle', 'MVP Circle: 3 MVP winners'],
-    ['all_star_marathon', 'All-Star Marathon: 30 combined All-Star selections'], ['ring_chaser', 'Ring Chaser: 8 combined championships'],
+    ['journeyman', 'Frequent Flyer: 2 players who played for 5 teams'], ['mvp_circle', 'MVP Circle: 2 MVP winners'],
+    ['all_star_marathon', 'All-Star Marathon: 12 combined selections'], ['ring_chaser', 'Ring Chaser: 5 combined championships'],
+    ['superstar', 'Superstar: 2 players with 20,000 career points'], ['young_guns', 'Young Guns: 2 Rookie of the Year winners'],
   ],
   football: [
     ['random', 'Random'], ['ironman', 'End Zone: 3 players with 20 career touchdowns'],
     ['one_team', 'One Club: 2 players with 10 seasons for one franchise'],
-    ['journeyman', 'Journeyman: 2 players who played for 5 teams'], ['pro_bowl_marathon', 'Pro Bowl Marathon: 30 combined selections'],
-    ['ring_chaser', 'Ring Chaser: 8 combined championships'],
+    ['journeyman', 'Journeyman: 2 players who played for 5 teams'], ['mvp_circle', 'MVP Circle: 2 MVP winners'],
+    ['pro_bowl_marathon', 'Pro Bowl Marathon: 12 combined selections'], ['ring_chaser', 'Ring Chaser: 5 combined championships'],
+    ['touchdown_club', 'Touchdown Club: 2 players with 80 career touchdowns'],
   ],
   hockey: [
     ['random', 'Random'], ['ironman', 'Sniper: 3 players with 250 career goals'],
     ['one_team', 'Lifer: 2 players with 10 seasons for one franchise'],
-    ['journeyman', 'Journeyman: 2 players who played for 5 teams'], ['all_star_marathon', 'All-Star Marathon: 20 combined selections'],
-    ['ring_chaser', 'Ring Chaser: 8 combined Stanley Cup wins'],
+    ['journeyman', 'Journeyman: 2 players who played for 5 teams'], ['mvp_circle', 'Hart Club: 2 Hart Trophy winners'],
+    ['all_star_marathon', 'All-Star Marathon: 12 combined selections'], ['ring_chaser', 'Ring Chaser: 5 combined Stanley Cup wins'],
+    ['playmaker', 'Playmaker: 3 players with 700 career points'], ['forty_goal', 'Forty Goal Club: 2 players with 400 career goals'],
   ],
 };
 

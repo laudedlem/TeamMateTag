@@ -135,9 +135,11 @@ LOCAL_PLAYOFF_CONFIG = {
             "ironman": {"label": "Bucket Getter", "description": "Name 3 players with 10,000 career points", "target": 3, "kind": "trait", "trait": "career_points", "threshold": 10000},
             "one_team": {"label": "Home Court", "description": "Name 2 players with 8 seasons for one franchise", "target": 2, "kind": "one_franchise", "threshold": 8},
             "journeyman": {"label": "Frequent Flyer", "description": "Name 2 players who played for 5 teams", "target": 2, "kind": "team_count", "threshold": 5},
-            "mvp_circle": {"label": "MVP Circle", "description": "Name 3 MVP winners", "target": 3, "kind": "trait", "trait": "mvp_count", "threshold": 1},
-            "all_star_marathon": {"label": "All-Star Marathon", "description": "Name players with 30 combined All-Star selections", "target": 30, "kind": "sum_trait", "trait": "all_star_count"},
-            "ring_chaser": {"label": "Ring Chaser", "description": "Name players with 8 combined championships", "target": 8, "kind": "sum_trait", "trait": "championship_count"},
+            "mvp_circle": {"label": "MVP Circle", "description": "Name 2 MVP winners", "target": 2, "kind": "trait", "trait": "mvp_count", "threshold": 1},
+            "all_star_marathon": {"label": "All-Star Marathon", "description": "Name players with 12 combined All-Star selections", "target": 12, "kind": "sum_trait", "trait": "all_star_count"},
+            "ring_chaser": {"label": "Ring Chaser", "description": "Name players with 5 combined championships", "target": 5, "kind": "sum_trait", "trait": "championship_count"},
+            "superstar": {"label": "Superstar", "description": "Name 2 players with 20,000 career points", "target": 2, "kind": "trait", "trait": "career_points", "threshold": 20000},
+            "young_guns": {"label": "Young Guns", "description": "Name 2 Rookie of the Year winners", "target": 2, "kind": "trait", "trait": "roty_count", "threshold": 1},
         },
     },
     "football": {
@@ -152,8 +154,10 @@ LOCAL_PLAYOFF_CONFIG = {
             "ironman": {"label": "End Zone", "description": "Name 3 players with 20 career touchdowns", "target": 3, "kind": "trait", "trait": "career_touchdowns", "threshold": 20},
             "one_team": {"label": "One Club", "description": "Name 2 players with 10 seasons for one franchise", "target": 2, "kind": "one_franchise", "threshold": 10},
             "journeyman": {"label": "Journeyman", "description": "Name 2 players who played for 5 teams", "target": 2, "kind": "team_count", "threshold": 5},
-            "pro_bowl_marathon": {"label": "Pro Bowl Marathon", "description": "Name players with 30 combined Pro Bowl selections", "target": 30, "kind": "sum_trait", "trait": "all_star_count"},
-            "ring_chaser": {"label": "Ring Chaser", "description": "Name players with 8 combined championships", "target": 8, "kind": "sum_trait", "trait": "championship_count"},
+            "mvp_circle": {"label": "MVP Circle", "description": "Name 2 MVP winners", "target": 2, "kind": "trait", "trait": "mvp_count", "threshold": 1},
+            "pro_bowl_marathon": {"label": "Pro Bowl Marathon", "description": "Name players with 12 combined Pro Bowl selections", "target": 12, "kind": "sum_trait", "trait": "all_star_count"},
+            "ring_chaser": {"label": "Ring Chaser", "description": "Name players with 5 combined championships", "target": 5, "kind": "sum_trait", "trait": "championship_count"},
+            "touchdown_club": {"label": "Touchdown Club", "description": "Name 2 players with 80 career touchdowns", "target": 2, "kind": "trait", "trait": "career_touchdowns", "threshold": 80},
         },
     },
     "hockey": {
@@ -168,8 +172,11 @@ LOCAL_PLAYOFF_CONFIG = {
             "ironman": {"label": "Sniper", "description": "Name 3 players with 250 career goals", "target": 3, "kind": "trait", "trait": "career_goals", "threshold": 250},
             "one_team": {"label": "Lifer", "description": "Name 2 players with 10 seasons for one franchise", "target": 2, "kind": "one_franchise", "threshold": 10},
             "journeyman": {"label": "Journeyman", "description": "Name 2 players who played for 5 teams", "target": 2, "kind": "team_count", "threshold": 5},
-            "all_star_marathon": {"label": "All-Star Marathon", "description": "Name players with 20 combined All-Star selections", "target": 20, "kind": "sum_trait", "trait": "all_star_count"},
-            "ring_chaser": {"label": "Ring Chaser", "description": "Name players with 8 combined Stanley Cup wins", "target": 8, "kind": "sum_trait", "trait": "championship_count"},
+            "mvp_circle": {"label": "Hart Club", "description": "Name 2 Hart Trophy winners", "target": 2, "kind": "trait", "trait": "mvp_count", "threshold": 1},
+            "all_star_marathon": {"label": "All-Star Marathon", "description": "Name players with 12 combined All-Star selections", "target": 12, "kind": "sum_trait", "trait": "all_star_count"},
+            "ring_chaser": {"label": "Ring Chaser", "description": "Name players with 5 combined Stanley Cup wins", "target": 5, "kind": "sum_trait", "trait": "championship_count"},
+            "playmaker": {"label": "Playmaker", "description": "Name 3 players with 700 career points", "target": 3, "kind": "trait", "trait": "career_points", "threshold": 700},
+            "forty_goal": {"label": "Forty Goal Club", "description": "Name 2 players with 400 career goals", "target": 2, "kind": "trait", "trait": "career_goals", "threshold": 400},
         },
     },
 }
@@ -229,38 +236,38 @@ PLAYOFF_POWERUPS = {
 PLAYOFF_WIN_CONDITIONS = {
     "sunset_kingdom": {
         "label": "Sunset Kingdom",
-        "description": "Name 5 Japanese players.",
-        "target": 5,
+        "description": "Name 3 Japanese players.",
+        "target": 3,
         "mode": "count",
     },
     "havana_heat": {
         "label": "Havana Heat",
-        "description": "Name 5 Cuban players.",
-        "target": 5,
+        "description": "Name 3 Cuban players.",
+        "target": 3,
         "mode": "count",
     },
     "maple_corridor": {
         "label": "Maple Corridor",
-        "description": "Name 5 Canadian players.",
-        "target": 5,
+        "description": "Name 4 Canadian players.",
+        "target": 4,
         "mode": "count",
     },
     "mvp_circle": {
         "label": "MVP Circle",
-        "description": "Name 3 MVP winners.",
-        "target": 3,
+        "description": "Name 2 MVP winners.",
+        "target": 2,
         "mode": "count",
     },
     "young_buck": {
         "label": "Young Buck",
-        "description": "Name 3 Rookie of the Year winners.",
-        "target": 3,
+        "description": "Name 2 Rookie of the Year winners.",
+        "target": 2,
         "mode": "count",
     },
     "gonna_be_golden": {
         "label": "Gonna Be Golden",
-        "description": "Name 3 Gold Glove winners.",
-        "target": 3,
+        "description": "Name 2 Gold Glove winners.",
+        "target": 2,
         "mode": "count",
     },
     "secretariat": {
@@ -283,13 +290,19 @@ PLAYOFF_WIN_CONDITIONS = {
     },
     "ring_chaser": {
         "label": "Ring Chaser",
-        "description": "Name players with a combined 30 World Series rings.",
-        "target": 30,
+        "description": "Name players with a combined 15 World Series rings.",
+        "target": 15,
         "mode": "sum",
     },
     "journeyman": {
         "label": "Journeyman",
         "description": "Name 2 players who played for at least 7 teams.",
+        "target": 2,
+        "mode": "count",
+    },
+    "four_hundred_club": {
+        "label": "Four Hundred Club",
+        "description": "Name 2 players with 400 career home runs.",
         "target": 2,
         "mode": "count",
     },
@@ -1229,6 +1242,8 @@ def _playoff_condition_increment(condition_key: str, traits: dict) -> int:
         return int(traits["world_series_rings"] or 0)
     if condition_key == "journeyman":
         return 1 if traits["journeyman_eligible"] else 0
+    if condition_key == "four_hundred_club":
+        return 1 if int(traits["career_hr"]) >= 400 else 0
     return 0
 
 

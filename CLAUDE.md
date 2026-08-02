@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.28`
+- Current display version: `0.1.29`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Required environment values are documented in `.env.example`. Never commit
@@ -158,6 +158,12 @@ changes. It is the concise source of truth for another coding assistant.
   a sport page shows only that sport's powerups. Cross-sport win conditions
   now include All-Star or Pro Bowl selection marathons and championship totals.
   Three burned team-seasons or a completed win condition ends the game.
+- Playoffs condition pools are intentionally broad and selectable. Basketball,
+  football, and hockey each have nine options, including individual stat,
+  career-franchise, MVP, All-Star or Pro Bowl, and championship conditions.
+  Baseball has twelve options. Marathon and championship totals are separate
+  choices, balanced at 12 selections and 5 titles cross-sport, or 15 World
+  Series rings for baseball.
 
 ## Shared lineup rules
 
