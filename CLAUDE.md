@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.33`
+- Current display version: `0.1.34`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -381,9 +381,16 @@ derives links from indexed appearances.
 Practice and Film Review: `/api/sports/<sport>/bp/*` and
 `/api/sports/<sport>/fr/*`. These are persistent and use the exact same game
 engine as local play. `TEAMMATETAG_LOCAL_SPORTS=1` still intentionally routes
-local development through SQLite. Division Rivalry and Playoffs are not yet
-ported to persistent cross-sport tables; do not turn on their non-baseball
-production paths until that work and browser smoke tests are complete.
+local development through SQLite.
+
+Update, 2026-08-01 (0.1.34): non-baseball Division Rivalry and Playoffs now
+use `sport_online_games`, `sport_online_queue`, and sport-scoped rematch/
+postgame tables in Supabase. Each sport has independent random queues, game
+state, Playoffs condition selection, seven powerups, player usage, ELO, and
+Division Rivalry result rows. The original Baseball tables and routes remain
+unchanged. Cross-sport friend/code challenges are intentionally hidden for now
+because their existing Baseball invitation/history tables do not have a sport
+field; do not claim those are cross-sport-ready until ported.
 
 Profile responses now include `stats.sports.baseball|basketball|football|hockey`.
 New cross-sport BP/FR results write their sport ID, so stats are isolated.

@@ -225,6 +225,9 @@ function isOnlineMode(mode = currentMode) {
 }
 
 function onlineApiBase(mode = currentMode) {
+  if (isCrossSport() && CROSS_SPORTS_ONLINE) {
+    return '/api/sports/' + CURRENT_SPORT + '/' + (mode === 'po' ? 'po' : 'dr');
+  }
   if (mode === 'po' && usesLocalPlayoffs()) {
     return '/api/local/' + CURRENT_SPORT + '/po';
   }
@@ -842,10 +845,13 @@ function pickMode(mode) {
     els.startBtn.hidden = false;
     els.cancelMatchBtn.hidden = true;
     els.challengeStatusText.textContent = '';
-    els.challengeBox.hidden = (mode === 'mp' || mode === 'po') && LOCAL_SOLO_SPORTS.has(CURRENT_SPORT);
+    // Cross-sport random matchmaking is persistent. Friend/code challenges
+    // remain on the established baseball contract until their sport field is
+    // added to the invitations and history tables.
+    els.challengeBox.hidden = (mode === 'mp' || mode === 'po') && isCrossSport();
     els.playoffConditionPicker.hidden = mode !== 'po';
     if (mode === 'po') {
-      if (usesLocalPlayoffs()) configureLocalPlayoffPicker();
+      if (isCrossSport()) configureLocalPlayoffPicker();
       else els.playoffConditionSelect.value = profile?.playoff_win_condition_preference || 'random';
     }
     return;
@@ -1254,7 +1260,7 @@ function runOpeningCountdown() {
 
 async function onMpTimeout() {
   const timeoutPath = (currentMode === 'po' && !usesLocalPlayoffs())
-    ? '/api/po/timeout'
+    ? onlineApiBase() + '/timeout'
     : (LOCAL_SOLO_SPORTS.has(CURRENT_SPORT) ? onlineApiBase() + '/game' : '/api/timeout');
   game = await api(timeoutPath, {
     game_id: game.game_id,
@@ -1289,7 +1295,7 @@ async function submitMove({ raw, player_id }) {
   els.guessInput.value = '';
   const path = currentMode === 'bp'
     ? (LOCAL_SOLO_SPORTS.has(CURRENT_SPORT) ? localSoloPath('move') : '/api/bp/move')
-    : currentMode === 'po' ? (usesLocalPlayoffs() ? onlineApiBase() + '/move' : '/api/po/move') : (LOCAL_SOLO_SPORTS.has(CURRENT_SPORT) ? onlineApiBase() + '/move' : '/api/move');
+    : currentMode === 'po' ? (isCrossSport() ? onlineApiBase() + '/move' : '/api/po/move') : (LOCAL_SOLO_SPORTS.has(CURRENT_SPORT) ? onlineApiBase() + '/move' : '/api/move');
   const previousChainLength = game.chain?.length || 0;
   game = await api(path, {
     game_id: game.game_id,
@@ -1736,7 +1742,7 @@ function renderPowerups() {
 
 async function usePowerup(powerupKey) {
   if (currentMode !== 'po' || !game?.game_id || !powerupKey) return;
-  const next = await api(usesLocalPlayoffs() ? onlineApiBase() + '/powerup' : '/api/po/powerup', {
+  const next = await api(isCrossSport() ? onlineApiBase() + '/powerup' : '/api/po/powerup', {
     guest_id: profile?.guest_id || storedGuestId(),
     game_id: game.game_id,
     powerup_key: powerupKey,
@@ -2143,7 +2149,7 @@ function renderFrLineupBoard() {
 }
 
 function renderPowerupReferenceHtml() {
-  if (usesLocalPlayoffs() && game?.powerups?.your_powerups) {
+  if (isCrossSport() && game?.powerups?.your_powerups) {
     const rows = game.powerups.your_powerups;
     return `
       <p class="muted">Each Playoffs game gives both players one use of every powerup. You can activate one powerup on a turn.</p>
@@ -2242,12 +2248,12 @@ document.querySelectorAll('[data-back="home"]').forEach((btn) => {
 els.startBtn.addEventListener('click', startMpGame);
 els.playoffRandomBtn.addEventListener('click', () => {
   els.playoffConditionSelect.value = 'random';
-  if (usesLocalPlayoffs()) {
+  if (isCrossSport()) {
     window.localStorage.setItem('tt_local_playoff_condition_' + CURRENT_SPORT, 'random');
   }
 });
 els.playoffConditionSelect.addEventListener('change', () => {
-  if (usesLocalPlayoffs()) {
+  if (isCrossSport()) {
     window.localStorage.setItem('tt_local_playoff_condition_' + CURRENT_SPORT, els.playoffConditionSelect.value);
   }
 });

@@ -74,7 +74,7 @@ CROSS_SPORTS_ONLINE = bool(DATABASE_URL) and not LOCAL_SPORTS_ENABLED
 # This remains false until the shared matchmaking, challenge, rematch, and
 # Playoffs persistence adapters are ported. It prevents a partial deployment
 # from exposing the two baseball-only multiplayer endpoints on another sport.
-CROSS_SPORTS_FULLY_ONLINE = False
+CROSS_SPORTS_FULLY_ONLINE = CROSS_SPORTS_ONLINE
 LOCAL_SPORT_DATA = ROOT / "db" / "teammatetag_local.sqlite"
 LOCAL_SPORT_SEEDS = {
     "football": "nfl:00-0024272",  # Devin Hester
@@ -626,6 +626,50 @@ def ensure_runtime_schema():
                        dr_count INTEGER NOT NULL DEFAULT 0,
                        last_used_at TIMESTAMPTZ NOT NULL DEFAULT now(),
                        PRIMARY KEY (sport_id, player_id)
+                )"""
+            )
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS sport_online_games (
+                       game_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                       sport_id TEXT NOT NULL REFERENCES sports(sport_id),
+                       mode TEXT NOT NULL CHECK (mode IN ('dr', 'po')),
+                       state JSONB NOT NULL,
+                       finished BOOLEAN NOT NULL DEFAULT false,
+                       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                   )"""
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_sport_online_games_active ON sport_online_games(sport_id, mode, created_at DESC) WHERE NOT finished")
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS sport_online_queue (
+                       sport_id TEXT NOT NULL REFERENCES sports(sport_id),
+                       mode TEXT NOT NULL CHECK (mode IN ('dr', 'po')),
+                       guest_id UUID NOT NULL REFERENCES guests(guest_id) ON DELETE CASCADE,
+                       display_name TEXT NOT NULL,
+                       preference TEXT,
+                       avoid_guest_id UUID,
+                       enqueued_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                       PRIMARY KEY (sport_id, mode, guest_id)
+                   )"""
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_sport_online_queue ON sport_online_queue(sport_id, mode, enqueued_at)")
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS sport_online_rematches (
+                       original_game_id UUID NOT NULL REFERENCES sport_online_games(game_id) ON DELETE CASCADE,
+                       requester_guest_id UUID NOT NULL REFERENCES guests(guest_id) ON DELETE CASCADE,
+                       PRIMARY KEY (original_game_id, requester_guest_id)
+                   )"""
+            )
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS sport_online_rematch_links (
+                       original_game_id UUID PRIMARY KEY REFERENCES sport_online_games(game_id) ON DELETE CASCADE,
+                       new_game_id UUID NOT NULL REFERENCES sport_online_games(game_id) ON DELETE CASCADE
+                   )"""
+            )
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS sport_online_postgame_exits (
+                       original_game_id UUID NOT NULL REFERENCES sport_online_games(game_id) ON DELETE CASCADE,
+                       guest_id UUID NOT NULL REFERENCES guests(guest_id) ON DELETE CASCADE,
+                       PRIMARY KEY (original_game_id, guest_id)
                    )"""
             )
             conn.execute(
@@ -5999,6 +6043,307 @@ def sport_fr_reveal_answer(sport: str):
         cards = _sport_cards(conn, sport, blob["deck"])
         return jsonify({"full_cards": [_sport_fr_card(pid, cards[pid]) for pid in blob["deck"]],
                         "canonical_links": [{"team_id": pair[0][0], "season": pair[0][1], "team_name": pair[0][2]} if pair else None for pair in blob["shared_per_pair"]]})
+
+
+# ============================================================
+# Persistent cross-sport multiplayer (Division Rivalry / Playoffs)
+# ============================================================
+
+def _sport_online_insert(conn, sport: str, mode: str, blob: dict) -> str:
+    return conn.execute(
+        """INSERT INTO sport_online_games (game_id, sport_id, mode, state, finished)
+           VALUES (%s, %s, %s, %s, %s) RETURNING game_id::text""",
+        (str(uuid.uuid4()), sport, mode, Jsonb(blob), bool(blob.get("finished"))),
+    ).fetchone()[0]
+
+
+def _sport_online_load(conn, sport: str, mode: str, game_id: str):
+    row = conn.execute(
+        """SELECT state, finished FROM sport_online_games
+             WHERE game_id=%s AND sport_id=%s AND mode=%s""", (game_id, sport, mode),
+    ).fetchone()
+    if not row:
+        return None, None
+    blob, finished = row
+    blob["finished"] = finished
+    return blob, deserialize_state(blob)
+
+
+def _sport_online_save(conn, game_id: str, blob: dict):
+    conn.execute("UPDATE sport_online_games SET state=%s, finished=%s WHERE game_id=%s",
+                 (Jsonb(blob), bool(blob.get("finished")), game_id))
+
+
+def _sport_online_expire(blob: dict):
+    if blob.get("finished"):
+        return
+    elapsed = (now_utc() - datetime.fromisoformat(blob["turn_started_at"])).total_seconds()
+    if max(0.0, elapsed - blob["countdown_seconds"]) >= blob["turn_seconds"]:
+        blob["finished"] = True
+        blob["winner"] = blob["p2"] if blob["turn_index"] == 0 else blob["p1"]
+        blob["last_move"] = {"outcome": "timeout"}
+
+
+def _save_sport_online_result(conn, game_id: str, blob: dict, state: GameState):
+    if blob.get("result_saved") or not blob.get("finished"):
+        return
+    sport = blob["sport"]
+    p1_id, p2_id = blob["p1_guest_id"], blob["p2_guest_id"]
+    p1_won = blob.get("winner") == blob.get("p1")
+    for owner, opponent, opponent_name, won in ((p1_id,p2_id,blob["p2"],p1_won),(p2_id,p1_id,blob["p1"],not p1_won)):
+        before_row = conn.execute("SELECT elo FROM guest_sport_ratings WHERE guest_id=%s AND sport_id=%s",(owner,sport)).fetchone()
+        before = before_row[0] if before_row else 1200; after = max(800,before+(16 if won else -16))
+        conn.execute("""INSERT INTO guest_sport_ratings (guest_id,sport_id,elo) VALUES (%s,%s,%s)
+                        ON CONFLICT (guest_id,sport_id) DO UPDATE SET elo=EXCLUDED.elo""",(owner,sport,after))
+        conn.execute("""INSERT INTO dr_results (game_id,owner_guest_id,opponent_guest_id,opponent_name,chain_length,won,elo_before,elo_after,sport_id)
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (owner_guest_id,game_id) WHERE game_id IS NOT NULL DO NOTHING""",
+                     (game_id,owner,opponent,opponent_name,len(state.chain),won,before,after,sport))
+        _record_sport_struck_out_teams(conn,owner,sport,blob["mode"],state)
+    blob["result_saved"] = True
+
+
+def _sport_online_state(conn, game_id: str, blob: dict, state: GameState, viewer: str) -> dict:
+    _sport_online_expire(blob)
+    sport = blob["sport"]
+    elapsed = (now_utc() - datetime.fromisoformat(blob["turn_started_at"])).total_seconds()
+    countdown = max(0.0, blob["countdown_seconds"] - elapsed) if not blob["finished"] else 0.0
+    remaining = max(0.0, blob["turn_seconds"] - max(0.0, elapsed - blob["countdown_seconds"])) if not blob["finished"] else 0.0
+    side = "p1" if viewer == blob["p1_guest_id"] else "p2"
+    other = "p2" if side == "p1" else "p1"
+    chain = _sport_chain_dict(conn, sport, state)
+    last_move = dict(blob.get("last_move") or {})
+    for field in ("shared_seasons", "burned_seasons"):
+        for item in last_move.get(field, []):
+            item["team_name"] = _sport_team_name(conn, sport, item["team_id"], item["season"])
+    output = {
+        "game_id": game_id, "mode": blob["mode"], "sport": sport,
+        "current_player": {"id": state.current_player_id, "name": state.current_player_name},
+        "current_label": blob["p1"] if blob["turn_index"] == 0 else blob["p2"],
+        "p1": blob["p1"], "p2": blob["p2"], "p1_guest_id": blob["p1_guest_id"], "p2_guest_id": blob["p2_guest_id"],
+        "viewer_guest_id": viewer, "your_side": side, "your_name": blob[side], "opponent_name": blob[other],
+        "your_turn": not blob["finished"] and ((side == "p1" and blob["turn_index"] == 0) or (side == "p2" and blob["turn_index"] == 1)),
+        "turn_index": blob["turn_index"], "turn_seconds": blob["turn_seconds"],
+        "countdown_seconds_remaining": countdown, "remaining_seconds": remaining,
+        "chain": chain, "strikes": _sport_strikes_dict(conn, sport, state),
+        "finished": blob["finished"], "winner": blob.get("winner"), "last_move": last_move,
+    }
+    if blob["mode"] == "po":
+        links, hits = blob.get("chain_link_meta", []), blob.get("chain_win_condition_hits", [])
+        for i, player in enumerate(chain):
+            player["link_meta_with_prev"] = links[i] if i < len(links) else None
+            player["win_condition_hit"] = bool(hits[i]) if i < len(hits) else False
+        conditions, powers = LOCAL_PLAYOFF_CONFIG[sport]["conditions"], LOCAL_PLAYOFF_CONFIG[sport]["powerups"]
+        def cp(key):
+            condition = conditions[blob[f"{key}_win_condition_key"]]
+            return {"key": blob[f"{key}_win_condition_key"], "label": condition["label"], "description": condition["description"],
+                    "target": condition["target"], "progress": blob.get(f"{key}_win_progress", 0), "completed": blob.get(f"{key}_win_completed", False)}
+        def pp(key):
+            used = set(blob.get(f"{key}_powerup_used_keys", []))
+            return [{"key": k, "label": v["label"], "description": v["description"], "kind": v["kind"], "used": k in used, "owner": blob[key]} for k, v in powers.items()]
+        output["default_turn_seconds"] = APP_TURN_SECONDS
+        output["powerups"] = {"your_powerups": pp(side), "opponent_powerups": pp(other),
+            "active_turn_powerup": ({"key": blob["active_turn_powerup"], "label": powers[blob["active_turn_powerup"]]["label"]} if blob.get("active_turn_powerup") else None),
+            "turn_powerup_used": bool(blob.get("turn_powerup_used"))}
+        output["win_conditions"] = {"your_condition": cp(side), "opponent_condition": cp(other)}
+    return output
+
+
+def _sport_online_create(conn, sport: str, mode: str, a: tuple[str, str], b: tuple[str, str], preferences=None):
+    (p1_id, p1), (p2_id, p2) = (a, b) if secrets.randbelow(2) else (b, a)
+    state = seed_game(PgEngineConn(conn), LOCAL_SPORT_SEEDS[sport], sport=sport)
+    _record_sport_player_usage(conn, sport, state.current_player_id, mode)
+    blob = dr_blob_from_state(state, p1, p2, 0, APP_TURN_SECONDS, now_utc(), OPENING_COUNTDOWN_SECONDS,
+                              p1_guest_id=p1_id, p2_guest_id=p2_id, seed_player_id=state.current_player_id)
+    blob.update({"sport": sport, "mode": mode})
+    if mode == "po":
+        conditions = LOCAL_PLAYOFF_CONFIG[sport]["conditions"]
+        preferences = preferences or {}
+        choose = lambda gid: preferences.get(gid) if preferences.get(gid) in conditions else secrets.choice(list(conditions))
+        blob.update({"active_turn_powerup": None, "next_turn_seconds_override": None, "turn_powerup_used": False,
+                     "p1_powerup_used_keys": [], "p2_powerup_used_keys": [],
+                     "p1_win_condition_key": choose(p1_id), "p2_win_condition_key": choose(p2_id),
+                     "p1_win_progress": 0, "p2_win_progress": 0, "p1_win_completed": False, "p2_win_completed": False,
+                     "chain_win_condition_hits": [False], "chain_link_meta": [None]})
+    return _sport_online_insert(conn, sport, mode, blob), blob, state
+
+
+def _sport_online_status(conn, sport: str, mode: str, guest_id: str):
+    row = conn.execute("""SELECT game_id::text, state, finished FROM sport_online_games
+                         WHERE sport_id=%s AND mode=%s AND NOT finished
+                           AND (state->>'p1_guest_id'=%s OR state->>'p2_guest_id'=%s)
+                         ORDER BY created_at DESC LIMIT 1""", (sport, mode, guest_id, guest_id)).fetchone()
+    if row:
+        gid, blob, finished = row; blob["finished"] = finished
+        return {"status": "matched", "game": _sport_online_state(conn, gid, blob, deserialize_state(blob), guest_id)}
+    waiting = conn.execute("SELECT 1 FROM sport_online_queue WHERE sport_id=%s AND mode=%s AND guest_id=%s", (sport, mode, guest_id)).fetchone()
+    return {"status": "waiting", "guest_id": guest_id} if waiting else {"status": "idle"}
+
+
+@app.route("/api/sports/<sport>/<mode>/queue", methods=["POST"])
+def sport_online_queue(sport: str, mode: str):
+    if not _is_cross_sport(sport) or mode not in {"dr", "po"}: return jsonify({"error": "unsupported mode"}), 404
+    data = request.get_json(silent=True) or {}; guest = (data.get("guest_id") or "").strip()
+    if not guest: return jsonify({"error": "guest_id required"}), 400
+    with db() as conn:
+        if not conn.execute("SELECT 1 FROM guests WHERE guest_id=%s", (guest,)).fetchone(): return jsonify({"error": "unknown guest_id"}), 404
+        existing = _sport_online_status(conn, sport, mode, guest)
+        if existing["status"] == "matched": return jsonify(existing)
+        name, avoid, preference = _guest_label(conn, guest), (data.get("avoid_guest_id") or "").strip() or None, data.get("win_condition_preference")
+        with conn.transaction():
+            conn.execute("SELECT pg_advisory_xact_lock(4412000 + %s)", (0 if mode == "dr" else 1,))
+            opp = conn.execute("""SELECT guest_id::text, display_name, preference FROM sport_online_queue
+                                  WHERE sport_id=%s AND mode=%s AND guest_id<>%s
+                                    AND (avoid_guest_id IS NULL OR avoid_guest_id<>CAST(%s AS uuid))
+                                    AND (CAST(%s AS uuid) IS NULL OR guest_id<>CAST(%s AS uuid))
+                                  ORDER BY enqueued_at LIMIT 1 FOR UPDATE SKIP LOCKED""",
+                               (sport, mode, guest, guest, avoid, avoid)).fetchone()
+            if opp:
+                oid, oname, opref = opp
+                conn.execute("DELETE FROM sport_online_queue WHERE sport_id=%s AND mode=%s AND guest_id IN (%s, %s)", (sport, mode, guest, oid))
+                gid, blob, state = _sport_online_create(conn, sport, mode, (oid, oname), (guest, name), {oid: opref, guest: preference})
+                return jsonify({"status": "matched", "game": _sport_online_state(conn, gid, blob, state, guest)})
+            conn.execute("""INSERT INTO sport_online_queue (sport_id, mode, guest_id, display_name, preference, avoid_guest_id)
+                            VALUES (%s,%s,%s,%s,%s,%s)
+                            ON CONFLICT (sport_id,mode,guest_id) DO UPDATE SET display_name=EXCLUDED.display_name,
+                              preference=EXCLUDED.preference, avoid_guest_id=EXCLUDED.avoid_guest_id, enqueued_at=now()""",
+                         (sport, mode, guest, name, preference, avoid))
+        return jsonify(_sport_online_status(conn, sport, mode, guest))
+
+
+@app.route("/api/sports/<sport>/<mode>/status", methods=["POST"])
+def sport_online_status(sport: str, mode: str):
+    guest = ((request.get_json(silent=True) or {}).get("guest_id") or "").strip()
+    with db() as conn: return jsonify(_sport_online_status(conn, sport, mode, guest))
+
+
+@app.route("/api/sports/<sport>/<mode>/game", methods=["POST"])
+def sport_online_game(sport: str, mode: str):
+    data = request.get_json(silent=True) or {}; guest, gid = (data.get("guest_id") or "").strip(), data.get("game_id")
+    with db() as conn:
+        blob, state = _sport_online_load(conn, sport, mode, gid)
+        if not blob: return jsonify({"error": "unknown game_id"}), 404
+        if guest not in {blob["p1_guest_id"], blob["p2_guest_id"]}: return jsonify({"error": "unauthorized"}), 403
+        _sport_online_expire(blob); _sport_online_save(conn, gid, blob)
+        return jsonify(_sport_online_state(conn, gid, blob, state, guest))
+
+
+@app.route("/api/sports/<sport>/<mode>/move", methods=["POST"])
+def sport_online_move(sport: str, mode: str):
+    data = request.get_json(silent=True) or {}; guest, gid = (data.get("guest_id") or "").strip(), data.get("game_id")
+    with db() as conn:
+        blob, state = _sport_online_load(conn, sport, mode, gid)
+        if not blob: return jsonify({"error": "unknown game_id"}), 404
+        if guest not in {blob["p1_guest_id"], blob["p2_guest_id"]}: return jsonify({"error": "unauthorized"}), 403
+        _sport_online_expire(blob)
+        if blob["finished"]: _save_sport_online_result(conn,gid,blob,state); _sport_online_save(conn, gid, blob); return jsonify(_sport_online_state(conn, gid, blob, state, guest))
+        if guest != (blob["p1_guest_id"] if blob["turn_index"] == 0 else blob["p2_guest_id"]): return jsonify({"error": "not your turn", **_sport_online_state(conn,gid,blob,state,guest)}), 409
+        player_id, raw = (data.get("player_id") or "").strip() or None, (data.get("raw") or "").strip()
+        result = validate_and_apply_move(state, PgEngineConn(conn), raw_input=None if player_id else raw, player_id=player_id, track_strikes=True, sport=sport)
+        payload = result_to_dict(result)
+        if mode == "po" and result.outcome != MoveOutcome.VALID:
+            alternate = _local_po_powerup_move(PgEngineConn(conn), blob, raw, player_id)
+            payload = alternate or payload
+        blob.update(serialize_state(state)); blob["last_move"] = payload
+        if payload.get("outcome") == "valid":
+            mover = "p1" if guest == blob["p1_guest_id"] else "p2"
+            if mode == "po":
+                inc = _local_po_condition_increment(PgEngineConn(conn), sport, blob[f"{mover}_win_condition_key"], payload["player_id"])
+                blob[f"{mover}_win_progress"] += inc
+                blob["chain_win_condition_hits"].append(bool(inc))
+                blob["chain_link_meta"].append(None)
+                if blob[f"{mover}_win_progress"] >= LOCAL_PLAYOFF_CONFIG[sport]["conditions"][blob[f"{mover}_win_condition_key"]]["target"]:
+                    blob[f"{mover}_win_completed"] = True; blob["finished"] = True; blob["winner"] = blob[mover]
+            _record_sport_player_usage(conn, sport, payload["player_id"], mode)
+            if not blob["finished"]:
+                blob["turn_index"] = 1 - blob["turn_index"]; blob["turn_started_at"] = now_utc().isoformat(); blob["countdown_seconds"] = 0.0
+                if mode == "po":
+                    blob["turn_seconds"] = float(blob.get("next_turn_seconds_override") or APP_TURN_SECONDS)
+                    blob["next_turn_seconds_override"] = None; blob["active_turn_powerup"] = None; blob["turn_powerup_used"] = False
+        _save_sport_online_result(conn,gid,blob,state)
+        _sport_online_save(conn, gid, blob)
+        return jsonify(_sport_online_state(conn, gid, blob, state, guest))
+
+
+@app.route("/api/sports/<sport>/po/powerup", methods=["POST"])
+def sport_online_powerup(sport: str):
+    data = request.get_json(silent=True) or {}; guest, gid, key = (data.get("guest_id") or "").strip(), data.get("game_id"), (data.get("powerup_key") or "").strip()
+    with db() as conn:
+        blob, state = _sport_online_load(conn, sport, "po", gid)
+        if not blob: return jsonify({"error":"unknown game_id"}), 404
+        side = "p1" if guest == blob["p1_guest_id"] else "p2" if guest == blob["p2_guest_id"] else None
+        if not side: return jsonify({"error":"unauthorized"}), 403
+        if blob["finished"] or blob["turn_index"] != (0 if side == "p1" else 1): return jsonify({"error":"not your turn"}), 409
+        powers = LOCAL_PLAYOFF_CONFIG[sport]["powerups"]
+        if key not in powers or key in blob.get(f"{side}_powerup_used_keys", []) or blob.get("turn_powerup_used"): return jsonify({"error":"powerup unavailable"}), 409
+        blob[f"{side}_powerup_used_keys"].append(key); blob["turn_powerup_used"] = True
+        meta = powers[key]
+        if meta["kind"] == "time": blob["turn_seconds"] += meta["bonus_seconds"]
+        elif meta["kind"] == "pressure": blob["next_turn_seconds_override"] = 10
+        else: blob["turn_seconds"] += meta["bonus_seconds"]; blob["active_turn_powerup"] = key
+        blob["last_move"] = {"outcome":"powerup_activated", "powerup_key":key, "powerup_label":meta["label"], "message":f"{meta['label']} activated."}
+        _sport_online_save(conn,gid,blob); return jsonify(_sport_online_state(conn,gid,blob,state,guest))
+
+
+@app.route("/api/sports/<sport>/<mode>/timeout", methods=["POST"])
+def sport_online_timeout(sport: str, mode: str):
+    data=request.get_json(silent=True) or {}; guest,gid=(data.get("guest_id") or "").strip(),data.get("game_id")
+    with db() as conn:
+        blob,state=_sport_online_load(conn,sport,mode,gid)
+        if not blob: return jsonify({"error":"unknown game_id"}),404
+        if guest not in {blob["p1_guest_id"],blob["p2_guest_id"]}: return jsonify({"error":"unauthorized"}),403
+        _sport_online_expire(blob); _save_sport_online_result(conn,gid,blob,state); _sport_online_save(conn,gid,blob)
+        return jsonify(_sport_online_state(conn,gid,blob,state,guest))
+
+
+@app.route("/api/sports/<sport>/<mode>/leave_game", methods=["POST"])
+def sport_online_leave(sport: str, mode: str):
+    data=request.get_json(silent=True) or {}; guest,gid=(data.get("guest_id") or "").strip(),data.get("game_id")
+    with db() as conn:
+        blob,state=_sport_online_load(conn,sport,mode,gid)
+        if not blob: return jsonify({"status":"gone"})
+        if guest not in {blob["p1_guest_id"],blob["p2_guest_id"]}: return jsonify({"error":"unauthorized"}),403
+        if not blob["finished"]:
+            blob["finished"]=True; blob["winner"]=blob["p2"] if guest==blob["p1_guest_id"] else blob["p1"]; blob["last_move"]={"outcome":"forfeit"}; _save_sport_online_result(conn,gid,blob,state); _sport_online_save(conn,gid,blob)
+        return jsonify({"status":"gone"})
+
+
+@app.route("/api/sports/<sport>/<mode>/cancel_queue", methods=["POST"])
+@app.route("/api/sports/<sport>/<mode>/cancel_challenge", methods=["POST"])
+def sport_online_cancel(sport: str, mode: str):
+    guest=((request.get_json(silent=True) or {}).get("guest_id") or "").strip()
+    with db() as conn: conn.execute("DELETE FROM sport_online_queue WHERE sport_id=%s AND mode=%s AND guest_id=%s",(sport,mode,guest))
+    return jsonify({"status":"idle"})
+
+
+@app.route("/api/sports/<sport>/<mode>/rematch_request", methods=["POST"])
+@app.route("/api/sports/<sport>/<mode>/rematch_status", methods=["POST"])
+def sport_online_rematch(sport: str, mode: str):
+    data=request.get_json(silent=True) or {}; guest,gid=(data.get("guest_id") or "").strip(),data.get("game_id")
+    with db() as conn:
+        blob,state=_sport_online_load(conn,sport,mode,gid)
+        if not blob: return jsonify({"error":"unknown game_id"}),404
+        if guest not in {blob["p1_guest_id"],blob["p2_guest_id"]}: return jsonify({"error":"unauthorized"}),403
+        link=conn.execute("SELECT new_game_id::text FROM sport_online_rematch_links WHERE original_game_id=%s",(gid,)).fetchone()
+        if link:
+            new_blob,new_state=_sport_online_load(conn,sport,mode,link[0]); return jsonify({"status":"matched","game":_sport_online_state(conn,link[0],new_blob,new_state,guest)})
+        if request.path.endswith("rematch_status"):
+            return jsonify({"status":"waiting","opponent_present":True})
+        if not blob["finished"] or blob.get("last_move",{}).get("outcome")=="forfeit": return jsonify({"error":"rematch unavailable"}),400
+        conn.execute("INSERT INTO sport_online_rematches (original_game_id,requester_guest_id) VALUES (%s,%s) ON CONFLICT DO NOTHING",(gid,guest))
+        asked={r[0] for r in conn.execute("SELECT requester_guest_id::text FROM sport_online_rematches WHERE original_game_id=%s",(gid,)).fetchall()}
+        if {blob["p1_guest_id"],blob["p2_guest_id"]} <= asked:
+            new_gid,new_blob,new_state=_sport_online_create(conn,sport,mode,(blob["p1_guest_id"],blob["p1"]),(blob["p2_guest_id"],blob["p2"]))
+            conn.execute("INSERT INTO sport_online_rematch_links (original_game_id,new_game_id) VALUES (%s,%s)",(gid,new_gid))
+            return jsonify({"status":"matched","game":_sport_online_state(conn,new_gid,new_blob,new_state,guest)})
+        return jsonify({"status":"waiting"})
+
+
+@app.route("/api/sports/<sport>/<mode>/postgame_leave", methods=["POST"])
+def sport_online_postgame_leave(sport: str, mode: str):
+    data=request.get_json(silent=True) or {}; guest,gid=(data.get("guest_id") or "").strip(),data.get("game_id")
+    with db() as conn:
+        conn.execute("INSERT INTO sport_online_postgame_exits (original_game_id,guest_id) VALUES (%s,%s) ON CONFLICT DO NOTHING",(gid,guest))
+    return jsonify({"status":"gone"})
 
 
 if __name__ == "__main__":

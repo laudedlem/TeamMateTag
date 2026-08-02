@@ -52,7 +52,9 @@ appearance-based link engine and persist game JSON in the existing `bp_games`
 and `fr_games` tables. The browser keeps using the local adapter only when
 `TEAMMATETAG_LOCAL_SPORTS=1`; a deployed server uses the Postgres path.
 
-Division Rivalry and Playoffs still need their persistent cross-sport queue,
-challenge, rematch, results, and rating adapters. Do not present those two
-non-baseball modes as production-ready until their server contracts have been
-implemented and smoke-tested.
+Division Rivalry and Playoffs now use `sport_online_games` and
+`sport_online_queue`, with persistent random matchmaking, exits, rematches,
+player usage, ratings, results, and Playoffs powerups/conditions. Baseball
+continues to use its established tables unchanged. Cross-sport friend and
+code challenges are hidden pending a sport-scoped version of the existing
+Baseball challenge/history tables.
