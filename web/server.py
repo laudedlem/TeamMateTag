@@ -5934,6 +5934,10 @@ def fr_new():
                     blob, finished = prior
                     if (blob.get("puzzle_date") == puzzle_day.isoformat()
                             and blob.get("puzzle_number") == _film_review_number(puzzle_day)):
+                        _store_daily_film_review_puzzle(conn, "baseball", puzzle_day, None, {
+                            "id": blob["puzzle_id"], "puzzle_date": blob["puzzle_date"],
+                            "slots": blob["slots"], "deck": blob["deck"], "unit": None,
+                        })
                         blob["finished"] = finished
                         return jsonify(fr_state_dict(existing[0], blob, conn=conn))
         try:
@@ -6196,6 +6200,14 @@ def _daily_film_review_puzzle(conn, sport: str, puzzle_day: date, unit: str | No
     return dict(row[0])
 
 
+def _store_daily_film_review_puzzle(conn, sport: str, puzzle_day: date, unit: str | None, puzzle: dict) -> None:
+    conn.execute(
+        """INSERT INTO film_review_daily_puzzles (sport_id, puzzle_date, unit, puzzle)
+             VALUES (%s,%s,%s,%s) ON CONFLICT (sport_id, puzzle_date, unit) DO NOTHING""",
+        (sport, puzzle_day, unit or "", Jsonb(puzzle)),
+    )
+
+
 def _local_film_review_puzzle_dict(conn, sport: str, unit: str | None, puzzle_day: date) -> dict:
     puzzle = generate_local_film_review(PgEngineConn(conn), sport, unit=unit, puzzle_day=puzzle_day)
     return {
@@ -6274,6 +6286,10 @@ def sport_fr_new(sport: str):
                     blob, finished = row; blob["finished"] = finished
                     if (blob.get("puzzle_date") == puzzle_day.isoformat()
                             and blob.get("puzzle_number") == _film_review_number(puzzle_day)):
+                        _store_daily_film_review_puzzle(conn, sport, puzzle_day, unit, {
+                            "id": blob["puzzle_id"], "puzzle_date": blob["puzzle_date"],
+                            "slots": blob["slots"], "deck": blob["deck"], "unit": blob.get("unit"),
+                        })
                         return jsonify(_sport_fr_state_dict(existing[0], blob, conn))
         try:
             saved_puzzle = _daily_film_review_puzzle(

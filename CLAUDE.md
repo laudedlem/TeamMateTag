@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.46`
+- Current display version: `0.1.47`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -527,6 +527,11 @@ Central calendar and midnight automatically exposes the new current day, whose
 deck is created lazily on its first play. Verified valid 2026-08-03 generators
 for Baseball (10), Basketball (12), Hockey (11), and Football offense/defense
 (12 each).
+
+Update, 2026-08-02 (0.1.47): existing in-progress daily games now seed their
+deck into the immutable global puzzle catalog the next time they are resumed.
+This closes the migration edge case from before the catalog was introduced and
+ensures every active and future Film Review has a permanent archive deck.
 
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.
