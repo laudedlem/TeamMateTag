@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.40`
+- Current display version: `0.1.41`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -439,6 +439,15 @@ links. Profile Baseball struck-out teams now explicitly filter to Baseball,
 and profile labels adapt to the selected sport. Playoffs condition widgets
 show the full requirement in small italic text; multiplayer replay buttons
 use sport-specific wording.
+
+Update, 2026-08-02 (0.1.41): cross-sport rematch status now has the same
+complete contract as Baseball, so a live opponent no longer incorrectly shows
+"rematch unavailable". If the opponent leaves while a player has requested a
+rematch, that player is automatically returned to the random queue; requesting
+after a departure also requeues immediately. Move feedback uses sport-specific
+out terminology. `patch_hockey_utah_transition.py` repairs eight continuous
+Arizona-to-Utah player records, including Clayton Keller: ARI through 2023 and
+UTA from 2024. Online hockey cards and link labels normalize to full team names.
 
 Profile responses now include `stats.sports.baseball|basketball|football|hockey`.
 New cross-sport BP/FR results write their sport ID, so stats are isolated.

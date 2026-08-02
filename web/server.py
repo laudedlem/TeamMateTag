@@ -2771,6 +2771,8 @@ def _sport_team_name(conn, sport: str, team_id: str, season: int) -> str:
         (sport, team_id, season),
     ).fetchone()
     name = row[0] if row else team_id
+    if sport == "hockey":
+        name = NHL_TEAM_NAMES.get(name, NHL_TEAM_NAMES.get(team_id, name))
     SPORT_TEAM_NAME_CACHE[cache_key] = name
     return name
 
@@ -2816,6 +2818,8 @@ def _sport_cards(conn, sport: str, player_ids: list[str]) -> dict[str, dict]:
     ).fetchall()
     teams_by_player: dict[str, dict[str, list[list[int]]]] = {}
     for player_id, team, season in appearances:
+        if sport == "hockey":
+            team = NHL_TEAM_NAMES.get(team, team)
         ranges = teams_by_player.setdefault(player_id, {}).setdefault(team, [])
         # A player returning after an injury is still one tenure line, with
         # each actual year range preserved (Chicago Bulls 2008-11, 2013-15).
@@ -6227,6 +6231,17 @@ def _sport_online_status(conn, sport: str, mode: str, guest_id: str):
     return {"status": "waiting", "guest_id": guest_id} if waiting else {"status": "idle"}
 
 
+def _sport_online_requeue(conn, sport: str, mode: str, guest_id: str, avoid_guest_id: str | None):
+    conn.execute(
+        """INSERT INTO sport_online_queue (sport_id, mode, guest_id, display_name, avoid_guest_id)
+           VALUES (%s, %s, %s, %s, %s)
+           ON CONFLICT (sport_id, mode, guest_id) DO UPDATE
+             SET display_name=EXCLUDED.display_name, avoid_guest_id=EXCLUDED.avoid_guest_id,
+                 enqueued_at=now()""",
+        (sport, mode, guest_id, _guest_label(conn, guest_id), avoid_guest_id),
+    )
+
+
 @app.route("/api/sports/<sport>/<mode>/queue", methods=["POST"])
 def sport_online_queue(sport: str, mode: str):
     if not _is_cross_sport(sport) or mode not in {"dr", "po"}: return jsonify({"error": "unsupported mode"}), 404
@@ -6377,9 +6392,24 @@ def sport_online_rematch(sport: str, mode: str):
         link=conn.execute("SELECT new_game_id::text FROM sport_online_rematch_links WHERE original_game_id=%s",(gid,)).fetchone()
         if link:
             new_blob,new_state=_sport_online_load(conn,sport,mode,link[0]); return jsonify({"status":"matched","game":_sport_online_state(conn,link[0],new_blob,new_state,guest)})
+        other = blob["p2_guest_id"] if guest == blob["p1_guest_id"] else blob["p1_guest_id"]
+        requesters = {row[0] for row in conn.execute(
+            "SELECT requester_guest_id::text FROM sport_online_rematches WHERE original_game_id=%s", (gid,)
+        ).fetchall()}
+        exited = {row[0] for row in conn.execute(
+            "SELECT guest_id::text FROM sport_online_postgame_exits WHERE original_game_id=%s", (gid,)
+        ).fetchall()}
         if request.path.endswith("rematch_status"):
-            return jsonify({"status":"waiting","opponent_present":True})
+            if other in exited:
+                if guest in requesters:
+                    _sport_online_requeue(conn, sport, mode, guest, other)
+                    return jsonify({"status":"requeued","you_requested":True,"opponent_requested":False,"opponent_present":False,"rematch_available":False})
+                return jsonify({"status":"abandoned","you_requested":False,"opponent_requested":False,"opponent_present":False,"rematch_available":False})
+            return jsonify({"status":"waiting","you_requested":guest in requesters,"opponent_requested":other in requesters,"opponent_present":True,"rematch_available":True})
         if not blob["finished"] or blob.get("last_move",{}).get("outcome")=="forfeit": return jsonify({"error":"rematch unavailable"}),400
+        if other in exited:
+            _sport_online_requeue(conn, sport, mode, guest, other)
+            return jsonify({"status":"requeued","you_requested":True,"opponent_requested":False,"opponent_present":False,"rematch_available":False})
         conn.execute("INSERT INTO sport_online_rematches (original_game_id,requester_guest_id) VALUES (%s,%s) ON CONFLICT DO NOTHING",(gid,guest))
         asked={r[0] for r in conn.execute("SELECT requester_guest_id::text FROM sport_online_rematches WHERE original_game_id=%s",(gid,)).fetchall()}
         if {blob["p1_guest_id"],blob["p2_guest_id"]} <= asked:
@@ -6394,6 +6424,12 @@ def sport_online_postgame_leave(sport: str, mode: str):
     data=request.get_json(silent=True) or {}; guest,gid=(data.get("guest_id") or "").strip(),data.get("game_id")
     with db() as conn:
         conn.execute("INSERT INTO sport_online_postgame_exits (original_game_id,guest_id) VALUES (%s,%s) ON CONFLICT DO NOTHING",(gid,guest))
+        blob, _ = _sport_online_load(conn, sport, mode, gid)
+        if blob:
+            other = blob["p2_guest_id"] if guest == blob["p1_guest_id"] else blob["p1_guest_id"]
+            asked = conn.execute("SELECT 1 FROM sport_online_rematches WHERE original_game_id=%s AND requester_guest_id=%s", (gid, other)).fetchone()
+            if asked:
+                _sport_online_requeue(conn, sport, mode, other, guest)
     return jsonify({"status":"gone"})
 
 

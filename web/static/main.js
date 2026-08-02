@@ -1264,9 +1264,9 @@ function runOpeningCountdown() {
   if (!(isOnlineMode() || currentMode === 'bp') || remaining <= 0) {
     els.timer.classList.remove('countdown');
     activeCountdownKey = '';
-    setGuessDisabled(false);
+    setGuessDisabled(isOnlineMode() && !game?.your_turn);
     resetTurnTimer();
-    els.guessInput.focus();
+    if (!isOnlineMode() || game?.your_turn) els.guessInput.focus();
     return;
   }
 
@@ -1283,9 +1283,9 @@ function runOpeningCountdown() {
       els.timer.classList.remove('countdown');
       els.timer.style.color = '';
       activeCountdownKey = '';
-      setGuessDisabled(false);
+      setGuessDisabled(isOnlineMode() && !game?.your_turn);
       resetTurnTimer();
-      els.guessInput.focus();
+      if (!isOnlineMode() || game?.your_turn) els.guessInput.focus();
       return;
     }
     els.timer.textContent = String(Math.ceil(left));
@@ -1926,6 +1926,7 @@ function renderMoveFeedback(m, g) {
   const ambig = m.ambiguous_count > 1
     ? ` <span class="muted-inline">(auto-picked from ${m.ambiguous_count} matches. Try the dropdown to be specific.)</span>`
     : '';
+  const outTerm = ({ baseball: 'STRUCK OUT', basketball: 'FOULED OUT', hockey: 'GAME MISCONDUCT', football: 'PUNTED' })[CURRENT_SPORT] || 'OUT';
 
   switch (m.outcome) {
     case 'valid': {
@@ -1946,7 +1947,7 @@ function renderMoveFeedback(m, g) {
         ? `<br><span class="burn">${escapeHtml(m.win_condition_label)} completed.</span>`
         : '';
       return `<span class="ok">${lead}</span>` +
-        (newOut ? `<br><span class="burn">STRUCK OUT this move: ${escapeHtml(newOut)}</span>` : '') +
+        (newOut ? `<br><span class="burn">${outTerm} this move: ${escapeHtml(newOut)}</span>` : '') +
         winNote +
         winFinish;
     }
@@ -1964,7 +1965,7 @@ function renderMoveFeedback(m, g) {
       const out = m.burned_seasons.map((s) => `${s.team_name} ${s.season}`).join(', ');
       const verb = m.burned_seasons.length === 1 ? 'is' : 'are';
       return `<span class="bad">${name}${ambig} and ${escapeHtml(prev)} were linked on ${escapeHtml(allShared)},<br>` +
-        `but ${escapeHtml(out)} ${verb} already struck out. Pick someone else.</span>`;
+        `but ${escapeHtml(out)} ${verb} already ${outTerm.toLowerCase()}. Pick someone else.</span>`;
     }
     case 'powerup_not_eligible':
       return `<span class="bad">${name}${ambig} does not qualify for ${escapeHtml(m.powerup_label || 'that powerup')}. ${escapeHtml(m.reason || '')}</span>`;
