@@ -635,6 +635,16 @@ def ensure_runtime_schema():
                 )"""
             )
             conn.execute(
+                """CREATE TABLE IF NOT EXISTS film_review_daily_puzzles (
+                       sport_id TEXT NOT NULL,
+                       puzzle_date DATE NOT NULL,
+                       unit TEXT NOT NULL DEFAULT '',
+                       puzzle JSONB NOT NULL,
+                       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                       PRIMARY KEY (sport_id, puzzle_date, unit)
+                   )"""
+            )
+            conn.execute(
                 """CREATE TABLE IF NOT EXISTS baseball_player_positions (
                        player_id TEXT NOT NULL REFERENCES players(player_id) ON DELETE CASCADE,
                        position TEXT NOT NULL,
@@ -5927,7 +5937,10 @@ def fr_new():
                         blob["finished"] = finished
                         return jsonify(fr_state_dict(existing[0], blob, conn=conn))
         try:
-            puz = generate_baseball_film_review(conn, puzzle_day)
+            puz = _daily_film_review_puzzle(
+                conn, "baseball", puzzle_day, None,
+                lambda: generate_baseball_film_review(conn, puzzle_day),
+            )
         except RuntimeError as error:
             return jsonify({"error": str(error)}), 500
         deck = list(puz["deck"])
@@ -6159,6 +6172,41 @@ def _film_review_number(puzzle_day: date) -> int:
     return max(1, (puzzle_day - FILM_REVIEW_EPOCH).days + 1)
 
 
+def _daily_film_review_puzzle(conn, sport: str, puzzle_day: date, unit: str | None, builder) -> dict:
+    """Return the immutable daily deck, generating it only once if needed."""
+    unit_key = unit or ""
+    row = conn.execute(
+        """SELECT puzzle FROM film_review_daily_puzzles
+             WHERE sport_id=%s AND puzzle_date=%s AND unit=%s""",
+        (sport, puzzle_day, unit_key),
+    ).fetchone()
+    if row:
+        return dict(row[0])
+    puzzle = builder()
+    conn.execute(
+        """INSERT INTO film_review_daily_puzzles (sport_id, puzzle_date, unit, puzzle)
+             VALUES (%s,%s,%s,%s) ON CONFLICT (sport_id, puzzle_date, unit) DO NOTHING""",
+        (sport, puzzle_day, unit_key, Jsonb(puzzle)),
+    )
+    row = conn.execute(
+        """SELECT puzzle FROM film_review_daily_puzzles
+             WHERE sport_id=%s AND puzzle_date=%s AND unit=%s""",
+        (sport, puzzle_day, unit_key),
+    ).fetchone()
+    return dict(row[0])
+
+
+def _local_film_review_puzzle_dict(conn, sport: str, unit: str | None, puzzle_day: date) -> dict:
+    puzzle = generate_local_film_review(PgEngineConn(conn), sport, unit=unit, puzzle_day=puzzle_day)
+    return {
+        "id": f"{sport}_{puzzle.puzzle_date}_{puzzle.unit or 'full'}",
+        "puzzle_date": puzzle.puzzle_date,
+        "slots": list(puzzle.slots),
+        "deck": list(puzzle.deck),
+        "unit": puzzle.unit,
+    }
+
+
 @app.route("/api/sports/<sport>/fr/team_autocomplete")
 def sport_fr_team_autocomplete(sport: str):
     q = normalize(request.args.get("q") or "")
@@ -6228,18 +6276,22 @@ def sport_fr_new(sport: str):
                             and blob.get("puzzle_number") == _film_review_number(puzzle_day)):
                         return jsonify(_sport_fr_state_dict(existing[0], blob, conn))
         try:
-            puzzle = generate_local_film_review(PgEngineConn(conn), sport, unit=unit, puzzle_day=puzzle_day)
+            saved_puzzle = _daily_film_review_puzzle(
+                conn, sport, puzzle_day, unit,
+                lambda: _local_film_review_puzzle_dict(conn, sport, unit, puzzle_day),
+            )
         except (RuntimeError, ValueError) as error:
             return jsonify({"error": f"could not build Film Review: {error}"}), 500
-        shared = [_sport_fr_shared(conn, sport, puzzle.deck[i], puzzle.deck[i + 1]) for i in range(len(puzzle.deck) - 1)]
+        deck = saved_puzzle["deck"]
+        shared = [_sport_fr_shared(conn, sport, deck[i], deck[i + 1]) for i in range(len(deck) - 1)]
         if any(not pair for pair in shared):
             return jsonify({"error": "generated puzzle has an unresolved connection"}), 500
         blob = {
-            "sport": sport, "puzzle_id": f"{sport}_{puzzle.puzzle_date}_{puzzle.unit or 'full'}",
-            "puzzle_date": puzzle.puzzle_date, "puzzle_number": _film_review_number(puzzle_day), "archive": archive,
-            "deck": list(puzzle.deck), "slots": list(puzzle.slots), "unit": puzzle.unit,
+            "sport": sport, "puzzle_id": saved_puzzle["id"],
+            "puzzle_date": saved_puzzle["puzzle_date"], "puzzle_number": _film_review_number(puzzle_day), "archive": archive,
+            "deck": deck, "slots": saved_puzzle["slots"], "unit": saved_puzzle.get("unit"),
             "pair_index": 0, "revealed_count": 2, "hits": 0, "fouls": 0, "strikes": 0,
-            "consec_fouls": 0, "solved_links": [None] * (len(puzzle.deck) - 1),
+            "consec_fouls": 0, "solved_links": [None] * (len(deck) - 1),
             "shared_per_pair": shared, "owner_guest_id": guest_id, "result_saved": False,
             "finished": False, "won": False, "last_guess": None,
         }
