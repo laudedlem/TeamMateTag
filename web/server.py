@@ -125,9 +125,11 @@ QUICK_PITCH_TURN_SECONDS = 10.0
 LOCAL_PLAYOFF_CONFIG = {
     "basketball": {
         "powerups": {
-            "heat_check": {"label": "Heat Check", "description": "A 10,000-point scorer from a franchise shared with the top player. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "career_points", "threshold": 10000},
-            "sixth_man": {"label": "Sixth Man", "description": "A 5,000-point scorer from a franchise shared with the top player. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "career_points", "threshold": 5000},
+            "heat_check": {"label": "Heat Check", "description": "A 2,000-point season scorer from a franchise shared with the top player. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "peak_points", "threshold": 2000},
+            "sixth_man": {"label": "Sixth Man", "description": "A 7,000-assist player from a franchise shared with the top player. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "career_assists", "threshold": 7000},
             "switch": {"label": "Switch", "description": "A player in the same position group from a franchise shared with the top player. +5 seconds.", "kind": "position", "bonus_seconds": 5},
+            "mvp_badge": {"label": "MVP Badge", "description": "An MVP winner from a franchise shared with the top player. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "mvp_count", "threshold": 1},
+            "all_star_callup": {"label": "All-Star Call-Up", "description": "An All-Star from a franchise shared with the top player. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "all_star_count", "threshold": 1},
             "timeout": {"label": "Timeout", "description": "+15 seconds on your turn.", "kind": "time", "bonus_seconds": 15},
             "full_court_press": {"label": "Full-Court Press", "description": "Your opponent gets 10 seconds on their next turn.", "kind": "pressure"},
         },
@@ -150,6 +152,8 @@ LOCAL_PLAYOFF_CONFIG = {
             "trick_play": {"label": "Trick Play", "description": "A 20-touchdown scorer from a franchise shared with the top player. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "career_touchdowns", "threshold": 20},
             "iron_man": {"label": "Iron Man", "description": "A 100-game veteran from a franchise shared with the top player. +5 seconds.", "kind": "veteran", "bonus_seconds": 5, "career_games": 100},
             "package_change": {"label": "Package Change", "description": "A player in the same unit from a franchise shared with the top player. +5 seconds.", "kind": "position", "bonus_seconds": 5},
+            "mvp_badge": {"label": "MVP Honor", "description": "An MVP winner from a franchise shared with the top player. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "mvp_count", "threshold": 1},
+            "pro_bowl_callup": {"label": "Pro Bowl Call-Up", "description": "A Pro Bowl player from a franchise shared with the top player. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "all_star_count", "threshold": 1},
             "timeout": {"label": "Timeout", "description": "+15 seconds on your turn.", "kind": "time", "bonus_seconds": 15},
             "blitz": {"label": "Blitz", "description": "Your opponent gets 10 seconds on their next turn.", "kind": "pressure"},
         },
@@ -173,6 +177,8 @@ LOCAL_PLAYOFF_CONFIG = {
             "breakaway": {"label": "Breakaway", "description": "A 250-goal scorer from a franchise shared with the top player. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "career_goals", "threshold": 250},
             "veteran_presence": {"label": "Veteran Presence", "description": "A 500-point scorer from a franchise shared with the top player. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "career_points", "threshold": 500},
             "line_change": {"label": "Line Change", "description": "A player in the same position group from a franchise shared with the top player. +5 seconds.", "kind": "position", "bonus_seconds": 5},
+            "hart_honor": {"label": "Hart Honor", "description": "A Hart Trophy winner from a franchise shared with the top player. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "mvp_count", "threshold": 1},
+            "all_star_callup": {"label": "All-Star Call-Up", "description": "An All-Star from a franchise shared with the top player. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "all_star_count", "threshold": 1},
             "timeout": {"label": "Timeout", "description": "+15 seconds on your turn.", "kind": "time", "bonus_seconds": 15},
             "forecheck": {"label": "Forecheck", "description": "Your opponent gets 10 seconds on their next turn.", "kind": "pressure"},
         },

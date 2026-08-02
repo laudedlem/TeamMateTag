@@ -197,15 +197,19 @@ const POWERUP_UI = {
   heat_check: { icon: 'HC', className: 'bubblegum' },
   sixth_man: { icon: '6M', className: 'pine-tar' },
   switch: { icon: 'SW', className: 'bat-donut' },
+  mvp_badge: { icon: 'MV', className: 'sunglasses' },
+  all_star_callup: { icon: 'AS', className: 'backup-mitt' },
   timeout: { icon: 'TO', className: 'abs' },
   full_court_press: { icon: 'FP', className: 'quick-pitch' },
   trick_play: { icon: 'TP', className: 'bubblegum' },
   iron_man: { icon: 'IM', className: 'pine-tar' },
   package_change: { icon: 'PC', className: 'bat-donut' },
+  pro_bowl_callup: { icon: 'PB', className: 'backup-mitt' },
   blitz: { icon: 'BZ', className: 'quick-pitch' },
   breakaway: { icon: 'BA', className: 'bubblegum' },
   veteran_presence: { icon: 'VP', className: 'pine-tar' },
   line_change: { icon: 'LC', className: 'bat-donut' },
+  hart_honor: { icon: 'HT', className: 'sunglasses' },
   forecheck: { icon: 'FC', className: 'quick-pitch' },
 };
 
@@ -2168,11 +2172,11 @@ function renderPowerupReferenceHtml() {
     ['quick_pitch', 'Cuts your opponent down to 10 seconds on their next turn.'],
   ];
   const sportRows = {
-    basketball: [['heat_check', 'A 10,000-point scorer from the same franchise. Adds 5 seconds.'], ['sixth_man', 'A 5,000-point scorer from the same franchise. Adds 5 seconds.'], ['switch', 'A same-position-group player from the same franchise. Adds 5 seconds.'], ['timeout', 'Adds 15 seconds to your turn.'], ['full_court_press', 'Your opponent gets 10 seconds next turn.']],
-    football: [['trick_play', 'A 20-touchdown scorer from the same franchise. Adds 5 seconds.'], ['iron_man', 'A 100-game veteran from the same franchise. Adds 5 seconds.'], ['package_change', 'A same-unit player from the same franchise. Adds 5 seconds.'], ['timeout', 'Adds 15 seconds to your turn.'], ['blitz', 'Your opponent gets 10 seconds next turn.']],
-    hockey: [['breakaway', 'A 250-goal scorer from the same franchise. Adds 5 seconds.'], ['veteran_presence', 'A 500-point scorer from the same franchise. Adds 5 seconds.'], ['line_change', 'A same-position-group player from the same franchise. Adds 5 seconds.'], ['timeout', 'Adds 15 seconds to your turn.'], ['forecheck', 'Your opponent gets 10 seconds next turn.']],
+    basketball: [['heat_check', 'A 2,000-point season scorer from the same franchise. Adds 5 seconds.'], ['sixth_man', 'A 7,000-assist player from the same franchise. Adds 5 seconds.'], ['switch', 'A same-position-group player from the same franchise. Adds 5 seconds.'], ['mvp_badge', 'An MVP winner from the same franchise. Adds 5 seconds.'], ['all_star_callup', 'An All-Star from the same franchise. Adds 5 seconds.'], ['timeout', 'Adds 15 seconds to your turn.'], ['full_court_press', 'Your opponent gets 10 seconds next turn.']],
+    football: [['trick_play', 'A 20-touchdown scorer from the same franchise. Adds 5 seconds.'], ['iron_man', 'A 100-game veteran from the same franchise. Adds 5 seconds.'], ['package_change', 'A same-unit player from the same franchise. Adds 5 seconds.'], ['mvp_badge', 'An MVP winner from the same franchise. Adds 5 seconds.'], ['pro_bowl_callup', 'A Pro Bowl player from the same franchise. Adds 5 seconds.'], ['timeout', 'Adds 15 seconds to your turn.'], ['blitz', 'Your opponent gets 10 seconds next turn.']],
+    hockey: [['breakaway', 'A 250-goal scorer from the same franchise. Adds 5 seconds.'], ['veteran_presence', 'A 500-point scorer from the same franchise. Adds 5 seconds.'], ['line_change', 'A same-position-group player from the same franchise. Adds 5 seconds.'], ['hart_honor', 'A Hart Trophy winner from the same franchise. Adds 5 seconds.'], ['all_star_callup', 'An All-Star from the same franchise. Adds 5 seconds.'], ['timeout', 'Adds 15 seconds to your turn.'], ['forecheck', 'Your opponent gets 10 seconds next turn.']],
   };
-  const labels = { ...names, heat_check: 'Heat Check', sixth_man: 'Sixth Man', switch: 'Switch', timeout: 'Timeout', full_court_press: 'Full-Court Press', trick_play: 'Trick Play', iron_man: 'Iron Man', package_change: 'Package Change', blitz: 'Blitz', breakaway: 'Breakaway', veteran_presence: 'Veteran Presence', line_change: 'Line Change', forecheck: 'Forecheck' };
+  const labels = { ...names, heat_check: 'Heat Check', sixth_man: 'Sixth Man', switch: 'Switch', mvp_badge: 'MVP Badge', all_star_callup: 'All-Star Call-Up', timeout: 'Timeout', full_court_press: 'Full-Court Press', trick_play: 'Trick Play', iron_man: 'Iron Man', package_change: 'Package Change', pro_bowl_callup: 'Pro Bowl Call-Up', blitz: 'Blitz', breakaway: 'Breakaway', veteran_presence: 'Veteran Presence', line_change: 'Line Change', hart_honor: 'Hart Honor', forecheck: 'Forecheck' };
   const sport = CURRENT_SPORT || referenceSport;
   const rows = sportRows[sport] || baseballRows;
   const picker = CURRENT_SPORT ? '' : `<label class="muted small" for="reference-sport-select">Sport</label><select id="reference-sport-select"><option value="baseball">Baseball</option><option value="basketball">Basketball</option><option value="football">Football</option><option value="hockey">Hockey</option></select>`;

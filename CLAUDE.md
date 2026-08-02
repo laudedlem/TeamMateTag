@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.32`
+- Current display version: `0.1.33`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Required environment values are documented in `.env.example`. Never commit
@@ -147,7 +147,9 @@ changes. It is the concise source of truth for another coding assistant.
   should use these views rather than the raw import tables.
 - Cross-sport Playoffs uses `LOCAL_PLAYOFF_CONFIG` in `web/server.py` for
   basketball, football, and hockey. Each sport has its own powerup names,
-  qualification stat, timer pressure, and 11 distinct condition types. The
+  qualification stat, timer pressure, and 11 distinct condition types. Every
+  sport has seven powerups: five +5-second expanded-link tools, one +15-second
+  clock tool, and one opponent-time pressure tool. The
   current pool avoids duplicated career-stat objectives: where a stat appears
   twice, one is a peak-season feat and the other is career-based. Do not bump
   the visible version for data-only maintenance.
