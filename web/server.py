@@ -311,12 +311,6 @@ PLAYOFF_WIN_CONDITIONS = {
         "target": 2,
         "mode": "count",
     },
-    "four_hundred_club": {
-        "label": "Four Hundred Club",
-        "description": "Name 2 players with 400 career home runs.",
-        "target": 2,
-        "mode": "count",
-    },
 }
 
 # Explicit folders so Flask works regardless of CWD on serverless hosts.

@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.31`
+- Current display version: `0.1.32`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Required environment values are documented in `.env.example`. Never commit
@@ -158,7 +158,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Playoffs condition pools are intentionally broad and selectable. Basketball,
   football, and hockey each have 11 options, including peak-season feats,
   career totals, career-franchise, longevity, movement, honors, and combined
-  championship totals. Baseball has twelve options. The condition eligibility
+  championship totals. Baseball has eleven options. The condition eligibility
   audit is run against the local catalog before changing thresholds; the rare
   single-player options currently have 11-48 qualifiers, while combined and
   multi-player options have larger pools by design.
