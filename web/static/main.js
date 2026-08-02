@@ -153,6 +153,7 @@ let lastChainLength = 0;
 let activeCountdownKey = '';
 let activeTimerKey = '';
 let animateNewestCard = false;
+let referenceSport = 'baseball';
 
 let acItems = [];
 let acHighlight = -1;
@@ -227,16 +228,19 @@ const LOCAL_PLAYOFF_OPTIONS = {
     ['random', 'Random'], ['ironman', 'Bucket Getter: 3 players with 10,000 career points'],
     ['one_team', 'Home Court: 2 players with 8 seasons for one franchise'],
     ['journeyman', 'Frequent Flyer: 2 players who played for 5 teams'], ['mvp_circle', 'MVP Circle: 3 MVP winners'],
+    ['all_star_marathon', 'All-Star Marathon: 30 combined All-Star selections'], ['ring_chaser', 'Ring Chaser: 8 combined championships'],
   ],
   football: [
     ['random', 'Random'], ['ironman', 'End Zone: 3 players with 20 career touchdowns'],
     ['one_team', 'One Club: 2 players with 10 seasons for one franchise'],
-    ['journeyman', 'Journeyman: 2 players who played for 5 teams'], ['defense', 'Defense Wins: 3 defensive players'],
+    ['journeyman', 'Journeyman: 2 players who played for 5 teams'], ['pro_bowl_marathon', 'Pro Bowl Marathon: 30 combined selections'],
+    ['ring_chaser', 'Ring Chaser: 8 combined championships'],
   ],
   hockey: [
     ['random', 'Random'], ['ironman', 'Sniper: 3 players with 250 career goals'],
     ['one_team', 'Lifer: 2 players with 10 seasons for one franchise'],
-    ['journeyman', 'Journeyman: 2 players who played for 5 teams'], ['blue_line', 'Blue Line: 3 defensemen'],
+    ['journeyman', 'Journeyman: 2 players who played for 5 teams'], ['all_star_marathon', 'All-Star Marathon: 20 combined selections'],
+    ['ring_chaser', 'Ring Chaser: 8 combined Stanley Cup wins'],
   ],
 };
 
@@ -2140,7 +2144,7 @@ function renderPowerupReferenceHtml() {
     abs: 'ABS',
     quick_pitch: 'Quick Pitch',
   };
-  const rows = [
+  const baseballRows = [
     ['bubblegum', 'Any batter from the same franchise with a 40+ home run season. Adds 5 seconds.'],
     ['pine_tar', 'Any pitcher from the same franchise with a 200+ strikeout season. Adds 5 seconds.'],
     ['bat_donut', 'Any player from the same franchise with a Silver Slugger. Adds 5 seconds.'],
@@ -2149,17 +2153,27 @@ function renderPowerupReferenceHtml() {
     ['abs', 'Adds 15 seconds to your current turn.'],
     ['quick_pitch', 'Cuts your opponent down to 10 seconds on their next turn.'],
   ];
+  const sportRows = {
+    basketball: [['heat_check', 'A 10,000-point scorer from the same franchise. Adds 5 seconds.'], ['sixth_man', 'A 5,000-point scorer from the same franchise. Adds 5 seconds.'], ['switch', 'A same-position-group player from the same franchise. Adds 5 seconds.'], ['timeout', 'Adds 15 seconds to your turn.'], ['full_court_press', 'Your opponent gets 10 seconds next turn.']],
+    football: [['trick_play', 'A 20-touchdown scorer from the same franchise. Adds 5 seconds.'], ['iron_man', 'A 100-game veteran from the same franchise. Adds 5 seconds.'], ['package_change', 'A same-unit player from the same franchise. Adds 5 seconds.'], ['timeout', 'Adds 15 seconds to your turn.'], ['blitz', 'Your opponent gets 10 seconds next turn.']],
+    hockey: [['breakaway', 'A 250-goal scorer from the same franchise. Adds 5 seconds.'], ['veteran_presence', 'A 500-point scorer from the same franchise. Adds 5 seconds.'], ['line_change', 'A same-position-group player from the same franchise. Adds 5 seconds.'], ['timeout', 'Adds 15 seconds to your turn.'], ['forecheck', 'Your opponent gets 10 seconds next turn.']],
+  };
+  const labels = { ...names, heat_check: 'Heat Check', sixth_man: 'Sixth Man', switch: 'Switch', timeout: 'Timeout', full_court_press: 'Full-Court Press', trick_play: 'Trick Play', iron_man: 'Iron Man', package_change: 'Package Change', blitz: 'Blitz', breakaway: 'Breakaway', veteran_presence: 'Veteran Presence', line_change: 'Line Change', forecheck: 'Forecheck' };
+  const sport = CURRENT_SPORT || referenceSport;
+  const rows = sportRows[sport] || baseballRows;
+  const picker = CURRENT_SPORT ? '' : `<label class="muted small" for="reference-sport-select">Sport</label><select id="reference-sport-select"><option value="baseball">Baseball</option><option value="basketball">Basketball</option><option value="football">Football</option><option value="hockey">Hockey</option></select>`;
   return `
     <p class="muted">Each Playoffs game gives both players one use of every powerup. You can activate one powerup on a turn.</p>
+    ${picker}
     <div class="reference-key">
       ${rows.map(([key, desc]) => `
         <div class="reference-row powerup-${powerupClass(key)}">
           <div class="reference-chip powerup-chip powerup-chip-static powerup-${powerupClass(key)}">
             <span class="powerup-icon">${escapeHtml(powerupIcon(key))}</span>
-            <span class="powerup-label">${escapeHtml(names[key])}</span>
+            <span class="powerup-label">${escapeHtml(labels[key])}</span>
           </div>
           <div class="reference-copy">
-            <div class="reference-name">${escapeHtml(names[key])}</div>
+            <div class="reference-name">${escapeHtml(labels[key])}</div>
             <div class="muted small">${escapeHtml(desc)}</div>
           </div>
         </div>
@@ -2176,6 +2190,11 @@ function openRules() {
 function openReference() {
   els.rulesTitle.textContent = 'Powerup Reference';
   els.rulesText.innerHTML = renderPowerupReferenceHtml();
+  const selector = document.getElementById('reference-sport-select');
+  if (selector) {
+    selector.value = referenceSport;
+    selector.addEventListener('change', () => { referenceSport = selector.value; openReference(); });
+  }
   els.rulesModal.hidden = false;
 }
 

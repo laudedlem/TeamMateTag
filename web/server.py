@@ -136,6 +136,8 @@ LOCAL_PLAYOFF_CONFIG = {
             "one_team": {"label": "Home Court", "description": "Name 2 players with 8 seasons for one franchise", "target": 2, "kind": "one_franchise", "threshold": 8},
             "journeyman": {"label": "Frequent Flyer", "description": "Name 2 players who played for 5 teams", "target": 2, "kind": "team_count", "threshold": 5},
             "mvp_circle": {"label": "MVP Circle", "description": "Name 3 MVP winners", "target": 3, "kind": "trait", "trait": "mvp_count", "threshold": 1},
+            "all_star_marathon": {"label": "All-Star Marathon", "description": "Name players with 30 combined All-Star selections", "target": 30, "kind": "sum_trait", "trait": "all_star_count"},
+            "ring_chaser": {"label": "Ring Chaser", "description": "Name players with 8 combined championships", "target": 8, "kind": "sum_trait", "trait": "championship_count"},
         },
     },
     "football": {
@@ -150,7 +152,8 @@ LOCAL_PLAYOFF_CONFIG = {
             "ironman": {"label": "End Zone", "description": "Name 3 players with 20 career touchdowns", "target": 3, "kind": "trait", "trait": "career_touchdowns", "threshold": 20},
             "one_team": {"label": "One Club", "description": "Name 2 players with 10 seasons for one franchise", "target": 2, "kind": "one_franchise", "threshold": 10},
             "journeyman": {"label": "Journeyman", "description": "Name 2 players who played for 5 teams", "target": 2, "kind": "team_count", "threshold": 5},
-            "defense": {"label": "Defense Wins", "description": "Name 3 defensive players", "target": 3, "kind": "position_group", "group": "defense"},
+            "pro_bowl_marathon": {"label": "Pro Bowl Marathon", "description": "Name players with 30 combined Pro Bowl selections", "target": 30, "kind": "sum_trait", "trait": "all_star_count"},
+            "ring_chaser": {"label": "Ring Chaser", "description": "Name players with 8 combined championships", "target": 8, "kind": "sum_trait", "trait": "championship_count"},
         },
     },
     "hockey": {
@@ -165,7 +168,8 @@ LOCAL_PLAYOFF_CONFIG = {
             "ironman": {"label": "Sniper", "description": "Name 3 players with 250 career goals", "target": 3, "kind": "trait", "trait": "career_goals", "threshold": 250},
             "one_team": {"label": "Lifer", "description": "Name 2 players with 10 seasons for one franchise", "target": 2, "kind": "one_franchise", "threshold": 10},
             "journeyman": {"label": "Journeyman", "description": "Name 2 players who played for 5 teams", "target": 2, "kind": "team_count", "threshold": 5},
-            "blue_line": {"label": "Blue Line", "description": "Name 3 defensemen", "target": 3, "kind": "position_group", "group": "defense"},
+            "all_star_marathon": {"label": "All-Star Marathon", "description": "Name players with 20 combined All-Star selections", "target": 20, "kind": "sum_trait", "trait": "all_star_count"},
+            "ring_chaser": {"label": "Ring Chaser", "description": "Name players with 8 combined Stanley Cup wins", "target": 8, "kind": "sum_trait", "trait": "championship_count"},
         },
     },
 }
@@ -3199,7 +3203,7 @@ def _local_po_traits(conn: sqlite3.Connection, sport: str, player_id: str) -> di
                   COUNT(DISTINCT a.team_id), COUNT(DISTINCT t.franchise_id), COUNT(DISTINCT a.season),
                   COALESCE(pt.career_points, 0), COALESCE(pt.career_goals, 0), COALESCE(pt.career_assists, 0),
                   COALESCE(pt.career_touchdowns, 0), COALESCE(pt.mvp_count, 0), COALESCE(pt.roty_count, 0),
-                  COALESCE(pt.all_star_count, 0)
+                  COALESCE(pt.all_star_count, 0), COALESCE(pt.championship_count, 0)
              FROM sport_players p
              JOIN sport_players_searchable s ON s.sport_id=p.sport_id AND s.player_id=p.player_id
              LEFT JOIN sport_appearances a ON a.sport_id=p.sport_id AND a.player_id=p.player_id
@@ -3212,10 +3216,10 @@ def _local_po_traits(conn: sqlite3.Connection, sport: str, player_id: str) -> di
     if not row:
         return {"position": "", "career_games": 0, "team_count": 0, "franchise_count": 0, "season_count": 0,
                 "career_points": 0, "career_goals": 0, "career_assists": 0, "career_touchdowns": 0,
-                "mvp_count": 0, "roty_count": 0, "all_star_count": 0}
+                "mvp_count": 0, "roty_count": 0, "all_star_count": 0, "championship_count": 0}
     return dict(zip(("position", "career_games", "team_count", "franchise_count", "season_count",
                      "career_points", "career_goals", "career_assists", "career_touchdowns",
-                     "mvp_count", "roty_count", "all_star_count"), row))
+                     "mvp_count", "roty_count", "all_star_count", "championship_count"), row))
 
 
 def _local_po_condition_increment(conn: sqlite3.Connection, sport: str, key: str, player_id: str) -> int:
@@ -3230,6 +3234,8 @@ def _local_po_condition_increment(conn: sqlite3.Connection, sport: str, key: str
         return int(traits["franchise_count"] == 1 and traits["season_count"] >= threshold)
     if kind == "trait":
         return int(int(traits.get(condition["trait"], 0)) >= threshold)
+    if kind == "sum_trait":
+        return int(traits.get(condition["trait"], 0))
     if kind == "position_group":
         return int(_local_position_group(sport, traits["position"]) == condition["group"])
     return 0

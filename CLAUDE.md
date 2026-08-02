@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.27`
+- Current display version: `0.1.28`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Required environment values are documented in `.env.example`. Never commit
@@ -154,6 +154,10 @@ changes. It is the concise source of truth for another coding assistant.
   available basketball game-count field is not complete enough for a
   500-game threshold. Do not bump the visible version for data or gameplay
   maintenance unless a user-facing release is explicitly requested.
+- Playoffs reference behavior: the global home page provides a sport selector;
+  a sport page shows only that sport's powerups. Cross-sport win conditions
+  now include All-Star or Pro Bowl selection marathons and championship totals.
+  Three burned team-seasons or a completed win condition ends the game.
 
 ## Shared lineup rules
 
