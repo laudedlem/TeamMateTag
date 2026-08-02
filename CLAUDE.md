@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.34`
+- Current display version: `0.1.35`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -391,6 +391,13 @@ Division Rivalry result rows. The original Baseball tables and routes remain
 unchanged. Cross-sport friend/code challenges are intentionally hidden for now
 because their existing Baseball invitation/history tables do not have a sport
 field; do not claim those are cross-sport-ready until ported.
+
+Update, 2026-08-01 (0.1.35): Playoffs powerups render in a closed `Powerups`
+dropdown directly above the guess form, keeping the current player card visible
+immediately below the form. The shared deck renderer now tolerates a transient
+missing chain response without clearing visible cards. Verified NFL DR: Devin
+Hester to Matt Forte is valid through the 2008-2013 Chicago Bears and the
+Postgres response contains both cards and a fresh turn clock.
 
 Profile responses now include `stats.sports.baseball|basketball|football|hockey`.
 New cross-sport BP/FR results write their sport ID, so stats are isolated.

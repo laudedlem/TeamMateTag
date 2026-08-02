@@ -1721,6 +1721,10 @@ function renderPowerups() {
   const isPo = currentMode === 'po' && game?.powerups;
   els.powerupPanel.hidden = !isPo;
   els.powerupPanel.style.display = isPo ? '' : 'none';
+  if (isPo && !els.powerupPanel.dataset.initialized) {
+    els.powerupPanel.open = false;
+    els.powerupPanel.dataset.initialized = 'true';
+  }
   if (!isPo) return;
   const your = game.powerups.your_powerups || [];
   const opp = game.powerups.opponent_powerups || [];
@@ -1757,7 +1761,8 @@ async function usePowerup(powerupKey) {
 }
 
 function renderCardStack(chain, allStrikes, showStrikes, animateNewest = false) {
-  const reversed = chain.slice().reverse();
+  // Do not erase the visible lineup for a transient polling response.
+  const reversed = Array.isArray(chain) ? chain.slice().reverse() : [];
   els.cardStack.innerHTML = '';
   reversed.forEach((player, i) => {
     const isSeed = i === reversed.length - 1;
