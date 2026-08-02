@@ -147,6 +147,13 @@ changes. It is the concise source of truth for another coding assistant.
   `game_teammate_links`. It also writes `game_data_audit` with per-sport
   coverage and the active reconciliation count. Future cross-sport game logic
   should use these views rather than the raw import tables.
+- Cross-sport Playoffs uses `LOCAL_PLAYOFF_CONFIG` in `web/server.py` for
+  basketball, football, and hockey. Each sport has its own powerup names,
+  qualification stat, timer pressure, and win conditions. Basketball's
+  `Sixth Man` uses 5,000 career points rather than career games because the
+  available basketball game-count field is not complete enough for a
+  500-game threshold. Do not bump the visible version for data or gameplay
+  maintenance unless a user-facing release is explicitly requested.
 
 ## Shared lineup rules
 

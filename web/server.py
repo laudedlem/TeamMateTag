@@ -126,7 +126,7 @@ LOCAL_PLAYOFF_CONFIG = {
     "basketball": {
         "powerups": {
             "heat_check": {"label": "Heat Check", "description": "A 10,000-point scorer from a franchise shared with the top player. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "career_points", "threshold": 10000},
-            "sixth_man": {"label": "Sixth Man", "description": "A 500-game veteran from a franchise shared with the top player. +5 seconds.", "kind": "veteran", "bonus_seconds": 5, "career_games": 500},
+            "sixth_man": {"label": "Sixth Man", "description": "A 5,000-point scorer from a franchise shared with the top player. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "career_points", "threshold": 5000},
             "switch": {"label": "Switch", "description": "A player in the same position group from a franchise shared with the top player. +5 seconds.", "kind": "position", "bonus_seconds": 5},
             "timeout": {"label": "Timeout", "description": "+15 seconds on your turn.", "kind": "time", "bonus_seconds": 15},
             "full_court_press": {"label": "Full-Court Press", "description": "Your opponent gets 10 seconds on their next turn.", "kind": "pressure"},

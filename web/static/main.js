@@ -2038,20 +2038,22 @@ function applyToggles() {
 }
 
 function rulesForMode() {
+  const outTerm = ({ baseball: 'Struck Out', basketball: 'Fouled Out', hockey: 'Game Misconduct', football: 'Punted' })[CURRENT_SPORT] || 'Out';
+  const sportName = ({ baseball: 'baseball', basketball: 'basketball', hockey: 'hockey', football: 'football' })[CURRENT_SPORT] || 'sports';
   if (currentMode === 'bp') {
-    return 'Build the longest lineup you can. You have 20 seconds to name a teammate of the last player, and a correct guess resets the clock. Each team shared by two linked players gets a strike. Once a team is Struck Out, that team cannot be used to link players again. Your run ends when the clock hits zero.';
+    return `Build the longest lineup you can. You have 20 seconds to name a teammate of the last player, and a correct guess resets the clock. Each team shared by two linked players gets a strike. Once a team is ${outTerm}, that team cannot be used to link players again. Your run ends when the clock hits zero.`;
   }
   if (currentMode === 'fr') {
     const terms = frTerms();
     return `Review the revealed players and guess the team and year that links each pair. A correct team and year is a ${terms.hit.toLowerCase()} and reveals the next player. One correct field is a ${terms.foul.toLowerCase()}. The first ${terms.foul.toLowerCase()} in a streak is safe, then every ${terms.foul.toLowerCase()} after that in the same streak counts as a ${terms.strike.toLowerCase()}. Three ${terms.strikePlural} end the review.`;
   }
   if (currentMode === 'mp') {
-    return 'Queue into an online match and take turns building one lineup. After the 3 second countdown, the 20 second clock begins. On your turn, name a teammate of the last player before time runs out. Correct guesses pass the turn and reset the clock. Teams collect strikes when used, and Struck Out teams cannot link players again. You win when your opponent runs out of time.';
+    return `Queue into an online match and take turns building one lineup. After the 3 second countdown, the 20 second clock begins. On your turn, name a teammate of the last player before time runs out. Correct guesses pass the turn and reset the clock. Teams collect strikes when used, and ${outTerm} teams cannot link players again. You win when your opponent runs out of time.`;
   }
   if (currentMode === 'po') {
     return 'Playoffs uses the Division Rivalry rules, but both players also get one use of every powerup during the game and a secret win condition. You can use at most one powerup on a turn. Finish your win condition first, or win on time. Open Reference for the powerups.';
   }
-  return 'Pick a mode, then build or review a lineup by connecting baseball players through their shared teams.';
+  return `Pick a mode, then build or review a lineup by connecting ${sportName} players through their shared teams.`;
 }
 
 function frTeamPlaceholder() {
