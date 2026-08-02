@@ -11,7 +11,7 @@
     <div class="title">
       <div class="brand-row">
         <h1>TeamMateTag</h1>
-<span class="app-version" title="Current version">0.1.47</span>
+<span class="app-version" title="Current version">0.1.48</span>
       </div>
       <span class="subtitle" id="brand-subtitle"></span>
     </div>
@@ -67,7 +67,7 @@
       <div class="mode-tiles">
         <button class="mode-tile" data-mode="bp">
           <div class="mode-tile-head">
-          <span class="mode-tile-name">{% if sport.key == 'football' %}Gridiron Reps{% elif sport.key == 'basketball' %}Shooting Practice{% elif sport.key == 'hockey' %}Skating Sets{% else %}Batting Practice{% endif %}</span>
+          <span class="mode-tile-name">Manager Mode</span>
           <span class="mode-tile-tag">solo</span>
         </div>
         <span class="mode-tile-desc">
@@ -112,7 +112,7 @@
         <h2>{{ sport.name }} Is On Deck</h2>
         <p class="muted">Roster and teammate data are being built now. The same four modes will be ready here once the league is loaded.</p>
         <div class="mode-preview-grid" aria-label="Upcoming game modes">
-          <span>Batting Practice</span>
+          <span>Manager Mode</span>
           <span>Film Review</span>
           <span>Division Rivalry</span>
           <span>Playoffs</span>
@@ -143,6 +143,13 @@
           <span class="sport-tile-status">Coming soon</span>
         </a>
       </div>
+      <h2 class="mode-home-heading">Or Choose A Mode</h2>
+      <div class="mode-preview-grid mode-hub-links">
+        <a href="/manager-mode">Manager Mode</a>
+        <a href="/film-review">Film Review</a>
+        <a href="/division-rivalry">Division Rivalry</a>
+        <a href="/playoffs">Playoffs</a>
+      </div>
       {% endif %}
     </div>
   </section>
@@ -162,11 +169,11 @@
       </label>
       <div class="profile-detail-grid">
         <div class="profile-detail">
-          <span id="profile-bp-best-label" class="profile-detail-label">Batting Practice Longest Lineup</span>
+          <span id="profile-bp-best-label" class="profile-detail-label">Manager Mode Longest Lineup</span>
           <strong id="profile-bp-best">--</strong>
         </div>
         <div class="profile-detail">
-          <span id="profile-bp-plays-label" class="profile-detail-label">Batting Practice Plays</span>
+          <span id="profile-bp-plays-label" class="profile-detail-label">Manager Mode Plays</span>
           <strong id="profile-bp-plays">--</strong>
         </div>
         <div class="profile-detail">
@@ -191,7 +198,7 @@
         </div>
       </div>
       <div class="leaderboard-card" id="profile-leaderboard-card">
-        <h3 id="profile-leaderboard-title">Today's Batting Practice Leaders</h3>
+        <h3 id="profile-leaderboard-title">Today's Manager Mode Leaders</h3>
         <ol id="bp-leaderboard" class="leaderboard-list"></ol>
       </div>
       <div class="danger-card" id="delete-account-card" hidden>

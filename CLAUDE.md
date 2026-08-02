@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.47`
+- Current display version: `0.1.48`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -532,6 +532,17 @@ Update, 2026-08-02 (0.1.47): existing in-progress daily games now seed their
 deck into the immutable global puzzle catalog the next time they are resumed.
 This closes the migration edge case from before the catalog was introduced and
 ensures every active and future Film Review has a permanent archive deck.
+
+Update, 2026-08-02 (0.1.48): Film Review titles display their puzzle date.
+Football profile Film Review records now separately display offense and defense
+results for newly completed games. The delete-account password input spans the
+full profile form. The first solo mode is consistently named Manager Mode.
+The home page now offers sport-first and mode-first navigation; dedicated
+`/manager-mode`, `/film-review`, `/division-rivalry`, and `/playoffs` pages
+route a selected sport into its existing game surface via `?mode=`. Multi-sport
+online queue selection is intentionally not implemented yet: it needs a shared
+lobby that atomically removes the player from every selected sport queue when
+one match forms.
 
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.

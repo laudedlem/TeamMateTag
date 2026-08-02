@@ -347,10 +347,10 @@ function renderProfile() {
       : 'Guest profile saved on this browser.';
   const selectedSport = els.profileSportSelect?.value || 'baseball';
   const sportTerms = {
-    baseball: { reps: 'Batting Practice', out: 'Struck Out' },
-    basketball: { reps: 'Shooting Practice', out: 'Fouled Out' },
-    football: { reps: 'Gridiron Reps', out: 'Punted' },
-    hockey: { reps: 'Skating Sets', out: 'Game Misconduct' },
+    baseball: { reps: 'Manager Mode', out: 'Struck Out' },
+    basketball: { reps: 'Manager Mode', out: 'Fouled Out' },
+    football: { reps: 'Manager Mode', out: 'Punted' },
+    hockey: { reps: 'Manager Mode', out: 'Game Misconduct' },
   }[selectedSport];
   const stats = profile.stats?.sports?.[selectedSport] || profile.stats || {};
   const wins = stats.fr_wins ?? 0;
@@ -360,7 +360,15 @@ function renderProfile() {
   els.profileScreenName.textContent = profile.account?.username || profile.display_name || '';
   els.profileBpBest.textContent = String(stats.bp_best ?? 0);
   els.profileBpPlays.textContent = String(stats.bp_plays ?? 0);
-  els.profileFrRecord.textContent = `${wins}-${Math.max(0, plays - wins)}`;
+  if (selectedSport === 'football') {
+    const offenseWins = stats.fr_offense_wins ?? 0;
+    const offensePlays = stats.fr_offense_plays ?? 0;
+    const defenseWins = stats.fr_defense_wins ?? 0;
+    const defensePlays = stats.fr_defense_plays ?? 0;
+    els.profileFrRecord.textContent = `O ${offenseWins}-${Math.max(0, offensePlays - offenseWins)} | D ${defenseWins}-${Math.max(0, defensePlays - defenseWins)}`;
+  } else {
+    els.profileFrRecord.textContent = `${wins}-${Math.max(0, plays - wins)}`;
+  }
   els.profileFrStreak.textContent = `${stats.fr_daily_streak ?? 0} day${(stats.fr_daily_streak ?? 0) === 1 ? '' : 's'}`;
   els.profileDrElo.textContent = String(stats.dr_elo ?? 1200);
   els.profileDrRecord.textContent = `${drWins}-${drLosses}`;
@@ -1061,7 +1069,7 @@ async function startBp() {
   lastChainLength = 0;
   hideGameOverBanner();
   showScreen('bp-game');
-  const localModeName = ({ football: 'Gridiron Reps', basketball: 'Shooting Practice', hockey: 'Skating Sets' })[CURRENT_SPORT] || 'Batting Practice';
+  const localModeName = 'Manager Mode';
   renderLoadingGame(localModeName, 'Loading ' + ({ football: 'snapper', basketball: 'tipoff', hockey: 'faceoff' })[CURRENT_SPORT] + '...');
   game = await api(LOCAL_SOLO_SPORTS.has(CURRENT_SPORT) ? localSoloPath('new') : '/api/bp/new',
     { guest_id: profile?.guest_id || storedGuestId() });
@@ -1762,7 +1770,7 @@ function startRematchPolling() {
 
 function renderBpGame() {
   clearModePanels();
-  els.turnLabel.textContent = game.mode_name || 'Batting Practice';
+  els.turnLabel.textContent = game.mode_name || 'Manager Mode';
   els.currentPlayerName.textContent = game.current_player.name;
   els.timer.title = 'seconds left';
   setGuessDisabled(game.finished || (game.countdown_seconds_remaining || 0) > 0);
@@ -2017,7 +2025,15 @@ async function frSubmit(e) {
 function renderFrGame(initialRender) {
   const s = frGame.stats;
   const terms = frTerms();
-  els.frTitle.textContent = frGame.puzzle_number ? `Film Review #${frGame.puzzle_number}` : 'Film Review';
+  if (frGame.puzzle_number) {
+    const dateLabel = frGame.puzzle_date
+      ? new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        .format(new Date(`${frGame.puzzle_date}T12:00:00`))
+      : '';
+    els.frTitle.textContent = `Film Review #${frGame.puzzle_number}${dateLabel ? ` · ${dateLabel}` : ''}`;
+  } else {
+    els.frTitle.textContent = 'Film Review';
+  }
   els.frStats.innerHTML =
     `<span class="stat-hit">${s.hits}${terms.hitShort}</span> <span class="stat-sep">|</span> ` +
     `<span class="stat-foul">${s.fouls}${terms.foulShort}</span> <span class="stat-sep">|</span> ` +
@@ -2459,3 +2475,8 @@ document.addEventListener('keydown', (e) => {
 showScreen('home');
 renderProfile();
 bootstrapProfile();
+const launchMode = new URLSearchParams(window.location.search).get('mode');
+if (launchMode && ['bp', 'fr', 'mp', 'po'].includes(launchMode)) {
+  window.history.replaceState({}, '', window.location.pathname);
+  setTimeout(() => pickMode(launchMode), 0);
+}

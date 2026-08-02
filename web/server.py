@@ -84,9 +84,9 @@ LOCAL_SPORT_SEEDS = {
     "hockey": "nhl:8474141",        # Patrick Kane
 }
 LOCAL_SPORT_MODE_NAMES = {
-    "football": "Gridiron Reps",
-    "basketball": "Shooting Practice",
-    "hockey": "Skating Sets",
+    "football": "Manager Mode",
+    "basketball": "Manager Mode",
+    "hockey": "Manager Mode",
 }
 NHL_TEAM_NAMES = {
     "ANA": "Anaheim Ducks", "ARI": "Arizona Coyotes", "ATL": "Atlanta Thrashers", "BOS": "Boston Bruins",
@@ -520,6 +520,7 @@ def ensure_runtime_schema():
                        fouls INTEGER NOT NULL,
                        strikes INTEGER NOT NULL,
                        won BOOLEAN NOT NULL DEFAULT false,
+                       unit TEXT,
                        finished_at TIMESTAMPTZ NOT NULL DEFAULT now()
                    )"""
             )
@@ -528,6 +529,7 @@ def ensure_runtime_schema():
                 "ON fr_results(owner_guest_id, finished_at DESC)"
             )
             conn.execute("ALTER TABLE fr_results ADD COLUMN IF NOT EXISTS sport_id TEXT NOT NULL DEFAULT 'baseball'")
+            conn.execute("ALTER TABLE fr_results ADD COLUMN IF NOT EXISTS unit TEXT")
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS film_review_daily_attempts (
                        owner_guest_id UUID NOT NULL REFERENCES guests(guest_id) ON DELETE CASCADE,
@@ -1161,13 +1163,19 @@ def _guest_stats(conn, guest_id: str) -> dict:
                    (SELECT COALESCE(MAX(chain_length), 0) FROM bp_runs WHERE owner_guest_id=%s AND sport_id=%s),
                    (SELECT COUNT(*) FROM fr_results WHERE owner_guest_id=%s AND sport_id=%s),
                    (SELECT COALESCE(SUM(CASE WHEN won THEN 1 ELSE 0 END), 0) FROM fr_results WHERE owner_guest_id=%s AND sport_id=%s),
+                   (SELECT COUNT(*) FROM fr_results WHERE owner_guest_id=%s AND sport_id=%s AND unit='offense'),
+                   (SELECT COALESCE(SUM(CASE WHEN won THEN 1 ELSE 0 END), 0) FROM fr_results WHERE owner_guest_id=%s AND sport_id=%s AND unit='offense'),
+                   (SELECT COUNT(*) FROM fr_results WHERE owner_guest_id=%s AND sport_id=%s AND unit='defense'),
+                   (SELECT COALESCE(SUM(CASE WHEN won THEN 1 ELSE 0 END), 0) FROM fr_results WHERE owner_guest_id=%s AND sport_id=%s AND unit='defense'),
                    (SELECT COUNT(*) FROM dr_results WHERE owner_guest_id=%s AND sport_id=%s),
                    (SELECT COALESCE(SUM(CASE WHEN won THEN 1 ELSE 0 END), 0) FROM dr_results WHERE owner_guest_id=%s AND sport_id=%s),
                    (SELECT elo FROM guest_sport_ratings WHERE guest_id=%s AND sport_id=%s)""",
             (guest_id, sport, guest_id, sport, guest_id, sport, guest_id, sport,
+             guest_id, sport, guest_id, sport, guest_id, sport, guest_id, sport,
              guest_id, sport, guest_id, sport, guest_id, sport),
         ).fetchone()
-        bp_plays_s, bp_best_s, fr_plays_s, fr_wins_s, dr_plays_s, dr_wins_s, elo_s = values
+        (bp_plays_s, bp_best_s, fr_plays_s, fr_wins_s, fr_off_plays, fr_off_wins,
+         fr_def_plays, fr_def_wins, dr_plays_s, dr_wins_s, elo_s) = values
         struck = conn.execute(
             """SELECT team_name, season, COUNT(*) FROM guest_team_strikeouts
                  WHERE owner_guest_id=%s AND sport_id=%s
@@ -1177,6 +1185,8 @@ def _guest_stats(conn, guest_id: str) -> dict:
         sports[sport] = {
             "bp_plays": bp_plays_s, "bp_best": bp_best_s, "fr_plays": fr_plays_s,
             "fr_wins": fr_wins_s, "dr_plays": dr_plays_s, "dr_wins": dr_wins_s,
+            "fr_offense_plays": fr_off_plays, "fr_offense_wins": fr_off_wins,
+            "fr_defense_plays": fr_def_plays, "fr_defense_wins": fr_def_wins,
             "dr_losses": max(0, dr_plays_s - dr_wins_s), "dr_elo": elo_s or 1200,
             "top_struck_teams": [{"team_name": name, "season": season, "count": count}
                                   for name, season, count in struck],
@@ -2102,6 +2112,23 @@ def _insert_game(conn, table: str, blob: dict) -> str:
 @app.route("/")
 def index():
     return render_template("index.html", sport=None, sport_ready=False, cross_sports_online=CROSS_SPORTS_ONLINE)
+
+
+MODE_HUBS = {
+    "manager-mode": {"title": "Manager Mode", "mode": "bp", "description": "Build the longest lineup you can before the clock expires."},
+    "film-review": {"title": "Film Review", "mode": "fr", "description": "Solve the daily lineup by naming the team and year between each pair."},
+    "division-rivalry": {"title": "Division Rivalry", "mode": "mp", "description": "Take turns building one lineup against an online opponent."},
+    "playoffs": {"title": "Playoffs", "mode": "po", "description": "Online lineup battle with powerups and win conditions."},
+}
+
+
+@app.route("/manager-mode")
+@app.route("/film-review")
+@app.route("/division-rivalry")
+@app.route("/playoffs")
+def mode_hub():
+    slug = request.path.strip("/")
+    return render_template("mode_hub.html", hub=MODE_HUBS[slug], slug=slug, sports=SPORT_HUBS)
 
 
 SPORT_HUBS = {
@@ -6364,9 +6391,9 @@ def sport_fr_guess(sport: str):
                                       "converted_from_foul": converted,
                                       "matched": [{"team_id": t, "season": s, "team_name": n} for t, s, n in matched]}
             if blob["finished"] and not blob.get("result_saved") and blob.get("owner_guest_id"):
-                conn.execute("""INSERT INTO fr_results (owner_guest_id, sport_id, puzzle_id, hits, fouls, strikes, won)
-                                VALUES (%s, %s, %s, %s, %s, %s, %s)""",
-                             (blob["owner_guest_id"], sport, blob["puzzle_id"], blob["hits"], blob["fouls"], blob["strikes"], blob["won"]))
+                conn.execute("""INSERT INTO fr_results (owner_guest_id, sport_id, puzzle_id, hits, fouls, strikes, won, unit)
+                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+                             (blob["owner_guest_id"], sport, blob["puzzle_id"], blob["hits"], blob["fouls"], blob["strikes"], blob["won"], blob.get("unit")))
                 blob["result_saved"] = True
             if blob["finished"] and blob.get("owner_guest_id") and not blob.get("archive"):
                 conn.execute("""UPDATE film_review_daily_attempts SET status=%s, completed_at=now()
