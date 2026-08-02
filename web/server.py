@@ -127,7 +127,7 @@ SUPPORT_EMAIL = "support@teammatetag.com"
 SESSION_COOKIE = "tt_session"
 DEFAULT_PLAYOFF_TURN_SECONDS = 20.0
 QUICK_PITCH_TURN_SECONDS = 10.0
-FILM_REVIEW_EPOCH = date(2026, 8, 2)
+FILM_REVIEW_EPOCH = date(2026, 8, 1)
 CENTRAL_TIME = ZoneInfo("America/Chicago")
 
 # These are intentionally based only on fields in the local cross-sport

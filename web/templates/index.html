@@ -11,7 +11,7 @@
     <div class="title">
       <div class="brand-row">
         <h1>TeamMateTag</h1>
-<span class="app-version" title="Current version">0.1.42</span>
+<span class="app-version" title="Current version">0.1.43</span>
       </div>
       <span class="subtitle" id="brand-subtitle"></span>
     </div>
@@ -397,6 +397,11 @@
   <section id="fr-screen" class="screen" hidden>
     <div class="game-layout">
       <div class="game-main">
+        <details class="fr-archive" id="fr-archive">
+          <summary>Film Review Archive</summary>
+          <p class="muted small">Completed days are green and failed days are red. Older reviews can be revisited without changing your streak.</p>
+          <div id="fr-archive-list" class="fr-archive-list"></div>
+        </details>
         <div id="fr-summary-banner" class="game-over-banner" hidden>
           <h2 id="fr-summary-text"></h2>
           <p id="fr-summary-detail" class="muted"></p>
@@ -430,11 +435,6 @@
         </div>
 
         <div id="fr-lineup-board" class="fr-lineup-board" aria-label="Film Review lineup board"></div>
-        <details class="fr-archive" id="fr-archive">
-          <summary>Film Review Archive</summary>
-          <p class="muted small">Completed days are green and failed days are red. Older reviews can be revisited without changing your streak.</p>
-          <div id="fr-archive-list" class="fr-archive-list"></div>
-        </details>
         <div id="fr-card-stack" class="card-stack"></div>
       </div>
     </div>

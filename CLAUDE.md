@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.42`
+- Current display version: `0.1.43`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -480,7 +480,7 @@ Use `python scripts\generate_film_review_local.py football --unit offense`
 or `--unit defense` to print a daily Film Review test key.
 
 Update, 2026-08-02 (0.1.42): cross-sport Film Review now uses a daily
-Central-time puzzle identity beginning with Film Review #1 on 2026-08-02.
+Central-time puzzle identity beginning with Film Review #1 on 2026-08-01.
 Each signed-in or guest profile gets one official attempt per sport per day;
 the official game resumes after refresh and its result feeds a per-sport daily
 win streak. The in-game Film Review Archive shows current and prior days as
@@ -494,6 +494,11 @@ Basketball cards without a stored catalog image now fall back to NBA's official
 headshot CDN, including Al Harrington and Austin Croshere. Cross-sport
 multiplayer game-end summaries now use the correct sport language, including
 "teams with game misconducts" in hockey.
+
+Update, 2026-08-02 (0.1.43): Film Review #1 is now the 2026-08-01 archive
+puzzle and the current 2026-08-02 puzzle is Film Review #2. The archive panel
+was moved to the top of the Film Review screen so it cannot interrupt the
+lineup board and the player-card connection chain.
 
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.
