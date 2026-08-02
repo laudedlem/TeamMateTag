@@ -61,21 +61,11 @@ CREATE TABLE IF NOT EXISTS appearances (
 
 CREATE INDEX IF NOT EXISTS idx_appearances_team_season ON appearances(team_id, season);
 CREATE INDEX IF NOT EXISTS idx_appearances_season      ON appearances(season);
+CREATE INDEX IF NOT EXISTS idx_appearances_player      ON appearances(player_id);
 
--- The teammate graph. Every move hits this. INVARIANT: player_a_id < player_b_id.
-CREATE TABLE IF NOT EXISTS teammates (
-    player_a_id  TEXT NOT NULL REFERENCES players(player_id),
-    player_b_id  TEXT NOT NULL REFERENCES players(player_id),
-    team_id      TEXT NOT NULL,
-    season       INTEGER NOT NULL,
-    PRIMARY KEY (player_a_id, player_b_id, team_id, season),
-    CHECK (player_a_id < player_b_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_teammates_a_b ON teammates(player_a_id, player_b_id);
-CREATE INDEX IF NOT EXISTS idx_teammates_b_a ON teammates(player_b_id, player_a_id);
-CREATE INDEX IF NOT EXISTS idx_teammates_a   ON teammates(player_a_id);
-CREATE INDEX IF NOT EXISTS idx_teammates_b   ON teammates(player_b_id);
+-- Teammate links are derived from the two indexed appearance rows at query
+-- time. Do not materialize every player pair: the old table consumed roughly
+-- 400 MB by itself and is unnecessary for the runtime query path.
 
 CREATE TABLE IF NOT EXISTS players_searchable (
     player_id       TEXT PRIMARY KEY REFERENCES players(player_id),

@@ -12,6 +12,11 @@ changes. It is the concise source of truth for another coding assistant.
 - Current display version: `0.1.33`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
+- Supabase runtime catalog: the non-baseball game data was imported on
+  2026-08-01. Database size is 170 MB, below the Free plan's 500 MB database
+  quota. The old materialized Baseball `teammates` table was removed because
+  it alone consumed roughly 400 MB; all game paths derive links from indexed
+  appearances instead.
 - Required environment values are documented in `.env.example`. Never commit
   `.env` or any Supabase password/key.
 
@@ -22,7 +27,9 @@ changes. It is the concise source of truth for another coding assistant.
 - `/baseball` is the live baseball game hub with four modes.
 - `/basketball`, `/hockey`, and `/football` are local playtesting hubs when
   `TEAMMATETAG_LOCAL_SPORTS=1`. Their roster graphs live in local SQLite and
-  are not yet deployed to Vercel.
+  are now mirrored into Supabase but are not yet used by Vercel. The remaining
+  work is to replace their local SQLite adapters with Postgres-backed runtime
+  adapters.
 - The header brand is `TeamMateTag`; version number is shown beside it.
 - Use ASCII in code and player-facing strings. Do not use em dashes.
 
@@ -168,6 +175,14 @@ changes. It is the concise source of truth for another coding assistant.
   `python scripts/load_local_sport_traits.py`, then
   `python scripts/load_local_honors_history.py`. The second command restores
   complete NFL championship credits after the nflverse trait refresh.
+- `scripts/migrate_cross_sport_to_postgres.py` is the idempotent deployment
+  importer. It replaces only Basketball, Football, and Hockey runtime rows in
+  Supabase, preserving Baseball and account data. It imports franchises,
+  team-seasons, players, appearances, search rows, Playoffs traits, and season
+  traits. It intentionally excludes raw sources, identity curation, unresolved
+  records, and headshots. Do not materialize `sport_teammates` or `teammates`:
+  indexed appearances are the source of teammate links and keep Free-tier
+  storage viable.
 
 ## Shared lineup rules
 

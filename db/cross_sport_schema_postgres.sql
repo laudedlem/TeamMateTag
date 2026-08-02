@@ -10,8 +10,13 @@ CREATE TABLE IF NOT EXISTS sports (
     display_name  TEXT NOT NULL,
     league_name   TEXT NOT NULL,
     active         BOOLEAN NOT NULL DEFAULT false,
+    first_season   INTEGER,
+    last_season    INTEGER,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE sports ADD COLUMN IF NOT EXISTS first_season INTEGER;
+ALTER TABLE sports ADD COLUMN IF NOT EXISTS last_season INTEGER;
 
 INSERT INTO sports (sport_id, display_name, league_name, active) VALUES
     ('basketball', 'Basketball', 'NBA', false),
@@ -54,10 +59,11 @@ CREATE TABLE IF NOT EXISTS sport_players (
     debut_year     INTEGER,
     final_year     INTEGER,
     primary_pos    TEXT,
-    PRIMARY KEY (sport_id, player_id),
-    UNIQUE NULLS NOT DISTINCT (sport_id, external_id)
+    PRIMARY KEY (sport_id, player_id)
 );
 
+ALTER TABLE sport_players DROP CONSTRAINT IF EXISTS sport_players_sport_id_external_id_key;
+DROP INDEX IF EXISTS idx_sport_players_external_id;
 CREATE INDEX IF NOT EXISTS idx_sport_players_name
     ON sport_players(sport_id, last_name, display_name);
 
@@ -78,6 +84,8 @@ CREATE TABLE IF NOT EXISTS sport_appearances (
 
 CREATE INDEX IF NOT EXISTS idx_sport_appearances_team_season
     ON sport_appearances(sport_id, team_id, season);
+CREATE INDEX IF NOT EXISTS idx_sport_appearances_player
+    ON sport_appearances(sport_id, player_id);
 
 -- Derived player-pair graph. player_a_id must sort before player_b_id.
 CREATE TABLE IF NOT EXISTS sport_teammates (
@@ -142,3 +150,57 @@ CREATE TABLE IF NOT EXISTS sport_data_provenance (
     row_count      INTEGER,
     PRIMARY KEY (sport_id, source, season)
 );
+
+-- Runtime-only Playoffs data. Historical source observations and unresolved
+-- identity records deliberately remain in the local curation database.
+CREATE TABLE IF NOT EXISTS sport_player_traits (
+    sport_id              TEXT NOT NULL REFERENCES sports(sport_id),
+    player_id             TEXT NOT NULL,
+    career_games          INTEGER NOT NULL DEFAULT 0,
+    career_points         INTEGER NOT NULL DEFAULT 0,
+    career_goals          INTEGER NOT NULL DEFAULT 0,
+    career_assists        INTEGER NOT NULL DEFAULT 0,
+    career_touchdowns     INTEGER NOT NULL DEFAULT 0,
+    passing_touchdowns    INTEGER NOT NULL DEFAULT 0,
+    rushing_touchdowns    INTEGER NOT NULL DEFAULT 0,
+    receiving_touchdowns  INTEGER NOT NULL DEFAULT 0,
+    career_sacks          REAL NOT NULL DEFAULT 0,
+    career_interceptions  INTEGER NOT NULL DEFAULT 0,
+    all_star_count        INTEGER NOT NULL DEFAULT 0,
+    mvp_count             INTEGER NOT NULL DEFAULT 0,
+    roty_count            INTEGER NOT NULL DEFAULT 0,
+    championship_count    INTEGER NOT NULL DEFAULT 0,
+    source                TEXT NOT NULL,
+    updated_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (sport_id, player_id),
+    FOREIGN KEY (sport_id, player_id)
+        REFERENCES sport_players(sport_id, player_id)
+);
+
+CREATE TABLE IF NOT EXISTS sport_player_season_traits (
+    sport_id              TEXT NOT NULL REFERENCES sports(sport_id),
+    player_id             TEXT NOT NULL,
+    season                INTEGER NOT NULL,
+    games                 INTEGER NOT NULL DEFAULT 0,
+    points                INTEGER NOT NULL DEFAULT 0,
+    goals                 INTEGER NOT NULL DEFAULT 0,
+    assists               INTEGER NOT NULL DEFAULT 0,
+    touchdowns            INTEGER NOT NULL DEFAULT 0,
+    passing_touchdowns    INTEGER NOT NULL DEFAULT 0,
+    rushing_touchdowns    INTEGER NOT NULL DEFAULT 0,
+    receiving_touchdowns  INTEGER NOT NULL DEFAULT 0,
+    sacks                 REAL NOT NULL DEFAULT 0,
+    interceptions         INTEGER NOT NULL DEFAULT 0,
+    source                TEXT NOT NULL,
+    PRIMARY KEY (sport_id, player_id, season),
+    FOREIGN KEY (sport_id, player_id)
+        REFERENCES sport_players(sport_id, player_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_sport_player_season_traits_lookup
+    ON sport_player_season_traits(sport_id, player_id);
+
+-- Do not populate sport_teammates. It is retained for compatibility with an
+-- early schema draft, but the runtime derives a link from the two indexed
+-- appearance rows. Materializing every roster pair wastes the free-tier
+-- database budget without making gameplay faster.

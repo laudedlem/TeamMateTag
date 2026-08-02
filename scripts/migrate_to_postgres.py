@@ -49,7 +49,6 @@ STATIC_TABLES = [
     "teams",
     "players",
     "appearances",
-    "teammates",
     "players_searchable",
     "nickname_search",
     "player_nicknames",
@@ -93,6 +92,9 @@ def main() -> int:
         print("\napplying schema (db/schema_postgres.sql)...")
         with dst.cursor() as cur:
             cur.execute(SCHEMA_PATH.read_text(encoding="utf-8"))
+            # The live game derives links from appearances. This obsolete
+            # materialized pair graph is prohibitively large on Supabase Free.
+            cur.execute("DROP TABLE IF EXISTS teammates CASCADE")
         dst.commit()
 
         for table in STATIC_TABLES:
