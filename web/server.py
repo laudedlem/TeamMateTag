@@ -1074,7 +1074,7 @@ def _guest_stats(conn, guest_id: str) -> dict:
     top_struck = conn.execute(
         """SELECT team_name, season, COUNT(*) AS n
              FROM guest_team_strikeouts
-            WHERE owner_guest_id = %s
+            WHERE owner_guest_id = %s AND sport_id = 'baseball'
             GROUP BY team_name, season
             ORDER BY n DESC, season DESC, team_name ASC
             LIMIT 3""",

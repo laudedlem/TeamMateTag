@@ -31,6 +31,7 @@ ROOT = Path(__file__).resolve().parent.parent
 SOURCE = ROOT / "db" / "teammatetag_local.sqlite"
 SCHEMA = ROOT / "db" / "cross_sport_schema_postgres.sql"
 SPORTS = ("basketball", "football", "hockey")
+EXCLUDED_BASKETBALL_TEAM_NAMES = ("All-Star Giannis", "All-Star LeBron", "OGs", "Stripes")
 TABLES = (
     ("sport_franchises", ("sport_id", "franchise_id", "name")),
     ("sport_teams", ("sport_id", "team_id", "season", "franchise_id", "name")),
@@ -54,10 +55,20 @@ def copy_rows(src: sqlite3.Connection, dst: psycopg.Connection, table: str, colu
              WHERE player.sport_id = source.sport_id
                AND player.player_id = source.player_id
         )"""
+    exclusion = ""
+    if table == "sport_teams":
+        exclusion = " AND NOT (source.sport_id='basketball' AND source.name IN (?, ?, ?, ?))"
+    elif table == "sport_appearances":
+        exclusion = """ AND NOT EXISTS (
+            SELECT 1 FROM sport_teams AS team WHERE team.sport_id=source.sport_id
+              AND team.team_id=source.team_id AND team.season=source.season
+              AND team.sport_id='basketball' AND team.name IN (?, ?, ?, ?)
+        )"""
+    params = SPORTS + (EXCLUDED_BASKETBALL_TEAM_NAMES if exclusion else ())
     rows = src.execute(
         f"SELECT {', '.join('source.' + column for column in columns)} FROM {source_table} "
-        f"WHERE source.sport_id IN ({placeholders}){canonical_only}",
-        SPORTS,
+        f"WHERE source.sport_id IN ({placeholders}){canonical_only}{exclusion}",
+        params,
     )
     count = 0
     with dst.cursor() as cur:
@@ -101,14 +112,19 @@ def main() -> int:
                     cur.execute(f"DELETE FROM {table} WHERE sport_id = ANY(%s)", (list(SPORTS),))
                 for table in reversed([name for name, _ in TABLES]):
                     cur.execute(f"DELETE FROM {table} WHERE sport_id = ANY(%s)", (list(SPORTS),))
-                cur.execute("DELETE FROM sports WHERE sport_id = ANY(%s)", (list(SPORTS),))
                 sports_rows = src.execute(
                     "SELECT sport_id, display_name, league_name, first_season, last_season FROM sports WHERE sport_id IN (?, ?, ?)",
                     SPORTS,
                 )
-                with cur.copy("COPY sports (sport_id, display_name, league_name, first_season, last_season) FROM STDIN") as copy:
-                    for row in sports_rows:
-                        copy.write_row(tuple(row))
+                for row in sports_rows:
+                    cur.execute(
+                        """INSERT INTO sports (sport_id, display_name, league_name, first_season, last_season)
+                           VALUES (%s, %s, %s, %s, %s)
+                           ON CONFLICT (sport_id) DO UPDATE SET
+                             display_name=EXCLUDED.display_name, league_name=EXCLUDED.league_name,
+                             first_season=EXCLUDED.first_season, last_season=EXCLUDED.last_season""",
+                        tuple(row),
+                    )
             dst.commit()
 
             for table, columns in TABLES:

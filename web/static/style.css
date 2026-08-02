@@ -580,6 +580,7 @@ button.danger:hover:not(:disabled) {
 
 .win-box .powerup-name { font-size: 0.9rem; }
 .win-box .win-pips { margin-top: 0.35rem; }
+.win-box em { display: block; margin-top: 0.15rem; color: var(--text-muted); font-size: 0.78rem; font-weight: 400; }
 
 .win-pips {
   display: flex;

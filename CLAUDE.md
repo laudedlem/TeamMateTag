@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.39`
+- Current display version: `0.1.40`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -430,6 +430,15 @@ cards and team names are cached in a warm Flask process, avoiding repeated
 Supabase hydration on every poll. This fixes delayed, disappearing, and
 repeatedly animating cards seen in NBA/NHL Division Rivalry and applies to
 Playoffs as well.
+
+Update, 2026-08-01 (0.1.40): removed NBA exhibition records `All-Star Giannis`,
+`All-Star LeBron`, `OGs`, and `Stripes` from the local source and production
+catalog (18 appearances across four team-seasons). The importer excludes them
+on future refreshes. They therefore cannot show on player cards or create
+links. Profile Baseball struck-out teams now explicitly filter to Baseball,
+and profile labels adapt to the selected sport. Playoffs condition widgets
+show the full requirement in small italic text; multiplayer replay buttons
+use sport-specific wording.
 
 Profile responses now include `stats.sports.baseball|basketball|football|hockey`.
 New cross-sport BP/FR results write their sport ID, so stats are isolated.

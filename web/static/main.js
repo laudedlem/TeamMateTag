@@ -27,6 +27,13 @@ const els = {
   friendsScreen: document.getElementById('friends-screen'),
   profileScreenName: document.getElementById('profile-screen-name'),
   profileSportSelect: document.getElementById('profile-sport-select'),
+  profileBpBestLabel: document.getElementById('profile-bp-best-label'),
+  profileBpPlaysLabel: document.getElementById('profile-bp-plays-label'),
+  profileFrLabel: document.getElementById('profile-fr-label'),
+  profileDrEloLabel: document.getElementById('profile-dr-elo-label'),
+  profileDrRecordLabel: document.getElementById('profile-dr-record-label'),
+  profileTopStruckLabel: document.getElementById('profile-top-struck-label'),
+  profileLeaderboardCard: document.getElementById('profile-leaderboard-card'),
   profileBpBest: document.getElementById('profile-bp-best'),
   profileBpPlays: document.getElementById('profile-bp-plays'),
   profileFrRecord: document.getElementById('profile-fr-record'),
@@ -330,6 +337,12 @@ function renderProfile() {
       ? 'Account found. Log in to use it on this device.'
       : 'Guest profile saved on this browser.';
   const selectedSport = els.profileSportSelect?.value || 'baseball';
+  const sportTerms = {
+    baseball: { reps: 'Batting Practice', out: 'Struck Out' },
+    basketball: { reps: 'Shooting Practice', out: 'Fouled Out' },
+    football: { reps: 'Gridiron Reps', out: 'Punted' },
+    hockey: { reps: 'Skating Sets', out: 'Game Misconduct' },
+  }[selectedSport];
   const stats = profile.stats?.sports?.[selectedSport] || profile.stats || {};
   const wins = stats.fr_wins ?? 0;
   const plays = stats.fr_plays ?? 0;
@@ -345,6 +358,13 @@ function renderProfile() {
   els.profileTopStruck.textContent = topStruck.length
     ? topStruck.map((t) => `${t.team_name} ${t.season} (${t.count})`).join(', ')
     : 'None yet';
+  els.profileBpBestLabel.textContent = `${sportTerms.reps} Longest Lineup`;
+  els.profileBpPlaysLabel.textContent = `${sportTerms.reps} Plays`;
+  els.profileFrLabel.textContent = 'Film Review Win-Loss';
+  els.profileDrEloLabel.textContent = 'Division Rivalry ELO';
+  els.profileDrRecordLabel.textContent = 'Division Rivalry Record';
+  els.profileTopStruckLabel.textContent = `Teams Most ${sportTerms.out}`;
+  els.profileLeaderboardCard.hidden = selectedSport !== 'baseball';
   if (profile.authenticated) {
     els.accountLoggedOut.hidden = true;
     els.accountLoggedIn.hidden = false;
@@ -1146,7 +1166,11 @@ function showGameOverBanner() {
       els.requeueBtn.hidden = false;
     } else {
       els.playAgainBtn.hidden = false;
-      els.playAgainBtn.textContent = "Let's play two.";
+      els.playAgainBtn.textContent = ({
+        football: 'Kick off again.',
+        basketball: 'Run it back.',
+        hockey: 'Drop the puck again.',
+      })[CURRENT_SPORT] || "Let's play two.";
       els.requeueBtn.hidden = false;
       startRematchPolling();
     }
@@ -1560,10 +1584,14 @@ function renderWinConditions() {
   const your = game.win_conditions.your_condition;
   const opp = game.win_conditions.opponent_condition;
   els.yourWinName.textContent = your?.label || '--';
-  els.yourWinDesc.textContent = your ? `${your.progress}/${your.target}` : '';
+  els.yourWinDesc.innerHTML = your
+    ? `${your.progress}/${your.target} <em>${escapeHtml(your.description || '')}</em>`
+    : '';
   els.yourWinPips.innerHTML = your ? renderWinPips(your.progress, your.target) : '';
   els.oppWinName.textContent = opp?.label || '--';
-  els.oppWinDesc.textContent = opp ? `${opp.progress}/${opp.target}` : '';
+  els.oppWinDesc.innerHTML = opp
+    ? `${opp.progress}/${opp.target} <em>${escapeHtml(opp.description || '')}</em>`
+    : '';
   els.oppWinPips.innerHTML = opp ? renderWinPips(opp.progress, opp.target) : '';
 }
 
