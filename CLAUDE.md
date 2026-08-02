@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.44`
+- Current display version: `0.1.45`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -510,6 +510,13 @@ date is its seed, so midnight Central automatically advances every sport to a
 new shared puzzle without a scheduled task. The production position table was
 loaded with 48,699 player-position totals. Film Review #1 is 2026-08-01 and
 Film Review #2 is 2026-08-02.
+
+Update, 2026-08-02 (0.1.45): fixed a Film Review archive loading race on
+sport pages. The archive now waits for, and retries after, guest-profile
+bootstrap instead of remaining empty if a player opens Film Review quickly.
+Also added a one-time compatibility migration: an August 2 game created when
+that date was incorrectly numbered #1 is replaced on the next start with the
+correct deterministic Film Review #2. No browser storage clearing is needed.
 
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.

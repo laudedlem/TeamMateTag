@@ -5922,8 +5922,10 @@ def fr_new():
                 prior = conn.execute("SELECT state, finished FROM fr_games WHERE game_id=%s", (existing[0],)).fetchone()
                 if prior:
                     blob, finished = prior
-                    blob["finished"] = finished
-                    return jsonify(fr_state_dict(existing[0], blob, conn=conn))
+                    if (blob.get("puzzle_date") == puzzle_day.isoformat()
+                            and blob.get("puzzle_number") == _film_review_number(puzzle_day)):
+                        blob["finished"] = finished
+                        return jsonify(fr_state_dict(existing[0], blob, conn=conn))
         try:
             puz = generate_baseball_film_review(conn, puzzle_day)
         except RuntimeError as error:
@@ -5939,7 +5941,10 @@ def fr_new():
         gid = _insert_game(conn, "fr_games", blob)
         if guest_id and not archive:
             conn.execute("""INSERT INTO film_review_daily_attempts (owner_guest_id, sport_id, puzzle_date, game_id)
-                            VALUES (%s,'baseball',%s,%s)""", (guest_id, puzzle_day, gid))
+                            VALUES (%s,'baseball',%s,%s)
+                            ON CONFLICT (owner_guest_id, sport_id, puzzle_date)
+                            DO UPDATE SET game_id=EXCLUDED.game_id, status='in_progress', completed_at=NULL""",
+                         (guest_id, puzzle_day, gid))
         return jsonify(fr_state_dict(gid, blob, conn=conn))
 
 
@@ -6219,7 +6224,9 @@ def sport_fr_new(sport: str):
                 row = conn.execute("SELECT state, finished FROM fr_games WHERE game_id=%s", (existing[0],)).fetchone()
                 if row:
                     blob, finished = row; blob["finished"] = finished
-                    return jsonify(_sport_fr_state_dict(existing[0], blob, conn))
+                    if (blob.get("puzzle_date") == puzzle_day.isoformat()
+                            and blob.get("puzzle_number") == _film_review_number(puzzle_day)):
+                        return jsonify(_sport_fr_state_dict(existing[0], blob, conn))
         try:
             puzzle = generate_local_film_review(PgEngineConn(conn), sport, unit=unit, puzzle_day=puzzle_day)
         except (RuntimeError, ValueError) as error:
@@ -6239,7 +6246,10 @@ def sport_fr_new(sport: str):
         gid = _insert_game(conn, "fr_games", blob)
         if guest_id and not archive:
             conn.execute("""INSERT INTO film_review_daily_attempts (owner_guest_id, sport_id, puzzle_date, game_id)
-                            VALUES (%s,%s,%s,%s)""", (guest_id, sport, puzzle_day, gid))
+                            VALUES (%s,%s,%s,%s)
+                            ON CONFLICT (owner_guest_id, sport_id, puzzle_date)
+                            DO UPDATE SET game_id=EXCLUDED.game_id, status='in_progress', completed_at=NULL""",
+                         (guest_id, sport, puzzle_day, gid))
         return jsonify(_sport_fr_state_dict(gid, blob, conn))
 
 

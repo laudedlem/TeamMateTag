@@ -402,6 +402,7 @@ async function bootstrapProfile() {
   refreshBpLeaderboard();
   startFriendsPolling();
   refreshFriends();
+  if (currentMode === 'fr' && frGame) loadFrArchive();
 }
 
 async function refreshBpLeaderboard() {
@@ -2162,8 +2163,9 @@ function rulesForMode() {
 }
 
 async function loadFrArchive() {
-  if (!profile?.guest_id) return;
-  const res = await api(filmReviewPath('archive'), { guest_id: profile.guest_id });
+  const guestId = profile?.guest_id || storedGuestId();
+  if (!guestId) return;
+  const res = await api(filmReviewPath('archive'), { guest_id: guestId });
   if (!res.days) return;
   els.frArchiveList.innerHTML = res.days.map((day) => {
     const state = escapeHtml(day.status);
