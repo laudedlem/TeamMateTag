@@ -25,7 +25,8 @@ import hmac
 from urllib.parse import urljoin
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, date
+from zoneinfo import ZoneInfo
 from pathlib import Path
 from threading import Lock
 
@@ -126,6 +127,8 @@ SUPPORT_EMAIL = "support@teammatetag.com"
 SESSION_COOKIE = "tt_session"
 DEFAULT_PLAYOFF_TURN_SECONDS = 20.0
 QUICK_PITCH_TURN_SECONDS = 10.0
+FILM_REVIEW_EPOCH = date(2026, 8, 2)
+CENTRAL_TIME = ZoneInfo("America/Chicago")
 
 # These are intentionally based only on fields in the local cross-sport
 # dataset. Production scoring and award traits can be added without changing
@@ -524,6 +527,17 @@ def ensure_runtime_schema():
                 "ON fr_results(owner_guest_id, finished_at DESC)"
             )
             conn.execute("ALTER TABLE fr_results ADD COLUMN IF NOT EXISTS sport_id TEXT NOT NULL DEFAULT 'baseball'")
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS film_review_daily_attempts (
+                       owner_guest_id UUID NOT NULL REFERENCES guests(guest_id) ON DELETE CASCADE,
+                       sport_id TEXT NOT NULL,
+                       puzzle_date DATE NOT NULL,
+                       game_id UUID NOT NULL,
+                       status TEXT NOT NULL DEFAULT 'in_progress' CHECK (status IN ('in_progress','won','lost')),
+                       completed_at TIMESTAMPTZ,
+                       PRIMARY KEY (owner_guest_id, sport_id, puzzle_date)
+                   )"""
+            )
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS dr_results (
                        result_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1080,6 +1094,24 @@ def _guest_stats(conn, guest_id: str) -> dict:
             LIMIT 3""",
         (guest_id,),
     ).fetchall()
+    def daily_streak(sport_id: str) -> int:
+        won_days = {
+            row[0] for row in conn.execute(
+                """SELECT puzzle_date FROM film_review_daily_attempts
+                     WHERE owner_guest_id=%s AND sport_id=%s AND status='won'""",
+                (guest_id, sport_id),
+            ).fetchall()
+        }
+        cursor = datetime.now(CENTRAL_TIME).date()
+        # A streak can remain alive until today's puzzle is attempted.
+        if cursor not in won_days:
+            cursor -= timedelta(days=1)
+        streak = 0
+        while cursor in won_days:
+            streak += 1
+            cursor -= timedelta(days=1)
+        return streak
+
     baseball_stats = {
         "bp_plays": bp_plays,
         "bp_best": bp_best,
@@ -1093,6 +1125,7 @@ def _guest_stats(conn, guest_id: str) -> dict:
             {"team_name": team_name, "season": season, "count": count}
             for team_name, season, count in top_struck
         ],
+        "fr_daily_streak": daily_streak("baseball"),
     }
     # Keep the established baseball fields for the current profile UI, while
     # exposing the identical shape for every league. This lets the profile
@@ -1124,6 +1157,7 @@ def _guest_stats(conn, guest_id: str) -> dict:
             "dr_losses": max(0, dr_plays_s - dr_wins_s), "dr_elo": elo_s or 1200,
             "top_struck_teams": [{"team_name": name, "season": season, "count": count}
                                   for name, season, count in struck],
+            "fr_daily_streak": daily_streak(sport),
         }
     return {**baseball_stats, "sports": sports}
 
@@ -2832,9 +2866,15 @@ def _sport_cards(conn, sport: str, player_ids: list[str]) -> dict[str, dict]:
         for team, ranges in teams_by_player.get(player_id, {}).items():
             years = ", ".join(str(a) if a == b else f"{a}-{b}" for a, b in ranges)
             teams.append(f"{team} {years}")
+        # NBA's official image CDN covers many older players omitted by the
+        # source-image catalog. Broken URLs still fall through to the UI's
+        # existing placeholder without affecting gameplay.
+        headshot_url = images.get(player_id)
+        if not headshot_url and sport == "basketball" and external_id:
+            headshot_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{external_id}.png"
         card = {
             "mlbam_id": None,
-            "headshot_url": images.get(player_id),
+            "headshot_url": headshot_url,
             "debut_year": debut,
             "final_year": final,
             "name_first": first,
@@ -5938,6 +5978,7 @@ def _sport_fr_state_dict(gid: str, blob: dict, conn) -> dict:
     cards = {pid: _sport_fr_card(pid, card) for pid, card in _sport_cards(conn, sport, deck).items()}
     return {
         "game_id": gid, "mode": "fr", "sport": sport, "puzzle_id": blob["puzzle_id"],
+        "puzzle_date": blob.get("puzzle_date"), "puzzle_number": blob.get("puzzle_number"), "archive": bool(blob.get("archive")),
         "slots": blob["slots"], "unit": blob.get("unit"), "total_cards": len(deck),
         "revealed_count": blob["revealed_count"],
         "revealed_cards": [cards[pid] for pid in deck[:blob["revealed_count"]]],
@@ -5965,6 +6006,16 @@ def _sport_fr_shared(conn, sport: str, first: str, second: str) -> list[list]:
     return [[team_id, season, name] for team_id, season, name in rows]
 
 
+def _film_review_day(value: str | None = None) -> date:
+    if value:
+        return date.fromisoformat(value)
+    return datetime.now(CENTRAL_TIME).date()
+
+
+def _film_review_number(puzzle_day: date) -> int:
+    return max(1, (puzzle_day - FILM_REVIEW_EPOCH).days + 1)
+
+
 @app.route("/api/sports/<sport>/fr/team_autocomplete")
 def sport_fr_team_autocomplete(sport: str):
     q = normalize(request.args.get("q") or "")
@@ -5978,19 +6029,61 @@ def sport_fr_team_autocomplete(sport: str):
     return jsonify((sorted(prefix) + sorted(contains))[:6])
 
 
+@app.route("/api/sports/<sport>/fr/archive", methods=["POST"])
+def sport_fr_archive(sport: str):
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
+    guest_id = (data.get("guest_id") or "").strip()
+    if not _is_cross_sport(sport) or not guest_id:
+        return jsonify({"error": "sport and guest_id required"}), 400
+    today = datetime.now(CENTRAL_TIME).date()
+    with db() as conn:
+        rows = {row[0]: (row[1], row[2]) for row in conn.execute(
+            "SELECT puzzle_date, status, game_id::text FROM film_review_daily_attempts WHERE owner_guest_id=%s AND sport_id=%s",
+            (guest_id, sport),
+        ).fetchall()}
+    days = []
+    for offset in range(min(60, max(1, (today - FILM_REVIEW_EPOCH).days + 1))):
+        puzzle_day = today - timedelta(days=offset)
+        if puzzle_day < FILM_REVIEW_EPOCH:
+            break
+        status, game_id = rows.get(puzzle_day, ("unseen", None))
+        days.append({"date": puzzle_day.isoformat(), "number": _film_review_number(puzzle_day),
+                     "status": status, "game_id": game_id, "is_today": puzzle_day == today})
+    return jsonify({"days": days})
+
+
 @app.route("/api/sports/<sport>/fr/new", methods=["POST"])
 def sport_fr_new(sport: str):
+    ensure_runtime_schema()
     if not _is_cross_sport(sport):
         return jsonify({"error": "unsupported sport"}), 404
     data = request.get_json(silent=True) or {}
     unit = data.get("unit")
     unit = unit.strip().lower() if isinstance(unit, str) else None
     guest_id = (data.get("guest_id") or "").strip() or None
+    archive = bool(data.get("archive"))
+    try:
+        puzzle_day = _film_review_day(data.get("puzzle_date"))
+    except ValueError:
+        return jsonify({"error": "invalid puzzle date"}), 400
+    if puzzle_day > datetime.now(CENTRAL_TIME).date():
+        return jsonify({"error": "future Film Review unavailable"}), 400
     with db() as conn:
         if guest_id and not conn.execute("SELECT 1 FROM guests WHERE guest_id=%s", (guest_id,)).fetchone():
             guest_id = None
+        if guest_id and not archive:
+            existing = conn.execute(
+                "SELECT game_id::text FROM film_review_daily_attempts WHERE owner_guest_id=%s AND sport_id=%s AND puzzle_date=%s",
+                (guest_id, sport, puzzle_day),
+            ).fetchone()
+            if existing:
+                row = conn.execute("SELECT state, finished FROM fr_games WHERE game_id=%s", (existing[0],)).fetchone()
+                if row:
+                    blob, finished = row; blob["finished"] = finished
+                    return jsonify(_sport_fr_state_dict(existing[0], blob, conn))
         try:
-            puzzle = generate_local_film_review(PgEngineConn(conn), sport, unit=unit)
+            puzzle = generate_local_film_review(PgEngineConn(conn), sport, unit=unit, puzzle_day=puzzle_day)
         except (RuntimeError, ValueError) as error:
             return jsonify({"error": f"could not build Film Review: {error}"}), 500
         shared = [_sport_fr_shared(conn, sport, puzzle.deck[i], puzzle.deck[i + 1]) for i in range(len(puzzle.deck) - 1)]
@@ -5998,6 +6091,7 @@ def sport_fr_new(sport: str):
             return jsonify({"error": "generated puzzle has an unresolved connection"}), 500
         blob = {
             "sport": sport, "puzzle_id": f"{sport}_{puzzle.puzzle_date}_{puzzle.unit or 'full'}",
+            "puzzle_date": puzzle.puzzle_date, "puzzle_number": _film_review_number(puzzle_day), "archive": archive,
             "deck": list(puzzle.deck), "slots": list(puzzle.slots), "unit": puzzle.unit,
             "pair_index": 0, "revealed_count": 2, "hits": 0, "fouls": 0, "strikes": 0,
             "consec_fouls": 0, "solved_links": [None] * (len(puzzle.deck) - 1),
@@ -6005,11 +6099,15 @@ def sport_fr_new(sport: str):
             "finished": False, "won": False, "last_guess": None,
         }
         gid = _insert_game(conn, "fr_games", blob)
+        if guest_id and not archive:
+            conn.execute("""INSERT INTO film_review_daily_attempts (owner_guest_id, sport_id, puzzle_date, game_id)
+                            VALUES (%s,%s,%s,%s)""", (guest_id, sport, puzzle_day, gid))
         return jsonify(_sport_fr_state_dict(gid, blob, conn))
 
 
 @app.route("/api/sports/<sport>/fr/guess", methods=["POST"])
 def sport_fr_guess(sport: str):
+    ensure_runtime_schema()
     data = request.get_json(silent=True) or {}
     gid = data.get("game_id")
     team, year = (data.get("team") or "").strip(), (data.get("year") or "").strip()
@@ -6054,8 +6152,35 @@ def sport_fr_guess(sport: str):
                                 VALUES (%s, %s, %s, %s, %s, %s, %s)""",
                              (blob["owner_guest_id"], sport, blob["puzzle_id"], blob["hits"], blob["fouls"], blob["strikes"], blob["won"]))
                 blob["result_saved"] = True
+            if blob["finished"] and blob.get("owner_guest_id") and not blob.get("archive"):
+                conn.execute("""UPDATE film_review_daily_attempts SET status=%s, completed_at=now()
+                                WHERE owner_guest_id=%s AND sport_id=%s AND puzzle_date=%s""",
+                             ("won" if blob["won"] else "lost", blob["owner_guest_id"], sport, blob.get("puzzle_date")))
             _save_game(conn, "fr_games", gid, blob)
         return jsonify(_sport_fr_state_dict(gid, blob, conn))
+
+
+@app.route("/api/sports/<sport>/fr/daily_game", methods=["POST"])
+def sport_fr_daily_game(sport: str):
+    """Load a completed official daily game for archive review only."""
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
+    guest_id = (data.get("guest_id") or "").strip()
+    game_id = (data.get("game_id") or "").strip()
+    if not _is_cross_sport(sport) or not guest_id or not game_id:
+        return jsonify({"error": "sport, guest_id, and game_id required"}), 400
+    with db() as conn:
+        owned = conn.execute(
+            """SELECT 1 FROM film_review_daily_attempts
+                 WHERE owner_guest_id=%s AND sport_id=%s AND game_id=%s""",
+            (guest_id, sport, game_id),
+        ).fetchone()
+        row = conn.execute("SELECT state, finished FROM fr_games WHERE game_id=%s", (game_id,)).fetchone()
+        if not owned or not row:
+            return jsonify({"error": "daily Film Review not found"}), 404
+        blob, finished = row
+        blob["finished"] = finished
+        return jsonify(_sport_fr_state_dict(game_id, blob, conn))
 
 
 @app.route("/api/sports/<sport>/fr/reveal_answer", methods=["POST"])

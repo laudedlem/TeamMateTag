@@ -11,7 +11,7 @@
     <div class="title">
       <div class="brand-row">
         <h1>TeamMateTag</h1>
-<span class="app-version" title="Current version">0.1.41</span>
+<span class="app-version" title="Current version">0.1.42</span>
       </div>
       <span class="subtitle" id="brand-subtitle"></span>
     </div>
@@ -172,6 +172,10 @@
         <div class="profile-detail">
           <span id="profile-fr-label" class="profile-detail-label">Film Review Win-Loss</span>
           <strong id="profile-fr-record">--</strong>
+        </div>
+        <div class="profile-detail">
+          <span class="profile-detail-label">Film Review Daily Streak</span>
+          <strong id="profile-fr-streak">--</strong>
         </div>
         <div class="profile-detail">
           <span id="profile-dr-elo-label" class="profile-detail-label">Division Rivalry ELO</span>
@@ -404,7 +408,7 @@
 
         <div id="fr-turn-card" class="turn-card">
           <div class="turn-header">
-            <span class="turn-label">Film Review</span>
+            <span id="fr-title" class="turn-label">Film Review</span>
             <span id="fr-stats" class="fr-stats"></span>
           </div>
           <div class="turn-prompt">
@@ -426,6 +430,11 @@
         </div>
 
         <div id="fr-lineup-board" class="fr-lineup-board" aria-label="Film Review lineup board"></div>
+        <details class="fr-archive" id="fr-archive">
+          <summary>Film Review Archive</summary>
+          <p class="muted small">Completed days are green and failed days are red. Older reviews can be revisited without changing your streak.</p>
+          <div id="fr-archive-list" class="fr-archive-list"></div>
+        </details>
         <div id="fr-card-stack" class="card-stack"></div>
       </div>
     </div>

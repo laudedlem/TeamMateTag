@@ -37,6 +37,7 @@ const els = {
   profileBpBest: document.getElementById('profile-bp-best'),
   profileBpPlays: document.getElementById('profile-bp-plays'),
   profileFrRecord: document.getElementById('profile-fr-record'),
+  profileFrStreak: document.getElementById('profile-fr-streak'),
   profileDrElo: document.getElementById('profile-dr-elo'),
   profileDrRecord: document.getElementById('profile-dr-record'),
   profileTopStruck: document.getElementById('profile-top-struck'),
@@ -120,6 +121,9 @@ const els = {
   homeFromBannerBtn: document.getElementById('home-from-banner-btn'),
 
   frTurnCard: document.getElementById('fr-turn-card'),
+  frTitle: document.getElementById('fr-title'),
+  frArchive: document.getElementById('fr-archive'),
+  frArchiveList: document.getElementById('fr-archive-list'),
   frStats: document.getElementById('fr-stats'),
   frPairNames: document.getElementById('fr-pair-names'),
   frTeamInput: document.getElementById('fr-team-input'),
@@ -320,6 +324,7 @@ function renderProfile() {
     els.profileBpBest.textContent = '--';
     els.profileBpPlays.textContent = '--';
     els.profileFrRecord.textContent = '--';
+    els.profileFrStreak.textContent = '--';
     els.profileDrElo.textContent = '--';
     els.profileDrRecord.textContent = '--';
     els.profileTopStruck.textContent = '--';
@@ -352,6 +357,7 @@ function renderProfile() {
   els.profileBpBest.textContent = String(stats.bp_best ?? 0);
   els.profileBpPlays.textContent = String(stats.bp_plays ?? 0);
   els.profileFrRecord.textContent = `${wins}-${Math.max(0, plays - wins)}`;
+  els.profileFrStreak.textContent = `${stats.fr_daily_streak ?? 0} day${(stats.fr_daily_streak ?? 0) === 1 ? '' : 's'}`;
   els.profileDrElo.textContent = String(stats.dr_elo ?? 1200);
   els.profileDrRecord.textContent = `${drWins}-${drLosses}`;
   const topStruck = stats.top_struck_teams || [];
@@ -1064,7 +1070,7 @@ async function startBp() {
   runOpeningCountdown();
 }
 
-async function startFr(unit = null) {
+async function startFr(unit = null, options = {}) {
   currentMode = 'fr';
   hideFrSummaryBanner();
   closeTeamAutocomplete();
@@ -1073,12 +1079,13 @@ async function startFr(unit = null) {
   showScreen('fr-game');
   renderLoadingFilmReview();
   frGame = await api(isCrossSport() ? localFilmReviewPath('new') : '/api/fr/new',
-    { guest_id: profile?.guest_id || storedGuestId(), unit });
+    { guest_id: profile?.guest_id || storedGuestId(), unit, ...options });
   if (frGame.error) {
     alert('error: ' + frGame.error);
     return;
   }
   renderFrGame(true);
+  loadFrArchive();
   els.frTeamInput.focus();
 }
 
@@ -1153,13 +1160,14 @@ function showGameOverBanner() {
 
   if (isOnlineMode()) {
     const teamsOut = game.strikes.filter((s) => s.count >= 3).length;
+    const outSummary = ({ baseball: 'struck out', basketball: 'fouled out', football: 'punted', hockey: 'with game misconducts' })[CURRENT_SPORT] || 'out';
     els.winnerText.textContent = game.winner ? `${game.winner} wins!` : 'Game over.';
     if (currentMode === 'po' && game.last_move?.win_condition_completed) {
       els.gameOverSummary.textContent =
-        `${game.last_move.win_condition_label} completed. Lineup of ${game.chain.length}. ${teamsOut} team${teamsOut === 1 ? '' : 's'} struck out.`;
+        `${game.last_move.win_condition_label} completed. Lineup of ${game.chain.length}. ${teamsOut} team${teamsOut === 1 ? '' : 's'} ${outSummary}.`;
     } else {
       els.gameOverSummary.textContent =
-        `Lineup of ${game.chain.length}. ${teamsOut} team${teamsOut === 1 ? '' : 's'} struck out.`;
+        `Lineup of ${game.chain.length}. ${teamsOut} team${teamsOut === 1 ? '' : 's'} ${outSummary}.`;
     }
     if (game.last_move?.outcome === 'forfeit') {
       els.playAgainBtn.hidden = true;
@@ -2004,6 +2012,7 @@ async function frSubmit(e) {
 function renderFrGame(initialRender) {
   const s = frGame.stats;
   const terms = frTerms();
+  els.frTitle.textContent = frGame.puzzle_number ? `Film Review #${frGame.puzzle_number}` : 'Film Review';
   els.frStats.innerHTML =
     `<span class="stat-hit">${s.hits}${terms.hitShort}</span> <span class="stat-sep">|</span> ` +
     `<span class="stat-foul">${s.fouls}${terms.foulShort}</span> <span class="stat-sep">|</span> ` +
@@ -2146,6 +2155,50 @@ function rulesForMode() {
     return 'Playoffs uses the Division Rivalry rules, but both players also get one use of every powerup during the game and a secret win condition. You can use at most one powerup on a turn. Finish your win condition first, or win on time. Open Reference for the powerups.';
   }
   return `Pick a mode, then build or review a lineup by connecting ${sportName} players through their shared teams.`;
+}
+
+async function loadFrArchive() {
+  if (!isCrossSport() || !profile?.guest_id) return;
+  const res = await api(`/api/sports/${CURRENT_SPORT}/fr/archive`, { guest_id: profile.guest_id });
+  if (!res.days) return;
+  els.frArchiveList.innerHTML = res.days.map((day) => {
+    const state = escapeHtml(day.status);
+    const date = escapeHtml(day.date);
+    const label = day.is_today ? 'Today' : `#${day.number}`;
+    const action = day.is_today ? 'daily' : (day.status === 'unseen' ? 'archive' : 'review');
+    const text = day.is_today ? (day.status === 'unseen' ? 'Play today' : 'Resume today')
+      : (day.status === 'unseen' ? 'Play' : 'Review');
+    const retry = !day.is_today && day.status !== 'unseen'
+      ? `<button class="fr-archive-action" data-date="${date}" data-action="retry">Retry</button>` : '';
+    return `<div class="fr-archive-day ${state}">
+      <span class="fr-archive-number">${label}</span>
+      <span class="fr-archive-status">${state === 'won' ? 'Completed' : state === 'lost' ? 'Failed' : state === 'in_progress' ? 'In progress' : 'Unseen'}</span>
+      <button class="fr-archive-action" data-date="${date}" data-game-id="${escapeHtml(day.game_id || '')}" data-action="${action}">${text}</button>
+      ${retry}
+    </div>`;
+  }).join('');
+  els.frArchiveList.querySelectorAll('[data-action]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const action = button.dataset.action;
+      if (action === 'daily') {
+        await startFr();
+      } else if (action === 'archive' || action === 'retry') {
+        await startFr(null, { puzzle_date: button.dataset.date, archive: true });
+      } else if (action === 'review') {
+        const result = await api(localFilmReviewPath('daily_game'), {
+          guest_id: profile?.guest_id || storedGuestId(), game_id: button.dataset.gameId,
+        });
+        if (result.error) {
+          alert('error: ' + result.error);
+          return;
+        }
+        frGame = result;
+        hideFrSummaryBanner();
+        renderFrGame(true);
+        showFrSummaryBanner();
+      }
+    });
+  });
 }
 
 function frTeamPlaceholder() {

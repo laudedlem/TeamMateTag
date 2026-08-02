@@ -1578,6 +1578,36 @@ button.secondary:hover { border-color: var(--accent); color: var(--accent); }
   top: auto;
 }
 
+/* ---------- Daily Film Review archive ---------- */
+.fr-archive {
+  margin: 0.85rem 0 1rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+}
+
+.fr-archive summary { cursor: pointer; font-weight: 700; }
+.fr-archive-list { display: grid; gap: 0.45rem; margin-top: 0.65rem; }
+.fr-archive-day {
+  display: grid;
+  grid-template-columns: 5.3rem 1fr auto auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.fr-archive-day.won { border-color: rgba(34, 197, 94, 0.6); background: rgba(34, 197, 94, 0.08); }
+.fr-archive-day.lost { border-color: rgba(248, 113, 113, 0.6); background: rgba(248, 113, 113, 0.08); }
+.fr-archive-number { font-weight: 700; }
+.fr-archive-status { color: var(--text-muted); font-size: 0.86rem; }
+.fr-archive-action { padding: 0.3rem 0.6rem; font-size: 0.82rem; }
+@media (max-width: 540px) {
+  .fr-archive-day { grid-template-columns: 4.4rem 1fr auto; }
+  .fr-archive-day .fr-archive-action:last-child { grid-column: 3; }
+}
+
 #winner-text {
   margin: 0 0 0.4rem 0;
   font-size: 1.8rem;
