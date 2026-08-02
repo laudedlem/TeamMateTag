@@ -567,16 +567,19 @@ button.danger:hover:not(:disabled) {
 .win-panel {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.6rem;
-  margin: 0.85rem 0 0.25rem;
+  gap: 0.4rem;
+  margin: 0.55rem 0 0.15rem;
 }
 
 .win-box {
   background: var(--bg);
   border: 1px solid rgba(250, 204, 21, 0.28);
   border-radius: var(--radius-sm);
-  padding: 0.7rem 0.8rem;
+  padding: 0.45rem 0.6rem;
 }
+
+.win-box .powerup-name { font-size: 0.9rem; }
+.win-box .win-pips { margin-top: 0.35rem; }
 
 .win-pips {
   display: flex;

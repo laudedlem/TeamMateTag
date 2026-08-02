@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.35`
+- Current display version: `0.1.36`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -398,6 +398,13 @@ immediately below the form. The shared deck renderer now tolerates a transient
 missing chain response without clearing visible cards. Verified NFL DR: Devin
 Hester to Matt Forte is valid through the 2008-2013 Chicago Bears and the
 Postgres response contains both cards and a fresh turn clock.
+
+Update, 2026-08-01 (0.1.36): fixed the Postgres grouping error in the
+cross-sport Playoffs trait query. Previously a valid NFL Playoffs link could
+be applied and then fail while evaluating its win condition, leaving the
+browser on stale state. Devin Hester to Matt Forte now returns `valid` through
+the online Playoffs endpoint. The powerup dropdown lays both players' lists
+side-by-side when opened, and win-condition boxes are more compact.
 
 Profile responses now include `stats.sports.baseball|basketball|football|hockey`.
 New cross-sport BP/FR results write their sport ID, so stats are isolated.

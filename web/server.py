@@ -3481,7 +3481,12 @@ def _local_po_traits(conn: sqlite3.Connection, sport: str, player_id: str) -> di
              LEFT JOIN sport_player_traits pt ON pt.sport_id=p.sport_id AND pt.player_id=p.player_id
              LEFT JOIN sport_player_season_traits st ON st.sport_id=p.sport_id AND st.player_id=p.player_id
             WHERE p.sport_id=? AND p.player_id=?
-            GROUP BY p.primary_pos, s.career_games, pt.career_games, pt.career_points, pt.career_goals, pt.career_assists, pt.career_touchdowns, pt.mvp_count, pt.roty_count, pt.all_star_count""",
+            GROUP BY p.primary_pos, s.career_games, pt.career_games, pt.career_points,
+                     pt.career_goals, pt.career_assists, pt.career_touchdowns,
+                     pt.passing_touchdowns, pt.rushing_touchdowns,
+                     pt.receiving_touchdowns, pt.career_sacks,
+                     pt.career_interceptions, pt.mvp_count, pt.roty_count,
+                     pt.all_star_count, pt.championship_count""",
         (sport, player_id),
     ).fetchone()
     if not row:
