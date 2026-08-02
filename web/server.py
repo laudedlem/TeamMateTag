@@ -132,13 +132,16 @@ LOCAL_PLAYOFF_CONFIG = {
             "full_court_press": {"label": "Full-Court Press", "description": "Your opponent gets 10 seconds on their next turn.", "kind": "pressure"},
         },
         "conditions": {
-            "ironman": {"label": "Bucket Getter", "description": "Name 3 players with 15,000 career points", "target": 3, "kind": "trait", "trait": "career_points", "threshold": 15000},
+            "bucket_getter": {"label": "Bucket Getter", "description": "Name 2 players with 25,000 career points", "target": 2, "kind": "trait", "trait": "career_points", "threshold": 25000},
+            "season_scorer": {"label": "Scoring Run", "description": "Name 2 players with a 2,000-point season", "target": 2, "kind": "trait", "trait": "peak_points", "threshold": 2000},
+            "playmaker": {"label": "Table Setter", "description": "Name 2 players with 7,000 career assists", "target": 2, "kind": "trait", "trait": "career_assists", "threshold": 7000},
+            "three_point_club": {"label": "Deep Range", "description": "Name 2 players with 2,000 career three-pointers", "target": 2, "kind": "trait", "trait": "career_goals", "threshold": 2000},
+            "ironhorse": {"label": "Ironhorse", "description": "Name 2 players with 1,000 career games", "target": 2, "kind": "career_games", "threshold": 1000},
             "one_team": {"label": "Home Court", "description": "Name 2 players with 8 seasons for one franchise", "target": 2, "kind": "one_franchise", "threshold": 8},
             "journeyman": {"label": "Frequent Flyer", "description": "Name 2 players who played for 5 teams", "target": 2, "kind": "team_count", "threshold": 5},
             "mvp_circle": {"label": "MVP Circle", "description": "Name 2 MVP winners", "target": 2, "kind": "trait", "trait": "mvp_count", "threshold": 1},
             "all_star_marathon": {"label": "All-Star Marathon", "description": "Name players with 12 combined All-Star selections", "target": 12, "kind": "sum_trait", "trait": "all_star_count"},
-            "ring_chaser": {"label": "Ring Chaser", "description": "Name players with 5 combined championships", "target": 5, "kind": "sum_trait", "trait": "championship_count"},
-            "superstar": {"label": "Superstar", "description": "Name 2 players with 20,000 career points", "target": 2, "kind": "trait", "trait": "career_points", "threshold": 20000},
+            "ring_chaser": {"label": "Ring Chaser", "description": "Name players with 6 combined championships", "target": 6, "kind": "sum_trait", "trait": "championship_count"},
             "young_guns": {"label": "Young Guns", "description": "Name 2 Rookie of the Year winners", "target": 2, "kind": "trait", "trait": "roty_count", "threshold": 1},
         },
     },
@@ -151,13 +154,18 @@ LOCAL_PLAYOFF_CONFIG = {
             "blitz": {"label": "Blitz", "description": "Your opponent gets 10 seconds on their next turn.", "kind": "pressure"},
         },
         "conditions": {
-            "ironman": {"label": "End Zone", "description": "Name 3 players with 50 career touchdowns", "target": 3, "kind": "trait", "trait": "career_touchdowns", "threshold": 50},
+            "touchdown_club": {"label": "End Zone", "description": "Name 2 players with 100 career touchdowns", "target": 2, "kind": "trait", "trait": "career_touchdowns", "threshold": 100},
+            "season_scorer": {"label": "Season Scorer", "description": "Name 2 players with a 15-touchdown season", "target": 2, "kind": "trait", "trait": "peak_touchdowns", "threshold": 15},
+            "air_raid": {"label": "Air Raid", "description": "Name 2 players with 300 career passing touchdowns", "target": 2, "kind": "trait", "trait": "passing_touchdowns", "threshold": 300},
+            "single_season_passer": {"label": "Sunday Slingers", "description": "Name 2 players with a 35-passing-touchdown season", "target": 2, "kind": "trait", "trait": "peak_passing_touchdowns", "threshold": 35},
+            "sack_master": {"label": "Sack Master", "description": "Name 2 players with 100 career sacks", "target": 2, "kind": "trait", "trait": "career_sacks", "threshold": 100},
+            "ballhawk": {"label": "Ballhawk", "description": "Name 2 players with 30 career interceptions", "target": 2, "kind": "trait", "trait": "career_interceptions", "threshold": 30},
             "one_team": {"label": "One Club", "description": "Name 2 players with 10 seasons for one franchise", "target": 2, "kind": "one_franchise", "threshold": 10},
             "journeyman": {"label": "Journeyman", "description": "Name 2 players who played for 5 teams", "target": 2, "kind": "team_count", "threshold": 5},
             "mvp_circle": {"label": "MVP Circle", "description": "Name 2 MVP winners", "target": 2, "kind": "trait", "trait": "mvp_count", "threshold": 1},
             "pro_bowl_marathon": {"label": "Pro Bowl Marathon", "description": "Name players with 12 combined Pro Bowl selections", "target": 12, "kind": "sum_trait", "trait": "all_star_count"},
-            "ring_chaser": {"label": "Ring Chaser", "description": "Name players with 4 combined championships", "target": 4, "kind": "sum_trait", "trait": "championship_count"},
-            "touchdown_club": {"label": "Touchdown Club", "description": "Name 2 players with 100 career touchdowns", "target": 2, "kind": "trait", "trait": "career_touchdowns", "threshold": 100},
+            "ring_chaser": {"label": "Ring Chaser", "description": "Name players with 5 combined championships", "target": 5, "kind": "sum_trait", "trait": "championship_count"},
+            "young_guns": {"label": "Fresh Faces", "description": "Name 2 Rookie of the Year winners", "target": 2, "kind": "trait", "trait": "roty_count", "threshold": 1},
         },
     },
     "hockey": {
@@ -169,14 +177,17 @@ LOCAL_PLAYOFF_CONFIG = {
             "forecheck": {"label": "Forecheck", "description": "Your opponent gets 10 seconds on their next turn.", "kind": "pressure"},
         },
         "conditions": {
-            "ironman": {"label": "Sniper", "description": "Name 3 players with 350 career goals", "target": 3, "kind": "trait", "trait": "career_goals", "threshold": 350},
+            "sniper": {"label": "Sniper", "description": "Name 2 players with 500 career goals", "target": 2, "kind": "trait", "trait": "career_goals", "threshold": 500},
+            "single_season_sniper": {"label": "Rocket Season", "description": "Name 1 player with a 60-goal season", "target": 1, "kind": "trait", "trait": "peak_goals", "threshold": 60},
+            "playmaker": {"label": "Playmaker", "description": "Name 2 players with 1,000 career assists", "target": 2, "kind": "trait", "trait": "career_assists", "threshold": 1000},
+            "point_streak": {"label": "Point Machine", "description": "Name 1 player with a 120-point season", "target": 1, "kind": "trait", "trait": "peak_points", "threshold": 120},
             "one_team": {"label": "Lifer", "description": "Name 2 players with 10 seasons for one franchise", "target": 2, "kind": "one_franchise", "threshold": 10},
             "journeyman": {"label": "Journeyman", "description": "Name 2 players who played for 5 teams", "target": 2, "kind": "team_count", "threshold": 5},
             "mvp_circle": {"label": "Hart Club", "description": "Name 2 Hart Trophy winners", "target": 2, "kind": "trait", "trait": "mvp_count", "threshold": 1},
             "all_star_marathon": {"label": "All-Star Marathon", "description": "Name players with 12 combined All-Star selections", "target": 12, "kind": "sum_trait", "trait": "all_star_count"},
             "ironhorse": {"label": "Ironhorse", "description": "Name 2 players with 1,200 career games", "target": 2, "kind": "trait", "trait": "career_games", "threshold": 1200},
-            "playmaker": {"label": "Playmaker", "description": "Name 3 players with 900 career points", "target": 3, "kind": "trait", "trait": "career_points", "threshold": 900},
-            "forty_goal": {"label": "Forty Goal Club", "description": "Name 2 players with 450 career goals", "target": 2, "kind": "trait", "trait": "career_goals", "threshold": 450},
+            "ring_chaser": {"label": "Cup Chasers", "description": "Name players with 7 combined Stanley Cup credits", "target": 7, "kind": "sum_trait", "trait": "championship_count"},
+            "young_guns": {"label": "Fresh Ice", "description": "Name 2 Calder Trophy winners", "target": 2, "kind": "trait", "trait": "roty_count", "threshold": 1},
         },
     },
 }
@@ -3217,13 +3228,20 @@ def _local_po_traits(conn: sqlite3.Connection, sport: str, player_id: str) -> di
         """SELECT p.primary_pos, COALESCE(NULLIF(pt.career_games, 0), s.career_games),
                   COUNT(DISTINCT a.team_id), COUNT(DISTINCT t.franchise_id), COUNT(DISTINCT a.season),
                   COALESCE(pt.career_points, 0), COALESCE(pt.career_goals, 0), COALESCE(pt.career_assists, 0),
-                  COALESCE(pt.career_touchdowns, 0), COALESCE(pt.mvp_count, 0), COALESCE(pt.roty_count, 0),
-                  COALESCE(pt.all_star_count, 0), COALESCE(pt.championship_count, 0)
+                  COALESCE(pt.career_touchdowns, 0), COALESCE(pt.passing_touchdowns, 0), COALESCE(pt.rushing_touchdowns, 0),
+                  COALESCE(pt.receiving_touchdowns, 0), COALESCE(pt.career_sacks, 0), COALESCE(pt.career_interceptions, 0),
+                  COALESCE(pt.mvp_count, 0), COALESCE(pt.roty_count, 0),
+                  COALESCE(pt.all_star_count, 0), COALESCE(pt.championship_count, 0),
+                  COALESCE(MAX(st.points), 0), COALESCE(MAX(st.goals), 0), COALESCE(MAX(st.assists), 0),
+                  COALESCE(MAX(st.touchdowns), 0), COALESCE(MAX(st.passing_touchdowns), 0),
+                  COALESCE(MAX(st.rushing_touchdowns), 0), COALESCE(MAX(st.receiving_touchdowns), 0),
+                  COALESCE(MAX(st.sacks), 0), COALESCE(MAX(st.interceptions), 0)
              FROM sport_players p
              JOIN sport_players_searchable s ON s.sport_id=p.sport_id AND s.player_id=p.player_id
              LEFT JOIN sport_appearances a ON a.sport_id=p.sport_id AND a.player_id=p.player_id
              LEFT JOIN sport_teams t ON t.sport_id=a.sport_id AND t.team_id=a.team_id AND t.season=a.season
              LEFT JOIN sport_player_traits pt ON pt.sport_id=p.sport_id AND pt.player_id=p.player_id
+             LEFT JOIN sport_player_season_traits st ON st.sport_id=p.sport_id AND st.player_id=p.player_id
             WHERE p.sport_id=? AND p.player_id=?
             GROUP BY p.primary_pos, s.career_games, pt.career_games, pt.career_points, pt.career_goals, pt.career_assists, pt.career_touchdowns, pt.mvp_count, pt.roty_count, pt.all_star_count""",
         (sport, player_id),
@@ -3231,10 +3249,19 @@ def _local_po_traits(conn: sqlite3.Connection, sport: str, player_id: str) -> di
     if not row:
         return {"position": "", "career_games": 0, "team_count": 0, "franchise_count": 0, "season_count": 0,
                 "career_points": 0, "career_goals": 0, "career_assists": 0, "career_touchdowns": 0,
-                "mvp_count": 0, "roty_count": 0, "all_star_count": 0, "championship_count": 0}
+                "passing_touchdowns": 0, "rushing_touchdowns": 0, "receiving_touchdowns": 0,
+                "career_sacks": 0, "career_interceptions": 0,
+                "mvp_count": 0, "roty_count": 0, "all_star_count": 0, "championship_count": 0,
+                "peak_points": 0, "peak_goals": 0, "peak_assists": 0, "peak_touchdowns": 0,
+                "peak_passing_touchdowns": 0, "peak_rushing_touchdowns": 0, "peak_receiving_touchdowns": 0,
+                "peak_sacks": 0, "peak_interceptions": 0}
     return dict(zip(("position", "career_games", "team_count", "franchise_count", "season_count",
                      "career_points", "career_goals", "career_assists", "career_touchdowns",
-                     "mvp_count", "roty_count", "all_star_count", "championship_count"), row))
+                     "passing_touchdowns", "rushing_touchdowns", "receiving_touchdowns", "career_sacks", "career_interceptions",
+                     "mvp_count", "roty_count", "all_star_count", "championship_count",
+                     "peak_points", "peak_goals", "peak_assists", "peak_touchdowns",
+                     "peak_passing_touchdowns", "peak_rushing_touchdowns", "peak_receiving_touchdowns",
+                     "peak_sacks", "peak_interceptions"), row))
 
 
 def _local_po_condition_increment(conn: sqlite3.Connection, sport: str, key: str, player_id: str) -> int:

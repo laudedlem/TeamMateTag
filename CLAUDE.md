@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.30`
+- Current display version: `0.1.31`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Required environment values are documented in `.env.example`. Never commit
@@ -55,33 +55,31 @@ changes. It is the concise source of truth for another coding assistant.
   local adapter with a database-backed implementation.
 - Basketball, hockey, and football now also have local Playoffs at
   `/api/local/<sport>/po/*`. Each has sport-specific names for five tactical
-  powerups and four selectable win conditions. This first pass intentionally
-  uses only verified local traits: franchise membership, career games,
-  position group, seasons with one franchise, and team count.
+  powerups and selectable win conditions using indexed career, peak-season,
+  award, longevity, movement, and championship data.
 - `scripts/load_local_sport_traits.py --download-nhl` builds the ignored,
   additive `sport_player_traits` table. It currently loads NBA regular-season
   totals from the local CC0 Kaggle archive, NFL weekly totals from nflverse,
   and NHL career totals from the CC BY Kaggle player database.
-- Local Playoffs now uses verified career points, touchdowns, goals, and NBA
-  MVP counts for selected powerups and win conditions. The NBA awards import
-  matches MVP, Rookie of the Year, and All-Star selections from the current
-  `sumitrodatta/nba-aba-baa-stats` Kaggle archive.
+- `sport_player_season_traits` is the indexed local table for condition
+  evaluation. It holds 25,525 NBA, 47,577 NFL, and 44,611 NHL player-season
+  rows, so peak-season win conditions are a lookup rather than a runtime scan.
+  NBA season stats are current through 2025, NFL through 2024, and HockeyDB
+  season statistics through 2017; modern NHL career traits remain available.
 - Current source gaps are explicit in `sport_trait_provenance`: 746 NHL
   career-stat source names did not uniquely resolve to local player IDs.
 - NBA awards resolve 498 local players with MVP, Rookie of the Year, or
   All-Star counts. NHL awards now resolve 322 players with Hart, Calder, or
   First/Second Team All-Star counts through season-aware Hockey Databank name
   matching. NFL honors are stored in the local honors table.
-- Championship counts are now roster-season totals, not a claim that every
-  player received a physical ring. NBA derives 73 Finals champion seasons from
-  local box scores; NFL derives 26 Super Bowl seasons from nflverse schedules
-  (1999-2024); NHL resolves 39 Stanley Cup seasons from 1986 forward using
-  NHL schedule/records data plus a season archive. NHL 1917-85 and NFL
-  pre-1999 championship-roster totals were initially deferred, but are now
-  loaded by the honors-history supplement.
-- `scripts/load_local_honors_history.py` now closes those roster-title gaps:
-  NFL Super Bowl I-LIX and NHL pre-1986 `SC` seasons are locally credited from
-  the roster graph. It also creates `sport_honors` and
+- Championship counts are championship credits, not a claim that every player
+  received a physical ring. NBA derives 73 Finals champion seasons from local
+  box scores. NFL honors history credits Super Bowl I-LIX roster membership.
+  NHL credits playoff participants from HockeyDB through 2017 and season-roster
+  membership for 2018 onward. NHL covers all 107 awarded Cup seasons and
+  explicitly excludes 1918-19 and 2004-05, when no Cup was awarded.
+- `scripts/load_local_honors_history.py` loads NFL Super Bowl I-LIX, honors,
+  and all-pro history. It also creates `sport_honors` and
   `sport_honor_unresolved`, preserving honors facts and any unresolved source
   rows for later matching. NFL coverage includes AP MVP, offensive/defensive
   ROY, Pro Bowl selections, and AP first-team All-Pro selections (1999-2025).
@@ -149,26 +147,25 @@ changes. It is the concise source of truth for another coding assistant.
   should use these views rather than the raw import tables.
 - Cross-sport Playoffs uses `LOCAL_PLAYOFF_CONFIG` in `web/server.py` for
   basketball, football, and hockey. Each sport has its own powerup names,
-  qualification stat, timer pressure, and win conditions. Basketball's
-  `Sixth Man` uses 5,000 career points rather than career games because the
-  available basketball game-count field is not complete enough for a
-  500-game threshold. Do not bump the visible version for data or gameplay
-  maintenance unless a user-facing release is explicitly requested.
+  qualification stat, timer pressure, and 11 distinct condition types. The
+  current pool avoids duplicated career-stat objectives: where a stat appears
+  twice, one is a peak-season feat and the other is career-based. Do not bump
+  the visible version for data-only maintenance.
 - Playoffs reference behavior: the global home page provides a sport selector;
   a sport page shows only that sport's powerups. Cross-sport win conditions
   now include All-Star or Pro Bowl selection marathons and championship totals.
   Three burned team-seasons or a completed win condition ends the game.
 - Playoffs condition pools are intentionally broad and selectable. Basketball,
-  football, and hockey each have nine options, including individual stat,
-  career-franchise, MVP, All-Star or Pro Bowl, and championship conditions.
-  Baseball has twelve options. Marathon and championship totals are separate
-  choices, balanced at 12 selections and 5 titles cross-sport, or 15 World
-  Series rings for baseball.
-- Playoffs thresholds are calibrated against local qualifier counts. Examples:
-  hockey's 250-goal threshold was too common (348 players), so Sniper now
-  requires 350 goals (166). NHL championship totals are not sufficiently
-  reliable for win logic yet; hockey uses the 1,200-game Ironhorse condition
-  instead of a Stanley Cup total.
+  football, and hockey each have 11 options, including peak-season feats,
+  career totals, career-franchise, longevity, movement, honors, and combined
+  championship totals. Baseball has twelve options. The condition eligibility
+  audit is run against the local catalog before changing thresholds; the rare
+  single-player options currently have 11-48 qualifiers, while combined and
+  multi-player options have larger pools by design.
+- Refresh order for full local Playoffs data: run
+  `python scripts/load_local_sport_traits.py`, then
+  `python scripts/load_local_honors_history.py`. The second command restores
+  complete NFL championship credits after the nflverse trait refresh.
 
 ## Shared lineup rules
 

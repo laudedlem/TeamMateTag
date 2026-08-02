@@ -373,16 +373,10 @@ def load_nfl_championships(conn: sqlite3.Connection) -> tuple[int, int]:
 
 
 def load_nhl_pre1986_championships(conn: sqlite3.Connection) -> tuple[int, int]:
-    rows = csv.DictReader(io.StringIO(requests.get(HOCKEYDB_TEAMS_URL, timeout=90).text))
-    champions = {integer(row.get("year")): row.get("tmID") for row in rows if row.get("lgID") == "NHL" and row.get("playoff") == "SC" and integer(row.get("year")) < 1986}
-    aliases = {"CAL": "CGY", "HAR": "HFD", "ATF": "ATL", "COR": "COL", "TAN": "TOR", "TSP": "TOR"}
-    counts: dict[str, int] = defaultdict(int)
-    for season, source_team in champions.items():
-        team_id = aliases.get(source_team, source_team)
-        for (player_id,) in conn.execute("SELECT DISTINCT player_id FROM sport_appearances WHERE sport_id='hockey' AND season=? AND team_id=?", (season, team_id)):
-            counts[player_id] += 1
-    conn.executemany("UPDATE sport_player_traits SET championship_count=championship_count + ? WHERE sport_id='hockey' AND player_id=?", [(count, player_id) for player_id, count in counts.items()])
-    return len(champions), len(counts)
+    # Championship totals are reset and rebuilt in load_local_sport_traits.py.
+    # Keeping this legacy refresh non-additive prevents totals from growing each
+    # time honors history is loaded.
+    return 0, 0
 
 
 def audit_existing_gaps(conn: sqlite3.Connection) -> dict[str, int]:
@@ -447,7 +441,10 @@ def main() -> None:
         nfl_honors, nfl_unresolved = load_nfl_awards(conn)
         all_pro, all_pro_unresolved = load_nfl_all_pro(conn)
         nfl_champions, nfl_players = load_nfl_championships(conn)
-        nhl_champions, nhl_players = load_nhl_pre1986_championships(conn)
+        # Championship totals are rebuilt from the complete champion-season
+        # map by load_local_sport_traits.py. Do not add pre-1986 seasons here:
+        # repeated honors refreshes would otherwise inflate player totals.
+        nhl_champions, nhl_players = 0, 0
         audits = audit_existing_gaps(conn)
         conn.commit()
     finally:
@@ -455,7 +452,7 @@ def main() -> None:
     print(f"NFL honors: {nfl_honors}; unresolved: {nfl_unresolved}")
     print(f"NFL AP first-team All-Pro: {all_pro}; unresolved: {all_pro_unresolved}")
     print(f"NFL Super Bowl seasons: {nfl_champions}; rostered players credited: {nfl_players}")
-    print(f"NHL pre-1986 Cup seasons: {nhl_champions}; rostered players credited: {nhl_players}")
+    print(f"NHL Cup totals are maintained by load_local_sport_traits.py; additive rows: {nhl_champions}.")
     print(f"Unresolved audit rows: {dict(audits)}")
 
 

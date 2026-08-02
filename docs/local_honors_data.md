@@ -17,6 +17,9 @@ The second loader enriches `db/teammatetag_local.sqlite` with:
   one local player. These are retained with a source URL and resolution reason.
 - Updated `sport_player_traits`: NFL MVP, offensive/defensive Rookie of the
   Year, Pro Bowl counts, and full Super Bowl-era roster championship counts.
+- `sport_player_season_traits`: indexed season totals used by Playoffs peak
+  season conditions. It is populated from the NBA box-score archive, nflverse,
+  and HockeyDB scoring history.
 
 Current honor coverage (last refreshed 2026-07-31):
 
@@ -24,15 +27,18 @@ Current honor coverage (last refreshed 2026-07-31):
 - NFL Pro Bowl selections from the Wikipedia player lists.
 - NFL AP first-team All-Pro selections, 1999-2025.
 - Super Bowl champion roster-season counts, Super Bowl I through LIX.
-- Stanley Cup champion roster-season counts, including Hockey Databank `SC`
-  results before 1986 and the existing modern NHL source.
+- Stanley Cup credits for every awarded season from 1917-18 onward. HockeyDB
+  playoff participants are used through 2017; the modern tail uses season
+  roster membership.
 - HockeyDB NHL player IDs and 48,000-plus historical player-team-season
   scoring stints, used as a supplement to the NHL roster API.
 - Official NHL stats player IDs and team-season appearances for 2024-25 and
   2025-26, including recent call-ups omitted by the roster-history source.
 
-These are roster-season counts. They indicate that a player appeared for the
-champion in that season and do not assert that every club issued a ring.
+These are championship credits, not an assertion that every club issued a
+physical ring. Hockey's historical credits require playoff participation,
+which avoids crediting a brief regular-season call-up who did not play in the
+championship run.
 
 ## Historical Boundaries
 
@@ -42,8 +48,8 @@ champion in that season and do not assert that every club issued a ring.
   All-Star selections are included in the published player lists.
 - The Super Bowl results source begins with the 1966 season and has no missing
   championship season in that span.
-- NHL's 1919 Stanley Cup Final was cancelled because of the influenza epidemic.
-  No champion should be credited for that season.
+- NHL's 1918-19 Stanley Cup Final was cancelled because of the influenza
+  epidemic. No champion is credited for the 1918 start-year season.
 - The 2004-05 NHL lockout cancelled the season, so no Stanley Cup champion is
   credited. Any data source row claiming a champion for that season is rejected.
 

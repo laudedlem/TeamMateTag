@@ -52,9 +52,23 @@ NHL_CHAMPION_TEAM_CODES = {
     "new york rangers": "NYR", "pittsburgh penguins": "PIT", "st louis blues": "STL",
     "tampa bay lightning": "TBL", "washington capitals": "WSH",
 }
+# Hockey Databank's team ids are the source ids used by the historic NHL
+# appearance import. Modern clubs use the short ids directly, while a small
+# number of defunct clubs retain their namespaced source id.
+HOCKEYDB_CHAMPION_TEAM_IDS = {
+    "AND": "ANA", "BOS": "BOS", "CAL": "CGY", "CAR": "CAR", "CHI": "CHI",
+    "COL": "COL", "DAL": "DAL", "DET": "DET", "EDM": "EDM", "LAK": "LAK",
+    "MTL": "MTL", "MTM": "hdb:MTM", "NJD": "NJD", "NYI": "NYI", "NYR": "NYR",
+    "OTS": "hdb:OTS", "PHI": "PHI", "PIT": "PIT", "TBL": "TBL", "TOA": "hdb:TOA",
+    "TOR": "TOR", "TRS": "hdb:TRS", "WAS": "WSH",
+}
 # Season-start year: champion. Verified against NHL Records because the club
 # schedule feed omits several recent final series.
 NHL_RECENT_CHAMPIONS = {2020: "TBL", 2021: "COL", 2022: "VGK", 2023: "FLA", 2024: "FLA", 2025: "CAR"}
+# 1924-25 Montreal won the Cup, but Hockey Databank labels the club "F" rather
+# than "SC" for that inter-league final.
+NHL_HISTORIC_CHAMPION_OVERRIDES = {1924: ("MTL", "MTL")}
+HOCKEYDB_SCORING = ROOT / "raw" / "hockeydb" / "Scoring.csv"
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS sport_player_traits (
@@ -86,6 +100,25 @@ CREATE TABLE IF NOT EXISTS sport_trait_provenance (
   loaded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (sport_id, source)
 );
+CREATE TABLE IF NOT EXISTS sport_player_season_traits (
+  sport_id TEXT NOT NULL,
+  player_id TEXT NOT NULL,
+  season INTEGER NOT NULL,
+  games INTEGER NOT NULL DEFAULT 0,
+  points INTEGER NOT NULL DEFAULT 0,
+  goals INTEGER NOT NULL DEFAULT 0,
+  assists INTEGER NOT NULL DEFAULT 0,
+  touchdowns INTEGER NOT NULL DEFAULT 0,
+  passing_touchdowns INTEGER NOT NULL DEFAULT 0,
+  rushing_touchdowns INTEGER NOT NULL DEFAULT 0,
+  receiving_touchdowns INTEGER NOT NULL DEFAULT 0,
+  sacks REAL NOT NULL DEFAULT 0,
+  interceptions INTEGER NOT NULL DEFAULT 0,
+  source TEXT NOT NULL,
+  PRIMARY KEY (sport_id, player_id, season)
+);
+CREATE INDEX IF NOT EXISTS idx_sport_player_season_trait_lookup
+  ON sport_player_season_traits (sport_id, player_id);
 """
 
 
@@ -129,6 +162,19 @@ def replace_traits(conn: sqlite3.Connection, sport: str, rows: list[tuple], sour
     )
 
 
+def replace_season_traits(conn: sqlite3.Connection, sport: str, rows: list[tuple]) -> None:
+    """Replace indexed per-season achievement totals for condition evaluation."""
+    conn.execute("DELETE FROM sport_player_season_traits WHERE sport_id=?", (sport,))
+    conn.executemany(
+        """INSERT INTO sport_player_season_traits (
+              sport_id, player_id, season, games, points, goals, assists,
+              touchdowns, passing_touchdowns, rushing_touchdowns,
+              receiving_touchdowns, sacks, interceptions, source
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        rows,
+    )
+
+
 def update_championship_counts(
     conn: sqlite3.Connection, sport: str, champions: dict[int, str], source: str, url: str, coverage: str
 ) -> tuple[int, int]:
@@ -165,10 +211,66 @@ def update_championship_counts(
     return len(counts), matched_seasons
 
 
+def update_nhl_championship_counts(
+    conn: sqlite3.Connection,
+    champions: dict[int, str],
+    hockeydb_champions: dict[int, str],
+) -> tuple[int, int]:
+    """Credit Cup winners from a playoff roster where HockeyDB provides one.
+
+    HockeyDB has individual playoff-game participation through 2017. That is a
+    materially better historical definition than every regular-season appearance.
+    The modern tail falls back to the game's season roster until a comparable
+    playoff roster source is added.
+    """
+    if not HOCKEYDB_SCORING.exists():
+        raise RuntimeError(f"Missing Hockey Databank scoring source: {HOCKEYDB_SCORING}")
+    external_ids = {
+        external_id: player_id
+        for external_id, player_id in conn.execute(
+            """SELECT external_id, player_id FROM sport_player_external_ids
+                 WHERE sport_id='hockey' AND source='hockeydb'"""
+        )
+    }
+    playoff_rosters: dict[tuple[int, str], set[str]] = defaultdict(set)
+    with HOCKEYDB_SCORING.open(encoding="utf-8-sig", newline="") as handle:
+        for row in csv.DictReader(handle):
+            if row.get("lgID") != "NHL" or integer(row.get("PostGP")) <= 0:
+                continue
+            player_id = external_ids.get((row.get("playerID") or "").strip())
+            if player_id:
+                playoff_rosters[(integer(row.get("year")), (row.get("tmID") or "").strip())].add(player_id)
+
+    counts: dict[str, int] = defaultdict(int)
+    matched_seasons = 0
+    for season, team_id in champions.items():
+        players = playoff_rosters.get((season, hockeydb_champions[season])) if season in hockeydb_champions else None
+        if players is None:
+            players = {
+                player_id for (player_id,) in conn.execute(
+                    """SELECT DISTINCT player_id FROM sport_appearances
+                         WHERE sport_id='hockey' AND season=? AND team_id=?""",
+                    (season, team_id),
+                )
+            }
+        if players:
+            matched_seasons += 1
+            for player_id in players:
+                counts[player_id] += 1
+    conn.execute("UPDATE sport_player_traits SET championship_count=0 WHERE sport_id='hockey'")
+    conn.executemany(
+        """UPDATE sport_player_traits SET championship_count=?, updated_at=CURRENT_TIMESTAMP
+             WHERE sport_id='hockey' AND player_id=?""",
+        [(count, player_id) for player_id, count in counts.items()],
+    )
+    return len(counts), matched_seasons
+
+
 def load_nba(conn: sqlite3.Connection) -> int:
     if not NBA_STATS.exists():
         raise RuntimeError(f"Missing NBA source file: {NBA_STATS}")
     totals: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    seasons: dict[tuple[str, int], dict[str, int]] = defaultdict(lambda: defaultdict(int))
     with NBA_STATS.open(encoding="utf-8-sig", newline="") as handle:
         for row in csv.DictReader(handle):
             if (row.get("gameType") or "").lower() != "regular season":
@@ -176,13 +278,30 @@ def load_nba(conn: sqlite3.Connection) -> int:
             player_id = (row.get("personId") or "").strip()
             if not player_id:
                 continue
+            played_at = (row.get("gameDate") or row.get("gameDateTimeEst") or "")[:4]
+            calendar_year = integer(played_at)
+            # NBA seasons cross calendar years. Games in Oct-Dec begin the
+            # season; games in Jan-Jun belong to the previous start year.
+            month = integer((row.get("gameDate") or row.get("gameDateTimeEst") or "")[5:7])
+            season = calendar_year if month >= 8 else calendar_year - 1
+            if not season:
+                continue
             stats = totals[f"nba:{player_id}"]
             stats["games"] += 1
             stats["points"] += integer(row.get("points"))
             stats["goals"] += integer(row.get("threePointersMade"))
             stats["assists"] += integer(row.get("assists"))
+            season_stats = seasons[(f"nba:{player_id}", season)]
+            season_stats["games"] += 1
+            season_stats["points"] += integer(row.get("points"))
+            season_stats["goals"] += integer(row.get("threePointersMade"))
+            season_stats["assists"] += integer(row.get("assists"))
     rows = [("basketball", player_id, stat["games"], stat["points"], stat["goals"], stat["assists"], 0, 0, 0, 0, 0, 0, "kaggle_eoinamoore_nba") for player_id, stat in totals.items()]
     replace_traits(conn, "basketball", rows, "kaggle_eoinamoore_nba", "https://www.kaggle.com/datasets/eoinamoore/historical-nba-data-and-player-box-scores", "regular-season box scores, 1947-present source archive")
+    replace_season_traits(conn, "basketball", [
+        ("basketball", player_id, season, stat["games"], stat["points"], stat["goals"], stat["assists"], 0, 0, 0, 0, 0, 0, "kaggle_eoinamoore_nba")
+        for (player_id, season), stat in seasons.items()
+    ])
     return len(rows)
 
 
@@ -254,6 +373,7 @@ def load_nba_championships(conn: sqlite3.Connection) -> tuple[int, int]:
 
 def load_nfl(conn: sqlite3.Connection, first_season: int, last_season: int) -> tuple[int, list[int]]:
     totals: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
+    seasons: dict[tuple[str, int], dict[str, float]] = defaultdict(lambda: defaultdict(float))
     skipped = []
     for season in range(first_season, last_season + 1):
         response = requests.get(NFL_URL.format(season=season), timeout=90)
@@ -275,8 +395,17 @@ def load_nfl(conn: sqlite3.Connection, first_season: int, last_season: int) -> t
             stats["passing_tds"] += passing; stats["rushing_tds"] += rushing; stats["receiving_tds"] += receiving
             stats["touchdowns"] += passing + rushing + receiving + integer(row.get("special_teams_tds")) + integer(row.get("def_tds")) + integer(row.get("fumble_recovery_tds"))
             stats["sacks"] += number(row.get("def_sacks")); stats["interceptions"] += integer(row.get("def_interceptions"))
+            season_stats = seasons[(f"nfl:{player_id}", season)]
+            season_stats["games"] += integer(row.get("games")) if is_season_total else 1
+            season_stats["passing_tds"] += passing; season_stats["rushing_tds"] += rushing; season_stats["receiving_tds"] += receiving
+            season_stats["touchdowns"] += passing + rushing + receiving + integer(row.get("special_teams_tds")) + integer(row.get("def_tds")) + integer(row.get("fumble_recovery_tds"))
+            season_stats["sacks"] += number(row.get("def_sacks")); season_stats["interceptions"] += integer(row.get("def_interceptions"))
     rows = [("football", player_id, int(stat["games"]), 0, 0, 0, int(stat["touchdowns"]), int(stat["passing_tds"]), int(stat["rushing_tds"]), int(stat["receiving_tds"]), stat["sacks"], int(stat["interceptions"]), "nflverse_player_stats") for player_id, stat in totals.items()]
     replace_traits(conn, "football", rows, "nflverse_player_stats", "https://github.com/nflverse/nflverse-data/releases/tag/player_stats", f"weekly player stats, {first_season}-{last_season}; unavailable seasons: {','.join(map(str, skipped)) or 'none'}")
+    replace_season_traits(conn, "football", [
+        ("football", player_id, season, int(stat["games"]), 0, 0, 0, int(stat["touchdowns"]), int(stat["passing_tds"]), int(stat["rushing_tds"]), int(stat["receiving_tds"]), stat["sacks"], int(stat["interceptions"]), "nflverse_player_stats")
+        for (player_id, season), stat in seasons.items()
+    ])
     return len(rows), skipped
 
 
@@ -324,6 +453,32 @@ def load_nhl(conn: sqlite3.Connection, download: bool) -> tuple[int, int]:
                     stat["assists"] = max(stat["assists"], integer(row.get("assists")))
     rows = [("hockey", player_id, stat["games"], stat["goals"] + stat["assists"], stat["goals"], stat["assists"], 0, 0, 0, 0, 0, 0, "kaggle_flynn28_nhl") for player_id, stat in totals.items()]
     replace_traits(conn, "hockey", rows, "kaggle_flynn28_nhl", "https://www.kaggle.com/datasets/flynn28/nhl-player-database", "career skater and goalie totals, 1918-present")
+    if not HOCKEYDB_SCORING.exists():
+        raise RuntimeError(f"Missing Hockey Databank scoring source: {HOCKEYDB_SCORING}")
+    hockeydb_ids = {
+        external_id: player_id
+        for external_id, player_id in conn.execute(
+            """SELECT external_id, player_id FROM sport_player_external_ids
+                 WHERE sport_id='hockey' AND source='hockeydb'"""
+        )
+    }
+    seasons: dict[tuple[str, int], dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    with HOCKEYDB_SCORING.open(encoding="utf-8-sig", newline="") as handle:
+        for row in csv.DictReader(handle):
+            if row.get("lgID") != "NHL":
+                continue
+            player_id = hockeydb_ids.get((row.get("playerID") or "").strip())
+            season = integer(row.get("year"))
+            if not player_id or not season:
+                continue
+            stat = seasons[(player_id, season)]
+            stat["games"] += integer(row.get("GP"))
+            stat["goals"] += integer(row.get("G"))
+            stat["assists"] += integer(row.get("A"))
+    replace_season_traits(conn, "hockey", [
+        ("hockey", player_id, season, stat["games"], stat["goals"] + stat["assists"], stat["goals"], stat["assists"], 0, 0, 0, 0, 0, 0, "hockey_databank_scoring")
+        for (player_id, season), stat in seasons.items()
+    ])
     return len(rows), unresolved
 
 
@@ -403,16 +558,36 @@ def load_nhl_awards(conn: sqlite3.Connection) -> tuple[int, int]:
 
 
 def load_nhl_championships(conn: sqlite3.Connection, first_season: int, last_season: int) -> tuple[int, int, list[int]]:
-    """Derive Stanley Cup champions from official NHL club schedule results.
+    """Load Stanley Cup champion seasons and credit rostered players once.
 
-    The final game contains a round marker in modern responses. Older response
-    formats retain the playoff-round portion of the game id, so both forms are
-    accepted. Responses are cached because this checks historical schedules for
-    every NHL franchise code.
+    Hockey Databank is the authoritative local historical backbone through
+    2017. The NHL schedule/fallback sources fill the modern tail. This function
+    always resets hockey counts, so running any loader repeatedly cannot inflate
+    a player's total.
     """
     cache_root = ROOT / "raw" / "nhl_champion_schedules"
     champions: dict[int, str] = {}
-    missing: list[int] = []
+    hockeydb_champions: dict[int, str] = {}
+    hockeydb_path = ROOT / "raw" / "hockeydb" / "Teams.csv"
+    if not hockeydb_path.exists():
+        raise RuntimeError(f"Missing Hockey Databank team source: {hockeydb_path}")
+    with hockeydb_path.open(encoding="utf-8-sig", newline="") as handle:
+        for row in csv.DictReader(handle):
+            season = integer(row.get("year"))
+            source_team = (row.get("tmID") or "").strip()
+            if (
+                row.get("lgID") == "NHL"
+                and row.get("playoff") == "SC"
+                and first_season <= season <= min(last_season, 2017)
+                and source_team in HOCKEYDB_CHAMPION_TEAM_IDS
+            ):
+                hockeydb_champions[season] = source_team
+                champions[season] = HOCKEYDB_CHAMPION_TEAM_IDS[source_team]
+    for season, (source_team, team_id) in NHL_HISTORIC_CHAMPION_OVERRIDES.items():
+        if first_season <= season <= min(last_season, 2017):
+            hockeydb_champions[season] = source_team
+            champions[season] = team_id
+
     fallback = requests.get(NHL_CHAMPION_FALLBACK_URL, timeout=60)
     fallback.raise_for_status()
     fallback_seasons = 0
@@ -421,7 +596,7 @@ def load_nhl_championships(conn: sqlite3.Connection, first_season: int, last_sea
         # stores season start years.
         season = integer(row.get("Season")) - 1
         code = NHL_CHAMPION_TEAM_CODES.get(normalize(row.get("Team") or ""))
-        if first_season <= season <= last_season and code:
+        if 2018 <= season <= last_season and code:
             champions[season] = code
             fallback_seasons += 1
 
@@ -482,16 +657,23 @@ def load_nhl_championships(conn: sqlite3.Connection, first_season: int, last_sea
     # The 2004-05 NHL season was cancelled during the lockout, so no Stanley
     # Cup champion can be credited even if a third-party source includes one.
     champions.pop(2004, None)
-    missing = [season for season in range(first_season, last_season + 1) if season not in champions]
-    players, matched = update_championship_counts(
-        conn, "hockey", champions, "nhl_championship_results", NHL_CHAMPION_FALLBACK_URL,
-        "Official NHL decisive-final schedules plus a season-level champion fallback",
+    # No Cup was awarded in 1918-19 or the cancelled 2004-05 season.
+    no_champion_seasons = {1918, 2004}
+    missing = [
+        season for season in range(first_season, last_season + 1)
+        if season not in champions and season not in no_champion_seasons
+    ]
+    players, matched = update_nhl_championship_counts(conn, champions, hockeydb_champions)
+    conn.execute("DELETE FROM sport_trait_provenance WHERE sport_id='hockey' AND source='nhl_championship_results'")
+    conn.execute(
+        "INSERT INTO sport_trait_provenance (sport_id, source, source_url, coverage) VALUES (?, ?, ?, ?)",
+        ("hockey", "nhl_championship_results", NHL_CHAMPION_FALLBACK_URL, "Hockey Databank playoff participants through 2017 plus season-roster credits for the modern tail"),
     )
     conn.execute("DELETE FROM sport_trait_provenance WHERE sport_id='hockey' AND source='nhl_official_club_schedules'")
     # Replace the generic provenance coverage with the actual resolved scope.
     conn.execute(
         "UPDATE sport_trait_provenance SET coverage=? WHERE sport_id='hockey' AND source='nhl_championship_results'",
-        (f"{len(champions)} Stanley Cup champion seasons: official NHL schedules, {fallback_seasons} archived seasons, and recent NHL Records winners; unresolved: {','.join(map(str, missing)) or 'none'}",),
+        (f"{len(champions)} Stanley Cup champion seasons: Hockey Databank through 2017, {fallback_seasons} fallback seasons, and NHL modern results; no Cup: 1918,2004; unresolved: {','.join(map(str, missing)) or 'none'}",),
     )
     return players, matched, missing
 
