@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.29`
+- Current display version: `0.1.30`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Required environment values are documented in `.env.example`. Never commit
@@ -164,6 +164,11 @@ changes. It is the concise source of truth for another coding assistant.
   Baseball has twelve options. Marathon and championship totals are separate
   choices, balanced at 12 selections and 5 titles cross-sport, or 15 World
   Series rings for baseball.
+- Playoffs thresholds are calibrated against local qualifier counts. Examples:
+  hockey's 250-goal threshold was too common (348 players), so Sniper now
+  requires 350 goals (166). NHL championship totals are not sufficiently
+  reliable for win logic yet; hockey uses the 1,200-game Ironhorse condition
+  instead of a Stanley Cup total.
 
 ## Shared lineup rules
 

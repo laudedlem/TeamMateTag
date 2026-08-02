@@ -225,25 +225,25 @@ function onlineApiBase(mode = currentMode) {
 
 const LOCAL_PLAYOFF_OPTIONS = {
   basketball: [
-    ['random', 'Random'], ['ironman', 'Bucket Getter: 3 players with 10,000 career points'],
+    ['random', 'Random'], ['ironman', 'Bucket Getter: 3 players with 15,000 career points'],
     ['one_team', 'Home Court: 2 players with 8 seasons for one franchise'],
     ['journeyman', 'Frequent Flyer: 2 players who played for 5 teams'], ['mvp_circle', 'MVP Circle: 2 MVP winners'],
     ['all_star_marathon', 'All-Star Marathon: 12 combined selections'], ['ring_chaser', 'Ring Chaser: 5 combined championships'],
     ['superstar', 'Superstar: 2 players with 20,000 career points'], ['young_guns', 'Young Guns: 2 Rookie of the Year winners'],
   ],
   football: [
-    ['random', 'Random'], ['ironman', 'End Zone: 3 players with 20 career touchdowns'],
+    ['random', 'Random'], ['ironman', 'End Zone: 3 players with 50 career touchdowns'],
     ['one_team', 'One Club: 2 players with 10 seasons for one franchise'],
     ['journeyman', 'Journeyman: 2 players who played for 5 teams'], ['mvp_circle', 'MVP Circle: 2 MVP winners'],
-    ['pro_bowl_marathon', 'Pro Bowl Marathon: 12 combined selections'], ['ring_chaser', 'Ring Chaser: 5 combined championships'],
-    ['touchdown_club', 'Touchdown Club: 2 players with 80 career touchdowns'],
+    ['pro_bowl_marathon', 'Pro Bowl Marathon: 12 combined selections'], ['ring_chaser', 'Ring Chaser: 4 combined championships'],
+    ['touchdown_club', 'Touchdown Club: 2 players with 100 career touchdowns'],
   ],
   hockey: [
-    ['random', 'Random'], ['ironman', 'Sniper: 3 players with 250 career goals'],
+    ['random', 'Random'], ['ironman', 'Sniper: 3 players with 350 career goals'],
     ['one_team', 'Lifer: 2 players with 10 seasons for one franchise'],
     ['journeyman', 'Journeyman: 2 players who played for 5 teams'], ['mvp_circle', 'Hart Club: 2 Hart Trophy winners'],
-    ['all_star_marathon', 'All-Star Marathon: 12 combined selections'], ['ring_chaser', 'Ring Chaser: 5 combined Stanley Cup wins'],
-    ['playmaker', 'Playmaker: 3 players with 700 career points'], ['forty_goal', 'Forty Goal Club: 2 players with 400 career goals'],
+    ['all_star_marathon', 'All-Star Marathon: 12 combined selections'], ['ironhorse', 'Ironhorse: 2 players with 1,200 career games'],
+    ['playmaker', 'Playmaker: 3 players with 900 career points'], ['forty_goal', 'Forty Goal Club: 2 players with 450 career goals'],
   ],
 };
 
