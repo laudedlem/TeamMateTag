@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.36`
+- Current display version: `0.1.37`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -405,6 +405,13 @@ be applied and then fail while evaluating its win condition, leaving the
 browser on stale state. Devin Hester to Matt Forte now returns `valid` through
 the online Playoffs endpoint. The powerup dropdown lays both players' lists
 side-by-side when opened, and win-condition boxes are more compact.
+
+Update, 2026-08-01 (0.1.37): cross-sport multiplayer now reaps expired
+Supabase games before every queue, status, game, move, and timeout request.
+This is required on Vercel because a stopped browser poll cannot be trusted to
+finish a 20-second game. It prevents abandoned games from being returned as
+active forever and blocking either user from requeueing. Existing stale NBA,
+NFL, and NHL test rows were finalized during this pass.
 
 Profile responses now include `stats.sports.baseball|basketball|football|hockey`.
 New cross-sport BP/FR results write their sport ID, so stats are isolated.

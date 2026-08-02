@@ -6089,6 +6089,26 @@ def _sport_online_expire(blob: dict):
         blob["last_move"] = {"outcome": "timeout"}
 
 
+def _reap_expired_sport_games(conn, sport: str, mode: str):
+    """Finish abandoned serverless games before matchmaking reads active rows.
+
+    A Vercel function cannot rely on a browser poll to enforce a 20-second
+    clock. Without this sweep, closing a tab left an unfinished match that
+    permanently blocked both players from the queue.
+    """
+    rows = conn.execute(
+        """SELECT game_id::text, state, finished FROM sport_online_games
+             WHERE sport_id=%s AND mode=%s AND NOT finished""", (sport, mode),
+    ).fetchall()
+    for game_id, blob, finished in rows:
+        blob["finished"] = finished
+        _sport_online_expire(blob)
+        if blob["finished"]:
+            state = deserialize_state(blob)
+            _save_sport_online_result(conn, game_id, blob, state)
+            _sport_online_save(conn, game_id, blob)
+
+
 def _save_sport_online_result(conn, game_id: str, blob: dict, state: GameState):
     if blob.get("result_saved") or not blob.get("finished"):
         return
@@ -6173,6 +6193,7 @@ def _sport_online_create(conn, sport: str, mode: str, a: tuple[str, str], b: tup
 
 
 def _sport_online_status(conn, sport: str, mode: str, guest_id: str):
+    _reap_expired_sport_games(conn, sport, mode)
     row = conn.execute("""SELECT game_id::text, state, finished FROM sport_online_games
                          WHERE sport_id=%s AND mode=%s AND NOT finished
                            AND (state->>'p1_guest_id'=%s OR state->>'p2_guest_id'=%s)
@@ -6225,6 +6246,7 @@ def sport_online_status(sport: str, mode: str):
 def sport_online_game(sport: str, mode: str):
     data = request.get_json(silent=True) or {}; guest, gid = (data.get("guest_id") or "").strip(), data.get("game_id")
     with db() as conn:
+        _reap_expired_sport_games(conn, sport, mode)
         blob, state = _sport_online_load(conn, sport, mode, gid)
         if not blob: return jsonify({"error": "unknown game_id"}), 404
         if guest not in {blob["p1_guest_id"], blob["p2_guest_id"]}: return jsonify({"error": "unauthorized"}), 403
@@ -6236,6 +6258,7 @@ def sport_online_game(sport: str, mode: str):
 def sport_online_move(sport: str, mode: str):
     data = request.get_json(silent=True) or {}; guest, gid = (data.get("guest_id") or "").strip(), data.get("game_id")
     with db() as conn:
+        _reap_expired_sport_games(conn, sport, mode)
         blob, state = _sport_online_load(conn, sport, mode, gid)
         if not blob: return jsonify({"error": "unknown game_id"}), 404
         if guest not in {blob["p1_guest_id"], blob["p2_guest_id"]}: return jsonify({"error": "unauthorized"}), 403
@@ -6293,6 +6316,7 @@ def sport_online_powerup(sport: str):
 def sport_online_timeout(sport: str, mode: str):
     data=request.get_json(silent=True) or {}; guest,gid=(data.get("guest_id") or "").strip(),data.get("game_id")
     with db() as conn:
+        _reap_expired_sport_games(conn, sport, mode)
         blob,state=_sport_online_load(conn,sport,mode,gid)
         if not blob: return jsonify({"error":"unknown game_id"}),404
         if guest not in {blob["p1_guest_id"],blob["p2_guest_id"]}: return jsonify({"error":"unauthorized"}),403
