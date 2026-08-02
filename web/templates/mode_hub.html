@@ -6,7 +6,7 @@
   <title>{{ hub.title }} | TeamMateTag</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
-<body>
+<body data-mode-hub="{{ slug }}">
   <header class="site-header">
     <a class="title" href="/"><div class="brand-row"><h1>TeamMateTag</h1></div></a>
     <a class="secondary" href="/">Sports</a>
@@ -18,18 +18,19 @@
     <h3>Choose a sport</h3>
     <div class="sport-tiles">
       {% for key, sport in sports.items() %}
-      <a class="sport-tile sport-tile-{{ key }}" href="/{{ key }}?mode={{ hub.mode }}">
+      <a class="sport-tile sport-tile-{{ key }}" href="/{{ key }}?mode={{ hub.mode }}" data-sport="{{ key }}">
         <span class="sport-tile-league">{{ sport.league }}</span>
         <span class="sport-tile-name">{{ sport.name }}</span>
-        <span class="sport-tile-status">{% if slug == 'film-review' %}Today's puzzle{% else %}Play now{% endif %}</span>
+        <span class="sport-tile-status">{% if slug == 'manager-mode' %}<span data-manager-best="{{ key }}">Longest lineup: --</span>{% elif slug == 'film-review' %}Today's puzzle{% else %}Play now{% endif %}</span>
       </a>
       {% endfor %}
     </div>
     {% if slug == 'film-review' %}
-    <p class="muted small mode-hub-note">Open a sport to play today. Its Film Review screen includes the permanent archive for prior dates.</p>
+    <div class="mode-hub-archive" id="mode-hub-archive"><p class="muted small">Loading Film Review archive...</p></div>
     {% elif slug == 'playoffs' %}
     <p class="muted small mode-hub-note">Choose your win condition after selecting a sport, before entering the queue.</p>
     {% endif %}
   </main>
+  <script src="{{ url_for('static', filename='mode_hub.js') }}"></script>
 </body>
 </html>

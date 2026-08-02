@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.48`
+- Current display version: `0.1.49`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -543,6 +543,13 @@ route a selected sport into its existing game surface via `?mode=`. Multi-sport
 online queue selection is intentionally not implemented yet: it needs a shared
 lobby that atomically removes the player from every selected sport queue when
 one match forms.
+
+Update, 2026-08-02 (0.1.49): mode hubs now bootstrap the local profile.
+Manager Mode sport tiles show the player's per-sport longest lineup. Film
+Review lists each sport's current-day state and direct archive links, colored
+by unseen, completed, or failed status. Query-mode launches wait for profile
+bootstrap, so a Manager Mode or Film Review sport button enters the selected
+mode directly instead of stopping on the sport home page.
 
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.

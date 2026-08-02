@@ -2472,11 +2472,15 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && !els.rulesModal.hidden) closeRules();
 });
 
+const launchMode = new URLSearchParams(window.location.search).get('mode');
+const launchDate = new URLSearchParams(window.location.search).get('date');
+const launchArchive = new URLSearchParams(window.location.search).get('archive') === '1';
 showScreen('home');
 renderProfile();
-bootstrapProfile();
-const launchMode = new URLSearchParams(window.location.search).get('mode');
-if (launchMode && ['bp', 'fr', 'mp', 'po'].includes(launchMode)) {
-  window.history.replaceState({}, '', window.location.pathname);
-  setTimeout(() => pickMode(launchMode), 0);
-}
+bootstrapProfile().then(() => {
+  if (launchMode && ['bp', 'fr', 'mp', 'po'].includes(launchMode)) {
+    window.history.replaceState({}, '', window.location.pathname);
+    if (launchMode === 'fr' && launchDate) startFr(null, { puzzle_date: launchDate, archive: launchArchive });
+    else pickMode(launchMode);
+  }
+});
