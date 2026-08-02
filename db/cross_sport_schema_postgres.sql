@@ -67,6 +67,26 @@ DROP INDEX IF EXISTS idx_sport_players_external_id;
 CREATE INDEX IF NOT EXISTS idx_sport_players_name
     ON sport_players(sport_id, last_name, display_name);
 
+CREATE TABLE IF NOT EXISTS sport_player_positions (
+    sport_id      TEXT NOT NULL REFERENCES sports(sport_id),
+    player_id     TEXT NOT NULL,
+    position      TEXT NOT NULL,
+    games         INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (sport_id, player_id, position),
+    FOREIGN KEY (sport_id, player_id)
+        REFERENCES sport_players(sport_id, player_id)
+);
+
+CREATE TABLE IF NOT EXISTS sport_player_images (
+    sport_id      TEXT NOT NULL REFERENCES sports(sport_id),
+    player_id     TEXT NOT NULL,
+    source_url    TEXT NOT NULL,
+    content_type  TEXT,
+    PRIMARY KEY (sport_id, player_id),
+    FOREIGN KEY (sport_id, player_id)
+        REFERENCES sport_players(sport_id, player_id)
+);
+
 -- One qualifying roster or regular-season appearance per player, team, season.
 -- Exact roster inclusion rules are documented with each source loader.
 CREATE TABLE IF NOT EXISTS sport_appearances (

@@ -26,6 +26,7 @@ const els = {
   profileScreen: document.getElementById('profile-screen'),
   friendsScreen: document.getElementById('friends-screen'),
   profileScreenName: document.getElementById('profile-screen-name'),
+  profileSportSelect: document.getElementById('profile-sport-select'),
   profileBpBest: document.getElementById('profile-bp-best'),
   profileBpPlays: document.getElementById('profile-bp-plays'),
   profileFrRecord: document.getElementById('profile-fr-record'),
@@ -169,21 +170,27 @@ let friendsData = null;
 const GUEST_ID_KEY = 'tt_guest_id';
 const CURRENT_SPORT = document.body.dataset.sport || '';
 const LOCAL_SOLO_SPORTS = new Set(['football', 'basketball', 'hockey']);
+const CROSS_SPORTS_ONLINE = document.body.dataset.crossSportsOnline === 'true';
+const USE_LOCAL_CROSS_SPORTS = !CROSS_SPORTS_ONLINE && LOCAL_SOLO_SPORTS.has(CURRENT_SPORT);
 
 function localSoloPath(suffix) {
-  return '/api/local/' + CURRENT_SPORT + '/bp/' + suffix;
+  return (USE_LOCAL_CROSS_SPORTS ? '/api/local/' : '/api/sports/') + CURRENT_SPORT + '/bp/' + suffix;
 }
 
 function usesLocalFilmReview() {
-  return LOCAL_SOLO_SPORTS.has(CURRENT_SPORT);
+  return USE_LOCAL_CROSS_SPORTS;
 }
 
 function usesLocalPlayoffs() {
-  return LOCAL_SOLO_SPORTS.has(CURRENT_SPORT);
+  return USE_LOCAL_CROSS_SPORTS;
 }
 
 function localFilmReviewPath(suffix) {
-  return '/api/local/' + CURRENT_SPORT + '/fr/' + suffix;
+  return (USE_LOCAL_CROSS_SPORTS ? '/api/local/' : '/api/sports/') + CURRENT_SPORT + '/fr/' + suffix;
+}
+
+function isCrossSport() {
+  return LOCAL_SOLO_SPORTS.has(CURRENT_SPORT);
 }
 
 const POWERUP_UI = {
@@ -317,17 +324,19 @@ function renderProfile() {
     : profile.account
       ? 'Account found. Log in to use it on this device.'
       : 'Guest profile saved on this browser.';
-  const wins = profile.stats?.fr_wins ?? 0;
-  const plays = profile.stats?.fr_plays ?? 0;
-  const drWins = profile.stats?.dr_wins ?? 0;
-  const drLosses = profile.stats?.dr_losses ?? 0;
+  const selectedSport = els.profileSportSelect?.value || 'baseball';
+  const stats = profile.stats?.sports?.[selectedSport] || profile.stats || {};
+  const wins = stats.fr_wins ?? 0;
+  const plays = stats.fr_plays ?? 0;
+  const drWins = stats.dr_wins ?? 0;
+  const drLosses = stats.dr_losses ?? 0;
   els.profileScreenName.textContent = profile.account?.username || profile.display_name || '';
-  els.profileBpBest.textContent = String(profile.stats?.bp_best ?? 0);
-  els.profileBpPlays.textContent = String(profile.stats?.bp_plays ?? 0);
+  els.profileBpBest.textContent = String(stats.bp_best ?? 0);
+  els.profileBpPlays.textContent = String(stats.bp_plays ?? 0);
   els.profileFrRecord.textContent = `${wins}-${Math.max(0, plays - wins)}`;
-  els.profileDrElo.textContent = String(profile.stats?.dr_elo ?? 1200);
+  els.profileDrElo.textContent = String(stats.dr_elo ?? 1200);
   els.profileDrRecord.textContent = `${drWins}-${drLosses}`;
-  const topStruck = profile.stats?.top_struck_teams || [];
+  const topStruck = stats.top_struck_teams || [];
   els.profileTopStruck.textContent = topStruck.length
     ? topStruck.map((t) => `${t.team_name} ${t.season} (${t.count})`).join(', ')
     : 'None yet';
@@ -717,14 +726,14 @@ async function cancelFriendChallenge(challengeId) {
 
 async function getAutocomplete(q) {
   const endpoint = LOCAL_SOLO_SPORTS.has(CURRENT_SPORT)
-    ? '/api/local/' + CURRENT_SPORT + '/autocomplete'
+    ? (USE_LOCAL_CROSS_SPORTS ? '/api/local/' : '/api/sports/') + CURRENT_SPORT + '/autocomplete'
     : '/api/autocomplete';
   const r = await fetch(endpoint + '?q=' + encodeURIComponent(q));
   return r.json();
 }
 
 async function getTeamAutocomplete(q) {
-  const endpoint = usesLocalFilmReview() ? localFilmReviewPath('team_autocomplete') : '/api/fr/team_autocomplete';
+  const endpoint = isCrossSport() ? localFilmReviewPath('team_autocomplete') : '/api/fr/team_autocomplete';
   const r = await fetch(endpoint + '?q=' + encodeURIComponent(q));
   return r.json();
 }
@@ -1024,7 +1033,7 @@ async function startFr(unit = null) {
   els.frYearInput.value = '';
   showScreen('fr-game');
   renderLoadingFilmReview();
-  frGame = await api(usesLocalFilmReview() ? localFilmReviewPath('new') : '/api/fr/new',
+  frGame = await api(isCrossSport() ? localFilmReviewPath('new') : '/api/fr/new',
     { guest_id: profile?.guest_id || storedGuestId(), unit });
   if (frGame.error) {
     alert('error: ' + frGame.error);
@@ -1262,8 +1271,8 @@ async function onMpTimeout() {
 }
 
 async function onBpTimeout() {
-  game = await api(LOCAL_SOLO_SPORTS.has(CURRENT_SPORT) ? localSoloPath('move') : '/api/bp/timeout',
-    LOCAL_SOLO_SPORTS.has(CURRENT_SPORT) ? { game_id: game.game_id } : { game_id: game.game_id });
+  game = await api(LOCAL_SOLO_SPORTS.has(CURRENT_SPORT) ? localSoloPath(USE_LOCAL_CROSS_SPORTS ? 'move' : 'timeout') : '/api/bp/timeout',
+    { game_id: game.game_id });
   if (game.finished) {
     renderBpGame();
     showGameOverBanner();
@@ -1914,7 +1923,7 @@ async function frSubmit(e) {
   const year = els.frYearInput.value.trim();
   if (!team || !year) return;
   closeTeamAutocomplete({ keepValue: true });
-  frGame = await api(usesLocalFilmReview() ? localFilmReviewPath('guess') : '/api/fr/guess', {
+  frGame = await api(isCrossSport() ? localFilmReviewPath('guess') : '/api/fr/guess', {
     game_id: frGame.game_id,
     team,
     year,
@@ -2028,7 +2037,7 @@ function hideFrSummaryBanner() {
 
 async function loadFrAnswers() {
   if (!frGame?.game_id || frGame?.won) return;
-  const res = await api(usesLocalFilmReview() ? localFilmReviewPath('reveal_answer') : '/api/fr/reveal_answer', { game_id: frGame.game_id });
+  const res = await api(isCrossSport() ? localFilmReviewPath('reveal_answer') : '/api/fr/reveal_answer', { game_id: frGame.game_id });
   if (!res.full_cards || !res.canonical_links) return;
   if (res.full_cards && res.canonical_links) {
     frGame.revealed_cards = res.full_cards;
@@ -2288,6 +2297,7 @@ els.rulesClose.addEventListener('click', closeRules);
 els.rulesBackdrop.addEventListener('click', closeRules);
 els.profileSaveBtn.addEventListener('click', saveProfileName);
 els.profileOpenBtn.addEventListener('click', openProfile);
+els.profileSportSelect?.addEventListener('change', renderProfile);
 els.friendsOpenBtn.addEventListener('click', openFriends);
 els.accountRegisterBtn.addEventListener('click', registerAccount);
 els.accountLoginBtn.addEventListener('click', loginAccount);

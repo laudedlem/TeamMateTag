@@ -35,6 +35,7 @@ TABLES = (
     ("sport_franchises", ("sport_id", "franchise_id", "name")),
     ("sport_teams", ("sport_id", "team_id", "season", "franchise_id", "name")),
     ("sport_players", ("sport_id", "player_id", "external_id", "display_name", "first_name", "last_name", "birth_year", "debut_year", "final_year", "primary_pos")),
+    ("sport_player_positions", ("sport_id", "player_id", "position", "games")),
     ("sport_appearances", ("sport_id", "player_id", "team_id", "season", "games_total")),
     ("sport_players_searchable", ("sport_id", "player_id", "display_name", "disambiguation", "search_key", "last_key", "career_games", "teammate_count")),
     ("sport_player_traits", ("sport_id", "player_id", "career_games", "career_points", "career_goals", "career_assists", "career_touchdowns", "passing_touchdowns", "rushing_touchdowns", "receiving_touchdowns", "career_sacks", "career_interceptions", "all_star_count", "mvp_count", "roty_count", "championship_count", "source", "updated_at")),
@@ -47,7 +48,7 @@ def copy_rows(src: sqlite3.Connection, dst: psycopg.Connection, table: str, colu
     quoted_columns = ", ".join(f'"{column}"' for column in columns)
     source_table = f"{table} AS source"
     canonical_only = ""
-    if table in {"sport_player_traits", "sport_player_season_traits"}:
+    if table in {"sport_player_positions", "sport_player_traits", "sport_player_season_traits"}:
         canonical_only = """ AND EXISTS (
             SELECT 1 FROM sport_players AS player
              WHERE player.sport_id = source.sport_id
@@ -96,7 +97,7 @@ def main() -> int:
                 # previous migration created it.
                 cur.execute("DROP TABLE IF EXISTS teammates CASCADE")
                 # Foreign-key-safe replacement for only the three incoming sports.
-                for table in ("sport_teammates", "sport_player_aliases", "sport_data_provenance"):
+                for table in ("sport_teammates", "sport_player_aliases", "sport_data_provenance", "sport_player_images", "sport_player_positions"):
                     cur.execute(f"DELETE FROM {table} WHERE sport_id = ANY(%s)", (list(SPORTS),))
                 for table in reversed([name for name, _ in TABLES]):
                     cur.execute(f"DELETE FROM {table} WHERE sport_id = ANY(%s)", (list(SPORTS),))
@@ -115,6 +116,24 @@ def main() -> int:
                 count = copy_rows(src, dst, table, columns)
                 dst.commit()
                 print(f"{table:34} {count:>8,} rows  {time.monotonic() - started:5.1f}s")
+
+            image_rows = src.execute(
+                """SELECT image.sport_id, image.player_id, image.source_url, image.content_type
+                     FROM local_player_images AS image
+                     JOIN sport_players AS player
+                       ON player.sport_id=image.sport_id AND player.player_id=image.player_id
+                    WHERE image.sport_id IN (?, ?, ?) AND image.source_url <> ''""",
+                SPORTS,
+            )
+            started = time.monotonic()
+            with dst.cursor() as cur:
+                with cur.copy("COPY sport_player_images (sport_id, player_id, source_url, content_type) FROM STDIN") as copy:
+                    image_count = 0
+                    for row in image_rows:
+                        copy.write_row(tuple(row))
+                        image_count += 1
+            dst.commit()
+            print(f"{'sport_player_images':34} {image_count:>8,} rows  {time.monotonic() - started:5.1f}s")
 
             with dst.cursor() as cur:
                 size = cur.execute("SELECT pg_size_pretty(pg_database_size(current_database()))").fetchone()[0]

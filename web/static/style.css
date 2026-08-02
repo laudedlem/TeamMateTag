@@ -397,6 +397,20 @@ button.danger:hover:not(:disabled) {
   max-width: 720px;
 }
 
+.profile-sport-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin-top: 0.35rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.profile-sport-picker select {
+  width: auto;
+  margin: 0;
+}
+
 .profile-detail-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

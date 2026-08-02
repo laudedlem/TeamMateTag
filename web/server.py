@@ -67,6 +67,14 @@ PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
+# When running the local curation build we deliberately keep using SQLite so
+# data imports can be tested without touching Supabase. Every deployed sport
+# page uses the compact Postgres catalog instead.
+CROSS_SPORTS_ONLINE = bool(DATABASE_URL) and not LOCAL_SPORTS_ENABLED
+# This remains false until the shared matchmaking, challenge, rematch, and
+# Playoffs persistence adapters are ported. It prevents a partial deployment
+# from exposing the two baseball-only multiplayer endpoints on another sport.
+CROSS_SPORTS_FULLY_ONLINE = False
 LOCAL_SPORT_DATA = ROOT / "db" / "teammatetag_local.sqlite"
 LOCAL_SPORT_SEEDS = {
     "football": "nfl:00-0024272",  # Devin Hester
@@ -513,6 +521,7 @@ def ensure_runtime_schema():
                 "CREATE INDEX IF NOT EXISTS idx_fr_results_owner_guest "
                 "ON fr_results(owner_guest_id, finished_at DESC)"
             )
+            conn.execute("ALTER TABLE fr_results ADD COLUMN IF NOT EXISTS sport_id TEXT NOT NULL DEFAULT 'baseball'")
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS dr_results (
                        result_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -545,6 +554,8 @@ def ensure_runtime_schema():
                 "CREATE UNIQUE INDEX IF NOT EXISTS idx_dr_results_owner_game_unique "
                 "ON dr_results(owner_guest_id, game_id) WHERE game_id IS NOT NULL"
             )
+            conn.execute("ALTER TABLE dr_results ADD COLUMN IF NOT EXISTS sport_id TEXT NOT NULL DEFAULT 'baseball'")
+            conn.execute("ALTER TABLE bp_runs ADD COLUMN IF NOT EXISTS sport_id TEXT NOT NULL DEFAULT 'baseball'")
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS dr_queue (
                        guest_id UUID PRIMARY KEY REFERENCES guests(guest_id) ON DELETE CASCADE,
@@ -596,6 +607,31 @@ def ensure_runtime_schema():
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_guest_team_strikeouts_owner "
                 "ON guest_team_strikeouts(owner_guest_id, created_at DESC)"
+            )
+            conn.execute("ALTER TABLE guest_team_strikeouts ADD COLUMN IF NOT EXISTS sport_id TEXT NOT NULL DEFAULT 'baseball'")
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS guest_sport_ratings (
+                       guest_id UUID NOT NULL REFERENCES guests(guest_id) ON DELETE CASCADE,
+                       sport_id TEXT NOT NULL,
+                       elo INTEGER NOT NULL DEFAULT 1200,
+                       PRIMARY KEY (guest_id, sport_id)
+                )"""
+            )
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS sport_player_usage (
+                       sport_id TEXT NOT NULL,
+                       player_id TEXT NOT NULL,
+                       total_count INTEGER NOT NULL DEFAULT 0,
+                       bp_count INTEGER NOT NULL DEFAULT 0,
+                       dr_count INTEGER NOT NULL DEFAULT 0,
+                       last_used_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                       PRIMARY KEY (sport_id, player_id)
+                   )"""
+            )
+            conn.execute(
+                """INSERT INTO guest_sport_ratings (guest_id, sport_id, elo)
+                   SELECT guest_id, 'baseball', elo FROM guests
+                   ON CONFLICT (guest_id, sport_id) DO NOTHING"""
             )
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS dr_rematches (
@@ -998,7 +1034,7 @@ def _guest_stats(conn, guest_id: str) -> dict:
             LIMIT 3""",
         (guest_id,),
     ).fetchall()
-    return {
+    baseball_stats = {
         "bp_plays": bp_plays,
         "bp_best": bp_best,
         "fr_plays": fr_plays,
@@ -1012,6 +1048,38 @@ def _guest_stats(conn, guest_id: str) -> dict:
             for team_name, season, count in top_struck
         ],
     }
+    # Keep the established baseball fields for the current profile UI, while
+    # exposing the identical shape for every league. This lets the profile
+    # grow sport tabs without another storage migration.
+    sports = {"baseball": baseball_stats}
+    for sport in LOCAL_SPORT_SEEDS:
+        values = conn.execute(
+            """SELECT
+                   (SELECT COUNT(*) FROM bp_runs WHERE owner_guest_id=%s AND sport_id=%s),
+                   (SELECT COALESCE(MAX(chain_length), 0) FROM bp_runs WHERE owner_guest_id=%s AND sport_id=%s),
+                   (SELECT COUNT(*) FROM fr_results WHERE owner_guest_id=%s AND sport_id=%s),
+                   (SELECT COALESCE(SUM(CASE WHEN won THEN 1 ELSE 0 END), 0) FROM fr_results WHERE owner_guest_id=%s AND sport_id=%s),
+                   (SELECT COUNT(*) FROM dr_results WHERE owner_guest_id=%s AND sport_id=%s),
+                   (SELECT COALESCE(SUM(CASE WHEN won THEN 1 ELSE 0 END), 0) FROM dr_results WHERE owner_guest_id=%s AND sport_id=%s),
+                   (SELECT elo FROM guest_sport_ratings WHERE guest_id=%s AND sport_id=%s)""",
+            (guest_id, sport, guest_id, sport, guest_id, sport, guest_id, sport,
+             guest_id, sport, guest_id, sport, guest_id, sport),
+        ).fetchone()
+        bp_plays_s, bp_best_s, fr_plays_s, fr_wins_s, dr_plays_s, dr_wins_s, elo_s = values
+        struck = conn.execute(
+            """SELECT team_name, season, COUNT(*) FROM guest_team_strikeouts
+                 WHERE owner_guest_id=%s AND sport_id=%s
+                 GROUP BY team_name, season ORDER BY COUNT(*) DESC, season DESC, team_name ASC LIMIT 3""",
+            (guest_id, sport),
+        ).fetchall()
+        sports[sport] = {
+            "bp_plays": bp_plays_s, "bp_best": bp_best_s, "fr_plays": fr_plays_s,
+            "fr_wins": fr_wins_s, "dr_plays": dr_plays_s, "dr_wins": dr_wins_s,
+            "dr_losses": max(0, dr_plays_s - dr_wins_s), "dr_elo": elo_s or 1200,
+            "top_struck_teams": [{"team_name": name, "season": season, "count": count}
+                                  for name, season, count in struck],
+        }
+    return {**baseball_stats, "sports": sports}
 
 
 def _guest_profile(conn, guest_id: str, *, authenticated: bool = False) -> dict | None:
@@ -1579,6 +1647,37 @@ def _record_player_usage(conn, player_id: str, mode: str):
     )
 
 
+def _record_sport_player_usage(conn, sport: str, player_id: str, mode: str):
+    bp_inc = 1 if mode == "bp" else 0
+    dr_inc = 1 if mode in {"dr", "po"} else 0
+    conn.execute(
+        """INSERT INTO sport_player_usage (
+               sport_id, player_id, total_count, bp_count, dr_count, last_used_at
+           ) VALUES (%s, %s, 1, %s, %s, now())
+           ON CONFLICT (sport_id, player_id) DO UPDATE
+           SET total_count = sport_player_usage.total_count + 1,
+               bp_count = sport_player_usage.bp_count + EXCLUDED.bp_count,
+               dr_count = sport_player_usage.dr_count + EXCLUDED.dr_count,
+               last_used_at = now()""",
+        (sport, player_id, bp_inc, dr_inc),
+    )
+
+
+def _record_sport_struck_out_teams(conn, guest_id: str | None, sport: str,
+                                    mode: str, state: GameState):
+    if not guest_id:
+        return
+    for (team_id, season), count in state.strikes.items():
+        if count < STRIKES_TO_BURN:
+            continue
+        conn.execute(
+            """INSERT INTO guest_team_strikeouts (
+                   owner_guest_id, sport_id, mode, team_name, team_id, season
+               ) VALUES (%s, %s, %s, %s, %s, %s)""",
+            (guest_id, sport, mode, _sport_team_name(conn, sport, team_id, season), team_id, season),
+        )
+
+
 def _record_struck_out_teams(conn, guest_id: str | None, mode: str, state: GameState):
     if not guest_id:
         return
@@ -1899,14 +1998,14 @@ def _insert_game(conn, table: str, blob: dict) -> str:
 
 @app.route("/")
 def index():
-    return render_template("index.html", sport=None, sport_ready=False)
+    return render_template("index.html", sport=None, sport_ready=False, cross_sports_online=CROSS_SPORTS_ONLINE)
 
 
 SPORT_HUBS = {
     "baseball": {"name": "Baseball", "league": "MLB", "ready": True},
-    "basketball": {"name": "Basketball", "league": "NBA", "ready": LOCAL_SPORTS_ENABLED},
-    "hockey": {"name": "Hockey", "league": "NHL", "ready": LOCAL_SPORTS_ENABLED},
-    "football": {"name": "Football", "league": "NFL", "ready": LOCAL_SPORTS_ENABLED},
+    "basketball": {"name": "Basketball", "league": "NBA", "ready": LOCAL_SPORTS_ENABLED or CROSS_SPORTS_FULLY_ONLINE},
+    "hockey": {"name": "Hockey", "league": "NHL", "ready": LOCAL_SPORTS_ENABLED or CROSS_SPORTS_FULLY_ONLINE},
+    "football": {"name": "Football", "league": "NFL", "ready": LOCAL_SPORTS_ENABLED or CROSS_SPORTS_FULLY_ONLINE},
 }
 
 
@@ -1921,6 +2020,7 @@ def sport_hub():
         "index.html",
         sport={"key": sport_key, **sport},
         sport_ready=sport["ready"],
+        cross_sports_online=CROSS_SPORTS_ONLINE,
     )
 
 
@@ -2608,6 +2708,100 @@ def _local_sport_cards(conn: sqlite3.Connection, sport: str, player_ids: list[st
             "primary_pos": ({"R": "RW", "L": "LW", "D": "D"}.get(row[5], row[5]) if row else None), "teams": teams,
         }
     return out
+
+
+def _is_cross_sport(sport: str) -> bool:
+    return sport in LOCAL_SPORT_SEEDS
+
+
+def _sport_team_name(conn, sport: str, team_id: str, season: int) -> str:
+    row = conn.execute(
+        """SELECT name FROM sport_teams
+             WHERE sport_id = %s AND team_id = %s AND season = %s""",
+        (sport, team_id, season),
+    ).fetchone()
+    return row[0] if row else team_id
+
+
+def _sport_cards(conn, sport: str, player_ids: list[str]) -> dict[str, dict]:
+    """Hydrate cross-sport cards from the compact Postgres catalog.
+
+    Images are source URLs only. Keeping the original image binaries out of
+    Supabase is what lets the entire game catalog fit on the free database.
+    """
+    if not player_ids:
+        return {}
+    rows = conn.execute(
+        """SELECT player_id, external_id, debut_year, final_year, first_name,
+                  last_name, primary_pos
+             FROM sport_players
+            WHERE sport_id = %s AND player_id = ANY(%s)""",
+        (sport, player_ids),
+    ).fetchall()
+    images = dict(conn.execute(
+        """SELECT player_id, source_url FROM sport_player_images
+             WHERE sport_id = %s AND player_id = ANY(%s)""",
+        (sport, player_ids),
+    ).fetchall())
+    appearances = conn.execute(
+        """SELECT a.player_id, t.name, a.season
+             FROM sport_appearances a
+             JOIN sport_teams t ON t.sport_id=a.sport_id
+               AND t.team_id=a.team_id AND t.season=a.season
+            WHERE a.sport_id=%s AND a.player_id = ANY(%s)
+            ORDER BY a.player_id, a.season, t.name""",
+        (sport, player_ids),
+    ).fetchall()
+    teams_by_player: dict[str, dict[str, list[list[int]]]] = {}
+    for player_id, team, season in appearances:
+        ranges = teams_by_player.setdefault(player_id, {}).setdefault(team, [])
+        # A player returning after an injury is still one tenure line, with
+        # each actual year range preserved (Chicago Bulls 2008-11, 2013-15).
+        if ranges and ranges[-1][1] == season - 1:
+            ranges[-1][1] = season
+        else:
+            ranges.append([season, season])
+    out = {}
+    for player_id, external_id, debut, final, first, last, primary_pos in rows:
+        teams = []
+        for team, ranges in teams_by_player.get(player_id, {}).items():
+            years = ", ".join(str(a) if a == b else f"{a}-{b}" for a, b in ranges)
+            teams.append(f"{team} {years}")
+        out[player_id] = {
+            "mlbam_id": None,
+            "headshot_url": images.get(player_id),
+            "debut_year": debut,
+            "final_year": final,
+            "name_first": first,
+            "name_last": last,
+            "primary_pos": primary_pos,
+            "teams": teams,
+        }
+    return out
+
+
+def _sport_chain_dict(conn, sport: str, state: GameState) -> list[dict]:
+    cards = _sport_cards(conn, sport, list(state.chain))
+    chain = []
+    for index, (player_id, name) in enumerate(zip(state.chain, state.chain_names)):
+        card = cards.get(player_id, {})
+        chain.append({
+            "id": player_id, "name": name, **card,
+            "shared_with_prev": [
+                {"team_id": team, "season": season,
+                 "team_name": _sport_team_name(conn, sport, team, season)}
+                for team, season in state.chain_shared_with_prev[index]
+            ],
+        })
+    return chain
+
+
+def _sport_strikes_dict(conn, sport: str, state: GameState) -> list[dict]:
+    return [
+        {"team_id": team, "season": season, "count": count,
+         "team_name": _sport_team_name(conn, sport, team, season)}
+        for (team, season), count in state.strikes.items()
+    ]
 
 
 @app.route("/api/local/headshot/<sport>/<path:player_id>")
@@ -5242,6 +5436,127 @@ def bp_timeout():
         return jsonify(bp_state_dict(gid, blob, state, conn=conn))
 
 
+def _sport_bp_state_dict(gid: str, blob: dict, state: GameState, conn) -> dict:
+    started = datetime.fromisoformat(blob["turn_started_at"])
+    elapsed = (now_utc() - started).total_seconds()
+    countdown = max(0.0, blob["countdown_seconds"] - elapsed) if not blob["finished"] else 0.0
+    remaining = max(0.0, blob["turn_seconds"] - max(0.0, elapsed - blob["countdown_seconds"])) if not blob["finished"] else 0.0
+    sport = blob["sport"]
+    last_move = dict(blob.get("last_move") or {})
+    for field in ("shared_seasons", "burned_seasons"):
+        for item in last_move.get(field, []):
+            item["team_name"] = _sport_team_name(conn, sport, item["team_id"], item["season"])
+    return {
+        "game_id": gid, "mode": "bp", "sport": sport,
+        "mode_name": LOCAL_SPORT_MODE_NAMES[sport],
+        "current_player": {"id": state.current_player_id, "name": state.current_player_name},
+        "chain": _sport_chain_dict(conn, sport, state),
+        "strikes": _sport_strikes_dict(conn, sport, state),
+        "chain_length": len(state.chain), "longest_chain": blob["longest_chain"],
+        "turn_seconds": blob["turn_seconds"], "countdown_seconds_remaining": countdown,
+        "remaining_seconds": remaining, "finished": blob["finished"], "last_move": last_move,
+    }
+
+
+def _save_sport_bp_run(conn, blob: dict, state: GameState):
+    if blob.get("result_saved"):
+        return
+    guest_id = blob.get("owner_guest_id")
+    sport = blob["sport"]
+    if guest_id:
+        conn.execute(
+            """INSERT INTO bp_runs (owner_guest_id, seed_player_id, chain_length, sport_id)
+               VALUES (%s, %s, %s, %s)""",
+            (guest_id, blob["seed_player_id"], max(0, len(state.chain) - 1), sport),
+        )
+        _record_sport_struck_out_teams(conn, guest_id, sport, "bp", state)
+    blob["result_saved"] = True
+
+
+@app.route("/api/sports/<sport>/autocomplete")
+def sport_autocomplete(sport: str):
+    q = "".join(char for char in normalize(request.args.get("q") or "") if char.isalnum())
+    if not _is_cross_sport(sport) or not q:
+        return jsonify([])
+    with db() as conn:
+        rows = conn.execute(
+            """SELECT p.player_id, p.display_name, sp.debut_year, sp.final_year, p.career_games
+                 FROM sport_players_searchable p
+                 JOIN sport_players sp ON sp.sport_id=p.sport_id AND sp.player_id=p.player_id
+                WHERE p.sport_id=%s AND (p.search_key LIKE %s OR p.last_key LIKE %s)
+                ORDER BY p.career_games DESC LIMIT 4""",
+            (sport, q + "%", q + "%"),
+        ).fetchall()
+    return jsonify([{"player_id": pid, "display_name": name, "debut_year": debut,
+                     "final_year": final, "career_games": games}
+                    for pid, name, debut, final, games in rows])
+
+
+@app.route("/api/sports/<sport>/bp/new", methods=["POST"])
+def sport_bp_new(sport: str):
+    if not _is_cross_sport(sport):
+        return jsonify({"error": "unsupported sport"}), 404
+    data = request.get_json(silent=True) or {}
+    guest_id = (data.get("guest_id") or "").strip() or None
+    with db() as conn:
+        if guest_id and not conn.execute("SELECT 1 FROM guests WHERE guest_id=%s", (guest_id,)).fetchone():
+            guest_id = None
+        state = seed_game(PgEngineConn(conn), LOCAL_SPORT_SEEDS[sport], sport=sport)
+        _record_sport_player_usage(conn, sport, state.current_player_id, "bp")
+        blob = bp_blob_from_state(state, APP_TURN_SECONDS, now_utc(), OPENING_COUNTDOWN_SECONDS,
+                                  owner_guest_id=guest_id, seed_player_id=state.current_player_id)
+        blob["sport"] = sport
+        gid = _insert_game(conn, "bp_games", blob)
+        return jsonify(_sport_bp_state_dict(gid, blob, state, conn))
+
+
+@app.route("/api/sports/<sport>/bp/move", methods=["POST"])
+def sport_bp_move(sport: str):
+    data = request.get_json(silent=True) or {}
+    gid = data.get("game_id")
+    with db() as conn:
+        blob, state = _load_game(conn, "bp_games", gid)
+        if not blob or blob.get("sport") != sport:
+            return jsonify({"error": "unknown game_id"}), 404
+        if blob["finished"]:
+            return jsonify(_sport_bp_state_dict(gid, blob, state, conn))
+        elapsed = (now_utc() - datetime.fromisoformat(blob["turn_started_at"])).total_seconds()
+        if max(0.0, elapsed - blob["countdown_seconds"]) > blob["turn_seconds"]:
+            blob.update({"finished": True, "last_move": {"outcome": "timeout"}})
+            _save_sport_bp_run(conn, blob, state)
+        else:
+            player_id = (data.get("player_id") or "").strip() or None
+            raw = (data.get("raw") or "").strip()
+            if player_id or raw:
+                result = validate_and_apply_move(state, PgEngineConn(conn), raw_input=None if player_id else raw,
+                                                 player_id=player_id, track_strikes=True, sport=sport)
+                blob.update(serialize_state(state))
+                blob["last_move"] = result_to_dict(result)
+                if result.outcome == MoveOutcome.VALID:
+                    _record_sport_player_usage(conn, sport, result.player_id, "bp")
+                    blob["turn_started_at"] = now_utc().isoformat()
+                    blob["countdown_seconds"] = 0.0
+                    blob["longest_chain"] = max(blob["longest_chain"], len(state.chain))
+        _save_game(conn, "bp_games", gid, blob)
+        return jsonify(_sport_bp_state_dict(gid, blob, state, conn))
+
+
+@app.route("/api/sports/<sport>/bp/timeout", methods=["POST"])
+def sport_bp_timeout(sport: str):
+    data = request.get_json(silent=True) or {}
+    gid = data.get("game_id")
+    with db() as conn:
+        blob, state = _load_game(conn, "bp_games", gid)
+        if not blob or blob.get("sport") != sport:
+            return jsonify({"error": "unknown game_id"}), 404
+        elapsed = (now_utc() - datetime.fromisoformat(blob["turn_started_at"])).total_seconds()
+        if not blob["finished"] and max(0.0, elapsed - blob["countdown_seconds"]) >= blob["turn_seconds"] - .25:
+            blob.update({"finished": True, "last_move": {"outcome": "timeout"}})
+            _save_sport_bp_run(conn, blob, state)
+            _save_game(conn, "bp_games", gid, blob)
+        return jsonify(_sport_bp_state_dict(gid, blob, state, conn))
+
+
 # ============================================================
 # Film Review (daily puzzle)
 # ============================================================
@@ -5534,6 +5849,156 @@ def fr_reveal_answer():
             for pair in blob["shared_per_pair"]
         ],
     })
+
+
+def _sport_fr_card(player_id: str, card: dict) -> dict:
+    return {
+        "id": player_id,
+        "name": f"{card.get('name_first') or ''} {card.get('name_last') or ''}".strip(),
+        "mlbam_id": None, "headshot_url": card.get("headshot_url"),
+        "debut_year": card.get("debut_year"), "final_year": card.get("final_year"),
+        "primary_pos": card.get("primary_pos"), "teams": [],
+    }
+
+
+def _sport_fr_state_dict(gid: str, blob: dict, conn) -> dict:
+    sport, deck, pair_index = blob["sport"], blob["deck"], blob["pair_index"]
+    cards = {pid: _sport_fr_card(pid, card) for pid, card in _sport_cards(conn, sport, deck).items()}
+    return {
+        "game_id": gid, "mode": "fr", "sport": sport, "puzzle_id": blob["puzzle_id"],
+        "slots": blob["slots"], "unit": blob.get("unit"), "total_cards": len(deck),
+        "revealed_count": blob["revealed_count"],
+        "revealed_cards": [cards[pid] for pid in deck[:blob["revealed_count"]]],
+        "pair_index": pair_index,
+        "pair_names": [cards[deck[pair_index]]["name"] if pair_index < len(deck) else None,
+                       cards[deck[pair_index + 1]]["name"] if pair_index + 1 < len(deck) else None],
+        "solved_links": blob["solved_links"][:max(0, blob["revealed_count"] - 1)],
+        "stats": {"hits": blob["hits"], "fouls": blob["fouls"], "strikes": blob["strikes"],
+                  "max_strikes": FR_MAX_STRIKES, "consec_fouls": blob["consec_fouls"],
+                  "total_pairs": len(deck) - 1},
+        "finished": blob["finished"], "won": blob["won"], "last_guess": blob.get("last_guess"),
+    }
+
+
+def _sport_fr_shared(conn, sport: str, first: str, second: str) -> list[list]:
+    rows = conn.execute(
+        """SELECT a.team_id, a.season, t.name
+             FROM sport_appearances a
+             JOIN sport_appearances b ON b.sport_id=a.sport_id
+               AND b.team_id=a.team_id AND b.season=a.season
+             JOIN sport_teams t ON t.sport_id=a.sport_id AND t.team_id=a.team_id AND t.season=a.season
+            WHERE a.sport_id=%s AND a.player_id=%s AND b.player_id=%s
+            ORDER BY a.season, a.team_id""", (sport, first, second),
+    ).fetchall()
+    return [[team_id, season, name] for team_id, season, name in rows]
+
+
+@app.route("/api/sports/<sport>/fr/team_autocomplete")
+def sport_fr_team_autocomplete(sport: str):
+    q = normalize(request.args.get("q") or "")
+    if not _is_cross_sport(sport) or not q:
+        return jsonify([])
+    with db() as conn:
+        names = [r[0] for r in conn.execute(
+            "SELECT DISTINCT name FROM sport_teams WHERE sport_id=%s", (sport,)).fetchall()]
+    prefix = [name for name in names if normalize(name).startswith(q)]
+    contains = [name for name in names if q in normalize(name) and not normalize(name).startswith(q)]
+    return jsonify((sorted(prefix) + sorted(contains))[:6])
+
+
+@app.route("/api/sports/<sport>/fr/new", methods=["POST"])
+def sport_fr_new(sport: str):
+    if not _is_cross_sport(sport):
+        return jsonify({"error": "unsupported sport"}), 404
+    data = request.get_json(silent=True) or {}
+    unit = data.get("unit")
+    unit = unit.strip().lower() if isinstance(unit, str) else None
+    guest_id = (data.get("guest_id") or "").strip() or None
+    with db() as conn:
+        if guest_id and not conn.execute("SELECT 1 FROM guests WHERE guest_id=%s", (guest_id,)).fetchone():
+            guest_id = None
+        try:
+            puzzle = generate_local_film_review(PgEngineConn(conn), sport, unit=unit)
+        except (RuntimeError, ValueError) as error:
+            return jsonify({"error": f"could not build Film Review: {error}"}), 500
+        shared = [_sport_fr_shared(conn, sport, puzzle.deck[i], puzzle.deck[i + 1]) for i in range(len(puzzle.deck) - 1)]
+        if any(not pair for pair in shared):
+            return jsonify({"error": "generated puzzle has an unresolved connection"}), 500
+        blob = {
+            "sport": sport, "puzzle_id": f"{sport}_{puzzle.puzzle_date}_{puzzle.unit or 'full'}",
+            "deck": list(puzzle.deck), "slots": list(puzzle.slots), "unit": puzzle.unit,
+            "pair_index": 0, "revealed_count": 2, "hits": 0, "fouls": 0, "strikes": 0,
+            "consec_fouls": 0, "solved_links": [None] * (len(puzzle.deck) - 1),
+            "shared_per_pair": shared, "owner_guest_id": guest_id, "result_saved": False,
+            "finished": False, "won": False, "last_guess": None,
+        }
+        gid = _insert_game(conn, "fr_games", blob)
+        return jsonify(_sport_fr_state_dict(gid, blob, conn))
+
+
+@app.route("/api/sports/<sport>/fr/guess", methods=["POST"])
+def sport_fr_guess(sport: str):
+    data = request.get_json(silent=True) or {}
+    gid = data.get("game_id")
+    team, year = (data.get("team") or "").strip(), (data.get("year") or "").strip()
+    with db() as conn:
+        row = conn.execute("SELECT state, finished FROM fr_games WHERE game_id=%s", (gid,)).fetchone()
+        if not row or row[0].get("sport") != sport:
+            return jsonify({"error": "unknown game_id"}), 404
+        blob, finished = row
+        blob["finished"] = finished
+        if not finished:
+            if not team or not year:
+                blob["last_guess"] = {"outcome": "invalid", "team": team, "year": year}
+            else:
+                outcome, matched = _classify_local_fr_guess(team, year, blob["shared_per_pair"][blob["pair_index"]])
+                converted = outcome == "foul" and blob["consec_fouls"] + 1 >= 2
+                if outcome == "foul":
+                    blob["consec_fouls"] += 1
+                    blob["fouls"] += 1
+                    if converted:
+                        outcome = "strike"
+                        blob["strikes"] += 1
+                        blob["consec_fouls"] = 0
+                elif outcome == "hit":
+                    blob["consec_fouls"] = 0
+                    blob["hits"] += 1
+                    match = matched[0]
+                    blob["solved_links"][blob["pair_index"]] = {"team_id": match[0], "season": match[1], "team_name": match[2]}
+                    blob["pair_index"] += 1
+                    blob["revealed_count"] = min(blob["revealed_count"] + 1, len(blob["deck"]))
+                    if blob["hits"] >= len(blob["deck"]) - 1:
+                        blob.update({"finished": True, "won": True})
+                else:
+                    blob["consec_fouls"] = 0
+                    blob["strikes"] += 1
+                if blob["strikes"] >= FR_MAX_STRIKES:
+                    blob.update({"finished": True, "won": False})
+                blob["last_guess"] = {"outcome": outcome, "team": team, "year": year,
+                                      "converted_from_foul": converted,
+                                      "matched": [{"team_id": t, "season": s, "team_name": n} for t, s, n in matched]}
+            if blob["finished"] and not blob.get("result_saved") and blob.get("owner_guest_id"):
+                conn.execute("""INSERT INTO fr_results (owner_guest_id, sport_id, puzzle_id, hits, fouls, strikes, won)
+                                VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                             (blob["owner_guest_id"], sport, blob["puzzle_id"], blob["hits"], blob["fouls"], blob["strikes"], blob["won"]))
+                blob["result_saved"] = True
+            _save_game(conn, "fr_games", gid, blob)
+        return jsonify(_sport_fr_state_dict(gid, blob, conn))
+
+
+@app.route("/api/sports/<sport>/fr/reveal_answer", methods=["POST"])
+def sport_fr_reveal_answer(sport: str):
+    gid = (request.get_json(silent=True) or {}).get("game_id")
+    with db() as conn:
+        row = conn.execute("SELECT state, finished FROM fr_games WHERE game_id=%s", (gid,)).fetchone()
+        if not row or row[0].get("sport") != sport:
+            return jsonify({"error": "unknown game_id"}), 404
+        blob, finished = row
+        if not finished:
+            return jsonify({"error": "game not finished"}), 400
+        cards = _sport_cards(conn, sport, blob["deck"])
+        return jsonify({"full_cards": [_sport_fr_card(pid, cards[pid]) for pid in blob["deck"]],
+                        "canonical_links": [{"team_id": pair[0][0], "season": pair[0][1], "team_name": pair[0][2]} if pair else None for pair in blob["shared_per_pair"]]})
 
 
 if __name__ == "__main__":

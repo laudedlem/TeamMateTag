@@ -368,6 +368,28 @@ eligible players and a quality pass is rerun.
 
 ### Cross-sport Film Review (local playtesting)
 
+Update, 2026-08-01: the compact cross-sport catalog is now in Supabase and
+contains 39,947 players, 37,261 position rows, 210,721 appearances, 24,088
+aggregate trait rows, 117,227 season trait rows, and 27,431 remote headshot
+URL records. The live database measures roughly 165-171 MB, below the Free
+plan's 500 MB database threshold. Raw source archives and the 20+ GB local
+headshot cache are intentionally not uploaded. `sport_teammates` and the old
+Baseball `teammates` materialized pair graph must remain empty/dropped: gameplay
+derives links from indexed appearances.
+
+`web/server.py` now has Postgres-backed routes for non-baseball Batting
+Practice and Film Review: `/api/sports/<sport>/bp/*` and
+`/api/sports/<sport>/fr/*`. These are persistent and use the exact same game
+engine as local play. `TEAMMATETAG_LOCAL_SPORTS=1` still intentionally routes
+local development through SQLite. Division Rivalry and Playoffs are not yet
+ported to persistent cross-sport tables; do not turn on their non-baseball
+production paths until that work and browser smoke tests are complete.
+
+Profile responses now include `stats.sports.baseball|basketball|football|hockey`.
+New cross-sport BP/FR results write their sport ID, so stats are isolated.
+`guest_sport_ratings` and `sport_player_usage` are ready for cross-sport
+multiplayer results and data reporting.
+
 Film Review is available on every ready sport page. Baseball continues to use
 the production Postgres Film Review API. Basketball, hockey, and football use
 the local SQLite daily-deck adapter at `/api/local/<sport>/fr/*` while their

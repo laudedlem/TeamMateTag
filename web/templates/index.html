@@ -6,7 +6,7 @@
   <title>TeamMateTag{% if sport %} | {{ sport.name }}{% endif %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
 </head>
-<body class="dark" data-sport="{{ sport.key if sport else '' }}">
+<body class="dark" data-sport="{{ sport.key if sport else '' }}" data-cross-sports-online="{{ 'true' if cross_sports_online else 'false' }}">
   <header>
     <div class="title">
       <div class="brand-row">
@@ -152,6 +152,14 @@
       <button class="back-btn" data-back="home">&larr; Home</button>
       <h2>Profile</h2>
       <p class="muted" id="profile-screen-name"></p>
+      <label class="profile-sport-picker">Sport
+        <select id="profile-sport-select">
+          <option value="baseball">Baseball</option>
+          <option value="basketball">Basketball</option>
+          <option value="football">Football</option>
+          <option value="hockey">Hockey</option>
+        </select>
+      </label>
       <div class="profile-detail-grid">
         <div class="profile-detail">
           <span class="profile-detail-label">Batting Practice Longest Lineup</span>
