@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.44`
+- Current display version: `0.1.27`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Required environment values are documented in `.env.example`. Never commit
@@ -142,6 +142,11 @@ changes. It is the concise source of truth for another coding assistant.
   and career-window evidence. The active cross-sport identity reconciliation
   queue is now zero. Data-only reconciliation passes update this file but do
   not change the visible application version.
+- `scripts/build_game_data_catalog.py` builds the canonical game-facing SQLite
+  views: `game_player_catalog`, `game_team_season_catalog`, and
+  `game_teammate_links`. It also writes `game_data_audit` with per-sport
+  coverage and the active reconciliation count. Future cross-sport game logic
+  should use these views rather than the raw import tables.
 
 ## Shared lineup rules
 
