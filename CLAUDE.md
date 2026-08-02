@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.43`
+- Current display version: `0.1.44`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -499,6 +499,17 @@ Update, 2026-08-02 (0.1.43): Film Review #1 is now the 2026-08-01 archive
 puzzle and the current 2026-08-02 puzzle is Film Review #2. The archive panel
 was moved to the top of the Film Review screen so it cannot interrupt the
 lineup board and the player-card connection chain.
+
+Update, 2026-08-02 (0.1.44): Baseball Film Review now uses the same daily
+attempt, archive, review, retry, and streak model as the other three sports.
+Its former fixed rotating deck was removed. `scripts/load_baseball_film_review_positions.py`
+loads compact Lahman position totals into `baseball_player_positions`; the
+daily generator uses these roles plus historical teammates to deterministically
+build a distinct 10-player chain with no repeated team-year link. The puzzle
+date is its seed, so midnight Central automatically advances every sport to a
+new shared puzzle without a scheduled task. The production position table was
+loaded with 48,699 player-position totals. Film Review #1 is 2026-08-01 and
+Film Review #2 is 2026-08-02.
 
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.

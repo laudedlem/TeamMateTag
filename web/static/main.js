@@ -202,6 +202,10 @@ function localFilmReviewPath(suffix) {
   return (USE_LOCAL_CROSS_SPORTS ? '/api/local/' : '/api/sports/') + CURRENT_SPORT + '/fr/' + suffix;
 }
 
+function filmReviewPath(suffix) {
+  return CURRENT_SPORT === 'baseball' ? '/api/fr/' + suffix : localFilmReviewPath(suffix);
+}
+
 function isCrossSport() {
   return LOCAL_SOLO_SPORTS.has(CURRENT_SPORT);
 }
@@ -764,7 +768,7 @@ async function getAutocomplete(q) {
 }
 
 async function getTeamAutocomplete(q) {
-  const endpoint = isCrossSport() ? localFilmReviewPath('team_autocomplete') : '/api/fr/team_autocomplete';
+  const endpoint = filmReviewPath('team_autocomplete');
   const r = await fetch(endpoint + '?q=' + encodeURIComponent(q));
   return r.json();
 }
@@ -1078,7 +1082,7 @@ async function startFr(unit = null, options = {}) {
   els.frYearInput.value = '';
   showScreen('fr-game');
   renderLoadingFilmReview();
-  frGame = await api(isCrossSport() ? localFilmReviewPath('new') : '/api/fr/new',
+  frGame = await api(filmReviewPath('new'),
     { guest_id: profile?.guest_id || storedGuestId(), unit, ...options });
   if (frGame.error) {
     alert('error: ' + frGame.error);
@@ -1992,7 +1996,7 @@ async function frSubmit(e) {
   const year = els.frYearInput.value.trim();
   if (!team || !year) return;
   closeTeamAutocomplete({ keepValue: true });
-  frGame = await api(isCrossSport() ? localFilmReviewPath('guess') : '/api/fr/guess', {
+  frGame = await api(filmReviewPath('guess'), {
     game_id: frGame.game_id,
     team,
     year,
@@ -2107,7 +2111,7 @@ function hideFrSummaryBanner() {
 
 async function loadFrAnswers() {
   if (!frGame?.game_id || frGame?.won) return;
-  const res = await api(isCrossSport() ? localFilmReviewPath('reveal_answer') : '/api/fr/reveal_answer', { game_id: frGame.game_id });
+  const res = await api(filmReviewPath('reveal_answer'), { game_id: frGame.game_id });
   if (!res.full_cards || !res.canonical_links) return;
   if (res.full_cards && res.canonical_links) {
     frGame.revealed_cards = res.full_cards;
@@ -2158,8 +2162,8 @@ function rulesForMode() {
 }
 
 async function loadFrArchive() {
-  if (!isCrossSport() || !profile?.guest_id) return;
-  const res = await api(`/api/sports/${CURRENT_SPORT}/fr/archive`, { guest_id: profile.guest_id });
+  if (!profile?.guest_id) return;
+  const res = await api(filmReviewPath('archive'), { guest_id: profile.guest_id });
   if (!res.days) return;
   els.frArchiveList.innerHTML = res.days.map((day) => {
     const state = escapeHtml(day.status);
@@ -2185,7 +2189,7 @@ async function loadFrArchive() {
       } else if (action === 'archive' || action === 'retry') {
         await startFr(null, { puzzle_date: button.dataset.date, archive: true });
       } else if (action === 'review') {
-        const result = await api(localFilmReviewPath('daily_game'), {
+        const result = await api(filmReviewPath('daily_game'), {
           guest_id: profile?.guest_id || storedGuestId(), game_id: button.dataset.gameId,
         });
         if (result.error) {

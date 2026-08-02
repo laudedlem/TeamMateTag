@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import os
+import random
 import secrets
 import sqlite3
 import sys
@@ -632,6 +633,18 @@ def ensure_runtime_schema():
                        elo INTEGER NOT NULL DEFAULT 1200,
                        PRIMARY KEY (guest_id, sport_id)
                 )"""
+            )
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS baseball_player_positions (
+                       player_id TEXT NOT NULL REFERENCES players(player_id) ON DELETE CASCADE,
+                       position TEXT NOT NULL,
+                       games INTEGER NOT NULL DEFAULT 0,
+                       PRIMARY KEY (player_id, position)
+                   )"""
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_baseball_fr_positions "
+                "ON baseball_player_positions(position, player_id)"
             )
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS sport_player_usage (
@@ -5673,19 +5686,7 @@ def sport_bp_timeout(sport: str):
 # Film Review (daily puzzle)
 # ============================================================
 
-FR_PUZZLES: list[dict] = [
-    {
-        "id": "fr_baseball_starting_lineup_001",
-        "title": "Starting Lineup",
-        "slots": ["C", "1B", "2B", "3B", "SS", "LF", "CF", "RF", "DH", "SP"],
-        "deck": [
-            # C, 1B, 2B, 3B, SS, LF, CF, RF, DH, SP. The canonical links
-            # use nine separate team-seasons, so none repeats within the deck.
-            "varitja01", "ortizda01", "bettsmo01", "tayloch03", "bloomwi01",
-            "jonesad01", "markani01", "wiggity01", "huffau01", "beimejo01",
-        ],
-    },
-]
+BASEBALL_FR_SLOTS = ("C", "1B", "2B", "3B", "SS", "LF", "CF", "RF", "DH", "SP")
 
 FR_MAX_STRIKES = 3
 
@@ -5699,10 +5700,66 @@ def _fr_compute_shared(conn, deck: list[str]) -> list[list[tuple[str, int, str]]
     return out
 
 
-def fr_today_puzzle() -> dict:
-    import time as _time
-    idx = int(_time.time() // 86400) % len(FR_PUZZLES)
-    return FR_PUZZLES[idx]
+def generate_baseball_film_review(conn, puzzle_day: date) -> dict:
+    """Build one stable, role-aware baseball lineup for a calendar day.
+
+    The date is the sole seed, so every player sees the same puzzle without a
+    cron job or a pre-generated deck file. Distinct team-seasons are enforced
+    for every connection in the chain.
+    """
+    pools: dict[str, set[str]] = {}
+    for slot in BASEBALL_FR_SLOTS:
+        rows = conn.execute(
+            """SELECT bp.player_id
+                 FROM baseball_player_positions bp
+                 JOIN players p ON p.player_id=bp.player_id
+                WHERE bp.position=%s AND bp.games>=25 AND p.final_year>=2000
+                ORDER BY bp.player_id""",
+            (slot,),
+        ).fetchall()
+        pools[slot] = {row[0] for row in rows}
+    missing = [slot for slot, players in pools.items() if not players]
+    if missing:
+        raise RuntimeError("baseball Film Review position data is unavailable for " + ", ".join(missing))
+
+    def candidates(player_id: str, eligible: set[str], used_players: set[str],
+                   used_links: set[tuple[str, int]]) -> list[tuple[str, tuple[str, int]]]:
+        rows = conn.execute(
+            """SELECT DISTINCT b.player_id, a.team_id, a.season
+                 FROM appearances a
+                 JOIN appearances b ON b.team_id=a.team_id AND b.season=a.season
+                 JOIN players p ON p.player_id=b.player_id
+                WHERE a.player_id=%s AND b.player_id<>%s
+                  AND a.season>=2000 AND p.final_year>=2000
+                ORDER BY b.player_id, a.team_id, a.season""",
+            (player_id, player_id),
+        ).fetchall()
+        return [(pid, (team, season)) for pid, team, season in rows
+                if pid in eligible and pid not in used_players and (team, season) not in used_links]
+
+    rng = random.Random(f"baseball:{puzzle_day.isoformat()}")
+    for _ in range(500):
+        first = sorted(pools[BASEBALL_FR_SLOTS[0]])
+        deck = [rng.choice(first)]
+        used_players, used_links = {deck[0]}, set()
+        failed = False
+        for slot in BASEBALL_FR_SLOTS[1:]:
+            choices = candidates(deck[-1], pools[slot], used_players, used_links)
+            if not choices:
+                failed = True
+                break
+            rng.shuffle(choices)
+            next_player, link = choices[0]
+            deck.append(next_player)
+            used_players.add(next_player)
+            used_links.add(link)
+        if not failed:
+            return {
+                "id": f"baseball_{puzzle_day.isoformat()}", "title": "Starting Lineup",
+                "slots": list(BASEBALL_FR_SLOTS), "deck": deck,
+                "puzzle_date": puzzle_day.isoformat(), "puzzle_number": _film_review_number(puzzle_day),
+            }
+    raise RuntimeError("could not build a complete baseball Film Review lineup")
 
 
 def fr_card_dict(player_id: str) -> dict:
@@ -5736,6 +5793,9 @@ def fr_state_dict(gid: str, blob: dict, conn=None) -> dict:
         "game_id": gid,
         "mode": "fr",
         "puzzle_id": blob["puzzle_id"],
+        "puzzle_date": blob.get("puzzle_date"),
+        "puzzle_number": blob.get("puzzle_number"),
+        "archive": bool(blob.get("archive")),
         "slots": blob.get("slots", []),
         "unit": blob.get("unit"),
         "total_cards": len(deck),
@@ -5775,9 +5835,13 @@ def fr_blob_from_puzzle(
     puzzle: dict,
     shared_per_pair: list[list[tuple[str, int, str]]],
     owner_guest_id: str | None = None,
+    *, archive: bool = False,
 ) -> dict:
     return {
         "puzzle_id": puzzle["id"],
+        "puzzle_date": puzzle.get("puzzle_date"),
+        "puzzle_number": puzzle.get("puzzle_number"),
+        "archive": archive,
         "slots": list(puzzle.get("slots", [])),
         "unit": None,
         "deck": list(puzzle["deck"]),
@@ -5832,9 +5896,14 @@ def _classify_fr_guess(team_text: str, year_text: str,
 def fr_new():
     ensure_runtime_schema()
     data = request.get_json(silent=True) or {}
-    puz = fr_today_puzzle()
-    deck = list(puz["deck"])
     guest_id = (data.get("guest_id") or "").strip() or None
+    archive = bool(data.get("archive"))
+    try:
+        puzzle_day = _film_review_day(data.get("puzzle_date"))
+    except ValueError:
+        return jsonify({"error": "invalid puzzle date"}), 400
+    if puzzle_day > datetime.now(CENTRAL_TIME).date():
+        return jsonify({"error": "future Film Review unavailable"}), 400
     with db() as conn:
         if guest_id:
             row = conn.execute(
@@ -5843,15 +5912,80 @@ def fr_new():
             ).fetchone()
             if not row:
                 guest_id = None
+        if guest_id and not archive:
+            existing = conn.execute(
+                """SELECT game_id::text FROM film_review_daily_attempts
+                     WHERE owner_guest_id=%s AND sport_id='baseball' AND puzzle_date=%s""",
+                (guest_id, puzzle_day),
+            ).fetchone()
+            if existing:
+                prior = conn.execute("SELECT state, finished FROM fr_games WHERE game_id=%s", (existing[0],)).fetchone()
+                if prior:
+                    blob, finished = prior
+                    blob["finished"] = finished
+                    return jsonify(fr_state_dict(existing[0], blob, conn=conn))
+        try:
+            puz = generate_baseball_film_review(conn, puzzle_day)
+        except RuntimeError as error:
+            return jsonify({"error": str(error)}), 500
+        deck = list(puz["deck"])
         shared_per_pair = _fr_compute_shared(conn, deck)
         bad = [i for i, lst in enumerate(shared_per_pair) if not lst]
         if bad:
             return jsonify({
                 "error": f"puzzle {puz['id']!r} has unsolvable pair(s): {bad}",
             }), 500
-        blob = fr_blob_from_puzzle(puz, shared_per_pair, owner_guest_id=guest_id)
+        blob = fr_blob_from_puzzle(puz, shared_per_pair, owner_guest_id=guest_id, archive=archive)
         gid = _insert_game(conn, "fr_games", blob)
+        if guest_id and not archive:
+            conn.execute("""INSERT INTO film_review_daily_attempts (owner_guest_id, sport_id, puzzle_date, game_id)
+                            VALUES (%s,'baseball',%s,%s)""", (guest_id, puzzle_day, gid))
         return jsonify(fr_state_dict(gid, blob, conn=conn))
+
+
+@app.route("/api/fr/archive", methods=["POST"])
+def fr_archive():
+    ensure_runtime_schema()
+    guest_id = ((request.get_json(silent=True) or {}).get("guest_id") or "").strip()
+    if not guest_id:
+        return jsonify({"error": "guest_id required"}), 400
+    today = datetime.now(CENTRAL_TIME).date()
+    with db() as conn:
+        rows = {row[0]: (row[1], row[2]) for row in conn.execute(
+            """SELECT puzzle_date, status, game_id::text FROM film_review_daily_attempts
+                 WHERE owner_guest_id=%s AND sport_id='baseball'""", (guest_id,)
+        ).fetchall()}
+    days = []
+    for offset in range(min(60, max(1, (today - FILM_REVIEW_EPOCH).days + 1))):
+        puzzle_day = today - timedelta(days=offset)
+        if puzzle_day < FILM_REVIEW_EPOCH:
+            break
+        status, game_id = rows.get(puzzle_day, ("unseen", None))
+        days.append({"date": puzzle_day.isoformat(), "number": _film_review_number(puzzle_day),
+                     "status": status, "game_id": game_id, "is_today": puzzle_day == today})
+    return jsonify({"days": days})
+
+
+@app.route("/api/fr/daily_game", methods=["POST"])
+def fr_daily_game():
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
+    guest_id = (data.get("guest_id") or "").strip()
+    game_id = (data.get("game_id") or "").strip()
+    if not guest_id or not game_id:
+        return jsonify({"error": "guest_id and game_id required"}), 400
+    with db() as conn:
+        owned = conn.execute(
+            """SELECT 1 FROM film_review_daily_attempts
+                 WHERE owner_guest_id=%s AND sport_id='baseball' AND game_id=%s""",
+            (guest_id, game_id),
+        ).fetchone()
+        row = conn.execute("SELECT state, finished FROM fr_games WHERE game_id=%s", (game_id,)).fetchone()
+        if not owned or not row:
+            return jsonify({"error": "daily Film Review not found"}), 404
+        blob, finished = row
+        blob["finished"] = finished
+        return jsonify(fr_state_dict(game_id, blob, conn=conn))
 
 
 @app.route("/api/fr/guess", methods=["POST"])
@@ -5924,6 +6058,10 @@ def fr_guess():
         }
         if blob["finished"]:
             _save_fr_result(conn, blob)
+            if blob.get("owner_guest_id") and not blob.get("archive"):
+                conn.execute("""UPDATE film_review_daily_attempts SET status=%s, completed_at=now()
+                                WHERE owner_guest_id=%s AND sport_id='baseball' AND puzzle_date=%s""",
+                             ("won" if blob.get("won") else "lost", blob["owner_guest_id"], blob.get("puzzle_date")))
         _save_game(conn, "fr_games", gid, blob)
         return jsonify(fr_state_dict(gid, blob, conn=conn))
 
