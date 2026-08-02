@@ -133,11 +133,13 @@ def get_shared_seasons(conn: sqlite3.Connection, a: str, b: str, sport: str | No
             (sport, a, b),
         ).fetchall()
         return [(t, s) for t, s in rows]
-    a, b = sorted([a, b])
     rows = conn.execute(
-        """SELECT team_id, season FROM teammates
-            WHERE player_a_id = ? AND player_b_id = ?
-            ORDER BY season, team_id""",
+        """SELECT a.team_id, a.season
+             FROM appearances a
+             JOIN appearances b
+               ON b.team_id = a.team_id AND b.season = a.season
+            WHERE a.player_id = ? AND b.player_id = ?
+            ORDER BY a.season, a.team_id""",
         (a, b),
     ).fetchall()
     return [(t, s) for t, s in rows]

@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.37`
+- Current display version: `0.1.38`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -412,6 +412,15 @@ This is required on Vercel because a stopped browser poll cannot be trusted to
 finish a 20-second game. It prevents abandoned games from being returned as
 active forever and blocking either user from requeueing. Existing stale NBA,
 NFL, and NHL test rows were finalized during this pass.
+
+Update, 2026-08-01 (0.1.38): the shared Baseball engine now derives links
+from indexed `appearances` rows, exactly as the cross-sport engine does. This
+fixes Baseball Division Rivalry after removal of the obsolete 400 MB
+`teammates` pair table; verified Anthony Rizzo to Kris Bryant returns valid.
+Cross-sport Division Rivalry server state now reports client mode `mp` rather
+than database mode `dr`. The former disabled the browser's multiplayer
+countdown, timer, polling, and game-over handling. Verified NFL DR now returns
+`mp`, a three-second countdown, and a 20-second clock.
 
 Profile responses now include `stats.sports.baseball|basketball|football|hockey`.
 New cross-sport BP/FR results write their sport ID, so stats are isolated.

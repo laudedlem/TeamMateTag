@@ -6141,7 +6141,10 @@ def _sport_online_state(conn, game_id: str, blob: dict, state: GameState, viewer
         for item in last_move.get(field, []):
             item["team_name"] = _sport_team_name(conn, sport, item["team_id"], item["season"])
     output = {
-        "game_id": game_id, "mode": blob["mode"], "sport": sport,
+        # The browser uses `mp` for Division Rivalry. `dr` is only the
+        # database route/table mode; leaking it here disabled the shared
+        # multiplayer timer and polling client logic.
+        "game_id": game_id, "mode": "mp" if blob["mode"] == "dr" else "po", "sport": sport,
         "current_player": {"id": state.current_player_id, "name": state.current_player_name},
         "current_label": blob["p1"] if blob["turn_index"] == 0 else blob["p2"],
         "p1": blob["p1"], "p2": blob["p2"], "p1_guest_id": blob["p1_guest_id"], "p2_guest_id": blob["p2_guest_id"],
