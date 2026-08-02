@@ -149,6 +149,8 @@ let mpQueuePollInterval = null;
 let mpRematchPollInterval = null;
 let friendsPollInterval = null;
 let mpRequeueRelaxTimeout = null;
+let mpPollInFlight = false;
+let moveSubmissionInFlight = false;
 let turnLocalStart = 0;
 let lastChainLength = 0;
 let activeCountdownKey = '';
@@ -874,18 +876,29 @@ function startMpPolling() {
   clearInterval(mpPollInterval);
   if (!isOnlineMode() || !game || game.finished) return;
   mpPollInterval = setInterval(async () => {
-    if (!game?.game_id) return;
-    const previousGame = game;
+    if (!game?.game_id || mpPollInFlight || moveSubmissionInFlight) return;
+    mpPollInFlight = true;
     const next = await api(onlineApiBase() + '/game', {
       guest_id: profile?.guest_id || storedGuestId(),
       game_id: game.game_id,
     });
-    if (!next.error) {
+    mpPollInFlight = false;
+    if (!next.error && game?.game_id === next.game_id) {
+      // A move response can arrive while this request is in flight. Never let
+      // the older poll remove a just-played card or rewind a turn.
+      const previousGame = game;
       const prevChain = previousGame?.chain?.length || 0;
+      const nextChain = next.chain?.length || 0;
+      if (nextChain < prevChain) return;
+      const needsRender = nextChain !== prevChain ||
+        next.turn_index !== previousGame.turn_index ||
+        next.finished !== previousGame.finished ||
+        next.last_move?.player_id !== previousGame.last_move?.player_id ||
+        next.last_move?.outcome !== previousGame.last_move?.outcome;
       game = next;
       lastChainLength = prevChain;
-      animateNewestCard = (next.chain?.length || 0) > prevChain;
-      renderMpGame();
+      animateNewestCard = nextChain > prevChain;
+      if (needsRender) renderMpGame();
       syncMpClock(previousGame, next);
       if (game.finished) {
         clearInterval(mpPollInterval);
@@ -1290,19 +1303,26 @@ async function onBpTimeout() {
 }
 
 async function submitMove({ raw, player_id }) {
-  if (!game || game.finished) return;
+  if (!game || game.finished || moveSubmissionInFlight) return;
+  moveSubmissionInFlight = true;
   closeAutocomplete();
   els.guessInput.value = '';
   const path = currentMode === 'bp'
     ? (LOCAL_SOLO_SPORTS.has(CURRENT_SPORT) ? localSoloPath('move') : '/api/bp/move')
     : currentMode === 'po' ? (isCrossSport() ? onlineApiBase() + '/move' : '/api/po/move') : (LOCAL_SOLO_SPORTS.has(CURRENT_SPORT) ? onlineApiBase() + '/move' : '/api/move');
   const previousChainLength = game.chain?.length || 0;
-  game = await api(path, {
+  const nextGame = await api(path, {
     game_id: game.game_id,
     raw,
     player_id,
     guest_id: isOnlineMode() ? (profile?.guest_id || storedGuestId()) : undefined,
   });
+  moveSubmissionInFlight = false;
+  if (nextGame?.error) {
+    els.feedback.innerHTML = `<span class="bad">${escapeHtml(nextGame.error)}</span>`;
+    return;
+  }
+  game = nextGame;
   if (isOnlineMode()) {
     animateNewestCard = (game.chain?.length || 0) > previousChainLength;
     renderMpGame();
@@ -1591,7 +1611,6 @@ function timerKey(state) {
     state.game_id,
     state.turn_index,
     state.current_player?.id || '',
-    Number(state.remaining_seconds || 0).toFixed(1),
   ].join('|');
 }
 
@@ -1624,7 +1643,9 @@ function syncMpClock(previousState, nextState, opts = {}) {
     !previousState ||
     previousState.turn_index !== nextState.turn_index ||
     previousState.current_player?.id !== nextState.current_player?.id;
-  const drifted = Math.abs(nextTimer - prevTimer) > 0.65;
+  // A normal poll arrives about one second after the previous response. Do
+  // not restart the visual clock for that expected network drift.
+  const drifted = Math.abs(nextTimer - prevTimer) > 2.0;
   if (opts.force || changedTurn || drifted || timerKey(nextState) !== activeTimerKey) {
     resetTurnTimer();
   }

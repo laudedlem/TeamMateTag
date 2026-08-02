@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.38`
+- Current display version: `0.1.39`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -421,6 +421,15 @@ Cross-sport Division Rivalry server state now reports client mode `mp` rather
 than database mode `dr`. The former disabled the browser's multiplayer
 countdown, timer, polling, and game-over handling. Verified NFL DR now returns
 `mp`, a three-second countdown, and a 20-second clock.
+
+Update, 2026-08-01 (0.1.39): cross-sport multiplayer polling is single-flight
+and pauses while a move is submitted. It rejects an older response that would
+shorten the chain, renders cards only when game state actually changes, and
+does not reset the visual timer for ordinary poll drift. Cross-sport player
+cards and team names are cached in a warm Flask process, avoiding repeated
+Supabase hydration on every poll. This fixes delayed, disappearing, and
+repeatedly animating cards seen in NBA/NHL Division Rivalry and applies to
+Playoffs as well.
 
 Profile responses now include `stats.sports.baseball|basketball|football|hockey`.
 New cross-sport BP/FR results write their sport ID, so stats are isolated.

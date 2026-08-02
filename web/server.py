@@ -391,6 +391,8 @@ TEAM_FRANCHISE: dict[tuple[str, int], str] = {}
 ALL_FR_TEAM_NAMES: list[str] = []
 PLAYER_CARD_CACHE: dict[str, dict] = {}
 PLAYER_CARD_LOCK = Lock()
+SPORT_CARD_CACHE: dict[tuple[str, str], dict] = {}
+SPORT_TEAM_NAME_CACHE: dict[tuple[str, str, int], str] = {}
 STATIC_CACHE_LOCK = Lock()
 STATIC_CACHE_READY = False
 RUNTIME_SCHEMA_LOCK = Lock()
@@ -2759,12 +2761,18 @@ def _is_cross_sport(sport: str) -> bool:
 
 
 def _sport_team_name(conn, sport: str, team_id: str, season: int) -> str:
+    cache_key = (sport, team_id, season)
+    cached = SPORT_TEAM_NAME_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
     row = conn.execute(
         """SELECT name FROM sport_teams
              WHERE sport_id = %s AND team_id = %s AND season = %s""",
         (sport, team_id, season),
     ).fetchone()
-    return row[0] if row else team_id
+    name = row[0] if row else team_id
+    SPORT_TEAM_NAME_CACHE[cache_key] = name
+    return name
 
 
 def _sport_cards(conn, sport: str, player_ids: list[str]) -> dict[str, dict]:
@@ -2775,17 +2783,27 @@ def _sport_cards(conn, sport: str, player_ids: list[str]) -> dict[str, dict]:
     """
     if not player_ids:
         return {}
+    out = {}
+    missing = []
+    for player_id in player_ids:
+        cached = SPORT_CARD_CACHE.get((sport, player_id))
+        if cached is None:
+            missing.append(player_id)
+        else:
+            out[player_id] = cached
+    if not missing:
+        return out
     rows = conn.execute(
         """SELECT player_id, external_id, debut_year, final_year, first_name,
                   last_name, primary_pos
              FROM sport_players
             WHERE sport_id = %s AND player_id = ANY(%s)""",
-        (sport, player_ids),
+        (sport, missing),
     ).fetchall()
     images = dict(conn.execute(
         """SELECT player_id, source_url FROM sport_player_images
              WHERE sport_id = %s AND player_id = ANY(%s)""",
-        (sport, player_ids),
+        (sport, missing),
     ).fetchall())
     appearances = conn.execute(
         """SELECT a.player_id, t.name, a.season
@@ -2794,7 +2812,7 @@ def _sport_cards(conn, sport: str, player_ids: list[str]) -> dict[str, dict]:
                AND t.team_id=a.team_id AND t.season=a.season
             WHERE a.sport_id=%s AND a.player_id = ANY(%s)
             ORDER BY a.player_id, a.season, t.name""",
-        (sport, player_ids),
+        (sport, missing),
     ).fetchall()
     teams_by_player: dict[str, dict[str, list[list[int]]]] = {}
     for player_id, team, season in appearances:
@@ -2805,13 +2823,12 @@ def _sport_cards(conn, sport: str, player_ids: list[str]) -> dict[str, dict]:
             ranges[-1][1] = season
         else:
             ranges.append([season, season])
-    out = {}
     for player_id, external_id, debut, final, first, last, primary_pos in rows:
         teams = []
         for team, ranges in teams_by_player.get(player_id, {}).items():
             years = ", ".join(str(a) if a == b else f"{a}-{b}" for a, b in ranges)
             teams.append(f"{team} {years}")
-        out[player_id] = {
+        card = {
             "mlbam_id": None,
             "headshot_url": images.get(player_id),
             "debut_year": debut,
@@ -2821,6 +2838,8 @@ def _sport_cards(conn, sport: str, player_ids: list[str]) -> dict[str, dict]:
             "primary_pos": primary_pos,
             "teams": teams,
         }
+        SPORT_CARD_CACHE[(sport, player_id)] = card
+        out[player_id] = card
     return out
 
 
