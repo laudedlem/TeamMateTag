@@ -2,6 +2,7 @@ const guestKey = 'tt_guest_id';
 const hub = document.body.dataset.modeHub;
 let hubProfile = null;
 let queuePoll = null;
+let activeQueueSports = [];
 
 const PLAYOFF_OPTIONS = {
   baseball: [
@@ -47,24 +48,55 @@ async function initHub() {
     });
   }
   if (hub === 'film-review') {
-    const archive = document.getElementById('mode-hub-archive');
     const sports = ['baseball', 'basketball', 'hockey', 'football'];
     const results = await Promise.all(sports.map(async (sport) => {
       const path = sport === 'baseball' ? '/api/fr/archive' : `/api/sports/${sport}/fr/archive`;
       return [sport, await post(path, { guest_id: hubProfile.guest_id })];
     }));
-    archive.innerHTML = results.map(([sport, data]) => {
-      const days = data.days || [];
-      const current = days.find((day) => day.is_today);
-      const past = days.filter((day) => !day.is_today);
-      const name = sport[0].toUpperCase() + sport.slice(1);
-      const links = past.map((day) => `<a class="fr-archive-action ${day.status}" href="/${sport}?mode=fr&date=${day.date}&archive=1">#${day.number} ${day.status}</a>`).join(' ');
-      return `<div class="hub-archive-row"><strong>${name}</strong><a class="today-link ${current?.status || 'unseen'}" href="/${sport}?mode=fr">Today: ${current?.status || 'unseen'}</a><span>${links}</span></div>`;
-    }).join('');
+    results.forEach(([sport, data]) => renderFilmReviewArchiveSelect(sport, data.days || []));
   }
   configureSharedQueue();
 }
 initHub();
+
+function displayStatus(status) {
+  return String(status || 'unseen').replace(/_/g, ' ');
+}
+
+function formatArchiveLabel(day) {
+  const dateText = day.date ? new Date(day.date + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
+  const status = displayStatus(day.status);
+  const prefix = day.is_today ? 'Today' : `#${day.number}`;
+  return `${prefix}${dateText ? ' - ' + dateText : ''} - ${status}`;
+}
+
+function filmReviewUrl(sport, day) {
+  if (day.is_today) return `/${sport}?mode=fr`;
+  return `/${sport}?mode=fr&date=${encodeURIComponent(day.date)}&archive=1`;
+}
+
+function renderFilmReviewArchiveSelect(sport, days) {
+  const select = document.querySelector(`[data-fr-archive-select="${sport}"]`);
+  const status = document.querySelector(`[data-fr-today-status="${sport}"]`);
+  if (!select) return;
+  const current = days.find((day) => day.is_today) || days[0];
+  if (status && current) {
+    status.textContent = `Today: ${displayStatus(current.status)}`;
+    status.className = `fr-today-status ${current.status || 'unseen'}`;
+  }
+  const sorted = [...days].sort((a, b) => {
+    if (a.is_today) return -1;
+    if (b.is_today) return 1;
+    return Number(b.number || 0) - Number(a.number || 0);
+  });
+  select.innerHTML = sorted.map((day) =>
+    `<option value="${filmReviewUrl(sport, day)}" class="${day.status || 'unseen'}">${formatArchiveLabel(day)}</option>`
+  ).join('');
+  select.value = current ? filmReviewUrl(sport, current) : `/${sport}?mode=fr`;
+  select.addEventListener('change', () => {
+    if (select.value) window.location.href = select.value;
+  }, { once: true });
+}
 
 function selectedSports() {
   return [...document.querySelectorAll('.shared-sport-option input[type="checkbox"]:checked')]
@@ -115,6 +147,7 @@ async function handleQueueResponse(response) {
 
 async function queueForSports(sports, preferences = {}) {
   clearInterval(queuePoll);
+  activeQueueSports = [...sports];
   const response = await post(queueEndpoint('queue'), {
     guest_id: hubProfile?.guest_id || localStorage.getItem(guestKey) || '',
     sports,
@@ -129,7 +162,7 @@ async function queueForSports(sports, preferences = {}) {
 async function pollSharedQueue() {
   const response = await post(queueEndpoint('status'), {
     guest_id: hubProfile?.guest_id || localStorage.getItem(guestKey) || '',
-    sports: selectedSports(),
+    sports: activeQueueSports.length ? activeQueueSports : selectedSports(),
   });
   if (response.status === 'matched' && response.redirect) {
     window.location.href = response.redirect;
@@ -138,6 +171,7 @@ async function pollSharedQueue() {
   if (response.status === 'idle') {
     clearInterval(queuePoll);
     queuePoll = null;
+    activeQueueSports = [];
     setQueueUi(false, 'Queue stopped.');
   }
 }
@@ -170,6 +204,7 @@ function configureSharedQueue() {
   document.getElementById('shared-cancel-btn')?.addEventListener('click', async () => {
     clearInterval(queuePoll);
     queuePoll = null;
+    activeQueueSports = [];
     await post(queueEndpoint('cancel_queue'), {
       guest_id: hubProfile?.guest_id || localStorage.getItem(guestKey) || '',
     });

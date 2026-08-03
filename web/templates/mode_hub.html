@@ -18,15 +18,22 @@
     <h3>Choose a sport</h3>
     <div class="sport-tiles">
       {% for key, sport in sports.items() %}
-      <a class="sport-tile sport-tile-{{ key }}" href="{% if slug == 'division-rivalry' or slug == 'playoffs' %}#{% else %}/{{ key }}?mode={{ hub.mode }}{% endif %}" data-sport="{{ key }}" {% if slug == 'division-rivalry' or slug == 'playoffs' %}data-direct-queue-sport="{{ key }}"{% endif %}>
-        <span class="sport-tile-league">{{ sport.league }}</span>
-        <span class="sport-tile-name">{{ sport.name }}</span>
-        <span class="sport-tile-status">{% if slug == 'manager-mode' %}<span data-manager-best="{{ key }}">Longest lineup: --</span>{% elif slug == 'film-review' %}Today's puzzle{% else %}Queue now{% endif %}</span>
-      </a>
+      <div class="mode-sport-choice">
+        <a class="sport-tile sport-tile-{{ key }}" href="{% if slug == 'division-rivalry' or slug == 'playoffs' %}#{% else %}/{{ key }}?mode={{ hub.mode }}{% endif %}" data-sport="{{ key }}" {% if slug == 'division-rivalry' or slug == 'playoffs' %}data-direct-queue-sport="{{ key }}"{% endif %}>
+          <span class="sport-tile-league">{{ sport.league }}</span>
+          <span class="sport-tile-name">{{ sport.name }}</span>
+          <span class="sport-tile-status">{% if slug == 'manager-mode' %}<span data-manager-best="{{ key }}">Longest lineup: --</span>{% elif slug == 'film-review' %}<span data-fr-today-status="{{ key }}">Today's puzzle</span>{% else %}Queue now{% endif %}</span>
+        </a>
+        {% if slug == 'film-review' %}
+        <select class="fr-hub-archive-select" data-fr-archive-select="{{ key }}" aria-label="{{ sport.name }} Film Review archive">
+          <option>Loading archive...</option>
+        </select>
+        {% endif %}
+      </div>
       {% endfor %}
     </div>
     {% if slug == 'film-review' %}
-    <div class="mode-hub-archive" id="mode-hub-archive"><p class="muted small">Loading Film Review archive...</p></div>
+    <p class="muted small mode-hub-note">Choose a sport for today's puzzle or open its archive dropdown.</p>
     {% elif slug == 'playoffs' %}
     <p class="muted small mode-hub-note">Choose a win condition below before queueing across multiple sports.</p>
     {% endif %}

@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.52`
+- Current display version: `0.1.53`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -574,6 +574,17 @@ Update, 2026-08-03 (0.1.52): the top sport tiles on `/division-rivalry` and
 to the sport home page. Manager Mode and Film Review sport tiles still launch
 directly into those games. The separate multi-sport queue panel remains for
 players who want to select more than one sport before searching.
+
+Update, 2026-08-03 (0.1.53): fixed mode-hub queue scope and Film Review
+archives. Clicking a sport tile on `/division-rivalry` or `/playoffs` now
+continues polling only that selected sport; it does not switch to the
+multi-sport checkbox selection unless the player clicks the multi-sport
+`Find Match` button. Manager Mode and Film Review query launches now call
+`startBp()` and `startFr()` directly after profile bootstrap, rather than
+routing through the sport home mode picker. `/film-review` shows a same-width
+archive dropdown directly under each sport tile, with labels such as
+`#2 - Aug 2 - in progress`; selecting an archived puzzle navigates directly to
+that sport's Film Review puzzle URL.
 
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.

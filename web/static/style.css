@@ -272,6 +272,39 @@ button.danger:hover:not(:disabled) {
   transition: border-color 0.15s, background 0.15s, transform 0.15s;
 }
 
+.mode-sport-choice {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.mode-sport-choice .sport-tile {
+  min-height: 148px;
+}
+
+.fr-hub-archive-select {
+  width: 100%;
+  background: var(--bg-elevated);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0.55rem 0.65rem;
+  font: inherit;
+}
+
+.fr-today-status.won,
+.fr-today-status.completed {
+  color: var(--good);
+}
+
+.fr-today-status.lost,
+.fr-today-status.failed {
+  color: var(--bad);
+}
+
+.fr-today-status.in_progress {
+  color: var(--burn);
+}
+
 .sport-tile:hover {
   background: var(--bg-hover);
   border-color: var(--text-muted);

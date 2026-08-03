@@ -2498,7 +2498,12 @@ bootstrapProfile().then(async () => {
         alert('Could not open match: ' + err.message);
         pickMode(launchMode);
       }
-    } else if (launchMode === 'fr' && launchDate) startFr(null, { puzzle_date: launchDate, archive: launchArchive });
-    else pickMode(launchMode);
+    } else if (launchMode === 'bp') {
+      await startBp();
+    } else if (launchMode === 'fr') {
+      await startFr(null, launchDate ? { puzzle_date: launchDate, archive: launchArchive } : {});
+    } else {
+      pickMode(launchMode);
+    }
   }
 });
