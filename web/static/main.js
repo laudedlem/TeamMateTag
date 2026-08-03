@@ -149,6 +149,14 @@ const els = {
   rulesText: document.getElementById('rules-text'),
 };
 
+function on(el, eventName, handler, options) {
+  if (el) el.addEventListener(eventName, handler, options);
+}
+
+function hasProfileUi() {
+  return !!els.profileStatus;
+}
+
 let currentMode = 'home';
 let game = null;
 let frGame = null;
@@ -325,6 +333,7 @@ function saveGuestId(guestId) {
 }
 
 function renderProfile() {
+  if (!hasProfileUi()) return;
   if (!profile) {
     els.profileStatus.textContent = 'Loading guest profile...';
     els.profileScreenName.textContent = '';
@@ -417,6 +426,7 @@ async function bootstrapProfile() {
 }
 
 async function refreshBpLeaderboard() {
+  if (!els.bpLeaderboard) return;
   const rows = await fetch('/api/bp/leaderboard').then((r) => r.json());
   els.bpLeaderboard.innerHTML = rows.length
     ? rows.map((row) => `<li>${escapeHtml(row.display_name)} - ${row.chain_length}</li>`).join('')
@@ -584,6 +594,7 @@ function wireFriendsActions() {
 }
 
 function renderFriends() {
+  if (!els.friendsStatus) return;
   if (!profile?.authenticated) {
     els.friendsOpenBtn.textContent = 'Friends';
     els.friendsStatus.textContent = 'Create an account or log in to use friends.';
@@ -659,6 +670,7 @@ function renderFriends() {
 }
 
 async function refreshFriends() {
+  if (!els.friendsStatus) return;
   if (!profile?.authenticated) {
     friendsData = null;
     renderFriends();
@@ -2372,99 +2384,99 @@ document.querySelectorAll('.mode-tile').forEach((tile) => {
   tile.addEventListener('click', () => pickMode(tile.dataset.mode));
 });
 
-els.exitBtn.addEventListener('click', exitToHome);
+on(els.exitBtn, 'click', exitToHome);
 
 document.querySelectorAll('[data-back="home"]').forEach((btn) => {
   btn.addEventListener('click', goHome);
 });
 
-els.startBtn.addEventListener('click', startMpGame);
-els.playoffRandomBtn.addEventListener('click', () => {
+on(els.startBtn, 'click', startMpGame);
+on(els.playoffRandomBtn, 'click', () => {
   els.playoffConditionSelect.value = 'random';
   if (isCrossSport()) {
     window.localStorage.setItem('tt_local_playoff_condition_' + CURRENT_SPORT, 'random');
   }
 });
-els.playoffConditionSelect.addEventListener('change', () => {
+on(els.playoffConditionSelect, 'change', () => {
   if (isCrossSport()) {
     window.localStorage.setItem('tt_local_playoff_condition_' + CURRENT_SPORT, els.playoffConditionSelect.value);
   }
 });
-els.cancelMatchBtn.addEventListener('click', cancelMatchmaking);
-els.createCodeBtn.addEventListener('click', createChallengeCode);
-els.joinCodeBtn.addEventListener('click', joinChallengeCode);
-els.joinCodeInput.addEventListener('keydown', (e) => {
+on(els.cancelMatchBtn, 'click', cancelMatchmaking);
+on(els.createCodeBtn, 'click', createChallengeCode);
+on(els.joinCodeBtn, 'click', joinChallengeCode);
+on(els.joinCodeInput, 'keydown', (e) => {
   if (e.key === 'Enter') {
     e.preventDefault();
     joinChallengeCode();
   }
 });
 
-els.guessForm.addEventListener('submit', onGuessSubmit);
-els.guessInput.addEventListener('input', onGuessInput);
-els.guessInput.addEventListener('keydown', onGuessKeydown);
+on(els.guessForm, 'submit', onGuessSubmit);
+on(els.guessInput, 'input', onGuessInput);
+on(els.guessInput, 'keydown', onGuessKeydown);
 
-els.playAgainBtn.addEventListener('click', rematch);
-els.requeueBtn.addEventListener('click', () => requeueForNewMatch('Searching for a new opponent...', {
+on(els.playAgainBtn, 'click', rematch);
+on(els.requeueBtn, 'click', () => requeueForNewMatch('Searching for a new opponent...', {
   avoidLastOpponent: true,
 }));
-els.homeFromBannerBtn.addEventListener('click', goHome);
-els.toggleLineup.addEventListener('change', applyToggles);
-els.toggleOut.addEventListener('change', applyToggles);
+on(els.homeFromBannerBtn, 'click', goHome);
+on(els.toggleLineup, 'change', applyToggles);
+on(els.toggleOut, 'change', applyToggles);
 
-els.frGuessForm.addEventListener('submit', frSubmit);
-els.frTeamInput.addEventListener('input', onTeamInput);
-els.frTeamInput.addEventListener('keydown', onTeamKeydown);
-els.frHomeBtn.addEventListener('click', goHome);
-els.frOffenseBtn.addEventListener('click', () => startFr('offense'));
-els.frDefenseBtn.addEventListener('click', () => startFr('defense'));
+on(els.frGuessForm, 'submit', frSubmit);
+on(els.frTeamInput, 'input', onTeamInput);
+on(els.frTeamInput, 'keydown', onTeamKeydown);
+on(els.frHomeBtn, 'click', goHome);
+on(els.frOffenseBtn, 'click', () => startFr('offense'));
+on(els.frDefenseBtn, 'click', () => startFr('defense'));
 
 document.addEventListener('click', (e) => {
-  if (els.guessForm.contains(e.target) || els.autocompleteList.contains(e.target)) {
+  if ((els.guessForm?.contains(e.target) || els.autocompleteList?.contains(e.target))) {
     return;
   }
-  if (els.frGuessForm.contains(e.target) || els.frTeamAutocompleteList.contains(e.target)) {
+  if ((els.frGuessForm?.contains(e.target) || els.frTeamAutocompleteList?.contains(e.target))) {
     return;
   }
   closeAutocomplete();
   closeTeamAutocomplete();
 });
 
-els.rulesBtn.addEventListener('click', openRules);
-els.referenceBtn.addEventListener('click', openReference);
-els.rulesClose.addEventListener('click', closeRules);
-els.rulesBackdrop.addEventListener('click', closeRules);
-els.profileSaveBtn.addEventListener('click', saveProfileName);
-els.profileOpenBtn.addEventListener('click', openProfile);
-els.profileSportSelect?.addEventListener('change', renderProfile);
-els.friendsOpenBtn.addEventListener('click', openFriends);
-els.accountRegisterBtn.addEventListener('click', registerAccount);
-els.accountLoginBtn.addEventListener('click', loginAccount);
-els.accountResetBtn.addEventListener('click', resetPassword);
-els.accountLogoutBtn.addEventListener('click', logoutAccount);
-els.deleteAccountBtn.addEventListener('click', deleteAccount);
-els.friendRequestBtn.addEventListener('click', sendFriendRequest);
-els.profileNameInput.addEventListener('keydown', (e) => {
+on(els.rulesBtn, 'click', openRules);
+on(els.referenceBtn, 'click', openReference);
+on(els.rulesClose, 'click', closeRules);
+on(els.rulesBackdrop, 'click', closeRules);
+on(els.profileSaveBtn, 'click', saveProfileName);
+on(els.profileOpenBtn, 'click', openProfile);
+on(els.profileSportSelect, 'change', renderProfile);
+on(els.friendsOpenBtn, 'click', openFriends);
+on(els.accountRegisterBtn, 'click', registerAccount);
+on(els.accountLoginBtn, 'click', loginAccount);
+on(els.accountResetBtn, 'click', resetPassword);
+on(els.accountLogoutBtn, 'click', logoutAccount);
+on(els.deleteAccountBtn, 'click', deleteAccount);
+on(els.friendRequestBtn, 'click', sendFriendRequest);
+on(els.profileNameInput, 'keydown', (e) => {
   if (e.key === 'Enter') {
     e.preventDefault();
     saveProfileName();
   }
 });
-els.accountPasswordInput.addEventListener('keydown', (e) => {
+on(els.accountPasswordInput, 'keydown', (e) => {
   if (e.key === 'Enter') {
     e.preventDefault();
-    if (els.accountUsernameInput.value.trim()) {
+    if (els.accountUsernameInput?.value.trim()) {
       loginAccount();
     }
   }
 });
-els.deleteAccountPasswordInput.addEventListener('keydown', (e) => {
+on(els.deleteAccountPasswordInput, 'keydown', (e) => {
   if (e.key === 'Enter') {
     e.preventDefault();
     deleteAccount();
   }
 });
-els.friendTargetInput.addEventListener('keydown', (e) => {
+on(els.friendTargetInput, 'keydown', (e) => {
   if (e.key === 'Enter') {
     e.preventDefault();
     sendFriendRequest();
@@ -2472,7 +2484,7 @@ els.friendTargetInput.addEventListener('keydown', (e) => {
 });
 
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && !els.rulesModal.hidden) closeRules();
+  if (e.key === 'Escape' && els.rulesModal && !els.rulesModal.hidden) closeRules();
 });
 
 const launchParams = new URLSearchParams(window.location.search);

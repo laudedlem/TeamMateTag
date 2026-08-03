@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.54`
+- Current display version: `0.1.55`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -592,6 +592,14 @@ browsers and Vercel do not keep stale hub launch code after deploys. Sport page
 query launches now run after the profile bootstrap attempt even if bootstrap
 throws, so `/baseball?mode=bp` calls `startBp()` directly instead of leaving
 the player on the Baseball mode picker.
+
+Update, 2026-08-03 (0.1.55): fixed the sport-page query launch blocker. Sport
+pages do not render the home-page profile/account/friends controls, but
+`main.js` was binding those listeners unconditionally before the query-launch
+handler. The bindings are now null-safe, and profile, leaderboard, and friends
+refreshes skip home-only DOM when absent. This allows `/baseball?mode=bp` and
+other mode-hub URLs to reach `startBp()` or `startFr()` instead of staying on
+the sport mode picker.
 
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.
