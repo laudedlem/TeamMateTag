@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.58`
+- Current display version: `0.1.59`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -622,6 +622,12 @@ Update, 2026-08-03 (0.1.58): `/manager-mode/<sport>` and
 sport-page URLs. They set a short-lived launch cookie and redirect to
 `/<sport>`, so Homepage -> Baseball -> Manager Mode and Homepage -> Manager
 Mode -> Baseball both end at `/baseball` while still starting Manager Mode.
+
+Update, 2026-08-03 (0.1.59): mode-first launches now preserve their return
+context. The game still runs at the canonical sport URL, but a launch from
+`/manager-mode/<sport>` exits back to `/manager-mode`, and a launch from
+`/film-review/<sport>` exits back to `/film-review`. Sport-first launches keep
+the existing behavior and exit back to that sport's mode picker.
 
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.

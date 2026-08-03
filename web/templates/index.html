@@ -6,7 +6,7 @@
   <title>TeamMateTag{% if sport %} | {{ sport.name }}{% endif %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ app_version }}" />
 </head>
-<body class="dark" data-sport="{{ sport.key if sport else '' }}" data-cross-sports-online="{{ 'true' if cross_sports_online else 'false' }}" data-launch-mode="{{ launch.mode if launch else '' }}" data-launch-date="{{ launch.date if launch else '' }}" data-launch-archive="{{ launch.archive if launch else '' }}" data-launch-game-id="{{ launch.game_id if launch else '' }}">
+<body class="dark" data-sport="{{ sport.key if sport else '' }}" data-cross-sports-online="{{ 'true' if cross_sports_online else 'false' }}" data-launch-mode="{{ launch.mode if launch else '' }}" data-launch-date="{{ launch.date if launch else '' }}" data-launch-archive="{{ launch.archive if launch else '' }}" data-launch-game-id="{{ launch.game_id if launch else '' }}" data-launch-source="{{ launch.source if launch else '' }}">
   <header>
     <div class="title">
       <div class="brand-row">

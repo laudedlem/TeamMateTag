@@ -67,7 +67,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.1.58"
+APP_VERSION = "0.1.59"
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
 # When running the local curation build we deliberately keep using SQLite so
@@ -2163,7 +2163,7 @@ MODE_HUBS = {
 }
 
 LAUNCH_COOKIE_PREFIX = "tt_launch_"
-LAUNCH_COOKIE_KEYS = ("mode", "date", "archive", "game_id")
+LAUNCH_COOKIE_KEYS = ("mode", "date", "archive", "game_id", "source")
 
 
 def _set_launch_cookies(response, launch):
@@ -2208,6 +2208,7 @@ def direct_mode_sport(sport_key: str):
         "date": request.args.get("date", ""),
         "archive": request.args.get("archive", ""),
         "game_id": "",
+        "source": slug,
     })
 
 

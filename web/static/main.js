@@ -176,6 +176,7 @@ let activeCountdownKey = '';
 let activeTimerKey = '';
 let animateNewestCard = false;
 let referenceSport = 'baseball';
+let launchReturnPath = '';
 
 let acItems = [];
 let acHighlight = -1;
@@ -879,6 +880,12 @@ async function goHome() {
   els.guessInput.value = '';
   els.frTeamInput.value = '';
   els.frYearInput.value = '';
+  if (launchReturnPath) {
+    const target = launchReturnPath;
+    launchReturnPath = '';
+    window.location.assign(target);
+    return;
+  }
   els.startBtn.hidden = false;
   els.cancelMatchBtn.hidden = true;
   els.challengeStatusText.textContent = '';
@@ -2492,6 +2499,7 @@ const launchMode = document.body.dataset.launchMode || launchParams.get('mode');
 const launchDate = document.body.dataset.launchDate || launchParams.get('date');
 const launchArchive = (document.body.dataset.launchArchive || launchParams.get('archive')) === '1';
 const launchGameId = document.body.dataset.launchGameId || launchParams.get('game_id');
+const launchSource = document.body.dataset.launchSource || launchParams.get('source') || '';
 let launchHandled = false;
 showScreen('home');
 renderProfile();
@@ -2499,6 +2507,9 @@ async function handleQueryLaunch() {
   if (launchHandled) return;
   if (launchMode && ['bp', 'fr', 'mp', 'po'].includes(launchMode)) {
     launchHandled = true;
+    if (['manager-mode', 'film-review', 'division-rivalry', 'playoffs'].includes(launchSource)) {
+      launchReturnPath = '/' + launchSource;
+    }
     window.history.replaceState({}, '', window.location.pathname);
     if ((launchMode === 'mp' || launchMode === 'po') && launchGameId) {
       currentMode = launchMode;

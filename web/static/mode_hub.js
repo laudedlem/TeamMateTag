@@ -71,8 +71,8 @@ function formatArchiveLabel(day) {
 }
 
 function filmReviewUrl(sport, day) {
-  if (day.is_today) return `/${sport}?mode=fr`;
-  return `/${sport}?mode=fr&date=${encodeURIComponent(day.date)}&archive=1`;
+  if (day.is_today) return `/film-review/${sport}`;
+  return `/film-review/${sport}?date=${encodeURIComponent(day.date)}&archive=1`;
 }
 
 function renderFilmReviewArchiveSelect(sport, days) {
