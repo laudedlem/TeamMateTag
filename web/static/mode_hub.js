@@ -42,10 +42,8 @@ async function initHub() {
   if (!hubProfile?.guest_id) return;
   localStorage.setItem(guestKey, hubProfile.guest_id);
   if (hub === 'manager') {
-    Object.entries(hubProfile.stats?.sports || {}).forEach(([sport, stats]) => {
-      const target = document.querySelector(`[data-manager-best="${sport}"]`);
-      if (target) target.textContent = `Longest lineup: ${stats.bp_best || 0}`;
-    });
+    const summary = await post('/api/manager/summary', { guest_id: hubProfile.guest_id });
+    renderManagerSummary(summary);
   }
   if (hub === 'film') {
     const sports = ['baseball', 'basketball', 'hockey', 'football'];
@@ -60,7 +58,10 @@ async function initHub() {
 initHub();
 
 function displayStatus(status) {
-  return String(status || 'unseen').replace(/_/g, ' ');
+  const normalized = String(status || 'unseen');
+  if (normalized === 'won') return 'completed';
+  if (normalized === 'lost') return 'failed';
+  return normalized.replace(/_/g, ' ');
 }
 
 function formatArchiveLabel(day) {
@@ -89,13 +90,80 @@ function renderFilmReviewArchiveSelect(sport, days) {
     if (b.is_today) return 1;
     return Number(b.number || 0) - Number(a.number || 0);
   });
-  select.innerHTML = sorted.map((day) =>
-    `<option value="${filmReviewUrl(sport, day)}" class="${day.status || 'unseen'}">${formatArchiveLabel(day)}</option>`
+  select.innerHTML = '<option value="">Choose puzzle...</option>' + sorted.map((day) =>
+    `<option value="${filmReviewUrl(sport, day)}" class="fr-option-${day.is_today ? 'today' : day.status || 'unseen'}">${formatArchiveLabel(day)}</option>`
   ).join('');
-  select.value = current ? filmReviewUrl(sport, current) : `/${sport}?mode=fr`;
+  select.value = '';
   select.addEventListener('change', () => {
     if (select.value) window.location.href = select.value;
-  }, { once: true });
+  });
+}
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[char]);
+}
+
+function managerScore(run, emptyText = 'No lineup yet') {
+  if (!run) return `<strong>--</strong><span>${emptyText}</span>`;
+  const starter = run.starter?.name ? `Starter: ${escapeHtml(run.starter.name)}` : '';
+  return `<strong>${run.chain_length}</strong><span>${starter}</span>`;
+}
+
+function renderManagerCard(title, run, emptyText) {
+  return `<div class="manager-board-card">
+    <span>${escapeHtml(title)}</span>
+    ${managerScore(run, emptyText)}
+    ${run?.display_name ? `<small>${escapeHtml(run.display_name)}</small>` : ''}
+  </div>`;
+}
+
+function renderManagerLeaderboard(summary, sport) {
+  const data = summary?.sports?.[sport] || {};
+  const grid = document.getElementById('manager-leaderboard-grid');
+  const records = document.getElementById('manager-records-select');
+  if (!grid || !records) return;
+  grid.innerHTML = [
+    renderManagerCard('Your All-Time Best', data.own_all_time, 'No finished run'),
+    renderManagerCard('Your Best Today', data.own_today, 'No run today'),
+    renderManagerCard('Global All-Time Best', data.global_all_time, 'No global run'),
+    renderManagerCard('Global Best Today', data.global_today, 'No global run today'),
+  ].join('');
+  const rows = data.records || [];
+  records.innerHTML = rows.length
+    ? rows.map((row) => {
+      const starter = row.starter?.name ? ` - ${row.starter.name}` : '';
+      return `<option>${escapeHtml(row.date || '')} - ${escapeHtml(row.display_name || 'Guest')} - ${row.chain_length}${escapeHtml(starter)}</option>`;
+    }).join('')
+    : '<option>No daily records yet</option>';
+}
+
+function renderManagerSummary(summary) {
+  const sports = summary?.sports || {};
+  Object.entries(sports).forEach(([sport, data]) => {
+    const bestTarget = document.querySelector(`[data-manager-best="${sport}"]`);
+    if (bestTarget) bestTarget.textContent = `Longest lineup: ${data.own_all_time?.chain_length || 0}`;
+    const starterTarget = document.querySelector(`[data-manager-starter="${sport}"]`);
+    if (starterTarget) {
+      const starter = data.starter || {};
+      const photo = starter.headshot_url
+        ? `<img src="${escapeHtml(starter.headshot_url)}" alt="">`
+        : '';
+      starterTarget.innerHTML = `<span class="manager-starter-photo ${photo ? '' : 'placeholder'}">${photo}</span>
+        <span><small>Today's starter</small><strong>${escapeHtml(starter.name || 'Unknown')}</strong></span>`;
+    }
+  });
+  const picker = document.getElementById('manager-leaderboard-sport');
+  if (picker) {
+    const saved = localStorage.getItem('tt_manager_board_sport') || 'baseball';
+    picker.value = sports[saved] ? saved : 'baseball';
+    renderManagerLeaderboard(summary, picker.value);
+    picker.addEventListener('change', () => {
+      localStorage.setItem('tt_manager_board_sport', picker.value);
+      renderManagerLeaderboard(summary, picker.value);
+    });
+  }
 }
 
 function selectedSports() {

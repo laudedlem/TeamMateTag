@@ -23,6 +23,15 @@
           <span class="sport-tile-league">{{ sport.league }}</span>
           <span class="sport-tile-name">{{ sport.name }}</span>
           <span class="sport-tile-status">{% if slug == 'manager' %}<span data-manager-best="{{ key }}">Longest lineup: --</span>{% elif slug == 'film' %}<span data-fr-today-status="{{ key }}">Today's puzzle</span>{% else %}Queue now{% endif %}</span>
+          {% if slug == 'manager' %}
+          <span class="manager-starter" data-manager-starter="{{ key }}">
+            <span class="manager-starter-photo placeholder"></span>
+            <span>
+              <small>Today's starter</small>
+              <strong>Loading...</strong>
+            </span>
+          </span>
+          {% endif %}
         </a>
         {% if slug == 'film' %}
         <select class="fr-hub-archive-select" data-fr-archive-select="{{ key }}" aria-label="{{ sport.name }} Film Review archive">
@@ -34,6 +43,29 @@
     </div>
     {% if slug == 'film' %}
     <p class="muted small mode-hub-note">Choose a sport for today's puzzle or open its archive dropdown.</p>
+    {% elif slug == 'manager' %}
+    <section class="manager-leaderboard-panel" id="manager-leaderboard-panel">
+      <div class="manager-board-header">
+        <div>
+          <h3>Leaderboards</h3>
+          <p class="muted small">Longest Manager Mode lineups.</p>
+        </div>
+        <label class="manager-board-picker">Sport
+          <select id="manager-leaderboard-sport">
+            <option value="baseball">Baseball</option>
+            <option value="basketball">Basketball</option>
+            <option value="hockey">Hockey</option>
+            <option value="football">Football</option>
+          </select>
+        </label>
+      </div>
+      <div class="manager-board-grid" id="manager-leaderboard-grid"></div>
+      <label class="manager-records-picker">Records Archive
+        <select id="manager-records-select">
+          <option>Loading records...</option>
+        </select>
+      </label>
+    </section>
     {% elif slug == 'playoffs' %}
     <p class="muted small mode-hub-note">Choose a win condition below before queueing across multiple sports.</p>
     {% endif %}

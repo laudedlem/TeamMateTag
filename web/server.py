@@ -72,7 +72,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.1.61"
+APP_VERSION = "0.1.62"
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
 # When running the local curation build we deliberately keep using SQLite so
@@ -405,6 +405,7 @@ PLAYER_CARD_CACHE: dict[str, dict] = {}
 PLAYER_CARD_LOCK = Lock()
 SPORT_CARD_CACHE: dict[tuple[str, str], dict] = {}
 SPORT_TEAM_NAME_CACHE: dict[tuple[str, str, int], str] = {}
+MANAGER_SEED_CACHE: dict[tuple[str, str], str] = {}
 STATIC_CACHE_LOCK = Lock()
 STATIC_CACHE_READY = False
 RUNTIME_SCHEMA_LOCK = Lock()
@@ -573,10 +574,12 @@ def ensure_runtime_schema():
                        puzzle_date DATE NOT NULL,
                        game_id UUID NOT NULL,
                        status TEXT NOT NULL DEFAULT 'in_progress' CHECK (status IN ('in_progress','won','lost')),
+                       official BOOLEAN NOT NULL DEFAULT true,
                        completed_at TIMESTAMPTZ,
                        PRIMARY KEY (owner_guest_id, sport_id, puzzle_date)
                    )"""
             )
+            conn.execute("ALTER TABLE film_review_daily_attempts ADD COLUMN IF NOT EXISTS official BOOLEAN NOT NULL DEFAULT true")
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS dr_results (
                        result_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1199,7 +1202,7 @@ def _guest_stats(conn, guest_id: str) -> dict:
         won_days = {
             row[0] for row in conn.execute(
                 """SELECT puzzle_date FROM film_review_daily_attempts
-                     WHERE owner_guest_id=%s AND sport_id=%s AND status='won'""",
+                     WHERE owner_guest_id=%s AND sport_id=%s AND status='won' AND official""",
                 (guest_id, sport_id),
             ).fetchall()
         }
@@ -4451,6 +4454,142 @@ def _bp_daily_leaderboard(conn) -> list[dict]:
     ]
 
 
+def _manager_seed_for_day(conn, sport: str, puzzle_day: date | None = None) -> str:
+    puzzle_day = puzzle_day or datetime.now(CENTRAL_TIME).date()
+    cache_key = (sport, puzzle_day.isoformat())
+    cached = MANAGER_SEED_CACHE.get(cache_key)
+    if cached:
+        return cached
+    if sport == "baseball":
+        rows = conn.execute(
+            """SELECT player_id
+                 FROM players_searchable
+                WHERE career_games >= 500
+                ORDER BY career_games DESC, player_id
+                LIMIT 750"""
+        ).fetchall()
+        fallback = DEFAULT_SEED
+    else:
+        rows = conn.execute(
+            """SELECT player_id
+                 FROM sport_players_searchable
+                WHERE sport_id=%s AND career_games >= 100
+                ORDER BY career_games DESC, player_id
+                LIMIT 750""",
+            (sport,),
+        ).fetchall()
+        fallback = LOCAL_SPORT_SEEDS.get(sport)
+    candidates = [row[0] for row in rows]
+    if not candidates:
+        return fallback
+    digest = hashlib.sha256(f"{sport}:{puzzle_day.isoformat()}".encode("utf-8")).hexdigest()
+    seed = candidates[int(digest[:12], 16) % len(candidates)]
+    MANAGER_SEED_CACHE[cache_key] = seed
+    return seed
+
+
+def _manager_player_summary(conn, sport: str, player_id: str) -> dict:
+    if not player_id:
+        return {}
+    if sport == "baseball":
+        name_row = conn.execute(
+            "SELECT display_name FROM players_searchable WHERE player_id=%s",
+            (player_id,),
+        ).fetchone()
+        card = _hydrate_player_cards(conn, [player_id]).get(player_id, {})
+    else:
+        name_row = conn.execute(
+            "SELECT display_name FROM sport_players_searchable WHERE sport_id=%s AND player_id=%s",
+            (sport, player_id),
+        ).fetchone()
+        card = _sport_cards(conn, sport, [player_id]).get(player_id, {})
+    return {
+        "player_id": player_id,
+        "name": name_row[0] if name_row else player_id,
+        "headshot_url": card.get("headshot_url"),
+    }
+
+
+def _manager_bp_top_run(conn, sport: str, *, guest_id: str | None = None, today_only: bool = False) -> dict | None:
+    filters = ["b.sport_id=%s"]
+    params: list = [sport]
+    if guest_id:
+        filters.append("b.owner_guest_id=%s")
+        params.append(guest_id)
+    if today_only:
+        filters.append("((b.finished_at AT TIME ZONE 'America/Chicago')::date = (now() AT TIME ZONE 'America/Chicago')::date)")
+    row = conn.execute(
+        f"""SELECT COALESCE(u.username, g.display_name, 'Guest') AS display_name,
+                   b.chain_length, b.seed_player_id,
+                   (b.finished_at AT TIME ZONE 'America/Chicago')::date AS run_date
+              FROM bp_runs b
+              LEFT JOIN guests g ON g.guest_id = b.owner_guest_id
+              LEFT JOIN users u ON u.user_id = g.guest_id
+             WHERE {' AND '.join(filters)}
+             ORDER BY b.chain_length DESC, b.finished_at ASC
+             LIMIT 1""",
+        tuple(params),
+    ).fetchone()
+    if not row:
+        return None
+    display_name, chain_length, seed_player_id, run_date = row
+    return {
+        "display_name": display_name,
+        "chain_length": chain_length,
+        "date": run_date.isoformat() if run_date else None,
+        "starter": _manager_player_summary(conn, sport, seed_player_id),
+    }
+
+
+def _manager_bp_daily_records(conn, sport: str, limit: int = 30) -> list[dict]:
+    rows = conn.execute(
+        """SELECT DISTINCT ON ((b.finished_at AT TIME ZONE 'America/Chicago')::date)
+                  (b.finished_at AT TIME ZONE 'America/Chicago')::date AS run_date,
+                  COALESCE(u.username, g.display_name, 'Guest') AS display_name,
+                  b.chain_length, b.seed_player_id
+             FROM bp_runs b
+             LEFT JOIN guests g ON g.guest_id = b.owner_guest_id
+             LEFT JOIN users u ON u.user_id = g.guest_id
+            WHERE b.sport_id=%s
+            ORDER BY (b.finished_at AT TIME ZONE 'America/Chicago')::date DESC,
+                     b.chain_length DESC, b.finished_at ASC
+            LIMIT %s""",
+        (sport, limit),
+    ).fetchall()
+    return [
+        {
+            "date": run_date.isoformat() if run_date else None,
+            "display_name": display_name,
+            "chain_length": chain_length,
+            "starter": _manager_player_summary(conn, sport, seed_player_id),
+        }
+        for run_date, display_name, chain_length, seed_player_id in rows
+    ]
+
+
+@app.route("/api/manager/summary", methods=["POST"])
+def manager_summary():
+    ensure_runtime_schema()
+    guest_id = ((request.get_json(silent=True) or {}).get("guest_id") or "").strip() or None
+    today = datetime.now(CENTRAL_TIME).date()
+    sports = ["baseball", "basketball", "hockey", "football"]
+    with db() as conn:
+        if guest_id and not conn.execute("SELECT 1 FROM guests WHERE guest_id=%s", (guest_id,)).fetchone():
+            guest_id = None
+        payload = {}
+        for sport in sports:
+            seed = _manager_seed_for_day(conn, sport, today)
+            payload[sport] = {
+                "starter": _manager_player_summary(conn, sport, seed),
+                "own_all_time": _manager_bp_top_run(conn, sport, guest_id=guest_id),
+                "own_today": _manager_bp_top_run(conn, sport, guest_id=guest_id, today_only=True),
+                "global_all_time": _manager_bp_top_run(conn, sport),
+                "global_today": _manager_bp_top_run(conn, sport, today_only=True),
+                "records": _manager_bp_daily_records(conn, sport),
+            }
+    return jsonify({"date": today.isoformat(), "sports": payload})
+
+
 @app.route("/api/dr/queue", methods=["POST"])
 def dr_queue():
     ensure_runtime_schema()
@@ -5654,10 +5793,10 @@ def bp_state_dict(gid: str, blob: dict, state: GameState, conn=None) -> dict:
 def bp_new():
     ensure_runtime_schema()
     data = request.get_json(silent=True) or {}
-    seed = data.get("seed") or DEFAULT_SEED
     guest_id = (data.get("guest_id") or "").strip() or None
     turn_seconds = float(data.get("turn_seconds") or APP_TURN_SECONDS)
     with db() as conn:
+        seed = data.get("seed") or _manager_seed_for_day(conn, "baseball")
         if guest_id:
             row = conn.execute(
                 "SELECT 1 FROM guests WHERE guest_id = %s",
@@ -5822,7 +5961,7 @@ def sport_bp_new(sport: str):
     with db() as conn:
         if guest_id and not conn.execute("SELECT 1 FROM guests WHERE guest_id=%s", (guest_id,)).fetchone():
             guest_id = None
-        state = seed_game(PgEngineConn(conn), LOCAL_SPORT_SEEDS[sport], sport=sport)
+        state = seed_game(PgEngineConn(conn), data.get("seed") or _manager_seed_for_day(conn, sport), sport=sport)
         _record_sport_player_usage(conn, sport, state.current_player_id, "bp")
         blob = bp_blob_from_state(state, APP_TURN_SECONDS, now_utc(), OPENING_COUNTDOWN_SECONDS,
                                   owner_guest_id=guest_id, seed_player_id=state.current_player_id)
@@ -6142,12 +6281,20 @@ def fr_new():
             }), 500
         blob = fr_blob_from_puzzle(puz, shared_per_pair, owner_guest_id=guest_id, archive=archive)
         gid = _insert_game(conn, "fr_games", blob)
-        if guest_id and not archive:
-            conn.execute("""INSERT INTO film_review_daily_attempts (owner_guest_id, sport_id, puzzle_date, game_id)
-                            VALUES (%s,'baseball',%s,%s)
-                            ON CONFLICT (owner_guest_id, sport_id, puzzle_date)
-                            DO UPDATE SET game_id=EXCLUDED.game_id, status='in_progress', completed_at=NULL""",
-                         (guest_id, puzzle_day, gid))
+        if guest_id:
+            if archive:
+                conn.execute("""INSERT INTO film_review_daily_attempts (owner_guest_id, sport_id, puzzle_date, game_id, official)
+                                VALUES (%s,'baseball',%s,%s,false)
+                                ON CONFLICT (owner_guest_id, sport_id, puzzle_date)
+                                DO UPDATE SET game_id=EXCLUDED.game_id, status='in_progress', completed_at=NULL
+                                WHERE film_review_daily_attempts.status='in_progress'""",
+                             (guest_id, puzzle_day, gid))
+            else:
+                conn.execute("""INSERT INTO film_review_daily_attempts (owner_guest_id, sport_id, puzzle_date, game_id, official)
+                                VALUES (%s,'baseball',%s,%s,true)
+                                ON CONFLICT (owner_guest_id, sport_id, puzzle_date)
+                                DO UPDATE SET game_id=EXCLUDED.game_id, status='in_progress', completed_at=NULL, official=true""",
+                             (guest_id, puzzle_day, gid))
         return jsonify(fr_state_dict(gid, blob, conn=conn))
 
 
@@ -6266,7 +6413,7 @@ def fr_guess():
         }
         if blob["finished"]:
             _save_fr_result(conn, blob)
-            if blob.get("owner_guest_id") and not blob.get("archive"):
+            if blob.get("owner_guest_id"):
                 conn.execute("""UPDATE film_review_daily_attempts SET status=%s, completed_at=now()
                                 WHERE owner_guest_id=%s AND sport_id='baseball' AND puzzle_date=%s""",
                              ("won" if blob.get("won") else "lost", blob["owner_guest_id"], blob.get("puzzle_date")))
@@ -6498,12 +6645,20 @@ def sport_fr_new(sport: str):
             "finished": False, "won": False, "last_guess": None,
         }
         gid = _insert_game(conn, "fr_games", blob)
-        if guest_id and not archive:
-            conn.execute("""INSERT INTO film_review_daily_attempts (owner_guest_id, sport_id, puzzle_date, game_id)
-                            VALUES (%s,%s,%s,%s)
-                            ON CONFLICT (owner_guest_id, sport_id, puzzle_date)
-                            DO UPDATE SET game_id=EXCLUDED.game_id, status='in_progress', completed_at=NULL""",
-                         (guest_id, sport, puzzle_day, gid))
+        if guest_id:
+            if archive:
+                conn.execute("""INSERT INTO film_review_daily_attempts (owner_guest_id, sport_id, puzzle_date, game_id, official)
+                                VALUES (%s,%s,%s,%s,false)
+                                ON CONFLICT (owner_guest_id, sport_id, puzzle_date)
+                                DO UPDATE SET game_id=EXCLUDED.game_id, status='in_progress', completed_at=NULL
+                                WHERE film_review_daily_attempts.status='in_progress'""",
+                             (guest_id, sport, puzzle_day, gid))
+            else:
+                conn.execute("""INSERT INTO film_review_daily_attempts (owner_guest_id, sport_id, puzzle_date, game_id, official)
+                                VALUES (%s,%s,%s,%s,true)
+                                ON CONFLICT (owner_guest_id, sport_id, puzzle_date)
+                                DO UPDATE SET game_id=EXCLUDED.game_id, status='in_progress', completed_at=NULL, official=true""",
+                             (guest_id, sport, puzzle_day, gid))
         return jsonify(_sport_fr_state_dict(gid, blob, conn))
 
 
@@ -6554,7 +6709,7 @@ def sport_fr_guess(sport: str):
                                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
                              (blob["owner_guest_id"], sport, blob["puzzle_id"], blob["hits"], blob["fouls"], blob["strikes"], blob["won"], blob.get("unit")))
                 blob["result_saved"] = True
-            if blob["finished"] and blob.get("owner_guest_id") and not blob.get("archive"):
+            if blob["finished"] and blob.get("owner_guest_id"):
                 conn.execute("""UPDATE film_review_daily_attempts SET status=%s, completed_at=now()
                                 WHERE owner_guest_id=%s AND sport_id=%s AND puzzle_date=%s""",
                              ("won" if blob["won"] else "lost", blob["owner_guest_id"], sport, blob.get("puzzle_date")))

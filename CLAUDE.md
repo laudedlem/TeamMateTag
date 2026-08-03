@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.61`
+- Current display version: `0.1.62`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -642,6 +642,16 @@ instances (`psycopg[binary,pool]`) while retaining the old direct-connection
 fallback. This should reduce repeated Supabase connection overhead after cold
 start; true first-load latency may still include Vercel and Supabase wake-up
 time.
+
+Update, 2026-08-03 (0.1.62): `/film` archive dropdowns now use a neutral
+selector row, so choosing Today's puzzle triggers navigation even when Today
+is already the default listing. Opening an unseen archive Film Review records
+that puzzle as in progress; completed/failed archive attempts update the
+archive status but daily streak logic still only counts won dates. `/manager`
+now shows each sport's daily starter with headshot, uses the same daily starter
+when a Manager Mode run starts, and includes a sport-filtered Manager
+leaderboard panel with personal/global all-time, personal/global today, and a
+daily records dropdown.
 
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.

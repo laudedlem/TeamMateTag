@@ -291,6 +291,28 @@ button.danger:hover:not(:disabled) {
   font: inherit;
 }
 
+.fr-hub-archive-select option.fr-option-today {
+  color: var(--accent);
+}
+
+.fr-hub-archive-select option.fr-option-won,
+.fr-hub-archive-select option.fr-option-completed {
+  color: var(--good);
+}
+
+.fr-hub-archive-select option.fr-option-in_progress {
+  color: var(--burn);
+}
+
+.fr-hub-archive-select option.fr-option-lost,
+.fr-hub-archive-select option.fr-option-failed {
+  color: var(--bad);
+}
+
+.fr-hub-archive-select option.fr-option-unseen {
+  color: var(--text-muted);
+}
+
 .fr-today-status.won,
 .fr-today-status.completed {
   color: var(--good);
@@ -303,6 +325,127 @@ button.danger:hover:not(:disabled) {
 
 .fr-today-status.in_progress {
   color: var(--burn);
+}
+
+.manager-starter {
+  margin-top: auto;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 0.65rem;
+  align-items: center;
+  padding-top: 0.8rem;
+}
+
+.manager-starter-photo {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  display: block;
+}
+
+.manager-starter-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.manager-starter-photo.placeholder::after {
+  content: "";
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, var(--bg-hover), var(--bg));
+}
+
+.manager-starter small {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+
+.manager-starter strong {
+  display: block;
+  line-height: 1.15;
+}
+
+.manager-leaderboard-panel {
+  margin-top: 1.25rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  padding: 1rem;
+}
+
+.manager-board-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: end;
+  margin-bottom: 0.9rem;
+}
+
+.manager-board-header h3 {
+  margin: 0;
+}
+
+.manager-board-picker,
+.manager-records-picker {
+  display: grid;
+  gap: 0.3rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.manager-board-picker select,
+.manager-records-picker select {
+  min-width: 190px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0.55rem 0.65rem;
+  font: inherit;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.manager-board-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin-bottom: 0.8rem;
+}
+
+.manager-board-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  padding: 0.75rem;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.manager-board-card > span:first-child {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.manager-board-card strong {
+  font-size: 1.45rem;
+}
+
+.manager-board-card span,
+.manager-board-card small {
+  color: var(--text-muted);
 }
 
 .sport-tile:hover {
