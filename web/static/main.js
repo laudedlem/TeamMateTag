@@ -242,6 +242,9 @@ function isOnlineMode(mode = currentMode) {
 }
 
 function onlineApiBase(mode = currentMode) {
+  if (CURRENT_SPORT === 'baseball') {
+    return '/api/sports/baseball/' + (mode === 'po' ? 'po' : 'dr');
+  }
   if (isCrossSport() && CROSS_SPORTS_ONLINE) {
     return '/api/sports/' + CURRENT_SPORT + '/' + (mode === 'po' ? 'po' : 'dr');
   }
@@ -1317,9 +1320,9 @@ function runOpeningCountdown() {
 }
 
 async function onMpTimeout() {
-  const timeoutPath = (currentMode === 'po' && !usesLocalPlayoffs())
-    ? onlineApiBase() + '/timeout'
-    : (LOCAL_SOLO_SPORTS.has(CURRENT_SPORT) ? onlineApiBase() + '/game' : '/api/timeout');
+  const timeoutPath = currentMode === 'po'
+    ? (usesLocalPlayoffs() ? onlineApiBase() + '/game' : onlineApiBase() + '/timeout')
+    : (USE_LOCAL_CROSS_SPORTS ? onlineApiBase() + '/game' : onlineApiBase() + '/timeout');
   game = await api(timeoutPath, {
     game_id: game.game_id,
     guest_id: profile?.guest_id || storedGuestId(),
@@ -1354,7 +1357,7 @@ async function submitMove({ raw, player_id }) {
   els.guessInput.value = '';
   const path = currentMode === 'bp'
     ? (LOCAL_SOLO_SPORTS.has(CURRENT_SPORT) ? localSoloPath('move') : '/api/bp/move')
-    : currentMode === 'po' ? (isCrossSport() ? onlineApiBase() + '/move' : '/api/po/move') : (LOCAL_SOLO_SPORTS.has(CURRENT_SPORT) ? onlineApiBase() + '/move' : '/api/move');
+    : onlineApiBase() + '/move';
   const previousChainLength = game.chain?.length || 0;
   const nextGame = await api(path, {
     game_id: game.game_id,
@@ -1816,7 +1819,7 @@ function renderPowerups() {
 
 async function usePowerup(powerupKey) {
   if (currentMode !== 'po' || !game?.game_id || !powerupKey) return;
-  const next = await api(isCrossSport() ? onlineApiBase() + '/powerup' : '/api/po/powerup', {
+  const next = await api(onlineApiBase('po') + '/powerup', {
     guest_id: profile?.guest_id || storedGuestId(),
     game_id: game.game_id,
     powerup_key: powerupKey,
@@ -2472,15 +2475,30 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && !els.rulesModal.hidden) closeRules();
 });
 
-const launchMode = new URLSearchParams(window.location.search).get('mode');
-const launchDate = new URLSearchParams(window.location.search).get('date');
-const launchArchive = new URLSearchParams(window.location.search).get('archive') === '1';
+const launchParams = new URLSearchParams(window.location.search);
+const launchMode = launchParams.get('mode');
+const launchDate = launchParams.get('date');
+const launchArchive = launchParams.get('archive') === '1';
+const launchGameId = launchParams.get('game_id');
 showScreen('home');
 renderProfile();
-bootstrapProfile().then(() => {
+bootstrapProfile().then(async () => {
   if (launchMode && ['bp', 'fr', 'mp', 'po'].includes(launchMode)) {
     window.history.replaceState({}, '', window.location.pathname);
-    if (launchMode === 'fr' && launchDate) startFr(null, { puzzle_date: launchDate, archive: launchArchive });
+    if ((launchMode === 'mp' || launchMode === 'po') && launchGameId) {
+      currentMode = launchMode;
+      try {
+        const next = await api(onlineApiBase(launchMode) + '/game', {
+          guest_id: profile?.guest_id || storedGuestId(),
+          game_id: launchGameId,
+        });
+        if (next.error) throw new Error(next.error);
+        await enterMatchedGame(next);
+      } catch (err) {
+        alert('Could not open match: ' + err.message);
+        pickMode(launchMode);
+      }
+    } else if (launchMode === 'fr' && launchDate) startFr(null, { puzzle_date: launchDate, archive: launchArchive });
     else pickMode(launchMode);
   }
 });

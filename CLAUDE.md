@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.49`
+- Current display version: `0.1.50`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -550,6 +550,18 @@ Review lists each sport's current-day state and direct archive links, colored
 by unseen, completed, or failed status. Query-mode launches wait for profile
 bootstrap, so a Manager Mode or Film Review sport button enters the selected
 mode directly instead of stopping on the sport home page.
+
+Update, 2026-08-03 (0.1.50): Baseball Division Rivalry and Playoffs now expose
+the same `/api/sports/baseball/<dr|po>/*` route contract as Basketball,
+Hockey, and Football while still using the mature Baseball game tables and
+engine underneath. Sport pages therefore call one online API shape for queue,
+status, game, move, timeout, powerup, rematch, requeue, challenge, and leave
+operations. The `/division-rivalry` and `/playoffs` mode hubs include a
+shared multi-sport queue backed by `multi_sport_queue`: a player can select
+one or more sports, match only on overlapping sport choices, and get redirected
+directly into the matched sport page with `?mode=<mp|po>&game_id=...`.
+Playoffs hub queue rows also store one selected win-condition preference per
+sport.
 
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.

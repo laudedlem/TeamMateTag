@@ -714,6 +714,21 @@ def ensure_runtime_schema():
                    )"""
             )
             conn.execute(
+                """CREATE TABLE IF NOT EXISTS multi_sport_queue (
+                       guest_id UUID PRIMARY KEY REFERENCES guests(guest_id) ON DELETE CASCADE,
+                       mode TEXT NOT NULL CHECK (mode IN ('dr', 'po')),
+                       sports JSONB NOT NULL,
+                       display_name TEXT NOT NULL,
+                       preference JSONB NOT NULL DEFAULT '{}'::jsonb,
+                       avoid_guest_id UUID,
+                       enqueued_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                   )"""
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_multi_sport_queue_mode "
+                "ON multi_sport_queue(mode, enqueued_at)"
+            )
+            conn.execute(
                 """INSERT INTO guest_sport_ratings (guest_id, sport_id, elo)
                    SELECT guest_id, 'baseball', elo FROM guests
                    ON CONFLICT (guest_id, sport_id) DO NOTHING"""
@@ -4292,6 +4307,7 @@ def _bp_daily_leaderboard(conn) -> list[dict]:
     ]
 
 
+@app.route("/api/sports/baseball/dr/queue", methods=["POST"])
 @app.route("/api/dr/queue", methods=["POST"])
 def dr_queue():
     ensure_runtime_schema()
@@ -4353,6 +4369,7 @@ def dr_queue():
         return jsonify(_dr_status_payload(conn, guest_id))
 
 
+@app.route("/api/sports/baseball/dr/status", methods=["POST"])
 @app.route("/api/dr/status", methods=["POST"])
 def dr_status():
     ensure_runtime_schema()
@@ -4364,6 +4381,7 @@ def dr_status():
         return jsonify(_dr_status_payload(conn, guest_id))
 
 
+@app.route("/api/sports/baseball/dr/game", methods=["POST"])
 @app.route("/api/dr/game", methods=["POST"])
 def dr_game():
     ensure_runtime_schema()
@@ -4382,6 +4400,7 @@ def dr_game():
         return jsonify(dr_state_dict(gid, blob, state, conn=conn))
 
 
+@app.route("/api/sports/baseball/dr/rematch_request", methods=["POST"])
 @app.route("/api/dr/rematch_request", methods=["POST"])
 def dr_rematch_request():
     ensure_runtime_schema()
@@ -4446,6 +4465,7 @@ def dr_rematch_request():
         return jsonify({"status": "waiting"})
 
 
+@app.route("/api/sports/baseball/dr/rematch_status", methods=["POST"])
 @app.route("/api/dr/rematch_status", methods=["POST"])
 def dr_rematch_status():
     ensure_runtime_schema()
@@ -4544,6 +4564,7 @@ def dr_rematch_status():
         })
 
 
+@app.route("/api/sports/baseball/dr/postgame_leave", methods=["POST"])
 @app.route("/api/dr/postgame_leave", methods=["POST"])
 def dr_postgame_leave():
     ensure_runtime_schema()
@@ -4594,6 +4615,7 @@ def dr_postgame_leave():
     return jsonify({"status": "gone"})
 
 
+@app.route("/api/sports/baseball/dr/create_challenge", methods=["POST"])
 @app.route("/api/dr/create_challenge", methods=["POST"])
 def dr_create_challenge():
     ensure_runtime_schema()
@@ -4622,6 +4644,7 @@ def dr_create_challenge():
     return jsonify({"code": code})
 
 
+@app.route("/api/sports/baseball/dr/join_challenge", methods=["POST"])
 @app.route("/api/dr/join_challenge", methods=["POST"])
 def dr_join_challenge():
     ensure_runtime_schema()
@@ -4667,6 +4690,7 @@ def dr_join_challenge():
             })
 
 
+@app.route("/api/sports/baseball/dr/cancel_queue", methods=["POST"])
 @app.route("/api/dr/cancel_queue", methods=["POST"])
 def dr_cancel_queue():
     ensure_runtime_schema()
@@ -4679,6 +4703,7 @@ def dr_cancel_queue():
     return jsonify({"status": "idle"})
 
 
+@app.route("/api/sports/baseball/dr/cancel_challenge", methods=["POST"])
 @app.route("/api/dr/cancel_challenge", methods=["POST"])
 def dr_cancel_challenge():
     ensure_runtime_schema()
@@ -4694,6 +4719,7 @@ def dr_cancel_challenge():
     return jsonify({"status": "idle"})
 
 
+@app.route("/api/sports/baseball/dr/leave_game", methods=["POST"])
 @app.route("/api/dr/leave_game", methods=["POST"])
 def dr_leave_game():
     ensure_runtime_schema()
@@ -4753,6 +4779,7 @@ def new_game():
         return jsonify(dr_state_dict(gid, blob, state, conn=conn))
 
 
+@app.route("/api/sports/baseball/dr/move", methods=["POST"])
 @app.route("/api/move", methods=["POST"])
 def move():
     ensure_runtime_schema()
@@ -4809,6 +4836,7 @@ def move():
         return jsonify(dr_state_dict(gid, blob, state, conn=conn))
 
 
+@app.route("/api/sports/baseball/dr/timeout", methods=["POST"])
 @app.route("/api/timeout", methods=["POST"])
 def timeout():
     ensure_runtime_schema()
@@ -4920,6 +4948,7 @@ def _forfeit_active_po_games(conn, guest_id: str):
         _save_game(conn, "po_games", game_id, blob)
 
 
+@app.route("/api/sports/baseball/po/queue", methods=["POST"])
 @app.route("/api/po/queue", methods=["POST"])
 def po_queue():
     ensure_runtime_schema()
@@ -4970,6 +4999,7 @@ def po_queue():
         return jsonify(_po_status_payload(conn, guest_id))
 
 
+@app.route("/api/sports/baseball/po/status", methods=["POST"])
 @app.route("/api/po/status", methods=["POST"])
 def po_status():
     ensure_runtime_schema()
@@ -4981,6 +5011,7 @@ def po_status():
         return jsonify(_po_status_payload(conn, guest_id))
 
 
+@app.route("/api/sports/baseball/po/game", methods=["POST"])
 @app.route("/api/po/game", methods=["POST"])
 def po_game():
     ensure_runtime_schema()
@@ -4999,6 +5030,7 @@ def po_game():
         return jsonify(po_state_dict(gid, blob, state, conn=conn))
 
 
+@app.route("/api/sports/baseball/po/powerup", methods=["POST"])
 @app.route("/api/po/powerup", methods=["POST"])
 def po_powerup():
     ensure_runtime_schema()
@@ -5075,6 +5107,7 @@ def po_powerup():
         return jsonify(po_state_dict(gid, blob, state, conn=conn))
 
 
+@app.route("/api/sports/baseball/po/move", methods=["POST"])
 @app.route("/api/po/move", methods=["POST"])
 def po_move():
     ensure_runtime_schema()
@@ -5164,6 +5197,7 @@ def po_move():
         return jsonify(po_state_dict(gid, blob, state, conn=conn))
 
 
+@app.route("/api/sports/baseball/po/timeout", methods=["POST"])
 @app.route("/api/po/timeout", methods=["POST"])
 def po_timeout():
     ensure_runtime_schema()
@@ -5191,6 +5225,7 @@ def po_timeout():
         return jsonify(po_state_dict(gid, blob, state, conn=conn))
 
 
+@app.route("/api/sports/baseball/po/rematch_request", methods=["POST"])
 @app.route("/api/po/rematch_request", methods=["POST"])
 def po_rematch_request():
     ensure_runtime_schema()
@@ -5242,6 +5277,7 @@ def po_rematch_request():
         return jsonify({"status": "waiting"})
 
 
+@app.route("/api/sports/baseball/po/rematch_status", methods=["POST"])
 @app.route("/api/po/rematch_status", methods=["POST"])
 def po_rematch_status():
     ensure_runtime_schema()
@@ -5296,6 +5332,7 @@ def po_rematch_status():
         })
 
 
+@app.route("/api/sports/baseball/po/postgame_leave", methods=["POST"])
 @app.route("/api/po/postgame_leave", methods=["POST"])
 def po_postgame_leave():
     ensure_runtime_schema()
@@ -5338,6 +5375,7 @@ def po_postgame_leave():
         return jsonify({"status": "gone"})
 
 
+@app.route("/api/sports/baseball/po/create_challenge", methods=["POST"])
 @app.route("/api/po/create_challenge", methods=["POST"])
 def po_create_challenge():
     ensure_runtime_schema()
@@ -5361,6 +5399,7 @@ def po_create_challenge():
         return jsonify({"status": "waiting", "code": code})
 
 
+@app.route("/api/sports/baseball/po/join_challenge", methods=["POST"])
 @app.route("/api/po/join_challenge", methods=["POST"])
 def po_join_challenge():
     ensure_runtime_schema()
@@ -5392,6 +5431,7 @@ def po_join_challenge():
             return jsonify({"status": "matched", "game": po_state_dict(gid, blob, state, conn=conn)})
 
 
+@app.route("/api/sports/baseball/po/cancel_queue", methods=["POST"])
 @app.route("/api/po/cancel_queue", methods=["POST"])
 def po_cancel_queue():
     ensure_runtime_schema()
@@ -5404,6 +5444,7 @@ def po_cancel_queue():
     return jsonify({"status": "idle"})
 
 
+@app.route("/api/sports/baseball/po/cancel_challenge", methods=["POST"])
 @app.route("/api/po/cancel_challenge", methods=["POST"])
 def po_cancel_challenge():
     ensure_runtime_schema()
@@ -5416,6 +5457,7 @@ def po_cancel_challenge():
     return jsonify({"status": "idle"})
 
 
+@app.route("/api/sports/baseball/po/leave_game", methods=["POST"])
 @app.route("/api/po/leave_game", methods=["POST"])
 def po_leave_game():
     ensure_runtime_schema()
@@ -6608,6 +6650,203 @@ def _sport_online_requeue(conn, sport: str, mode: str, guest_id: str, avoid_gues
                  enqueued_at=now()""",
         (sport, mode, guest_id, _guest_label(conn, guest_id), avoid_guest_id),
     )
+
+
+MULTI_QUEUE_SPORTS = ("baseball", "basketball", "hockey", "football")
+
+
+def _multi_mode_from_slug(mode: str) -> str | None:
+    return {"division-rivalry": "dr", "playoffs": "po", "dr": "dr", "po": "po"}.get(mode)
+
+
+def _multi_client_mode(mode: str) -> str:
+    return "po" if mode == "po" else "mp"
+
+
+def _multi_redirect(sport: str, mode: str, game_id: str) -> str:
+    return f"/{sport}?mode={_multi_client_mode(mode)}&game_id={game_id}"
+
+
+def _normalize_multi_sports(raw_sports) -> list[str]:
+    sports = raw_sports if isinstance(raw_sports, list) else []
+    cleaned: list[str] = []
+    for sport in sports:
+        sport = str(sport).strip().lower()
+        if sport in MULTI_QUEUE_SPORTS and sport not in cleaned:
+            cleaned.append(sport)
+    return cleaned
+
+
+def _load_active_multisport_game(conn, guest_id: str, mode: str, sports: list[str]):
+    if "baseball" in sports:
+        table = "po_games" if mode == "po" else "dr_games"
+        row = conn.execute(
+            f"""SELECT game_id::text, state, finished
+                  FROM {table}
+                 WHERE NOT finished
+                   AND ((state->>'p1_guest_id') = %s OR (state->>'p2_guest_id') = %s)
+                 ORDER BY created_at DESC
+                 LIMIT 1""",
+            (guest_id, guest_id),
+        ).fetchone()
+        if row:
+            game_id, blob, finished = row
+            blob["finished"] = finished
+            return "baseball", game_id
+
+    sport_list = [sport for sport in sports if sport != "baseball"]
+    if sport_list:
+        for sport in sport_list:
+            _reap_expired_sport_games(conn, sport, mode)
+        row = conn.execute(
+            """SELECT sport_id, game_id::text
+                 FROM sport_online_games
+                WHERE sport_id = ANY(%s)
+                  AND mode = %s
+                  AND NOT finished
+                  AND ((state->>'p1_guest_id') = %s OR (state->>'p2_guest_id') = %s)
+                ORDER BY created_at DESC
+                LIMIT 1""",
+            (sport_list, mode, guest_id, guest_id),
+        ).fetchone()
+        if row:
+            return row[0], row[1]
+    return None
+
+
+def _create_multisport_match(conn, sport: str, mode: str, a: tuple[str, str], b: tuple[str, str], preferences: dict | None):
+    if sport == "baseball":
+        if mode == "po":
+            preferences = preferences or {}
+            for guest_id, preference in preferences.items():
+                if preference:
+                    _save_playoff_preference(conn, guest_id, preference)
+            game_id, _blob, _state = _po_create_online_game(conn, a[0], a[1], b[0], b[1])
+        else:
+            game_id, _blob, _state = _dr_create_online_game(conn, a[0], a[1], b[0], b[1])
+        return game_id
+    game_id, _blob, _state = _sport_online_create(conn, sport, mode, a, b, preferences or {})
+    return game_id
+
+
+@app.route("/api/modes/<mode>/queue", methods=["POST"])
+def multi_sport_queue(mode: str):
+    ensure_runtime_schema()
+    queue_mode = _multi_mode_from_slug(mode)
+    if not queue_mode:
+        return jsonify({"error": "unsupported mode"}), 404
+    data = request.get_json(silent=True) or {}
+    guest_id = (data.get("guest_id") or "").strip()
+    sports = _normalize_multi_sports(data.get("sports"))
+    if not guest_id:
+        return jsonify({"error": "guest_id required"}), 400
+    if not sports:
+        return jsonify({"error": "choose at least one sport"}), 400
+    with db() as conn:
+        if not conn.execute("SELECT 1 FROM guests WHERE guest_id = %s", (guest_id,)).fetchone():
+            return jsonify({"error": "unknown guest_id"}), 404
+        active = _load_active_multisport_game(conn, guest_id, queue_mode, sports)
+        if active:
+            sport, game_id = active
+            return jsonify({
+                "status": "matched",
+                "sport": sport,
+                "game_id": game_id,
+                "redirect": _multi_redirect(sport, queue_mode, game_id),
+            })
+
+        display_name = _guest_label(conn, guest_id)
+        avoid_guest_id = (data.get("avoid_guest_id") or "").strip() or None
+        preferences = data.get("preferences") if isinstance(data.get("preferences"), dict) else {}
+        with conn.transaction():
+            conn.execute("SELECT pg_advisory_xact_lock(4413000 + %s)", (0 if queue_mode == "dr" else 1,))
+            rows = conn.execute(
+                """SELECT guest_id::text, display_name, sports, preference
+                     FROM multi_sport_queue
+                    WHERE mode = %s
+                      AND guest_id <> %s
+                      AND (avoid_guest_id IS NULL OR avoid_guest_id <> CAST(%s AS uuid))
+                      AND (CAST(%s AS uuid) IS NULL OR guest_id <> CAST(%s AS uuid))
+                    ORDER BY enqueued_at
+                    LIMIT 25
+                    FOR UPDATE SKIP LOCKED""",
+                (queue_mode, guest_id, guest_id, avoid_guest_id, avoid_guest_id),
+            ).fetchall()
+            for opponent_id, opponent_name, opponent_sports, opponent_preferences in rows:
+                overlap = [sport for sport in sports if sport in (opponent_sports or [])]
+                if not overlap:
+                    continue
+                sport = overlap[secrets.randbelow(len(overlap))]
+                conn.execute(
+                    "DELETE FROM multi_sport_queue WHERE guest_id IN (%s, %s)",
+                    (guest_id, opponent_id),
+                )
+                game_id = _create_multisport_match(
+                    conn,
+                    sport,
+                    queue_mode,
+                    (opponent_id, opponent_name),
+                    (guest_id, display_name),
+                    {opponent_id: (opponent_preferences or {}).get(sport), guest_id: preferences.get(sport)},
+                )
+                return jsonify({
+                    "status": "matched",
+                    "sport": sport,
+                    "game_id": game_id,
+                    "redirect": _multi_redirect(sport, queue_mode, game_id),
+                })
+            conn.execute(
+                """INSERT INTO multi_sport_queue (guest_id, mode, sports, display_name, preference, avoid_guest_id)
+                   VALUES (%s, %s, %s, %s, %s, %s)
+                   ON CONFLICT (guest_id) DO UPDATE
+                     SET mode = EXCLUDED.mode,
+                         sports = EXCLUDED.sports,
+                         display_name = EXCLUDED.display_name,
+                         preference = EXCLUDED.preference,
+                         avoid_guest_id = EXCLUDED.avoid_guest_id,
+                         enqueued_at = now()""",
+                (guest_id, queue_mode, Jsonb(sports), display_name, Jsonb(preferences), avoid_guest_id),
+            )
+    return jsonify({"status": "waiting", "guest_id": guest_id})
+
+
+@app.route("/api/modes/<mode>/status", methods=["POST"])
+def multi_sport_status(mode: str):
+    ensure_runtime_schema()
+    queue_mode = _multi_mode_from_slug(mode)
+    if not queue_mode:
+        return jsonify({"error": "unsupported mode"}), 404
+    data = request.get_json(silent=True) or {}
+    guest_id = (data.get("guest_id") or "").strip()
+    sports = _normalize_multi_sports(data.get("sports")) or list(MULTI_QUEUE_SPORTS)
+    if not guest_id:
+        return jsonify({"error": "guest_id required"}), 400
+    with db() as conn:
+        active = _load_active_multisport_game(conn, guest_id, queue_mode, sports)
+        if active:
+            sport, game_id = active
+            conn.execute("DELETE FROM multi_sport_queue WHERE guest_id = %s", (guest_id,))
+            return jsonify({
+                "status": "matched",
+                "sport": sport,
+                "game_id": game_id,
+                "redirect": _multi_redirect(sport, queue_mode, game_id),
+            })
+        waiting = conn.execute(
+            "SELECT 1 FROM multi_sport_queue WHERE guest_id = %s AND mode = %s",
+            (guest_id, queue_mode),
+        ).fetchone()
+    return jsonify({"status": "waiting", "guest_id": guest_id} if waiting else {"status": "idle", "guest_id": guest_id})
+
+
+@app.route("/api/modes/<mode>/cancel_queue", methods=["POST"])
+def multi_sport_cancel(mode: str):
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
+    guest_id = (data.get("guest_id") or "").strip()
+    with db() as conn:
+        conn.execute("DELETE FROM multi_sport_queue WHERE guest_id = %s", (guest_id,))
+    return jsonify({"status": "idle"})
 
 
 @app.route("/api/sports/<sport>/<mode>/queue", methods=["POST"])

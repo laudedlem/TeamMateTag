@@ -28,7 +28,32 @@
     {% if slug == 'film-review' %}
     <div class="mode-hub-archive" id="mode-hub-archive"><p class="muted small">Loading Film Review archive...</p></div>
     {% elif slug == 'playoffs' %}
-    <p class="muted small mode-hub-note">Choose your win condition after selecting a sport, before entering the queue.</p>
+    <p class="muted small mode-hub-note">Direct sport buttons still open that sport page. Use the queue below to search across more than one sport.</p>
+    {% endif %}
+    {% if slug == 'division-rivalry' or slug == 'playoffs' %}
+    <section class="shared-queue-panel" id="shared-queue-panel">
+      <h3>Multi-sport queue</h3>
+      <p class="muted small">Pick one or more sports. You will enter whichever selected sport finds an opponent first.</p>
+      <div class="shared-sport-picker">
+        {% for key, sport in sports.items() %}
+        <label class="shared-sport-option sport-tile-{{ key }}">
+          <input type="checkbox" value="{{ key }}" checked>
+          <span>
+            <strong>{{ sport.name }}</strong>
+            <small>{{ sport.league }}</small>
+          </span>
+          {% if slug == 'playoffs' %}
+          <select class="hub-condition-select" data-condition-sport="{{ key }}" aria-label="{{ sport.name }} win condition"></select>
+          {% endif %}
+        </label>
+        {% endfor %}
+      </div>
+      <div class="shared-queue-actions">
+        <button class="primary" id="shared-queue-btn" type="button">Find Match</button>
+        <button class="secondary" id="shared-cancel-btn" type="button" hidden>Cancel</button>
+        <span class="muted small" id="shared-queue-status"></span>
+      </div>
+    </section>
     {% endif %}
   </main>
   <script src="{{ url_for('static', filename='mode_hub.js') }}"></script>
