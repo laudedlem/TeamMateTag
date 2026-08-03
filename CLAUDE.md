@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.51`
+- Current display version: `0.1.52`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -568,6 +568,12 @@ the online game lifecycle in the same sport-scoped tables as every other
 sport. Baseball challenge codes also use `sport_online_invites`; do not route
 new Baseball multiplayer work through legacy `dr_games`, `po_games`,
 `dr_queue`, `po_queue`, `dr_invites`, or `po_invites`.
+
+Update, 2026-08-03 (0.1.52): the top sport tiles on `/division-rivalry` and
+`/playoffs` now queue immediately for that selected sport instead of navigating
+to the sport home page. Manager Mode and Film Review sport tiles still launch
+directly into those games. The separate multi-sport queue panel remains for
+players who want to select more than one sport before searching.
 
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.

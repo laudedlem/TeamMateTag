@@ -80,6 +80,13 @@ function playoffPreferences() {
   return prefs;
 }
 
+function playoffPreferenceForSport(sport) {
+  const select = document.querySelector(`[data-condition-sport="${sport}"]`);
+  const value = select?.value || 'random';
+  localStorage.setItem('tt_hub_playoff_condition_' + sport, value);
+  return { [sport]: value };
+}
+
 function setQueueUi(searching, text) {
   const start = document.getElementById('shared-queue-btn');
   const cancel = document.getElementById('shared-cancel-btn');
@@ -104,6 +111,19 @@ async function handleQueueResponse(response) {
     return;
   }
   setQueueUi(true, 'Searching selected sports...');
+}
+
+async function queueForSports(sports, preferences = {}) {
+  clearInterval(queuePoll);
+  const response = await post(queueEndpoint('queue'), {
+    guest_id: hubProfile?.guest_id || localStorage.getItem(guestKey) || '',
+    sports,
+    preferences,
+  });
+  await handleQueueResponse(response);
+  if (response.status !== 'matched' && !response.error) {
+    queuePoll = setInterval(pollSharedQueue, 1000);
+  }
 }
 
 async function pollSharedQueue() {
@@ -131,22 +151,21 @@ function configureSharedQueue() {
     select.innerHTML = options.map(([value, label]) => `<option value="${value}">${label}</option>`).join('');
     select.value = localStorage.getItem('tt_hub_playoff_condition_' + sport) || 'random';
   });
+  document.querySelectorAll('[data-direct-queue-sport]').forEach((tile) => {
+    tile.addEventListener('click', async (event) => {
+      event.preventDefault();
+      const sport = tile.dataset.directQueueSport;
+      setQueueUi(true, `Searching ${sport}...`);
+      await queueForSports([sport], hub === 'playoffs' ? playoffPreferenceForSport(sport) : {});
+    });
+  });
   document.getElementById('shared-queue-btn')?.addEventListener('click', async () => {
     const sports = selectedSports();
     if (!sports.length) {
       setQueueUi(false, 'Choose at least one sport.');
       return;
     }
-    clearInterval(queuePoll);
-    const response = await post(queueEndpoint('queue'), {
-      guest_id: hubProfile?.guest_id || localStorage.getItem(guestKey) || '',
-      sports,
-      preferences: hub === 'playoffs' ? playoffPreferences() : {},
-    });
-    await handleQueueResponse(response);
-    if (response.status !== 'matched' && !response.error) {
-      queuePoll = setInterval(pollSharedQueue, 1000);
-    }
+    await queueForSports(sports, hub === 'playoffs' ? playoffPreferences() : {});
   });
   document.getElementById('shared-cancel-btn')?.addEventListener('click', async () => {
     clearInterval(queuePoll);

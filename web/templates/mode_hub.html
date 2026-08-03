@@ -18,17 +18,17 @@
     <h3>Choose a sport</h3>
     <div class="sport-tiles">
       {% for key, sport in sports.items() %}
-      <a class="sport-tile sport-tile-{{ key }}" href="/{{ key }}?mode={{ hub.mode }}" data-sport="{{ key }}">
+      <a class="sport-tile sport-tile-{{ key }}" href="{% if slug == 'division-rivalry' or slug == 'playoffs' %}#{% else %}/{{ key }}?mode={{ hub.mode }}{% endif %}" data-sport="{{ key }}" {% if slug == 'division-rivalry' or slug == 'playoffs' %}data-direct-queue-sport="{{ key }}"{% endif %}>
         <span class="sport-tile-league">{{ sport.league }}</span>
         <span class="sport-tile-name">{{ sport.name }}</span>
-        <span class="sport-tile-status">{% if slug == 'manager-mode' %}<span data-manager-best="{{ key }}">Longest lineup: --</span>{% elif slug == 'film-review' %}Today's puzzle{% else %}Play now{% endif %}</span>
+        <span class="sport-tile-status">{% if slug == 'manager-mode' %}<span data-manager-best="{{ key }}">Longest lineup: --</span>{% elif slug == 'film-review' %}Today's puzzle{% else %}Queue now{% endif %}</span>
       </a>
       {% endfor %}
     </div>
     {% if slug == 'film-review' %}
     <div class="mode-hub-archive" id="mode-hub-archive"><p class="muted small">Loading Film Review archive...</p></div>
     {% elif slug == 'playoffs' %}
-    <p class="muted small mode-hub-note">Direct sport buttons still open that sport page. Use the queue below to search across more than one sport.</p>
+    <p class="muted small mode-hub-note">Choose a win condition below before queueing across multiple sports.</p>
     {% endif %}
     {% if slug == 'division-rivalry' or slug == 'playoffs' %}
     <section class="shared-queue-panel" id="shared-queue-panel">
