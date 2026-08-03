@@ -42,7 +42,7 @@ try:
 except ImportError:
     pass
 
-from flask import Flask, jsonify, make_response, render_template, request
+from flask import Flask, jsonify, make_response, redirect, render_template, request
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "game"))
@@ -67,7 +67,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.1.57"
+APP_VERSION = "0.1.58"
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
 # When running the local curation build we deliberately keep using SQLite so
@@ -2162,6 +2162,30 @@ MODE_HUBS = {
     "playoffs": {"title": "Playoffs", "mode": "po", "description": "Online lineup battle with powerups and win conditions."},
 }
 
+LAUNCH_COOKIE_PREFIX = "tt_launch_"
+LAUNCH_COOKIE_KEYS = ("mode", "date", "archive", "game_id")
+
+
+def _set_launch_cookies(response, launch):
+    for key in LAUNCH_COOKIE_KEYS:
+        value = str(launch.get(key, "") or "")
+        if value:
+            response.set_cookie(f"{LAUNCH_COOKIE_PREFIX}{key}", value, max_age=60, path="/", samesite="Lax")
+    return response
+
+
+def _clear_launch_cookies(response):
+    for key in LAUNCH_COOKIE_KEYS:
+        response.delete_cookie(f"{LAUNCH_COOKIE_PREFIX}{key}", path="/", samesite="Lax")
+    return response
+
+
+def _launch_from_request():
+    return {
+        key: request.args.get(key, "") or request.cookies.get(f"{LAUNCH_COOKIE_PREFIX}{key}", "")
+        for key in LAUNCH_COOKIE_KEYS
+    }
+
 
 @app.route("/manager-mode")
 @app.route("/film-review")
@@ -2178,20 +2202,13 @@ def direct_mode_sport(sport_key: str):
     slug = request.path.strip("/").split("/", 1)[0]
     if sport_key not in SPORT_HUBS:
         return "Sport not found", 404
-    sport = SPORT_HUBS[sport_key]
-    return render_template(
-        "index.html",
-        sport={"key": sport_key, **sport},
-        sport_ready=sport["ready"],
-        cross_sports_online=CROSS_SPORTS_ONLINE,
-        app_version=APP_VERSION,
-        launch={
-            "mode": MODE_HUBS[slug]["mode"],
-            "date": request.args.get("date", ""),
-            "archive": request.args.get("archive", ""),
-            "game_id": "",
-        },
-    )
+    response = redirect(f"/{sport_key}")
+    return _set_launch_cookies(response, {
+        "mode": MODE_HUBS[slug]["mode"],
+        "date": request.args.get("date", ""),
+        "archive": request.args.get("archive", ""),
+        "game_id": "",
+    })
 
 
 SPORT_HUBS = {
@@ -2209,19 +2226,15 @@ SPORT_HUBS = {
 def sport_hub():
     sport_key = request.path.strip("/")
     sport = SPORT_HUBS[sport_key]
-    return render_template(
+    response = make_response(render_template(
         "index.html",
         sport={"key": sport_key, **sport},
         sport_ready=sport["ready"],
         cross_sports_online=CROSS_SPORTS_ONLINE,
         app_version=APP_VERSION,
-        launch={
-            "mode": request.args.get("mode", ""),
-            "date": request.args.get("date", ""),
-            "archive": request.args.get("archive", ""),
-            "game_id": request.args.get("game_id", ""),
-        },
-    )
+        launch=_launch_from_request(),
+    ))
+    return _clear_launch_cookies(response)
 
 
 @app.route("/privacy")
