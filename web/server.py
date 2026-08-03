@@ -1,8 +1,9 @@
 """
 Flask server for Teammate Tag (codename base2nerdle).
 
-Backed by Supabase Postgres. Per-request connections; Supabase's transaction
-pooler handles pooling. Game state lives in Postgres as single JSONB blobs
+Backed by Supabase Postgres. Warm server instances reuse a small psycopg
+connection pool; Supabase's transaction pooler still handles upstream pooling.
+Game state lives in Postgres as single JSONB blobs
 per game (bp_games / dr_games / fr_games), so deploying to a serverless
 host (Vercel) works without sticky in-memory state.
 
@@ -34,6 +35,10 @@ from threading import Lock
 import psycopg
 import requests
 from psycopg.types.json import Jsonb
+try:
+    from psycopg_pool import ConnectionPool
+except ImportError:  # pragma: no cover - local fallback when pool extra is absent
+    ConnectionPool = None
 
 # Load .env first so DATABASE_URL is available before module-level code.
 try:
@@ -67,7 +72,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.1.60"
+APP_VERSION = "0.1.61"
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
 # When running the local curation build we deliberately keep using SQLite so
@@ -347,9 +352,11 @@ app = Flask(
 
 @contextmanager
 def db():
-    """Open a Postgres connection for a single request. Supabase's
-    transaction-mode pgbouncer manages pooling on the server side, so
-    we open and close per request without leaking.
+    """Open a Postgres connection for a single request.
+
+    Warm server instances reuse a tiny local psycopg pool to avoid paying
+    connection setup on every request. Supabase's transaction-mode pgbouncer
+    still manages upstream pooling.
 
     Supabase's underlying Postgres sets `default_transaction_read_only=on`
     at the config-file level (visible in pg_settings). We override at the
@@ -359,15 +366,15 @@ def db():
             "DATABASE_URL is required. Copy .env.example to .env and set the "
             "Supabase connection URI, or export it in the environment."
         )
-    # prepare_threshold=None disables psycopg3's auto-prepared-statement
-    # cache. pgbouncer in transaction mode doesn't preserve session state
-    # across transactions, so cached prepared-statement names collide
-    # ("prepared statement _pg3_0 already exists").
-    conn = psycopg.connect(
-        DATABASE_URL, autocommit=True, prepare_threshold=None,
-    )
-    conn.execute("SET default_transaction_read_only = off")
+    pooled = _pooled_connection()
+    if pooled is not None:
+        with pooled as conn:
+            conn.execute("SET default_transaction_read_only = off")
+            yield conn
+        return
+    conn = psycopg.connect(DATABASE_URL, **_connection_kwargs())
     try:
+        conn.execute("SET default_transaction_read_only = off")
         yield conn
     finally:
         conn.close()
@@ -402,6 +409,34 @@ STATIC_CACHE_LOCK = Lock()
 STATIC_CACHE_READY = False
 RUNTIME_SCHEMA_LOCK = Lock()
 RUNTIME_SCHEMA_READY = False
+DB_POOL = None
+DB_POOL_LOCK = Lock()
+
+
+def _connection_kwargs() -> dict:
+    # prepare_threshold=None disables psycopg3's auto-prepared-statement
+    # cache. pgbouncer in transaction mode doesn't preserve session state
+    # across transactions, so cached prepared-statement names collide
+    # ("prepared statement _pg3_0 already exists").
+    return {"autocommit": True, "prepare_threshold": None}
+
+
+def _pooled_connection():
+    global DB_POOL
+    if ConnectionPool is None:
+        return None
+    if DB_POOL is None:
+        with DB_POOL_LOCK:
+            if DB_POOL is None:
+                DB_POOL = ConnectionPool(
+                    DATABASE_URL,
+                    min_size=0,
+                    max_size=int(os.environ.get("TEAMMATETAG_DB_POOL_MAX", "4")),
+                    timeout=float(os.environ.get("TEAMMATETAG_DB_POOL_TIMEOUT", "5")),
+                    kwargs=_connection_kwargs(),
+                    open=True,
+                )
+    return DB_POOL.connection()
 
 
 FR_CANONICAL_FRANCHISE_NAMES = {

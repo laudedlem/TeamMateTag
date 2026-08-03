@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.60`
+- Current display version: `0.1.61`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -634,6 +634,14 @@ Update, 2026-08-03 (0.1.60): public mode URLs are now short and hyphen-free:
 use `/manager/<sport>` and `/film/<sport>`, then redirect into the canonical
 sport URL for gameplay. Old `/manager-mode`, `/film-review`, and
 `/division-rivalry` paths remain compatibility redirects only.
+
+Update, 2026-08-03 (0.1.61): Manager Mode loading labels are sport-specific
+and capitalized: Baseball Leadoff, Basketball Tipoff, Football Snapper, and
+Hockey Faceoff. The server now uses a small psycopg connection pool on warm
+instances (`psycopg[binary,pool]`) while retaining the old direct-connection
+fallback. This should reduce repeated Supabase connection overhead after cold
+start; true first-load latency may still include Vercel and Supabase wake-up
+time.
 
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.

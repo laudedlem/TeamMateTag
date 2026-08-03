@@ -194,6 +194,12 @@ const CURRENT_SPORT = document.body.dataset.sport || '';
 const LOCAL_SOLO_SPORTS = new Set(['football', 'basketball', 'hockey']);
 const CROSS_SPORTS_ONLINE = document.body.dataset.crossSportsOnline === 'true';
 const USE_LOCAL_CROSS_SPORTS = !CROSS_SPORTS_ONLINE && LOCAL_SOLO_SPORTS.has(CURRENT_SPORT);
+const SPORT_START_LABELS = {
+  baseball: 'Leadoff',
+  basketball: 'Tipoff',
+  football: 'Snapper',
+  hockey: 'Faceoff',
+};
 
 function localSoloPath(suffix) {
   return (USE_LOCAL_CROSS_SPORTS ? '/api/local/' : '/api/sports/') + CURRENT_SPORT + '/bp/' + suffix;
@@ -1092,7 +1098,7 @@ async function startBp() {
   hideGameOverBanner();
   showScreen('bp-game');
   const localModeName = 'Manager Mode';
-  renderLoadingGame(localModeName, 'Loading ' + ({ football: 'snapper', basketball: 'tipoff', hockey: 'faceoff' })[CURRENT_SPORT] + '...');
+  renderLoadingGame(localModeName, 'Loading ' + (SPORT_START_LABELS[CURRENT_SPORT] || 'Leadoff') + '...');
   game = await api(LOCAL_SOLO_SPORTS.has(CURRENT_SPORT) ? localSoloPath('new') : '/api/bp/new',
     { guest_id: profile?.guest_id || storedGuestId() });
   if (game.error) {
@@ -1893,7 +1899,7 @@ function makePlayerCard(player, isSeed, options = {}) {
   info.className = 'player-info';
   const yrs = formatYears(player.debut_year, player.final_year);
   const position = player.primary_pos ? `<div class="years">${escapeHtml(player.primary_pos)}</div>` : '';
-  const seedBadge = isSeed ? `<span class="seed-badge">${({ football: 'snapper', basketball: 'tipoff', hockey: 'faceoff' })[CURRENT_SPORT] || 'leadoff'}</span>` : '';
+  const seedBadge = isSeed ? `<span class="seed-badge">${SPORT_START_LABELS[CURRENT_SPORT] || 'Leadoff'}</span>` : '';
   info.innerHTML = `
     <h3 class="name">${escapeHtml(player.name)}${seedBadge}</h3>
     <div class="years">${escapeHtml(yrs)}</div>
