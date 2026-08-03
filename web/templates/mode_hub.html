@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ hub.title }} | TeamMateTag</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ app_version }}">
 </head>
 <body data-mode-hub="{{ slug }}">
   <header class="site-header">
@@ -63,6 +63,6 @@
     </section>
     {% endif %}
   </main>
-  <script src="{{ url_for('static', filename='mode_hub.js') }}"></script>
+  <script src="{{ url_for('static', filename='mode_hub.js') }}?v={{ app_version }}"></script>
 </body>
 </html>

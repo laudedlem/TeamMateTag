@@ -4,14 +4,14 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>TeamMateTag{% if sport %} | {{ sport.name }}{% endif %}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ app_version }}" />
 </head>
 <body class="dark" data-sport="{{ sport.key if sport else '' }}" data-cross-sports-online="{{ 'true' if cross_sports_online else 'false' }}">
   <header>
     <div class="title">
       <div class="brand-row">
         <h1>TeamMateTag</h1>
-<span class="app-version" title="Current version">0.1.53</span>
+<span class="app-version" title="Current version">{{ app_version }}</span>
       </div>
       <span class="subtitle" id="brand-subtitle"></span>
     </div>
@@ -464,7 +464,7 @@
     <a href="/contact" class="footer-link">Contact</a>
   </footer>
 
-  <script src="{{ url_for('static', filename='main.js') }}"></script>
+  <script src="{{ url_for('static', filename='main.js') }}?v={{ app_version }}"></script>
 </body>
 </html>
 

@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.53`
+- Current display version: `0.1.54`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -585,6 +585,13 @@ routing through the sport home mode picker. `/film-review` shows a same-width
 archive dropdown directly under each sport tile, with labels such as
 `#2 - Aug 2 - in progress`; selecting an archived puzzle navigates directly to
 that sport's Film Review puzzle URL.
+
+Update, 2026-08-03 (0.1.54): static CSS and JavaScript assets now include the
+visible app version as a query string, for example `main.js?v=0.1.54`, so
+browsers and Vercel do not keep stale hub launch code after deploys. Sport page
+query launches now run after the profile bootstrap attempt even if bootstrap
+throws, so `/baseball?mode=bp` calls `startBp()` directly instead of leaving
+the player on the Baseball mode picker.
 
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.

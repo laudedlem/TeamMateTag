@@ -2482,7 +2482,7 @@ const launchArchive = launchParams.get('archive') === '1';
 const launchGameId = launchParams.get('game_id');
 showScreen('home');
 renderProfile();
-bootstrapProfile().then(async () => {
+async function handleQueryLaunch() {
   if (launchMode && ['bp', 'fr', 'mp', 'po'].includes(launchMode)) {
     window.history.replaceState({}, '', window.location.pathname);
     if ((launchMode === 'mp' || launchMode === 'po') && launchGameId) {
@@ -2506,4 +2506,8 @@ bootstrapProfile().then(async () => {
       pickMode(launchMode);
     }
   }
-});
+}
+
+bootstrapProfile()
+  .catch((err) => console.warn('profile bootstrap failed before launch', err))
+  .finally(handleQueryLaunch);
