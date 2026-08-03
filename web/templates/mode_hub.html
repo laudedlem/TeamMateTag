@@ -19,7 +19,7 @@
     <div class="sport-tiles">
       {% for key, sport in sports.items() %}
       <div class="mode-sport-choice">
-        <a class="sport-tile sport-tile-{{ key }}" href="{% if slug == 'division-rivalry' or slug == 'playoffs' %}#{% else %}/{{ key }}?mode={{ hub.mode }}{% endif %}" data-sport="{{ key }}" {% if slug == 'division-rivalry' or slug == 'playoffs' %}data-direct-queue-sport="{{ key }}"{% endif %}>
+        <a class="sport-tile sport-tile-{{ key }}" href="{% if slug == 'division-rivalry' or slug == 'playoffs' %}#{% elif slug == 'manager-mode' or slug == 'film-review' %}/{{ slug }}/{{ key }}{% else %}/{{ key }}?mode={{ hub.mode }}{% endif %}" data-sport="{{ key }}" {% if slug == 'division-rivalry' or slug == 'playoffs' %}data-direct-queue-sport="{{ key }}"{% endif %}>
           <span class="sport-tile-league">{{ sport.league }}</span>
           <span class="sport-tile-name">{{ sport.name }}</span>
           <span class="sport-tile-status">{% if slug == 'manager-mode' %}<span data-manager-best="{{ key }}">Longest lineup: --</span>{% elif slug == 'film-review' %}<span data-fr-today-status="{{ key }}">Today's puzzle</span>{% else %}Queue now{% endif %}</span>

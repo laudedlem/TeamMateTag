@@ -67,7 +67,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.1.56"
+APP_VERSION = "0.1.57"
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
 # When running the local curation build we deliberately keep using SQLite so
@@ -2170,6 +2170,28 @@ MODE_HUBS = {
 def mode_hub():
     slug = request.path.strip("/")
     return render_template("mode_hub.html", hub=MODE_HUBS[slug], slug=slug, sports=SPORT_HUBS, app_version=APP_VERSION)
+
+
+@app.route("/manager-mode/<sport_key>")
+@app.route("/film-review/<sport_key>")
+def direct_mode_sport(sport_key: str):
+    slug = request.path.strip("/").split("/", 1)[0]
+    if sport_key not in SPORT_HUBS:
+        return "Sport not found", 404
+    sport = SPORT_HUBS[sport_key]
+    return render_template(
+        "index.html",
+        sport={"key": sport_key, **sport},
+        sport_ready=sport["ready"],
+        cross_sports_online=CROSS_SPORTS_ONLINE,
+        app_version=APP_VERSION,
+        launch={
+            "mode": MODE_HUBS[slug]["mode"],
+            "date": request.args.get("date", ""),
+            "archive": request.args.get("archive", ""),
+            "game_id": "",
+        },
+    )
 
 
 SPORT_HUBS = {

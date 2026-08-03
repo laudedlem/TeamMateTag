@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.56`
+- Current display version: `0.1.57`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -607,6 +607,15 @@ parameters into `body` data attributes, such as `data-launch-mode="bp"`.
 the path from `/manager-mode` -> Baseball equivalent to clicking Baseball ->
 Manager Mode, even if the URL query string is later removed by history cleanup
 or browser navigation quirks.
+
+Update, 2026-08-03 (0.1.57): mode-first solo/daily launches no longer depend
+on query strings or profile bootstrap timing. `/manager-mode/<sport>` and
+`/film-review/<sport>` render the sport page with the appropriate launch mode.
+The mode hub sport tiles use those routes. On sport pages, Manager Mode and
+Film Review launch immediately when `data-launch-mode` is `bp` or `fr`, while
+profile bootstrap continues in the background. This makes Homepage -> Baseball
+-> Manager Mode and Homepage -> Manager Mode -> Baseball converge on the same
+in-game state.
 
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.

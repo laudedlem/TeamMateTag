@@ -2492,10 +2492,13 @@ const launchMode = document.body.dataset.launchMode || launchParams.get('mode');
 const launchDate = document.body.dataset.launchDate || launchParams.get('date');
 const launchArchive = (document.body.dataset.launchArchive || launchParams.get('archive')) === '1';
 const launchGameId = document.body.dataset.launchGameId || launchParams.get('game_id');
+let launchHandled = false;
 showScreen('home');
 renderProfile();
 async function handleQueryLaunch() {
+  if (launchHandled) return;
   if (launchMode && ['bp', 'fr', 'mp', 'po'].includes(launchMode)) {
+    launchHandled = true;
     window.history.replaceState({}, '', window.location.pathname);
     if ((launchMode === 'mp' || launchMode === 'po') && launchGameId) {
       currentMode = launchMode;
@@ -2518,6 +2521,10 @@ async function handleQueryLaunch() {
       pickMode(launchMode);
     }
   }
+}
+
+if (CURRENT_SPORT && ['bp', 'fr'].includes(launchMode)) {
+  handleQueryLaunch();
 }
 
 bootstrapProfile()
