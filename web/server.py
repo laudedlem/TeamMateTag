@@ -67,7 +67,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.1.55"
+APP_VERSION = "0.1.56"
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
 # When running the local curation build we deliberately keep using SQLite so
@@ -2152,7 +2152,7 @@ def _insert_game(conn, table: str, blob: dict) -> str:
 
 @app.route("/")
 def index():
-    return render_template("index.html", sport=None, sport_ready=False, cross_sports_online=CROSS_SPORTS_ONLINE, app_version=APP_VERSION)
+    return render_template("index.html", sport=None, sport_ready=False, cross_sports_online=CROSS_SPORTS_ONLINE, app_version=APP_VERSION, launch={})
 
 
 MODE_HUBS = {
@@ -2193,6 +2193,12 @@ def sport_hub():
         sport_ready=sport["ready"],
         cross_sports_online=CROSS_SPORTS_ONLINE,
         app_version=APP_VERSION,
+        launch={
+            "mode": request.args.get("mode", ""),
+            "date": request.args.get("date", ""),
+            "archive": request.args.get("archive", ""),
+            "game_id": request.args.get("game_id", ""),
+        },
     )
 
 

@@ -2488,10 +2488,10 @@ document.addEventListener('keydown', (e) => {
 });
 
 const launchParams = new URLSearchParams(window.location.search);
-const launchMode = launchParams.get('mode');
-const launchDate = launchParams.get('date');
-const launchArchive = launchParams.get('archive') === '1';
-const launchGameId = launchParams.get('game_id');
+const launchMode = document.body.dataset.launchMode || launchParams.get('mode');
+const launchDate = document.body.dataset.launchDate || launchParams.get('date');
+const launchArchive = (document.body.dataset.launchArchive || launchParams.get('archive')) === '1';
+const launchGameId = document.body.dataset.launchGameId || launchParams.get('game_id');
 showScreen('home');
 renderProfile();
 async function handleQueryLaunch() {
