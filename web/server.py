@@ -67,7 +67,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.1.59"
+APP_VERSION = "0.1.60"
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
 # When running the local curation build we deliberately keep using SQLite so
@@ -2156,10 +2156,16 @@ def index():
 
 
 MODE_HUBS = {
-    "manager-mode": {"title": "Manager Mode", "mode": "bp", "description": "Build the longest lineup you can before the clock expires."},
-    "film-review": {"title": "Film Review", "mode": "fr", "description": "Solve the daily lineup by naming the team and year between each pair."},
-    "division-rivalry": {"title": "Division Rivalry", "mode": "mp", "description": "Take turns building one lineup against an online opponent."},
+    "manager": {"title": "Manager Mode", "mode": "bp", "description": "Build the longest lineup you can before the clock expires."},
+    "film": {"title": "Film Review", "mode": "fr", "description": "Solve the daily lineup by naming the team and year between each pair."},
+    "division": {"title": "Division Rivalry", "mode": "mp", "description": "Take turns building one lineup against an online opponent."},
     "playoffs": {"title": "Playoffs", "mode": "po", "description": "Online lineup battle with powerups and win conditions."},
+}
+
+MODE_ALIASES = {
+    "manager-mode": "manager",
+    "film-review": "film",
+    "division-rivalry": "division",
 }
 
 LAUNCH_COOKIE_PREFIX = "tt_launch_"
@@ -2187,9 +2193,23 @@ def _launch_from_request():
     }
 
 
+def _with_current_query(path: str) -> str:
+    if request.query_string:
+        return path + "?" + request.query_string.decode("utf-8", errors="ignore")
+    return path
+
+
 @app.route("/manager-mode")
 @app.route("/film-review")
 @app.route("/division-rivalry")
+def legacy_mode_hub():
+    slug = request.path.strip("/")
+    return redirect(_with_current_query(f"/{MODE_ALIASES[slug]}"))
+
+
+@app.route("/manager")
+@app.route("/film")
+@app.route("/division")
 @app.route("/playoffs")
 def mode_hub():
     slug = request.path.strip("/")
@@ -2198,6 +2218,13 @@ def mode_hub():
 
 @app.route("/manager-mode/<sport_key>")
 @app.route("/film-review/<sport_key>")
+def legacy_direct_mode_sport(sport_key: str):
+    slug = request.path.strip("/").split("/", 1)[0]
+    return redirect(_with_current_query(f"/{MODE_ALIASES[slug]}/{sport_key}"))
+
+
+@app.route("/manager/<sport_key>")
+@app.route("/film/<sport_key>")
 def direct_mode_sport(sport_key: str):
     slug = request.path.strip("/").split("/", 1)[0]
     if sport_key not in SPORT_HUBS:
@@ -6717,7 +6744,7 @@ MULTI_QUEUE_SPORTS = ("baseball", "basketball", "hockey", "football")
 
 
 def _multi_mode_from_slug(mode: str) -> str | None:
-    return {"division-rivalry": "dr", "playoffs": "po", "dr": "dr", "po": "po"}.get(mode)
+    return {"division": "dr", "division-rivalry": "dr", "playoffs": "po", "dr": "dr", "po": "po"}.get(mode)
 
 
 def _multi_client_mode(mode: str) -> str:

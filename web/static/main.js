@@ -2507,7 +2507,7 @@ async function handleQueryLaunch() {
   if (launchHandled) return;
   if (launchMode && ['bp', 'fr', 'mp', 'po'].includes(launchMode)) {
     launchHandled = true;
-    if (['manager-mode', 'film-review', 'division-rivalry', 'playoffs'].includes(launchSource)) {
+    if (['manager', 'film', 'division', 'playoffs'].includes(launchSource)) {
       launchReturnPath = '/' + launchSource;
     }
     window.history.replaceState({}, '', window.location.pathname);

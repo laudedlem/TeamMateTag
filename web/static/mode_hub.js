@@ -41,13 +41,13 @@ async function initHub() {
   hubProfile = await post('/api/profile/bootstrap', { guest_id: localStorage.getItem(guestKey) || '' });
   if (!hubProfile?.guest_id) return;
   localStorage.setItem(guestKey, hubProfile.guest_id);
-  if (hub === 'manager-mode') {
+  if (hub === 'manager') {
     Object.entries(hubProfile.stats?.sports || {}).forEach(([sport, stats]) => {
       const target = document.querySelector(`[data-manager-best="${sport}"]`);
       if (target) target.textContent = `Longest lineup: ${stats.bp_best || 0}`;
     });
   }
-  if (hub === 'film-review') {
+  if (hub === 'film') {
     const sports = ['baseball', 'basketball', 'hockey', 'football'];
     const results = await Promise.all(sports.map(async (sport) => {
       const path = sport === 'baseball' ? '/api/fr/archive' : `/api/sports/${sport}/fr/archive`;
@@ -71,8 +71,8 @@ function formatArchiveLabel(day) {
 }
 
 function filmReviewUrl(sport, day) {
-  if (day.is_today) return `/film-review/${sport}`;
-  return `/film-review/${sport}?date=${encodeURIComponent(day.date)}&archive=1`;
+  if (day.is_today) return `/film/${sport}`;
+  return `/film/${sport}?date=${encodeURIComponent(day.date)}&archive=1`;
 }
 
 function renderFilmReviewArchiveSelect(sport, days) {

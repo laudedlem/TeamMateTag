@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.59`
+- Current display version: `0.1.60`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -538,7 +538,7 @@ Football profile Film Review records now separately display offense and defense
 results for newly completed games. The delete-account password input spans the
 full profile form. The first solo mode is consistently named Manager Mode.
 The home page now offers sport-first and mode-first navigation; dedicated
-`/manager-mode`, `/film-review`, `/division-rivalry`, and `/playoffs` pages
+`/manager`, `/film`, `/division`, and `/playoffs` pages
 route a selected sport into its existing game surface via `?mode=`. Multi-sport
 online queue selection is intentionally not implemented yet: it needs a shared
 lobby that atomically removes the player from every selected sport queue when
@@ -628,6 +628,12 @@ context. The game still runs at the canonical sport URL, but a launch from
 `/manager-mode/<sport>` exits back to `/manager-mode`, and a launch from
 `/film-review/<sport>` exits back to `/film-review`. Sport-first launches keep
 the existing behavior and exit back to that sport's mode picker.
+
+Update, 2026-08-03 (0.1.60): public mode URLs are now short and hyphen-free:
+`/manager`, `/film`, `/division`, and `/playoffs`. Mode-first sport launches
+use `/manager/<sport>` and `/film/<sport>`, then redirect into the canonical
+sport URL for gameplay. Old `/manager-mode`, `/film-review`, and
+`/division-rivalry` paths remain compatibility redirects only.
 
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.
