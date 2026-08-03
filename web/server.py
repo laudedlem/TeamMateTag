@@ -714,6 +714,31 @@ def ensure_runtime_schema():
                    )"""
             )
             conn.execute(
+                """CREATE TABLE IF NOT EXISTS sport_online_invites (
+                       code TEXT PRIMARY KEY,
+                       sport_id TEXT NOT NULL REFERENCES sports(sport_id),
+                       mode TEXT NOT NULL CHECK (mode IN ('dr', 'po')),
+                       host_guest_id UUID NOT NULL REFERENCES guests(guest_id) ON DELETE CASCADE,
+                       host_name TEXT NOT NULL,
+                       preference TEXT,
+                       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                       expires_at TIMESTAMPTZ NOT NULL DEFAULT (now() + interval '30 minutes'),
+                       claimed_at TIMESTAMPTZ
+                   )"""
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_sport_online_invites_host "
+                "ON sport_online_invites(sport_id, mode, host_guest_id, created_at DESC)"
+            )
+            conn.execute(
+                """INSERT INTO sports (sport_id, display_name, league_name, active)
+                   VALUES ('baseball', 'Baseball', 'MLB', true)
+                   ON CONFLICT (sport_id) DO UPDATE
+                   SET display_name = EXCLUDED.display_name,
+                       league_name = EXCLUDED.league_name,
+                       active = true"""
+            )
+            conn.execute(
                 """CREATE TABLE IF NOT EXISTS multi_sport_queue (
                        guest_id UUID PRIMARY KEY REFERENCES guests(guest_id) ON DELETE CASCADE,
                        mode TEXT NOT NULL CHECK (mode IN ('dr', 'po')),
@@ -2856,10 +2881,17 @@ def _local_sport_cards(conn: sqlite3.Connection, sport: str, player_ids: list[st
 
 
 def _is_cross_sport(sport: str) -> bool:
-    return sport in LOCAL_SPORT_SEEDS
+    return sport == "baseball" or sport in LOCAL_SPORT_SEEDS
+
+
+def _engine_sport(sport: str) -> str | None:
+    return None if sport == "baseball" else sport
 
 
 def _sport_team_name(conn, sport: str, team_id: str, season: int) -> str:
+    if sport == "baseball":
+        ensure_static_caches()
+        return TEAM_NAME.get((team_id, season), team_id)
     cache_key = (sport, team_id, season)
     cached = SPORT_TEAM_NAME_CACHE.get(cache_key)
     if cached is not None:
@@ -2884,6 +2916,8 @@ def _sport_cards(conn, sport: str, player_ids: list[str]) -> dict[str, dict]:
     """
     if not player_ids:
         return {}
+    if sport == "baseball":
+        return _hydrate_player_cards(conn, player_ids)
     out = {}
     missing = []
     for player_id in player_ids:
@@ -2953,6 +2987,8 @@ def _sport_cards(conn, sport: str, player_ids: list[str]) -> dict[str, dict]:
 
 
 def _sport_chain_dict(conn, sport: str, state: GameState) -> list[dict]:
+    if sport == "baseball":
+        return chain_dict(state, cards=_hydrate_player_cards(conn, list(state.chain)))
     cards = _sport_cards(conn, sport, list(state.chain))
     chain = []
     for index, (player_id, name) in enumerate(zip(state.chain, state.chain_names)):
@@ -2969,6 +3005,8 @@ def _sport_chain_dict(conn, sport: str, state: GameState) -> list[dict]:
 
 
 def _sport_strikes_dict(conn, sport: str, state: GameState) -> list[dict]:
+    if sport == "baseball":
+        return strikes_dict(state)
     return [
         {"team_id": team, "season": season, "count": count,
          "team_name": _sport_team_name(conn, sport, team, season)}
@@ -4307,7 +4345,6 @@ def _bp_daily_leaderboard(conn) -> list[dict]:
     ]
 
 
-@app.route("/api/sports/baseball/dr/queue", methods=["POST"])
 @app.route("/api/dr/queue", methods=["POST"])
 def dr_queue():
     ensure_runtime_schema()
@@ -4369,7 +4406,6 @@ def dr_queue():
         return jsonify(_dr_status_payload(conn, guest_id))
 
 
-@app.route("/api/sports/baseball/dr/status", methods=["POST"])
 @app.route("/api/dr/status", methods=["POST"])
 def dr_status():
     ensure_runtime_schema()
@@ -4381,7 +4417,6 @@ def dr_status():
         return jsonify(_dr_status_payload(conn, guest_id))
 
 
-@app.route("/api/sports/baseball/dr/game", methods=["POST"])
 @app.route("/api/dr/game", methods=["POST"])
 def dr_game():
     ensure_runtime_schema()
@@ -4400,7 +4435,6 @@ def dr_game():
         return jsonify(dr_state_dict(gid, blob, state, conn=conn))
 
 
-@app.route("/api/sports/baseball/dr/rematch_request", methods=["POST"])
 @app.route("/api/dr/rematch_request", methods=["POST"])
 def dr_rematch_request():
     ensure_runtime_schema()
@@ -4465,7 +4499,6 @@ def dr_rematch_request():
         return jsonify({"status": "waiting"})
 
 
-@app.route("/api/sports/baseball/dr/rematch_status", methods=["POST"])
 @app.route("/api/dr/rematch_status", methods=["POST"])
 def dr_rematch_status():
     ensure_runtime_schema()
@@ -4564,7 +4597,6 @@ def dr_rematch_status():
         })
 
 
-@app.route("/api/sports/baseball/dr/postgame_leave", methods=["POST"])
 @app.route("/api/dr/postgame_leave", methods=["POST"])
 def dr_postgame_leave():
     ensure_runtime_schema()
@@ -4615,7 +4647,6 @@ def dr_postgame_leave():
     return jsonify({"status": "gone"})
 
 
-@app.route("/api/sports/baseball/dr/create_challenge", methods=["POST"])
 @app.route("/api/dr/create_challenge", methods=["POST"])
 def dr_create_challenge():
     ensure_runtime_schema()
@@ -4644,7 +4675,6 @@ def dr_create_challenge():
     return jsonify({"code": code})
 
 
-@app.route("/api/sports/baseball/dr/join_challenge", methods=["POST"])
 @app.route("/api/dr/join_challenge", methods=["POST"])
 def dr_join_challenge():
     ensure_runtime_schema()
@@ -4690,7 +4720,6 @@ def dr_join_challenge():
             })
 
 
-@app.route("/api/sports/baseball/dr/cancel_queue", methods=["POST"])
 @app.route("/api/dr/cancel_queue", methods=["POST"])
 def dr_cancel_queue():
     ensure_runtime_schema()
@@ -4703,7 +4732,6 @@ def dr_cancel_queue():
     return jsonify({"status": "idle"})
 
 
-@app.route("/api/sports/baseball/dr/cancel_challenge", methods=["POST"])
 @app.route("/api/dr/cancel_challenge", methods=["POST"])
 def dr_cancel_challenge():
     ensure_runtime_schema()
@@ -4719,7 +4747,6 @@ def dr_cancel_challenge():
     return jsonify({"status": "idle"})
 
 
-@app.route("/api/sports/baseball/dr/leave_game", methods=["POST"])
 @app.route("/api/dr/leave_game", methods=["POST"])
 def dr_leave_game():
     ensure_runtime_schema()
@@ -4779,7 +4806,6 @@ def new_game():
         return jsonify(dr_state_dict(gid, blob, state, conn=conn))
 
 
-@app.route("/api/sports/baseball/dr/move", methods=["POST"])
 @app.route("/api/move", methods=["POST"])
 def move():
     ensure_runtime_schema()
@@ -4836,7 +4862,6 @@ def move():
         return jsonify(dr_state_dict(gid, blob, state, conn=conn))
 
 
-@app.route("/api/sports/baseball/dr/timeout", methods=["POST"])
 @app.route("/api/timeout", methods=["POST"])
 def timeout():
     ensure_runtime_schema()
@@ -4948,7 +4973,6 @@ def _forfeit_active_po_games(conn, guest_id: str):
         _save_game(conn, "po_games", game_id, blob)
 
 
-@app.route("/api/sports/baseball/po/queue", methods=["POST"])
 @app.route("/api/po/queue", methods=["POST"])
 def po_queue():
     ensure_runtime_schema()
@@ -4999,7 +5023,6 @@ def po_queue():
         return jsonify(_po_status_payload(conn, guest_id))
 
 
-@app.route("/api/sports/baseball/po/status", methods=["POST"])
 @app.route("/api/po/status", methods=["POST"])
 def po_status():
     ensure_runtime_schema()
@@ -5011,7 +5034,6 @@ def po_status():
         return jsonify(_po_status_payload(conn, guest_id))
 
 
-@app.route("/api/sports/baseball/po/game", methods=["POST"])
 @app.route("/api/po/game", methods=["POST"])
 def po_game():
     ensure_runtime_schema()
@@ -5030,7 +5052,6 @@ def po_game():
         return jsonify(po_state_dict(gid, blob, state, conn=conn))
 
 
-@app.route("/api/sports/baseball/po/powerup", methods=["POST"])
 @app.route("/api/po/powerup", methods=["POST"])
 def po_powerup():
     ensure_runtime_schema()
@@ -5107,7 +5128,6 @@ def po_powerup():
         return jsonify(po_state_dict(gid, blob, state, conn=conn))
 
 
-@app.route("/api/sports/baseball/po/move", methods=["POST"])
 @app.route("/api/po/move", methods=["POST"])
 def po_move():
     ensure_runtime_schema()
@@ -5197,7 +5217,6 @@ def po_move():
         return jsonify(po_state_dict(gid, blob, state, conn=conn))
 
 
-@app.route("/api/sports/baseball/po/timeout", methods=["POST"])
 @app.route("/api/po/timeout", methods=["POST"])
 def po_timeout():
     ensure_runtime_schema()
@@ -5225,7 +5244,6 @@ def po_timeout():
         return jsonify(po_state_dict(gid, blob, state, conn=conn))
 
 
-@app.route("/api/sports/baseball/po/rematch_request", methods=["POST"])
 @app.route("/api/po/rematch_request", methods=["POST"])
 def po_rematch_request():
     ensure_runtime_schema()
@@ -5277,7 +5295,6 @@ def po_rematch_request():
         return jsonify({"status": "waiting"})
 
 
-@app.route("/api/sports/baseball/po/rematch_status", methods=["POST"])
 @app.route("/api/po/rematch_status", methods=["POST"])
 def po_rematch_status():
     ensure_runtime_schema()
@@ -5332,7 +5349,6 @@ def po_rematch_status():
         })
 
 
-@app.route("/api/sports/baseball/po/postgame_leave", methods=["POST"])
 @app.route("/api/po/postgame_leave", methods=["POST"])
 def po_postgame_leave():
     ensure_runtime_schema()
@@ -5375,7 +5391,6 @@ def po_postgame_leave():
         return jsonify({"status": "gone"})
 
 
-@app.route("/api/sports/baseball/po/create_challenge", methods=["POST"])
 @app.route("/api/po/create_challenge", methods=["POST"])
 def po_create_challenge():
     ensure_runtime_schema()
@@ -5399,7 +5414,6 @@ def po_create_challenge():
         return jsonify({"status": "waiting", "code": code})
 
 
-@app.route("/api/sports/baseball/po/join_challenge", methods=["POST"])
 @app.route("/api/po/join_challenge", methods=["POST"])
 def po_join_challenge():
     ensure_runtime_schema()
@@ -5431,7 +5445,6 @@ def po_join_challenge():
             return jsonify({"status": "matched", "game": po_state_dict(gid, blob, state, conn=conn)})
 
 
-@app.route("/api/sports/baseball/po/cancel_queue", methods=["POST"])
 @app.route("/api/po/cancel_queue", methods=["POST"])
 def po_cancel_queue():
     ensure_runtime_schema()
@@ -5444,7 +5457,6 @@ def po_cancel_queue():
     return jsonify({"status": "idle"})
 
 
-@app.route("/api/sports/baseball/po/cancel_challenge", methods=["POST"])
 @app.route("/api/po/cancel_challenge", methods=["POST"])
 def po_cancel_challenge():
     ensure_runtime_schema()
@@ -5457,7 +5469,6 @@ def po_cancel_challenge():
     return jsonify({"status": "idle"})
 
 
-@app.route("/api/sports/baseball/po/leave_game", methods=["POST"])
 @app.route("/api/po/leave_game", methods=["POST"])
 def po_leave_game():
     ensure_runtime_schema()
@@ -6593,7 +6604,10 @@ def _sport_online_state(conn, game_id: str, blob: dict, state: GameState, viewer
         for i, player in enumerate(chain):
             player["link_meta_with_prev"] = links[i] if i < len(links) else None
             player["win_condition_hit"] = bool(hits[i]) if i < len(hits) else False
-        conditions, powers = LOCAL_PLAYOFF_CONFIG[sport]["conditions"], LOCAL_PLAYOFF_CONFIG[sport]["powerups"]
+        if sport == "baseball":
+            conditions, powers = PLAYOFF_WIN_CONDITIONS, PLAYOFF_POWERUPS
+        else:
+            conditions, powers = LOCAL_PLAYOFF_CONFIG[sport]["conditions"], LOCAL_PLAYOFF_CONFIG[sport]["powerups"]
         def cp(key):
             condition = conditions[blob[f"{key}_win_condition_key"]]
             return {"key": blob[f"{key}_win_condition_key"], "label": condition["label"], "description": condition["description"],
@@ -6611,13 +6625,16 @@ def _sport_online_state(conn, game_id: str, blob: dict, state: GameState, viewer
 
 def _sport_online_create(conn, sport: str, mode: str, a: tuple[str, str], b: tuple[str, str], preferences=None):
     (p1_id, p1), (p2_id, p2) = (a, b) if secrets.randbelow(2) else (b, a)
-    state = seed_game(PgEngineConn(conn), LOCAL_SPORT_SEEDS[sport], sport=sport)
+    seed_player_id = DEFAULT_SEED if sport == "baseball" else LOCAL_SPORT_SEEDS[sport]
+    state = seed_game(PgEngineConn(conn), seed_player_id, sport=_engine_sport(sport))
+    if sport == "baseball":
+        _record_player_usage(conn, state.current_player_id, mode)
     _record_sport_player_usage(conn, sport, state.current_player_id, mode)
     blob = dr_blob_from_state(state, p1, p2, 0, APP_TURN_SECONDS, now_utc(), OPENING_COUNTDOWN_SECONDS,
                               p1_guest_id=p1_id, p2_guest_id=p2_id, seed_player_id=state.current_player_id)
     blob.update({"sport": sport, "mode": mode})
     if mode == "po":
-        conditions = LOCAL_PLAYOFF_CONFIG[sport]["conditions"]
+        conditions = PLAYOFF_WIN_CONDITIONS if sport == "baseball" else LOCAL_PLAYOFF_CONFIG[sport]["conditions"]
         preferences = preferences or {}
         choose = lambda gid: preferences.get(gid) if preferences.get(gid) in conditions else secrets.choice(list(conditions))
         blob.update({"active_turn_powerup": None, "next_turn_seconds_override": None, "turn_powerup_used": False,
@@ -6715,16 +6732,6 @@ def _load_active_multisport_game(conn, guest_id: str, mode: str, sports: list[st
 
 
 def _create_multisport_match(conn, sport: str, mode: str, a: tuple[str, str], b: tuple[str, str], preferences: dict | None):
-    if sport == "baseball":
-        if mode == "po":
-            preferences = preferences or {}
-            for guest_id, preference in preferences.items():
-                if preference:
-                    _save_playoff_preference(conn, guest_id, preference)
-            game_id, _blob, _state = _po_create_online_game(conn, a[0], a[1], b[0], b[1])
-        else:
-            game_id, _blob, _state = _dr_create_online_game(conn, a[0], a[1], b[0], b[1])
-        return game_id
     game_id, _blob, _state = _sport_online_create(conn, sport, mode, a, b, preferences or {})
     return game_id
 
@@ -6910,21 +6917,46 @@ def sport_online_move(sport: str, mode: str):
         if blob["finished"]: _save_sport_online_result(conn,gid,blob,state); _sport_online_save(conn, gid, blob); return jsonify(_sport_online_state(conn, gid, blob, state, guest))
         if guest != (blob["p1_guest_id"] if blob["turn_index"] == 0 else blob["p2_guest_id"]): return jsonify({"error": "not your turn", **_sport_online_state(conn,gid,blob,state,guest)}), 409
         player_id, raw = (data.get("player_id") or "").strip() or None, (data.get("raw") or "").strip()
-        result = validate_and_apply_move(state, PgEngineConn(conn), raw_input=None if player_id else raw, player_id=player_id, track_strikes=True, sport=sport)
+        result = validate_and_apply_move(
+            state,
+            PgEngineConn(conn),
+            raw_input=None if player_id else raw,
+            player_id=player_id,
+            track_strikes=True,
+            sport=_engine_sport(sport),
+        )
         payload = result_to_dict(result)
         if mode == "po" and result.outcome != MoveOutcome.VALID:
-            alternate = _local_po_powerup_move(PgEngineConn(conn), blob, raw, player_id)
+            if sport == "baseball":
+                alternate = _apply_playoff_powerup_move(conn, state, blob, raw=raw if raw else None, player_id=player_id)
+            else:
+                alternate = _local_po_powerup_move(PgEngineConn(conn), blob, raw, player_id)
             payload = alternate or payload
         blob.update(serialize_state(state)); blob["last_move"] = payload
         if payload.get("outcome") == "valid":
             mover = "p1" if guest == blob["p1_guest_id"] else "p2"
             if mode == "po":
-                inc = _local_po_condition_increment(PgEngineConn(conn), sport, blob[f"{mover}_win_condition_key"], payload["player_id"])
-                blob[f"{mover}_win_progress"] += inc
-                blob["chain_win_condition_hits"].append(bool(inc))
-                blob["chain_link_meta"].append(None)
-                if blob[f"{mover}_win_progress"] >= LOCAL_PLAYOFF_CONFIG[sport]["conditions"][blob[f"{mover}_win_condition_key"]]["target"]:
-                    blob[f"{mover}_win_completed"] = True; blob["finished"] = True; blob["winner"] = blob[mover]
+                if sport == "baseball":
+                    update = _apply_playoff_win_condition_hit(conn, blob, payload["player_id"], mover)
+                    payload["win_condition_hit"] = update["hit"]
+                    payload["win_condition_label"] = update["label"]
+                    payload["win_condition_progress"] = update["progress"]
+                    payload["win_condition_target"] = update["target"]
+                    payload["win_condition_completed"] = update["completed"]
+                    if len(blob.get("chain_link_meta", [])) < len(state.chain):
+                        blob.setdefault("chain_link_meta", []).append(None)
+                    if update["completed"]:
+                        blob["finished"] = True
+                        blob["winner"] = blob[mover]
+                else:
+                    inc = _local_po_condition_increment(PgEngineConn(conn), sport, blob[f"{mover}_win_condition_key"], payload["player_id"])
+                    blob[f"{mover}_win_progress"] += inc
+                    blob["chain_win_condition_hits"].append(bool(inc))
+                    blob["chain_link_meta"].append(None)
+                    if blob[f"{mover}_win_progress"] >= LOCAL_PLAYOFF_CONFIG[sport]["conditions"][blob[f"{mover}_win_condition_key"]]["target"]:
+                        blob[f"{mover}_win_completed"] = True; blob["finished"] = True; blob["winner"] = blob[mover]
+            if sport == "baseball":
+                _record_player_usage(conn, payload["player_id"], mode)
             _record_sport_player_usage(conn, sport, payload["player_id"], mode)
             if not blob["finished"]:
                 blob["turn_index"] = 1 - blob["turn_index"]; blob["turn_started_at"] = now_utc().isoformat(); blob["countdown_seconds"] = 0.0
@@ -6945,12 +6977,14 @@ def sport_online_powerup(sport: str):
         side = "p1" if guest == blob["p1_guest_id"] else "p2" if guest == blob["p2_guest_id"] else None
         if not side: return jsonify({"error":"unauthorized"}), 403
         if blob["finished"] or blob["turn_index"] != (0 if side == "p1" else 1): return jsonify({"error":"not your turn"}), 409
-        powers = LOCAL_PLAYOFF_CONFIG[sport]["powerups"]
+        powers = PLAYOFF_POWERUPS if sport == "baseball" else LOCAL_PLAYOFF_CONFIG[sport]["powerups"]
         if key not in powers or key in blob.get(f"{side}_powerup_used_keys", []) or blob.get("turn_powerup_used"): return jsonify({"error":"powerup unavailable"}), 409
         blob[f"{side}_powerup_used_keys"].append(key); blob["turn_powerup_used"] = True
         meta = powers[key]
-        if meta["kind"] == "time": blob["turn_seconds"] += meta["bonus_seconds"]
-        elif meta["kind"] == "pressure": blob["next_turn_seconds_override"] = 10
+        if meta["kind"] in {"time", "timer"} and key != "quick_pitch":
+            blob["turn_seconds"] += meta["bonus_seconds"]
+        elif meta["kind"] == "pressure" or key == "quick_pitch":
+            blob["next_turn_seconds_override"] = 10
         else: blob["turn_seconds"] += meta["bonus_seconds"]; blob["active_turn_powerup"] = key
         blob["last_move"] = {"outcome":"powerup_activated", "powerup_key":key, "powerup_label":meta["label"], "message":f"{meta['label']} activated."}
         _sport_online_save(conn,gid,blob); return jsonify(_sport_online_state(conn,gid,blob,state,guest))
@@ -6984,8 +7018,86 @@ def sport_online_leave(sport: str, mode: str):
 @app.route("/api/sports/<sport>/<mode>/cancel_challenge", methods=["POST"])
 def sport_online_cancel(sport: str, mode: str):
     guest=((request.get_json(silent=True) or {}).get("guest_id") or "").strip()
-    with db() as conn: conn.execute("DELETE FROM sport_online_queue WHERE sport_id=%s AND mode=%s AND guest_id=%s",(sport,mode,guest))
+    with db() as conn:
+        conn.execute("DELETE FROM sport_online_queue WHERE sport_id=%s AND mode=%s AND guest_id=%s",(sport,mode,guest))
+        if request.path.endswith("cancel_challenge"):
+            conn.execute(
+                """DELETE FROM sport_online_invites
+                    WHERE sport_id=%s AND mode=%s AND host_guest_id=%s AND claimed_at IS NULL""",
+                (sport, mode, guest),
+            )
     return jsonify({"status":"idle"})
+
+
+@app.route("/api/sports/<sport>/<mode>/create_challenge", methods=["POST"])
+def sport_online_create_challenge(sport: str, mode: str):
+    if not _is_cross_sport(sport) or mode not in {"dr", "po"}:
+        return jsonify({"error": "unsupported mode"}), 404
+    data = request.get_json(silent=True) or {}
+    guest = (data.get("guest_id") or "").strip()
+    preference = data.get("win_condition_preference") if mode == "po" else None
+    if not guest:
+        return jsonify({"error": "guest_id required"}), 400
+    with db() as conn:
+        if not conn.execute("SELECT 1 FROM guests WHERE guest_id=%s", (guest,)).fetchone():
+            return jsonify({"error": "unknown guest_id"}), 404
+        conn.execute("DELETE FROM sport_online_queue WHERE sport_id=%s AND mode=%s AND guest_id=%s", (sport, mode, guest))
+        conn.execute(
+            """DELETE FROM sport_online_invites
+                WHERE sport_id=%s AND mode=%s AND host_guest_id=%s AND claimed_at IS NULL""",
+            (sport, mode, guest),
+        )
+        code = secrets.token_hex(3).upper()
+        conn.execute(
+            """INSERT INTO sport_online_invites (code, sport_id, mode, host_guest_id, host_name, preference)
+               VALUES (%s, %s, %s, %s, %s, %s)""",
+            (code, sport, mode, guest, _guest_label(conn, guest), preference),
+        )
+    return jsonify({"status": "waiting", "code": code})
+
+
+@app.route("/api/sports/<sport>/<mode>/join_challenge", methods=["POST"])
+def sport_online_join_challenge(sport: str, mode: str):
+    if not _is_cross_sport(sport) or mode not in {"dr", "po"}:
+        return jsonify({"error": "unsupported mode"}), 404
+    data = request.get_json(silent=True) or {}
+    guest = (data.get("guest_id") or "").strip()
+    code = (data.get("code") or "").strip().upper()
+    preference = data.get("win_condition_preference") if mode == "po" else None
+    if not guest or not code:
+        return jsonify({"error": "guest_id and code required"}), 400
+    with db() as conn:
+        if not conn.execute("SELECT 1 FROM guests WHERE guest_id=%s", (guest,)).fetchone():
+            return jsonify({"error": "unknown guest_id"}), 404
+        name = _guest_label(conn, guest)
+        with conn.transaction():
+            row = conn.execute(
+                """SELECT host_guest_id::text, host_name, preference
+                     FROM sport_online_invites
+                    WHERE code=%s AND sport_id=%s AND mode=%s
+                      AND claimed_at IS NULL AND expires_at > now()
+                    FOR UPDATE""",
+                (code, sport, mode),
+            ).fetchone()
+            if not row:
+                return jsonify({"error": "challenge code not found"}), 404
+            host_guest_id, host_name, host_preference = row
+            if host_guest_id == guest:
+                return jsonify({"error": "cannot join your own challenge"}), 400
+            conn.execute(
+                "DELETE FROM sport_online_queue WHERE sport_id=%s AND mode=%s AND guest_id IN (%s, %s)",
+                (sport, mode, guest, host_guest_id),
+            )
+            game_id, blob, state = _sport_online_create(
+                conn,
+                sport,
+                mode,
+                (host_guest_id, host_name),
+                (guest, name),
+                {host_guest_id: host_preference, guest: preference},
+            )
+            conn.execute("UPDATE sport_online_invites SET claimed_at=now() WHERE code=%s", (code,))
+            return jsonify({"status": "matched", "game": _sport_online_state(conn, game_id, blob, state, guest)})
 
 
 @app.route("/api/sports/<sport>/<mode>/rematch_request", methods=["POST"])
