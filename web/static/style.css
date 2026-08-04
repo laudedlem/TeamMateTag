@@ -340,6 +340,72 @@ button.danger:hover:not(:disabled) {
   color: var(--burn);
 }
 
+.film-unit-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem;
+}
+
+.film-unit-actions a {
+  text-align: center;
+  text-decoration: none;
+}
+
+.film-unit-actions small {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.68rem;
+}
+
+.film-hub-meta {
+  margin-top: 0.75rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.film-streak,
+.film-rate {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.film-preview-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.film-preview-player {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.film-preview-photo {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+
+.film-preview-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.film-preview-player small {
+  color: var(--text);
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
 .manager-starter {
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr);

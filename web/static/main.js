@@ -1238,7 +1238,7 @@ function showGameOverBanner() {
   } else if (currentMode === 'bp') {
     els.playAgainBtn.hidden = false;
     els.requeueBtn.hidden = true;
-    els.winnerText.textContent = `Lineup of ${game.longest_chain - 1}.`;
+    els.winnerText.textContent = `Lineup of ${game.longest_chain}.`;
     els.gameOverSummary.textContent = 'Time expired. Try to beat your longest lineup.';
     els.playAgainBtn.textContent = ({ football: 'Run it back', basketball: 'Shoot again', hockey: 'Skate again' })[CURRENT_SPORT] || 'Take more cuts';
   }
@@ -2530,6 +2530,7 @@ const launchDate = document.body.dataset.launchDate || launchParams.get('date');
 const launchArchive = (document.body.dataset.launchArchive || launchParams.get('archive')) === '1';
 const launchGameId = document.body.dataset.launchGameId || launchParams.get('game_id');
 const launchSource = document.body.dataset.launchSource || launchParams.get('source') || '';
+const launchUnit = document.body.dataset.launchUnit || launchParams.get('unit') || '';
 let launchHandled = false;
 showScreen('home');
 renderProfile();
@@ -2557,7 +2558,7 @@ async function handleQueryLaunch() {
     } else if (launchMode === 'bp') {
       await startBp();
     } else if (launchMode === 'fr') {
-      await startFr(null, launchDate ? { puzzle_date: launchDate, archive: launchArchive } : {});
+      await startFr(launchUnit || null, launchDate ? { puzzle_date: launchDate, archive: launchArchive } : {});
     } else {
       pickMode(launchMode);
     }

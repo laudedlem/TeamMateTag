@@ -59,12 +59,13 @@ async function initHub() {
   const guestId = await ensureHubGuestId();
   if (!guestId) return;
   if (hub === 'manager') {
-    const summary = await post('/api/manager/summary', { guest_id: guestId });
-    renderManagerSummary(summary);
+    const tiles = await post('/api/manager/tiles', { guest_id: guestId });
+    renderManagerTiles(tiles);
+    post('/api/manager/summary', { guest_id: guestId }).then(renderManagerSummary).catch(() => {});
   }
   if (hub === 'film') {
     const summary = await post('/api/film/archive_summary', { guest_id: guestId });
-    Object.entries(summary.sports || {}).forEach(([sport, days]) => renderFilmReviewArchiveSelect(sport, days || []));
+    Object.entries(summary.sports || {}).forEach(([sport, data]) => renderFilmReviewHubSport(sport, data || {}));
   }
   configureSharedQueue();
 }
@@ -85,8 +86,16 @@ function formatArchiveLabel(day) {
 }
 
 function filmReviewUrl(sport, day) {
-  if (day.is_today) return `/film/${sport}`;
-  return `/film/${sport}?date=${encodeURIComponent(day.date)}&archive=1`;
+  const unit = day.unit ? `unit=${encodeURIComponent(day.unit)}` : '';
+  const archive = day.is_today ? '' : `date=${encodeURIComponent(day.date)}&archive=1`;
+  const query = [unit, archive].filter(Boolean).join('&');
+  return `/film/${sport}${query ? '?' + query : ''}`;
+}
+
+function unitLabel(unit) {
+  if (unit === 'offense') return 'Offense';
+  if (unit === 'defense') return 'Defense';
+  return '';
 }
 
 function renderFilmReviewArchiveSelect(sport, days) {
@@ -104,12 +113,52 @@ function renderFilmReviewArchiveSelect(sport, days) {
     return Number(b.number || 0) - Number(a.number || 0);
   });
   select.innerHTML = '<option value="">Choose lineup...</option>' + sorted.map((day) =>
-    `<option value="${filmReviewUrl(sport, day)}" class="fr-option-${day.is_today ? 'today' : day.status || 'unseen'}">${formatArchiveLabel(day)}</option>`
+    `<option value="${filmReviewUrl(sport, day)}" class="fr-option-${day.is_today ? 'today' : day.status || 'unseen'}">${unitLabel(day.unit)}${day.unit ? ' - ' : ''}${formatArchiveLabel(day)}</option>`
   ).join('');
   select.value = '';
   select.addEventListener('change', () => {
     if (select.value) window.location.href = select.value;
   });
+}
+
+function renderFilmPreview(sport, data) {
+  const tile = document.querySelector(`[data-sport="${sport}"]`);
+  if (!tile) return;
+  tile.querySelector('.film-hub-meta')?.remove();
+  const defaultToday = data.today?.default || data.today?.offense || {};
+  const preview = defaultToday.preview || [];
+  const rate = defaultToday.success_rate || { percent: 0, finished: 0 };
+  const meta = document.createElement('span');
+  meta.className = 'film-hub-meta';
+  meta.innerHTML = `<span class="film-streak">Streak ${Number(data.streak || 0)}</span>
+    <span class="film-rate">${Number(rate.percent || 0)}% solved today</span>
+    <span class="film-preview-pair">${preview.map((player) => `
+      <span class="film-preview-player">
+        <span class="film-preview-photo">${player.headshot_url ? `<img src="${escapeHtml(player.headshot_url)}" alt="">` : ''}</span>
+        <small>${escapeHtml(player.name || 'Unknown')}</small>
+      </span>`).join('')}</span>`;
+  tile.appendChild(meta);
+}
+
+function renderFilmUnitButtons(sport, data) {
+  if (sport !== 'football') return;
+  document.querySelectorAll('.film-unit-actions a[href*="unit="]').forEach((link) => {
+    const unit = new URL(link.href, window.location.origin).searchParams.get('unit') || '';
+    const rate = data.today?.[unit]?.success_rate || { percent: 0 };
+    link.innerHTML = `${unitLabel(unit)} <small>${Number(rate.percent || 0)}%</small>`;
+  });
+}
+
+function renderFilmReviewHubSport(sport, data) {
+  renderFilmReviewArchiveSelect(sport, data.days || []);
+  const current = (data.days || []).find((day) => day.is_today);
+  const status = document.querySelector(`[data-fr-today-status="${sport}"]`);
+  if (status) {
+    status.textContent = `Streak ${Number(data.streak || 0)}`;
+    status.className = `fr-today-status ${current?.status || 'unseen'}`;
+  }
+  renderFilmPreview(sport, data);
+  renderFilmUnitButtons(sport, data);
 }
 
 function escapeHtml(value) {
@@ -154,9 +203,27 @@ function renderManagerLeaderboard(summary, sport) {
 
 function renderManagerSummary(summary) {
   const sports = summary?.sports || {};
+  renderManagerTiles(summary);
+  const picker = document.getElementById('manager-leaderboard-sport');
+  if (picker) {
+    const saved = localStorage.getItem('tt_manager_board_sport') || 'baseball';
+    picker.value = sports[saved] ? saved : 'baseball';
+    renderManagerLeaderboard(summary, picker.value);
+    if (!picker.dataset.bound) {
+      picker.dataset.bound = 'true';
+      picker.addEventListener('change', () => {
+        localStorage.setItem('tt_manager_board_sport', picker.value);
+        renderManagerLeaderboard(summary, picker.value);
+      });
+    }
+  }
+}
+
+function renderManagerTiles(summary) {
+  const sports = summary?.sports || {};
   Object.entries(sports).forEach(([sport, data]) => {
     const bestTarget = document.querySelector(`[data-manager-best="${sport}"]`);
-    if (bestTarget) bestTarget.textContent = `Longest lineup: ${data.own_all_time?.chain_length || 0}`;
+    if (bestTarget) bestTarget.textContent = `Longest lineup: ${data.own_best ?? data.own_all_time?.chain_length ?? 0}`;
     const starterTarget = document.querySelector(`[data-manager-starter="${sport}"]`);
     if (starterTarget) {
       const starter = data.starter || {};
@@ -167,16 +234,6 @@ function renderManagerSummary(summary) {
         <span><small>Today's starter</small><strong>${escapeHtml(starter.name || 'Unknown')}</strong></span>`;
     }
   });
-  const picker = document.getElementById('manager-leaderboard-sport');
-  if (picker) {
-    const saved = localStorage.getItem('tt_manager_board_sport') || 'baseball';
-    picker.value = sports[saved] ? saved : 'baseball';
-    renderManagerLeaderboard(summary, picker.value);
-    picker.addEventListener('change', () => {
-      localStorage.setItem('tt_manager_board_sport', picker.value);
-      renderManagerLeaderboard(summary, picker.value);
-    });
-  }
 }
 
 function selectedSports() {

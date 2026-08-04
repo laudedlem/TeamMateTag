@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.64`
+- Current display version: `0.1.65`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -681,6 +681,18 @@ card hydration now deduplicates player-team-season rows before building team
 year ranges, fixing repeated Hockey lines such as Pekka Rinne's Nashville
 tenure. The shared `api()` helper now handles non-JSON server responses with a
 readable error instead of surfacing raw `JSON.parse` text.
+
+Update, 2026-08-04 (0.1.65): Manager Mode game-over text now reports full
+lineup length including the starter, matching saved leaderboard scores. Film
+Review daily attempts are now keyed by unit as well as sport/date, so Football
+offense and defense are separate 12-player lineups with separate archive rows,
+statuses, and solve rates. `/film/football` defaults to offense if no unit is
+provided, preventing the old combined offense+defense deck. `/film` shows
+sport streaks, today solve percentages, and a two-player preview for today's
+lineup; Football exposes explicit Offense and Defense buttons and archive
+entries include unit labels. `/manager` now loads lightweight tile data from
+`/api/manager/tiles` first, then fills the heavier leaderboard from
+`/api/manager/summary` afterward.
 
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.

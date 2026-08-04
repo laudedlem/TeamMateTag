@@ -72,7 +72,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.1.64"
+APP_VERSION = "0.1.65"
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
 # When running the local curation build we deliberately keep using SQLite so
@@ -572,14 +572,20 @@ def ensure_runtime_schema():
                        owner_guest_id UUID NOT NULL REFERENCES guests(guest_id) ON DELETE CASCADE,
                        sport_id TEXT NOT NULL,
                        puzzle_date DATE NOT NULL,
+                       unit TEXT NOT NULL DEFAULT '',
                        game_id UUID NOT NULL,
                        status TEXT NOT NULL DEFAULT 'in_progress' CHECK (status IN ('in_progress','won','lost')),
                        official BOOLEAN NOT NULL DEFAULT true,
                        completed_at TIMESTAMPTZ,
-                       PRIMARY KEY (owner_guest_id, sport_id, puzzle_date)
+                       PRIMARY KEY (owner_guest_id, sport_id, puzzle_date, unit)
                    )"""
             )
+            conn.execute("ALTER TABLE film_review_daily_attempts ADD COLUMN IF NOT EXISTS unit TEXT NOT NULL DEFAULT ''")
             conn.execute("ALTER TABLE film_review_daily_attempts ADD COLUMN IF NOT EXISTS official BOOLEAN NOT NULL DEFAULT true")
+            conn.execute("ALTER TABLE film_review_daily_attempts DROP CONSTRAINT IF EXISTS film_review_daily_attempts_pkey")
+            conn.execute("""ALTER TABLE film_review_daily_attempts
+                            ADD CONSTRAINT film_review_daily_attempts_pkey
+                            PRIMARY KEY (owner_guest_id, sport_id, puzzle_date, unit)""")
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS dr_results (
                        result_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -2208,7 +2214,7 @@ MODE_ALIASES = {
 }
 
 LAUNCH_COOKIE_PREFIX = "tt_launch_"
-LAUNCH_COOKIE_KEYS = ("mode", "date", "archive", "game_id", "source")
+LAUNCH_COOKIE_KEYS = ("mode", "date", "archive", "game_id", "source", "unit")
 
 
 def _set_launch_cookies(response, launch):
@@ -2269,12 +2275,16 @@ def direct_mode_sport(sport_key: str):
     if sport_key not in SPORT_HUBS:
         return "Sport not found", 404
     response = redirect(f"/{sport_key}")
+    launch_unit = request.args.get("unit", "")
+    if slug == "film" and sport_key == "football" and not launch_unit:
+        launch_unit = "offense"
     return _set_launch_cookies(response, {
         "mode": MODE_HUBS[slug]["mode"],
         "date": request.args.get("date", ""),
         "archive": request.args.get("archive", ""),
         "game_id": "",
         "source": slug,
+        "unit": launch_unit,
     })
 
 
@@ -4555,6 +4565,37 @@ def _manager_player_summary(conn, sport: str, player_id: str) -> dict:
     }
 
 
+def _manager_player_brief(conn, sport: str, player_id: str) -> dict:
+    if not player_id:
+        return {}
+    if sport == "baseball":
+        row = conn.execute(
+            """SELECT ps.display_name, p.mlbam_id
+                 FROM players_searchable ps
+                 JOIN players p ON p.player_id=ps.player_id
+                WHERE ps.player_id=%s""",
+            (player_id,),
+        ).fetchone()
+        if not row:
+            return {"player_id": player_id, "name": player_id, "headshot_url": None}
+        name, mlbam_id = row
+        return {"player_id": player_id, "name": name, "headshot_url": HEADSHOT_URL.format(mlbam_id) if mlbam_id else None}
+    row = conn.execute(
+        """SELECT ps.display_name, i.source_url
+             FROM sport_players_searchable ps
+             LEFT JOIN sport_player_images i ON i.sport_id=ps.sport_id AND i.player_id=ps.player_id
+            WHERE ps.sport_id=%s AND ps.player_id=%s""",
+        (sport, player_id),
+    ).fetchone()
+    if not row:
+        return {"player_id": player_id, "name": player_id, "headshot_url": None}
+    name, image = row
+    if not image and sport == "basketball":
+        ext = player_id.split(":", 1)[-1]
+        image = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{ext}.png"
+    return {"player_id": player_id, "name": name, "headshot_url": image}
+
+
 def _manager_bp_top_run(conn, sport: str, *, guest_id: str | None = None, today_only: bool = False) -> dict | None:
     filters = ["b.sport_id=%s"]
     params: list = [sport]
@@ -4640,7 +4681,7 @@ def manager_summary():
         for sport in sports:
             seed = _manager_seed_for_day(conn, sport, today)
             payload[sport] = {
-                "starter": _manager_player_summary(conn, sport, seed),
+                "starter": _manager_player_brief(conn, sport, seed),
                 "own_all_time": _manager_bp_top_run(conn, sport, guest_id=guest_id),
                 "own_today": _manager_bp_top_run(conn, sport, guest_id=guest_id, today_only=True),
                 "global_all_time": _manager_bp_top_run(conn, sport),
@@ -4650,23 +4691,101 @@ def manager_summary():
     return jsonify({"date": today.isoformat(), "sports": payload})
 
 
+@app.route("/api/manager/tiles", methods=["POST"])
+def manager_tiles():
+    ensure_runtime_schema()
+    guest_id = ((request.get_json(silent=True) or {}).get("guest_id") or "").strip() or None
+    today = datetime.now(CENTRAL_TIME).date()
+    sports = ["baseball", "basketball", "hockey", "football"]
+    with db() as conn:
+        if guest_id and not conn.execute("SELECT 1 FROM guests WHERE guest_id=%s", (guest_id,)).fetchone():
+            guest_id = None
+        payload = {}
+        for sport in sports:
+            seed = _manager_seed_for_day(conn, sport, today)
+            best = conn.execute(
+                "SELECT COALESCE(MAX(chain_length), 0) FROM bp_runs WHERE owner_guest_id=%s AND sport_id=%s",
+                (guest_id, sport),
+            ).fetchone()[0] if guest_id else 0
+            payload[sport] = {"starter": _manager_player_brief(conn, sport, seed), "own_best": best}
+    return jsonify({"date": today.isoformat(), "sports": payload})
+
+
 def _film_archive_days(conn, guest_id: str, sport: str) -> list[dict]:
     today = datetime.now(CENTRAL_TIME).date()
-    rows = {row[0]: (row[1], row[2]) for row in conn.execute(
-        """SELECT puzzle_date, status, game_id::text
+    rows = {(row[0], row[1] or ""): (row[2], row[3]) for row in conn.execute(
+        """SELECT puzzle_date, unit, status, game_id::text
              FROM film_review_daily_attempts
             WHERE owner_guest_id=%s AND sport_id=%s""",
         (guest_id, sport),
     ).fetchall()}
     days = []
+    units = ["offense", "defense"] if sport == "football" else [""]
     for offset in range(min(60, max(1, (today - FILM_REVIEW_EPOCH).days + 1))):
         puzzle_day = today - timedelta(days=offset)
         if puzzle_day < FILM_REVIEW_EPOCH:
             break
-        status, game_id = rows.get(puzzle_day, ("unseen", None))
-        days.append({"date": puzzle_day.isoformat(), "number": _film_review_number(puzzle_day),
-                     "status": status, "game_id": game_id, "is_today": puzzle_day == today})
+        for unit in units:
+            status, game_id = rows.get((puzzle_day, unit), ("unseen", None))
+            days.append({"date": puzzle_day.isoformat(), "number": _film_review_number(puzzle_day),
+                         "status": status, "game_id": game_id, "is_today": puzzle_day == today,
+                         "unit": unit})
     return days
+
+
+def _film_streak(conn, guest_id: str, sport: str) -> int:
+    won_days = {
+        row[0] for row in conn.execute(
+            """SELECT DISTINCT puzzle_date
+                 FROM film_review_daily_attempts
+                WHERE owner_guest_id=%s AND sport_id=%s AND status='won' AND official""",
+            (guest_id, sport),
+        ).fetchall()
+    }
+    cursor = datetime.now(CENTRAL_TIME).date()
+    if cursor not in won_days:
+        cursor -= timedelta(days=1)
+    streak = 0
+    while cursor in won_days:
+        streak += 1
+        cursor -= timedelta(days=1)
+    return streak
+
+
+def _film_success_rate(conn, sport: str, puzzle_day: date, unit: str = "") -> dict:
+    row = conn.execute(
+        """SELECT
+              COALESCE(SUM(CASE WHEN status='won' THEN 1 ELSE 0 END), 0),
+              COALESCE(SUM(CASE WHEN status IN ('won','lost') THEN 1 ELSE 0 END), 0)
+             FROM film_review_daily_attempts
+            WHERE sport_id=%s AND puzzle_date=%s AND unit=%s AND official""",
+        (sport, puzzle_day, unit),
+    ).fetchone()
+    wins, finished = row if row else (0, 0)
+    pct = round((wins / finished) * 100) if finished else 0
+    return {"wins": int(wins), "finished": int(finished), "percent": pct}
+
+
+def _film_preview_cards(conn, sport: str, puzzle_day: date, unit: str = "") -> list[dict]:
+    if sport == "baseball":
+        puzzle = _daily_film_review_puzzle(
+            conn, "baseball", puzzle_day, None,
+            lambda: generate_baseball_film_review(conn, puzzle_day),
+        )
+        cards = _hydrate_player_cards(conn, list(puzzle["deck"][:2]))
+    else:
+        unit_arg = unit or None
+        puzzle = _daily_film_review_puzzle(
+            conn, sport, puzzle_day, unit_arg,
+            lambda: _local_film_review_puzzle_dict(conn, sport, unit_arg, puzzle_day),
+        )
+        cards = _sport_cards(conn, sport, list(puzzle["deck"][:2]))
+    preview = []
+    for player_id in puzzle["deck"][:2]:
+        card = cards.get(player_id, {})
+        name = " ".join(part for part in [card.get("name_first"), card.get("name_last")] if part).strip() or player_id
+        preview.append({"player_id": player_id, "name": name, "headshot_url": card.get("headshot_url")})
+    return preview
 
 
 @app.route("/api/film/archive_summary", methods=["POST"])
@@ -4676,8 +4795,24 @@ def film_archive_summary():
     if not guest_id:
         return jsonify({"error": "guest_id required"}), 400
     sports = ["baseball", "basketball", "hockey", "football"]
+    today = datetime.now(CENTRAL_TIME).date()
     with db() as conn:
-        return jsonify({"sports": {sport: _film_archive_days(conn, guest_id, sport) for sport in sports}})
+        payload = {}
+        for sport in sports:
+            units = ["offense", "defense"] if sport == "football" else [""]
+            unit_payload = {
+                unit or "default": {
+                    "success_rate": _film_success_rate(conn, sport, today, unit),
+                    "preview": _film_preview_cards(conn, sport, today, unit),
+                }
+                for unit in units
+            }
+            payload[sport] = {
+                "days": _film_archive_days(conn, guest_id, sport),
+                "streak": _film_streak(conn, guest_id, sport),
+                "today": unit_payload,
+            }
+        return jsonify({"sports": payload})
 
 
 @app.route("/api/dr/queue", methods=["POST"])
@@ -6343,7 +6478,7 @@ def fr_new():
         if guest_id and not archive:
             existing = conn.execute(
                 """SELECT game_id::text FROM film_review_daily_attempts
-                     WHERE owner_guest_id=%s AND sport_id='baseball' AND puzzle_date=%s""",
+                     WHERE owner_guest_id=%s AND sport_id='baseball' AND puzzle_date=%s AND unit=''""",
                 (guest_id, puzzle_day),
             ).fetchone()
             if existing:
@@ -6376,16 +6511,16 @@ def fr_new():
         gid = _insert_game(conn, "fr_games", blob)
         if guest_id:
             if archive:
-                conn.execute("""INSERT INTO film_review_daily_attempts (owner_guest_id, sport_id, puzzle_date, game_id, official)
-                                VALUES (%s,'baseball',%s,%s,false)
-                                ON CONFLICT (owner_guest_id, sport_id, puzzle_date)
+                conn.execute("""INSERT INTO film_review_daily_attempts (owner_guest_id, sport_id, puzzle_date, unit, game_id, official)
+                                VALUES (%s,'baseball',%s,'',%s,false)
+                                ON CONFLICT (owner_guest_id, sport_id, puzzle_date, unit)
                                 DO UPDATE SET game_id=EXCLUDED.game_id, status='in_progress', completed_at=NULL
                                 WHERE film_review_daily_attempts.status='in_progress'""",
                              (guest_id, puzzle_day, gid))
             else:
-                conn.execute("""INSERT INTO film_review_daily_attempts (owner_guest_id, sport_id, puzzle_date, game_id, official)
-                                VALUES (%s,'baseball',%s,%s,true)
-                                ON CONFLICT (owner_guest_id, sport_id, puzzle_date)
+                conn.execute("""INSERT INTO film_review_daily_attempts (owner_guest_id, sport_id, puzzle_date, unit, game_id, official)
+                                VALUES (%s,'baseball',%s,'',%s,true)
+                                ON CONFLICT (owner_guest_id, sport_id, puzzle_date, unit)
                                 DO UPDATE SET game_id=EXCLUDED.game_id, status='in_progress', completed_at=NULL, official=true""",
                              (guest_id, puzzle_day, gid))
         return jsonify(fr_state_dict(gid, blob, conn=conn))
@@ -6495,7 +6630,7 @@ def fr_guess():
             _save_fr_result(conn, blob)
             if blob.get("owner_guest_id"):
                 conn.execute("""UPDATE film_review_daily_attempts SET status=%s, completed_at=now()
-                                WHERE owner_guest_id=%s AND sport_id='baseball' AND puzzle_date=%s""",
+                                WHERE owner_guest_id=%s AND sport_id='baseball' AND puzzle_date=%s AND unit=''""",
                              ("won" if blob.get("won") else "lost", blob["owner_guest_id"], blob.get("puzzle_date")))
         _save_game(conn, "fr_games", gid, blob)
         return jsonify(fr_state_dict(gid, blob, conn=conn))
@@ -6664,6 +6799,9 @@ def sport_fr_new(sport: str):
     data = request.get_json(silent=True) or {}
     unit = data.get("unit")
     unit = unit.strip().lower() if isinstance(unit, str) else None
+    if sport == "football" and unit not in {"offense", "defense"}:
+        unit = "offense"
+    unit_key = unit or ""
     guest_id = (data.get("guest_id") or "").strip() or None
     archive = bool(data.get("archive"))
     try:
@@ -6677,8 +6815,8 @@ def sport_fr_new(sport: str):
             guest_id = None
         if guest_id and not archive:
             existing = conn.execute(
-                "SELECT game_id::text FROM film_review_daily_attempts WHERE owner_guest_id=%s AND sport_id=%s AND puzzle_date=%s",
-                (guest_id, sport, puzzle_day),
+                "SELECT game_id::text FROM film_review_daily_attempts WHERE owner_guest_id=%s AND sport_id=%s AND puzzle_date=%s AND unit=%s",
+                (guest_id, sport, puzzle_day, unit_key),
             ).fetchone()
             if existing:
                 row = conn.execute("SELECT state, finished FROM fr_games WHERE game_id=%s", (existing[0],)).fetchone()
@@ -6714,18 +6852,18 @@ def sport_fr_new(sport: str):
         gid = _insert_game(conn, "fr_games", blob)
         if guest_id:
             if archive:
-                conn.execute("""INSERT INTO film_review_daily_attempts (owner_guest_id, sport_id, puzzle_date, game_id, official)
-                                VALUES (%s,%s,%s,%s,false)
-                                ON CONFLICT (owner_guest_id, sport_id, puzzle_date)
+                conn.execute("""INSERT INTO film_review_daily_attempts (owner_guest_id, sport_id, puzzle_date, unit, game_id, official)
+                                VALUES (%s,%s,%s,%s,%s,false)
+                                ON CONFLICT (owner_guest_id, sport_id, puzzle_date, unit)
                                 DO UPDATE SET game_id=EXCLUDED.game_id, status='in_progress', completed_at=NULL
                                 WHERE film_review_daily_attempts.status='in_progress'""",
-                             (guest_id, sport, puzzle_day, gid))
+                             (guest_id, sport, puzzle_day, unit_key, gid))
             else:
-                conn.execute("""INSERT INTO film_review_daily_attempts (owner_guest_id, sport_id, puzzle_date, game_id, official)
-                                VALUES (%s,%s,%s,%s,true)
-                                ON CONFLICT (owner_guest_id, sport_id, puzzle_date)
+                conn.execute("""INSERT INTO film_review_daily_attempts (owner_guest_id, sport_id, puzzle_date, unit, game_id, official)
+                                VALUES (%s,%s,%s,%s,%s,true)
+                                ON CONFLICT (owner_guest_id, sport_id, puzzle_date, unit)
                                 DO UPDATE SET game_id=EXCLUDED.game_id, status='in_progress', completed_at=NULL, official=true""",
-                             (guest_id, sport, puzzle_day, gid))
+                             (guest_id, sport, puzzle_day, unit_key, gid))
         return jsonify(_sport_fr_state_dict(gid, blob, conn))
 
 
@@ -6778,8 +6916,8 @@ def sport_fr_guess(sport: str):
                 blob["result_saved"] = True
             if blob["finished"] and blob.get("owner_guest_id"):
                 conn.execute("""UPDATE film_review_daily_attempts SET status=%s, completed_at=now()
-                                WHERE owner_guest_id=%s AND sport_id=%s AND puzzle_date=%s""",
-                             ("won" if blob["won"] else "lost", blob["owner_guest_id"], sport, blob.get("puzzle_date")))
+                                WHERE owner_guest_id=%s AND sport_id=%s AND puzzle_date=%s AND unit=%s""",
+                             ("won" if blob["won"] else "lost", blob["owner_guest_id"], sport, blob.get("puzzle_date"), blob.get("unit") or ""))
             _save_game(conn, "fr_games", gid, blob)
         return jsonify(_sport_fr_state_dict(gid, blob, conn))
 
