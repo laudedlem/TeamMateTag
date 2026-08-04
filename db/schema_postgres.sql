@@ -189,7 +189,7 @@ CREATE TABLE IF NOT EXISTS bp_runs (
     run_id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     owner_user_id   UUID REFERENCES users(user_id) ON DELETE SET NULL,
     owner_guest_id  UUID REFERENCES guests(guest_id) ON DELETE SET NULL,
-    seed_player_id  TEXT NOT NULL REFERENCES players(player_id),
+    seed_player_id  TEXT NOT NULL,
     chain_length    INTEGER NOT NULL,
     finished_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );

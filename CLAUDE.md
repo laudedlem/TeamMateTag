@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.63`
+- Current display version: `0.1.64`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -670,6 +670,17 @@ and search availability still need a dedicated historical audit. The daily
 starter pool now avoids these early-era records, but the broader historical NBA
 graph should be validated before old NBA players are used as default starters
 or prominent puzzle anchors.
+
+Update, 2026-08-03 (0.1.64): fixed two cross-sport Manager Mode parity bugs.
+`bp_runs.seed_player_id` no longer carries the original Baseball-only foreign
+key to `players(player_id)`, because NBA/NHL/NFL seeds use sport-prefixed IDs
+such as `nhl:8471469`. That obsolete constraint could make non-baseball
+timeouts crash while saving the run, returning an HTML error page and causing
+the browser's JSON parse failure instead of a game-over banner. Cross-sport
+card hydration now deduplicates player-team-season rows before building team
+year ranges, fixing repeated Hockey lines such as Pekka Rinne's Nashville
+tenure. The shared `api()` helper now handles non-JSON server responses with a
+readable error instead of surfacing raw `JSON.parse` text.
 
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.

@@ -328,7 +328,18 @@ async function api(path, body) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body || {}),
   });
-  return r.json();
+  const text = await r.text();
+  let payload = null;
+  try {
+    payload = text ? JSON.parse(text) : {};
+  } catch (err) {
+    return {
+      error: `Server returned ${r.status} ${r.statusText || 'non-JSON response'}.`,
+      detail: text.slice(0, 240),
+    };
+  }
+  if (!r.ok && !payload.error) payload.error = `Server returned ${r.status}.`;
+  return payload;
 }
 
 function storedGuestId() {

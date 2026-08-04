@@ -72,7 +72,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.1.63"
+APP_VERSION = "0.1.64"
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
 # When running the local curation build we deliberately keep using SQLite so
@@ -614,6 +614,7 @@ def ensure_runtime_schema():
             )
             conn.execute("ALTER TABLE dr_results ADD COLUMN IF NOT EXISTS sport_id TEXT NOT NULL DEFAULT 'baseball'")
             conn.execute("ALTER TABLE bp_runs ADD COLUMN IF NOT EXISTS sport_id TEXT NOT NULL DEFAULT 'baseball'")
+            conn.execute("ALTER TABLE bp_runs DROP CONSTRAINT IF EXISTS bp_runs_seed_player_id_fkey")
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS dr_queue (
                        guest_id UUID PRIMARY KEY REFERENCES guests(guest_id) ON DELETE CASCADE,
@@ -2950,15 +2951,20 @@ def _local_sport_cards(conn: sqlite3.Connection, sport: str, player_ids: list[st
             (sport, player_id),
         ).fetchone()
         appearances = conn.execute(
-            """SELECT t.name, a.season FROM sport_appearances a
+            """SELECT DISTINCT t.name, a.season FROM sport_appearances a
                  JOIN sport_teams t ON t.sport_id = a.sport_id AND t.team_id = a.team_id AND t.season = a.season
                 WHERE a.sport_id = ? AND a.player_id = ? ORDER BY a.season, t.name""",
             (sport, player_id),
         ).fetchall()
         spans_by_team = {}
+        seen_team_seasons = set()
         for team, season in appearances:
             if sport == "hockey":
                 team = NHL_TEAM_NAMES.get(team, team)
+            key = (team, season)
+            if key in seen_team_seasons:
+                continue
+            seen_team_seasons.add(key)
             spans = spans_by_team.setdefault(team, [])
             if spans and spans[-1][1] == season - 1:
                 spans[-1][1] = season
@@ -3050,7 +3056,7 @@ def _sport_cards(conn, sport: str, player_ids: list[str]) -> dict[str, dict]:
         (sport, missing),
     ).fetchall())
     appearances = conn.execute(
-        """SELECT a.player_id, t.name, a.season
+        """SELECT DISTINCT a.player_id, t.name, a.season
              FROM sport_appearances a
              JOIN sport_teams t ON t.sport_id=a.sport_id
                AND t.team_id=a.team_id AND t.season=a.season
@@ -3059,9 +3065,14 @@ def _sport_cards(conn, sport: str, player_ids: list[str]) -> dict[str, dict]:
         (sport, missing),
     ).fetchall()
     teams_by_player: dict[str, dict[str, list[list[int]]]] = {}
+    seen_player_team_seasons = set()
     for player_id, team, season in appearances:
         if sport == "hockey":
             team = NHL_TEAM_NAMES.get(team, team)
+        key = (player_id, team, season)
+        if key in seen_player_team_seasons:
+            continue
+        seen_player_team_seasons.add(key)
         ranges = teams_by_player.setdefault(player_id, {}).setdefault(team, [])
         # A player returning after an injury is still one tenure line, with
         # each actual year range preserved (Chicago Bulls 2008-11, 2013-15).
@@ -6033,6 +6044,7 @@ def sport_autocomplete(sport: str):
 
 @app.route("/api/sports/<sport>/bp/new", methods=["POST"])
 def sport_bp_new(sport: str):
+    ensure_runtime_schema()
     if not _is_cross_sport(sport):
         return jsonify({"error": "unsupported sport"}), 404
     data = request.get_json(silent=True) or {}
@@ -6051,6 +6063,7 @@ def sport_bp_new(sport: str):
 
 @app.route("/api/sports/<sport>/bp/move", methods=["POST"])
 def sport_bp_move(sport: str):
+    ensure_runtime_schema()
     data = request.get_json(silent=True) or {}
     gid = data.get("game_id")
     with db() as conn:
@@ -6082,6 +6095,7 @@ def sport_bp_move(sport: str):
 
 @app.route("/api/sports/<sport>/bp/timeout", methods=["POST"])
 def sport_bp_timeout(sport: str):
+    ensure_runtime_schema()
     data = request.get_json(silent=True) or {}
     gid = data.get("game_id")
     with db() as conn:
