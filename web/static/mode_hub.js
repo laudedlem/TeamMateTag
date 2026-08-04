@@ -128,8 +128,9 @@ function renderFilmPreview(sport, data) {
   tile.querySelector('.film-hub-meta')?.remove();
   const preview = data.preview || [];
   const rate = data.success_rate || { percent: 0, finished: 0 };
+  const compact = preview.some((player) => String(player.name || '').length > 16);
   const meta = document.createElement('span');
-  meta.className = 'film-hub-meta';
+  meta.className = `film-hub-meta ${compact ? 'compact-names' : ''}`;
   meta.innerHTML = `<span class="film-streak">Streak ${Number(data.streak || 0)}</span>
     <span class="film-rate">${Number(rate.percent || 0)}% solved today</span>
     <span class="film-preview-pair">${preview.map((player) => `

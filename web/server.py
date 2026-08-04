@@ -72,7 +72,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.1.66"
+APP_VERSION = "0.1.67"
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
 # When running the local curation build we deliberately keep using SQLite so
@@ -130,6 +130,7 @@ LOCAL_PO_LOCK = Lock()
 HEADSHOT_URL = "https://midfield.mlbstatic.com/v1/people/{}/spots/120"
 OPENING_COUNTDOWN_SECONDS = 3.0
 APP_TURN_SECONDS = 20.0
+MOVE_GRACE_SECONDS = 1.25
 SUPPORT_EMAIL = "support@teammatetag.com"
 SESSION_COOKIE = "tt_session"
 DEFAULT_PLAYOFF_TURN_SECONDS = 20.0
@@ -2068,6 +2069,20 @@ def player_card(player_id: str) -> dict:
 
 def now_utc() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _move_submitted_in_time(data: dict, live_elapsed: float, turn_seconds: float) -> bool:
+    if live_elapsed <= turn_seconds:
+        return True
+    try:
+        client_remaining = float(data.get("client_remaining_seconds"))
+    except (TypeError, ValueError):
+        client_remaining = None
+    return (
+        client_remaining is not None
+        and client_remaining >= -0.2
+        and live_elapsed <= turn_seconds + MOVE_GRACE_SECONDS
+    )
 
 
 def serialize_state(state: GameState) -> dict:
@@ -4517,6 +4532,12 @@ def _manager_seed_for_day(conn, sport: str, puzzle_day: date | None = None) -> s
             (sport, puzzle_day, cached),
         )
         return cached
+    recent = [r[0] for r in conn.execute(
+        """SELECT player_id FROM manager_daily_starters
+            WHERE sport_id=%s AND starter_date < %s
+            ORDER BY starter_date DESC LIMIT 21""",
+        (sport, puzzle_day),
+    ).fetchall()]
     if sport == "baseball":
         rows = conn.execute(
             """SELECT ps.player_id
@@ -4525,8 +4546,10 @@ def _manager_seed_for_day(conn, sport: str, puzzle_day: date | None = None) -> s
                 WHERE ps.career_games >= 650
                   AND p.final_year >= 2018
                   AND p.mlbam_id IS NOT NULL
+                  AND NOT (ps.player_id = ANY(%s))
                 ORDER BY ps.career_games DESC, ps.player_id
-                LIMIT 500"""
+                LIMIT 500""",
+            (recent,),
         ).fetchall()
         fallback = DEFAULT_SEED
     else:
@@ -4537,9 +4560,10 @@ def _manager_seed_for_day(conn, sport: str, puzzle_day: date | None = None) -> s
                 WHERE ps.sport_id=%s
                   AND ps.career_games >= %s
                   AND p.final_year >= 2018
+                  AND NOT (ps.player_id = ANY(%s))
                 ORDER BY ps.career_games DESC, ps.player_id
                 LIMIT 500""",
-            (sport, {"basketball": 450, "hockey": 400, "football": 80}.get(sport, 100)),
+            (sport, {"basketball": 450, "hockey": 400, "football": 80}.get(sport, 100), recent),
         ).fetchall()
         image_rows = conn.execute(
             """SELECT ps.player_id
@@ -4549,9 +4573,10 @@ def _manager_seed_for_day(conn, sport: str, puzzle_day: date | None = None) -> s
                 WHERE ps.sport_id=%s
                   AND ps.career_games >= %s
                   AND p.final_year >= 2018
+                  AND NOT (ps.player_id = ANY(%s))
                 ORDER BY ps.career_games DESC, ps.player_id
                 LIMIT 500""",
-            (sport, {"basketball": 450, "hockey": 400, "football": 80}.get(sport, 100)),
+            (sport, {"basketball": 450, "hockey": 400, "football": 80}.get(sport, 100), recent),
         ).fetchall()
         if image_rows:
             rows = image_rows
@@ -5350,7 +5375,7 @@ def move():
         started = datetime.fromisoformat(blob["turn_started_at"])
         elapsed = (now_utc() - started).total_seconds()
         live_elapsed = max(0.0, elapsed - blob["countdown_seconds"])
-        if live_elapsed > blob["turn_seconds"]:
+        if not _move_submitted_in_time(data, live_elapsed, blob["turn_seconds"]):
             blob["finished"] = True
             blob["winner"] = [blob["p2"], blob["p1"]][blob["turn_index"]]
             blob["last_move"] = {"outcome": "timeout"}
@@ -5670,7 +5695,7 @@ def po_move():
         started = datetime.fromisoformat(blob["turn_started_at"])
         elapsed = (now_utc() - started).total_seconds()
         live_elapsed = max(0.0, elapsed - blob["countdown_seconds"])
-        if live_elapsed > blob["turn_seconds"]:
+        if not _move_submitted_in_time(data, live_elapsed, blob["turn_seconds"]):
             blob["finished"] = True
             blob["winner"] = [blob["p2"], blob["p1"]][blob["turn_index"]]
             blob["last_move"] = {"outcome": "timeout"}
@@ -6114,7 +6139,7 @@ def bp_move():
         started = datetime.fromisoformat(blob["turn_started_at"])
         elapsed = (now_utc() - started).total_seconds()
         live_elapsed = max(0.0, elapsed - blob["countdown_seconds"])
-        if live_elapsed > blob["turn_seconds"]:
+        if not _move_submitted_in_time(data, live_elapsed, blob["turn_seconds"]):
             blob["finished"] = True
             blob["last_move"] = {"outcome": "timeout"}
             _save_bp_run(conn, blob, state)
@@ -6257,7 +6282,8 @@ def sport_bp_move(sport: str):
         if blob["finished"]:
             return jsonify(_sport_bp_state_dict(gid, blob, state, conn))
         elapsed = (now_utc() - datetime.fromisoformat(blob["turn_started_at"])).total_seconds()
-        if max(0.0, elapsed - blob["countdown_seconds"]) > blob["turn_seconds"]:
+        live_elapsed = max(0.0, elapsed - blob["countdown_seconds"])
+        if not _move_submitted_in_time(data, live_elapsed, blob["turn_seconds"]):
             blob.update({"finished": True, "last_move": {"outcome": "timeout"}})
             _save_sport_bp_run(conn, blob, state)
         else:
@@ -7424,13 +7450,20 @@ def sport_online_game(sport: str, mode: str):
 def sport_online_move(sport: str, mode: str):
     data = request.get_json(silent=True) or {}; guest, gid = (data.get("guest_id") or "").strip(), data.get("game_id")
     with db() as conn:
-        _reap_expired_sport_games(conn, sport, mode)
         blob, state = _sport_online_load(conn, sport, mode, gid)
         if not blob: return jsonify({"error": "unknown game_id"}), 404
         if guest not in {blob["p1_guest_id"], blob["p2_guest_id"]}: return jsonify({"error": "unauthorized"}), 403
-        _sport_online_expire(blob)
         if blob["finished"]: _save_sport_online_result(conn,gid,blob,state); _sport_online_save(conn, gid, blob); return jsonify(_sport_online_state(conn, gid, blob, state, guest))
         if guest != (blob["p1_guest_id"] if blob["turn_index"] == 0 else blob["p2_guest_id"]): return jsonify({"error": "not your turn", **_sport_online_state(conn,gid,blob,state,guest)}), 409
+        elapsed = (now_utc() - datetime.fromisoformat(blob["turn_started_at"])).total_seconds()
+        live_elapsed = max(0.0, elapsed - blob["countdown_seconds"])
+        if not _move_submitted_in_time(data, live_elapsed, blob["turn_seconds"]):
+            blob["finished"] = True
+            blob["winner"] = blob["p2"] if blob["turn_index"] == 0 else blob["p1"]
+            blob["last_move"] = {"outcome": "timeout"}
+            _save_sport_online_result(conn,gid,blob,state)
+            _sport_online_save(conn, gid, blob)
+            return jsonify(_sport_online_state(conn, gid, blob, state, guest))
         player_id, raw = (data.get("player_id") or "").strip() or None, (data.get("raw") or "").strip()
         result = validate_and_apply_move(
             state,

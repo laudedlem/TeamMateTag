@@ -1319,6 +1319,12 @@ function setGuessDisabled(disabled) {
   els.guessBtn.disabled = disabled;
 }
 
+function clientRemainingSeconds() {
+  if (!game || !activeTimerKey || typeof game.remaining_seconds !== 'number') return null;
+  const elapsed = performance.now() / 1000 - turnLocalStart;
+  return Number(game.remaining_seconds) - elapsed;
+}
+
 function runOpeningCountdown() {
   clearInterval(countdownInterval);
   const remaining = Number(game?.countdown_seconds_remaining || 0);
@@ -1413,6 +1419,7 @@ async function submitMove({ raw, player_id }) {
     raw,
     player_id,
     guest_id: isOnlineMode() ? (profile?.guest_id || storedGuestId()) : undefined,
+    client_remaining_seconds: clientRemainingSeconds(),
   });
   moveSubmissionInFlight = false;
   if (nextGame?.error) {
