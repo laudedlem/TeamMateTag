@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.62`
+- Current display version: `0.1.63`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -652,6 +652,24 @@ now shows each sport's daily starter with headshot, uses the same daily starter
 when a Manager Mode run starts, and includes a sport-filtered Manager
 leaderboard panel with personal/global all-time, personal/global today, and a
 daily records dropdown.
+
+Update, 2026-08-03 (0.1.63): `/film` now loads all sport archive dropdowns
+through one `/api/film/archive_summary` request and uses the label `Choose
+lineup...` with two-digit years in archive dates. Returning users on mode hubs
+use the locally stored guest ID immediately and refresh profile bootstrap in
+the background, avoiding a slow profile roundtrip before archives or Manager
+leaderboards render. `/manager` daily starter cards are laid out side-by-side
+inside sport tiles, and daily starter selection now uses recent, higher-volume
+players with image-backed candidates where available. Manager Mode scores are
+stored as full lineup length, including the starter, and the records archive
+only shows entries from 2026-08-01 onward. Manager timeout finalization retries
+until the server confirms game over, fixing missing game-over banners.
+
+Open data-quality note: Alex Groza exposed that early NBA/BAA teammate coverage
+and search availability still need a dedicated historical audit. The daily
+starter pool now avoids these early-era records, but the broader historical NBA
+graph should be validated before old NBA players are used as default starters
+or prominent puzzle anchors.
 
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.

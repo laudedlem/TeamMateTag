@@ -37,21 +37,34 @@ async function post(url, body) {
   return response.json();
 }
 
-async function initHub() {
-  hubProfile = await post('/api/profile/bootstrap', { guest_id: localStorage.getItem(guestKey) || '' });
-  if (!hubProfile?.guest_id) return;
+async function ensureHubGuestId() {
+  const stored = localStorage.getItem(guestKey) || '';
+  if (stored) {
+    hubProfile = { guest_id: stored };
+    post('/api/profile/bootstrap', { guest_id: stored }).then((profile) => {
+      if (profile?.guest_id) {
+        hubProfile = profile;
+        localStorage.setItem(guestKey, profile.guest_id);
+      }
+    }).catch(() => {});
+    return stored;
+  }
+  hubProfile = await post('/api/profile/bootstrap', { guest_id: '' });
+  if (!hubProfile?.guest_id) return '';
   localStorage.setItem(guestKey, hubProfile.guest_id);
+  return hubProfile.guest_id;
+}
+
+async function initHub() {
+  const guestId = await ensureHubGuestId();
+  if (!guestId) return;
   if (hub === 'manager') {
-    const summary = await post('/api/manager/summary', { guest_id: hubProfile.guest_id });
+    const summary = await post('/api/manager/summary', { guest_id: guestId });
     renderManagerSummary(summary);
   }
   if (hub === 'film') {
-    const sports = ['baseball', 'basketball', 'hockey', 'football'];
-    const results = await Promise.all(sports.map(async (sport) => {
-      const path = sport === 'baseball' ? '/api/fr/archive' : `/api/sports/${sport}/fr/archive`;
-      return [sport, await post(path, { guest_id: hubProfile.guest_id })];
-    }));
-    results.forEach(([sport, data]) => renderFilmReviewArchiveSelect(sport, data.days || []));
+    const summary = await post('/api/film/archive_summary', { guest_id: guestId });
+    Object.entries(summary.sports || {}).forEach(([sport, days]) => renderFilmReviewArchiveSelect(sport, days || []));
   }
   configureSharedQueue();
 }
@@ -65,7 +78,7 @@ function displayStatus(status) {
 }
 
 function formatArchiveLabel(day) {
-  const dateText = day.date ? new Date(day.date + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
+  const dateText = day.date ? new Date(day.date + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' }).replace(', 20', ", '") : '';
   const status = displayStatus(day.status);
   const prefix = day.is_today ? 'Today' : `#${day.number}`;
   return `${prefix}${dateText ? ' - ' + dateText : ''} - ${status}`;
@@ -90,7 +103,7 @@ function renderFilmReviewArchiveSelect(sport, days) {
     if (b.is_today) return 1;
     return Number(b.number || 0) - Number(a.number || 0);
   });
-  select.innerHTML = '<option value="">Choose puzzle...</option>' + sorted.map((day) =>
+  select.innerHTML = '<option value="">Choose lineup...</option>' + sorted.map((day) =>
     `<option value="${filmReviewUrl(sport, day)}" class="fr-option-${day.is_today ? 'today' : day.status || 'unseen'}">${formatArchiveLabel(day)}</option>`
   ).join('');
   select.value = '';

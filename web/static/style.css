@@ -281,6 +281,19 @@ button.danger:hover:not(:disabled) {
   min-height: 148px;
 }
 
+.manager-sport-tile {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(140px, 0.9fr);
+  gap: 0.85rem;
+  align-items: center;
+}
+
+.sport-tile-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
 .fr-hub-archive-select {
   width: 100%;
   background: var(--bg-elevated);
@@ -328,12 +341,11 @@ button.danger:hover:not(:disabled) {
 }
 
 .manager-starter {
-  margin-top: auto;
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr);
   gap: 0.65rem;
   align-items: center;
-  padding-top: 0.8rem;
+  min-width: 0;
 }
 
 .manager-starter-photo {
@@ -369,6 +381,7 @@ button.danger:hover:not(:disabled) {
 .manager-starter strong {
   display: block;
   line-height: 1.15;
+  overflow-wrap: anywhere;
 }
 
 .manager-leaderboard-panel {
@@ -1269,6 +1282,16 @@ button.secondary:hover { border-color: var(--accent); color: var(--accent); }
 
   .profile-detail-grid {
     grid-template-columns: 1fr;
+  }
+
+  .manager-sport-tile,
+  .manager-board-header,
+  .manager-board-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .manager-board-header {
+    align-items: stretch;
   }
 
   .challenge-row {

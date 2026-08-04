@@ -72,7 +72,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.1.62"
+APP_VERSION = "0.1.63"
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
 # When running the local curation build we deliberately keep using SQLite so
@@ -1817,7 +1817,7 @@ def _save_bp_run(conn, blob: dict, state: GameState):
         conn.execute(
             """INSERT INTO bp_runs (owner_guest_id, seed_player_id, chain_length)
                  VALUES (%s, %s, %s)""",
-            (guest_id, blob.get("seed_player_id", DEFAULT_SEED), max(0, len(state.chain) - 1)),
+            (guest_id, blob.get("seed_player_id", DEFAULT_SEED), len(state.chain)),
         )
         _record_struck_out_teams(conn, guest_id, "bp", state)
     blob["result_saved"] = True
@@ -3419,6 +3419,20 @@ def local_bp_move(sport: str):
         return jsonify(_local_bp_state(game_id, game))
 
 
+@app.route("/api/local/<sport>/bp/timeout", methods=["POST"])
+def local_bp_timeout(sport: str):
+    data = request.get_json(silent=True) or {}
+    game_id = data.get("game_id")
+    with LOCAL_BP_LOCK:
+        game = LOCAL_BP_GAMES.get(game_id)
+        if not game or game["sport"] != sport:
+            return jsonify({"error": "unknown local game"}), 404
+        if not game["finished"] and (now_utc() - game["started_at"]).total_seconds() >= APP_TURN_SECONDS + OPENING_COUNTDOWN_SECONDS - 0.25:
+            game["finished"] = True
+            game["last_move"] = {"outcome": "timeout"}
+        return jsonify(_local_bp_state(game_id, game))
+
+
 # ----- Local cross-sport Division Rivalry -----
 
 def _local_dr_player_key(sport: str, guest_id: str) -> tuple[str, str]:
@@ -4462,22 +4476,42 @@ def _manager_seed_for_day(conn, sport: str, puzzle_day: date | None = None) -> s
         return cached
     if sport == "baseball":
         rows = conn.execute(
-            """SELECT player_id
-                 FROM players_searchable
-                WHERE career_games >= 500
-                ORDER BY career_games DESC, player_id
-                LIMIT 750"""
+            """SELECT ps.player_id
+                 FROM players_searchable ps
+                 JOIN players p ON p.player_id=ps.player_id
+                WHERE ps.career_games >= 650
+                  AND p.final_year >= 2018
+                  AND p.mlbam_id IS NOT NULL
+                ORDER BY ps.career_games DESC, ps.player_id
+                LIMIT 500"""
         ).fetchall()
         fallback = DEFAULT_SEED
     else:
         rows = conn.execute(
-            """SELECT player_id
-                 FROM sport_players_searchable
-                WHERE sport_id=%s AND career_games >= 100
-                ORDER BY career_games DESC, player_id
-                LIMIT 750""",
-            (sport,),
+            """SELECT ps.player_id
+                 FROM sport_players_searchable ps
+                 JOIN sport_players p ON p.sport_id=ps.sport_id AND p.player_id=ps.player_id
+                WHERE ps.sport_id=%s
+                  AND ps.career_games >= %s
+                  AND p.final_year >= 2018
+                ORDER BY ps.career_games DESC, ps.player_id
+                LIMIT 500""",
+            (sport, {"basketball": 450, "hockey": 400, "football": 80}.get(sport, 100)),
         ).fetchall()
+        image_rows = conn.execute(
+            """SELECT ps.player_id
+                 FROM sport_players_searchable ps
+                 JOIN sport_players p ON p.sport_id=ps.sport_id AND p.player_id=ps.player_id
+                 JOIN sport_player_images i ON i.sport_id=ps.sport_id AND i.player_id=ps.player_id
+                WHERE ps.sport_id=%s
+                  AND ps.career_games >= %s
+                  AND p.final_year >= 2018
+                ORDER BY ps.career_games DESC, ps.player_id
+                LIMIT 500""",
+            (sport, {"basketball": 450, "hockey": 400, "football": 80}.get(sport, 100)),
+        ).fetchall()
+        if image_rows:
+            rows = image_rows
         fallback = LOCAL_SPORT_SEEDS.get(sport)
     candidates = [row[0] for row in rows]
     if not candidates:
@@ -4518,13 +4552,20 @@ def _manager_bp_top_run(conn, sport: str, *, guest_id: str | None = None, today_
         params.append(guest_id)
     if today_only:
         filters.append("((b.finished_at AT TIME ZONE 'America/Chicago')::date = (now() AT TIME ZONE 'America/Chicago')::date)")
+    if sport == "baseball":
+        name_join = "LEFT JOIN players_searchable starter ON starter.player_id=b.seed_player_id"
+        name_select = "starter.display_name"
+    else:
+        name_join = "LEFT JOIN sport_players_searchable starter ON starter.sport_id=b.sport_id AND starter.player_id=b.seed_player_id"
+        name_select = "starter.display_name"
     row = conn.execute(
         f"""SELECT COALESCE(u.username, g.display_name, 'Guest') AS display_name,
-                   b.chain_length, b.seed_player_id,
+                   b.chain_length, b.seed_player_id, {name_select} AS starter_name,
                    (b.finished_at AT TIME ZONE 'America/Chicago')::date AS run_date
               FROM bp_runs b
               LEFT JOIN guests g ON g.guest_id = b.owner_guest_id
               LEFT JOIN users u ON u.user_id = g.guest_id
+              {name_join}
              WHERE {' AND '.join(filters)}
              ORDER BY b.chain_length DESC, b.finished_at ASC
              LIMIT 1""",
@@ -4532,38 +4573,46 @@ def _manager_bp_top_run(conn, sport: str, *, guest_id: str | None = None, today_
     ).fetchone()
     if not row:
         return None
-    display_name, chain_length, seed_player_id, run_date = row
+    display_name, chain_length, seed_player_id, starter_name, run_date = row
     return {
         "display_name": display_name,
         "chain_length": chain_length,
         "date": run_date.isoformat() if run_date else None,
-        "starter": _manager_player_summary(conn, sport, seed_player_id),
+        "starter": {"player_id": seed_player_id, "name": starter_name or seed_player_id},
     }
 
 
 def _manager_bp_daily_records(conn, sport: str, limit: int = 30) -> list[dict]:
+    if sport == "baseball":
+        name_join = "LEFT JOIN players_searchable starter ON starter.player_id=b.seed_player_id"
+        name_select = "starter.display_name"
+    else:
+        name_join = "LEFT JOIN sport_players_searchable starter ON starter.sport_id=b.sport_id AND starter.player_id=b.seed_player_id"
+        name_select = "starter.display_name"
     rows = conn.execute(
         """SELECT DISTINCT ON ((b.finished_at AT TIME ZONE 'America/Chicago')::date)
                   (b.finished_at AT TIME ZONE 'America/Chicago')::date AS run_date,
                   COALESCE(u.username, g.display_name, 'Guest') AS display_name,
-                  b.chain_length, b.seed_player_id
+                  b.chain_length, b.seed_player_id, {name_select} AS starter_name
              FROM bp_runs b
              LEFT JOIN guests g ON g.guest_id = b.owner_guest_id
              LEFT JOIN users u ON u.user_id = g.guest_id
+             {name_join}
             WHERE b.sport_id=%s
+              AND (b.finished_at AT TIME ZONE 'America/Chicago')::date >= %s
             ORDER BY (b.finished_at AT TIME ZONE 'America/Chicago')::date DESC,
                      b.chain_length DESC, b.finished_at ASC
-            LIMIT %s""",
-        (sport, limit),
+            LIMIT %s""".format(name_select=name_select, name_join=name_join),
+        (sport, FILM_REVIEW_EPOCH, limit),
     ).fetchall()
     return [
         {
             "date": run_date.isoformat() if run_date else None,
             "display_name": display_name,
             "chain_length": chain_length,
-            "starter": _manager_player_summary(conn, sport, seed_player_id),
+            "starter": {"player_id": seed_player_id, "name": starter_name or seed_player_id},
         }
-        for run_date, display_name, chain_length, seed_player_id in rows
+        for run_date, display_name, chain_length, seed_player_id, starter_name in rows
     ]
 
 
@@ -4588,6 +4637,36 @@ def manager_summary():
                 "records": _manager_bp_daily_records(conn, sport),
             }
     return jsonify({"date": today.isoformat(), "sports": payload})
+
+
+def _film_archive_days(conn, guest_id: str, sport: str) -> list[dict]:
+    today = datetime.now(CENTRAL_TIME).date()
+    rows = {row[0]: (row[1], row[2]) for row in conn.execute(
+        """SELECT puzzle_date, status, game_id::text
+             FROM film_review_daily_attempts
+            WHERE owner_guest_id=%s AND sport_id=%s""",
+        (guest_id, sport),
+    ).fetchall()}
+    days = []
+    for offset in range(min(60, max(1, (today - FILM_REVIEW_EPOCH).days + 1))):
+        puzzle_day = today - timedelta(days=offset)
+        if puzzle_day < FILM_REVIEW_EPOCH:
+            break
+        status, game_id = rows.get(puzzle_day, ("unseen", None))
+        days.append({"date": puzzle_day.isoformat(), "number": _film_review_number(puzzle_day),
+                     "status": status, "game_id": game_id, "is_today": puzzle_day == today})
+    return days
+
+
+@app.route("/api/film/archive_summary", methods=["POST"])
+def film_archive_summary():
+    ensure_runtime_schema()
+    guest_id = ((request.get_json(silent=True) or {}).get("guest_id") or "").strip()
+    if not guest_id:
+        return jsonify({"error": "guest_id required"}), 400
+    sports = ["baseball", "basketball", "hockey", "football"]
+    with db() as conn:
+        return jsonify({"sports": {sport: _film_archive_days(conn, guest_id, sport) for sport in sports}})
 
 
 @app.route("/api/dr/queue", methods=["POST"])
@@ -5927,7 +6006,7 @@ def _save_sport_bp_run(conn, blob: dict, state: GameState):
         conn.execute(
             """INSERT INTO bp_runs (owner_guest_id, seed_player_id, chain_length, sport_id)
                VALUES (%s, %s, %s, %s)""",
-            (guest_id, blob["seed_player_id"], max(0, len(state.chain) - 1), sport),
+            (guest_id, blob["seed_player_id"], len(state.chain), sport),
         )
         _record_sport_struck_out_teams(conn, guest_id, sport, "bp", state)
     blob["result_saved"] = True
@@ -6304,21 +6383,8 @@ def fr_archive():
     guest_id = ((request.get_json(silent=True) or {}).get("guest_id") or "").strip()
     if not guest_id:
         return jsonify({"error": "guest_id required"}), 400
-    today = datetime.now(CENTRAL_TIME).date()
     with db() as conn:
-        rows = {row[0]: (row[1], row[2]) for row in conn.execute(
-            """SELECT puzzle_date, status, game_id::text FROM film_review_daily_attempts
-                 WHERE owner_guest_id=%s AND sport_id='baseball'""", (guest_id,)
-        ).fetchall()}
-    days = []
-    for offset in range(min(60, max(1, (today - FILM_REVIEW_EPOCH).days + 1))):
-        puzzle_day = today - timedelta(days=offset)
-        if puzzle_day < FILM_REVIEW_EPOCH:
-            break
-        status, game_id = rows.get(puzzle_day, ("unseen", None))
-        days.append({"date": puzzle_day.isoformat(), "number": _film_review_number(puzzle_day),
-                     "status": status, "game_id": game_id, "is_today": puzzle_day == today})
-    return jsonify({"days": days})
+        return jsonify({"days": _film_archive_days(conn, guest_id, "baseball")})
 
 
 @app.route("/api/fr/daily_game", methods=["POST"])
@@ -6572,21 +6638,8 @@ def sport_fr_archive(sport: str):
     guest_id = (data.get("guest_id") or "").strip()
     if not _is_cross_sport(sport) or not guest_id:
         return jsonify({"error": "sport and guest_id required"}), 400
-    today = datetime.now(CENTRAL_TIME).date()
     with db() as conn:
-        rows = {row[0]: (row[1], row[2]) for row in conn.execute(
-            "SELECT puzzle_date, status, game_id::text FROM film_review_daily_attempts WHERE owner_guest_id=%s AND sport_id=%s",
-            (guest_id, sport),
-        ).fetchall()}
-    days = []
-    for offset in range(min(60, max(1, (today - FILM_REVIEW_EPOCH).days + 1))):
-        puzzle_day = today - timedelta(days=offset)
-        if puzzle_day < FILM_REVIEW_EPOCH:
-            break
-        status, game_id = rows.get(puzzle_day, ("unseen", None))
-        days.append({"date": puzzle_day.isoformat(), "number": _film_review_number(puzzle_day),
-                     "status": status, "game_id": game_id, "is_today": puzzle_day == today})
-    return jsonify({"days": days})
+        return jsonify({"days": _film_archive_days(conn, guest_id, sport)})
 
 
 @app.route("/api/sports/<sport>/fr/new", methods=["POST"])

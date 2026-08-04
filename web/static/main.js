@@ -170,6 +170,7 @@ let friendsPollInterval = null;
 let mpRequeueRelaxTimeout = null;
 let mpPollInFlight = false;
 let moveSubmissionInFlight = false;
+let bpTimeoutInFlight = false;
 let turnLocalStart = 0;
 let lastChainLength = 0;
 let activeCountdownKey = '';
@@ -1363,15 +1364,27 @@ async function onMpTimeout() {
 }
 
 async function onBpTimeout() {
-  game = await api(LOCAL_SOLO_SPORTS.has(CURRENT_SPORT) ? localSoloPath(USE_LOCAL_CROSS_SPORTS ? 'move' : 'timeout') : '/api/bp/timeout',
-    { game_id: game.game_id });
-  if (game.finished) {
-    renderBpGame();
-    showGameOverBanner();
-    bootstrapProfile();
-  } else {
+  if (bpTimeoutInFlight || !game?.game_id) return;
+  bpTimeoutInFlight = true;
+  const path = LOCAL_SOLO_SPORTS.has(CURRENT_SPORT) ? localSoloPath('timeout') : '/api/bp/timeout';
+  try {
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      const next = await api(path, { game_id: game.game_id });
+      if (next?.error) throw new Error(next.error);
+      game = next;
+      renderBpGame();
+      if (game.finished) {
+        showGameOverBanner();
+        bootstrapProfile();
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
     resetTurnTimer();
-    renderBpGame();
+  } catch (err) {
+    els.feedback.innerHTML = `<span class="bad">Could not finalize timeout. ${escapeHtml(err.message || '')}</span>`;
+  } finally {
+    bpTimeoutInFlight = false;
   }
 }
 

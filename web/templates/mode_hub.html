@@ -19,10 +19,12 @@
     <div class="sport-tiles">
       {% for key, sport in sports.items() %}
       <div class="mode-sport-choice">
-        <a class="sport-tile sport-tile-{{ key }}" href="{% if slug == 'division' or slug == 'playoffs' %}#{% elif slug == 'manager' or slug == 'film' %}/{{ slug }}/{{ key }}{% else %}/{{ key }}?mode={{ hub.mode }}{% endif %}" data-sport="{{ key }}" {% if slug == 'division' or slug == 'playoffs' %}data-direct-queue-sport="{{ key }}"{% endif %}>
+        <a class="sport-tile sport-tile-{{ key }}{% if slug == 'manager' %} manager-sport-tile{% endif %}" href="{% if slug == 'division' or slug == 'playoffs' %}#{% elif slug == 'manager' or slug == 'film' %}/{{ slug }}/{{ key }}{% else %}/{{ key }}?mode={{ hub.mode }}{% endif %}" data-sport="{{ key }}" {% if slug == 'division' or slug == 'playoffs' %}data-direct-queue-sport="{{ key }}"{% endif %}>
+          <span class="sport-tile-copy">
           <span class="sport-tile-league">{{ sport.league }}</span>
           <span class="sport-tile-name">{{ sport.name }}</span>
           <span class="sport-tile-status">{% if slug == 'manager' %}<span data-manager-best="{{ key }}">Longest lineup: --</span>{% elif slug == 'film' %}<span data-fr-today-status="{{ key }}">Today's puzzle</span>{% else %}Queue now{% endif %}</span>
+          </span>
           {% if slug == 'manager' %}
           <span class="manager-starter" data-manager-starter="{{ key }}">
             <span class="manager-starter-photo placeholder"></span>
@@ -35,7 +37,7 @@
         </a>
         {% if slug == 'film' %}
         <select class="fr-hub-archive-select" data-fr-archive-select="{{ key }}" aria-label="{{ sport.name }} Film Review archive">
-          <option>Loading archive...</option>
+          <option>Loading lineups...</option>
         </select>
         {% endif %}
       </div>
