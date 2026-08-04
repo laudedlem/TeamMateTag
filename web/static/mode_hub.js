@@ -112,7 +112,7 @@ function renderFilmReviewArchiveSelect(sport, days) {
     if (b.is_today) return 1;
     return Number(b.number || 0) - Number(a.number || 0);
   });
-  select.innerHTML = '<option value="">Choose lineup...</option>' + sorted.map((day) =>
+  select.innerHTML = '<option value="">Select Archived Tape...</option>' + sorted.map((day) =>
     `<option value="${filmReviewUrl(sport, day)}" class="fr-option-${day.is_today ? 'today' : day.status || 'unseen'}">${unitLabel(day.unit)}${day.unit ? ' - ' : ''}${formatArchiveLabel(day)}</option>`
   ).join('');
   select.value = '';
@@ -122,12 +122,12 @@ function renderFilmReviewArchiveSelect(sport, days) {
 }
 
 function renderFilmPreview(sport, data) {
-  const tile = document.querySelector(`[data-sport="${sport}"]`);
+  const tile = document.querySelector(`[data-film-unit-tile="${sport}"]`) ||
+    document.querySelector(`[data-sport="${sport}"]`);
   if (!tile) return;
   tile.querySelector('.film-hub-meta')?.remove();
-  const defaultToday = data.today?.default || data.today?.offense || {};
-  const preview = defaultToday.preview || [];
-  const rate = defaultToday.success_rate || { percent: 0, finished: 0 };
+  const preview = data.preview || [];
+  const rate = data.success_rate || { percent: 0, finished: 0 };
   const meta = document.createElement('span');
   meta.className = 'film-hub-meta';
   meta.innerHTML = `<span class="film-streak">Streak ${Number(data.streak || 0)}</span>
@@ -140,25 +140,29 @@ function renderFilmPreview(sport, data) {
   tile.appendChild(meta);
 }
 
-function renderFilmUnitButtons(sport, data) {
-  if (sport !== 'football') return;
-  document.querySelectorAll('.film-unit-actions a[href*="unit="]').forEach((link) => {
-    const unit = new URL(link.href, window.location.origin).searchParams.get('unit') || '';
-    const rate = data.today?.[unit]?.success_rate || { percent: 0 };
-    link.innerHTML = `${unitLabel(unit)} <small>${Number(rate.percent || 0)}%</small>`;
-  });
-}
-
 function renderFilmReviewHubSport(sport, data) {
   renderFilmReviewArchiveSelect(sport, data.days || []);
+  if (sport === 'football') {
+    ['offense', 'defense'].forEach((unit) => {
+      const unitData = data.today?.[unit] || {};
+      const current = (data.days || []).find((day) => day.is_today && day.unit === unit);
+      const status = document.querySelector(`[data-fr-today-status="football:${unit}"]`);
+      if (status) {
+        status.textContent = `Streak ${Number(unitData.streak || 0)}`;
+        status.className = `fr-today-status ${current?.status || 'unseen'}`;
+      }
+      renderFilmPreview(`football:${unit}`, unitData);
+    });
+    return;
+  }
+  const unitData = data.today?.default || {};
   const current = (data.days || []).find((day) => day.is_today);
   const status = document.querySelector(`[data-fr-today-status="${sport}"]`);
   if (status) {
-    status.textContent = `Streak ${Number(data.streak || 0)}`;
+    status.textContent = `Streak ${Number(unitData.streak || data.streak || 0)}`;
     status.className = `fr-today-status ${current?.status || 'unseen'}`;
   }
-  renderFilmPreview(sport, data);
-  renderFilmUnitButtons(sport, data);
+  renderFilmPreview(sport, unitData);
 }
 
 function escapeHtml(value) {

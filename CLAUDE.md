@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.65`
+- Current display version: `0.1.66`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -693,6 +693,15 @@ lineup; Football exposes explicit Offense and Defense buttons and archive
 entries include unit labels. `/manager` now loads lightweight tile data from
 `/api/manager/tiles` first, then fills the heavier leaderboard from
 `/api/manager/summary` afterward.
+
+Update, 2026-08-04 (0.1.66): Manager Mode daily starters are now persisted in
+`manager_daily_starters` by sport and Central date, so they do not change
+between requests or Vercel instances during the same day. `/film` renders
+player previews as a right-side column inside sport tiles. Football Film
+Review is represented by one football tile split horizontally into Offense and
+Defense halves; each half has its own streak, preview, and solve rate, while
+the shared Football archive dropdown includes unit labels. Archive dropdowns
+now say `Select Archived Tape...`.
 
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.

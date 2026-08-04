@@ -72,7 +72,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.1.65"
+APP_VERSION = "0.1.66"
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
 # When running the local curation build we deliberately keep using SQLite so
@@ -621,6 +621,15 @@ def ensure_runtime_schema():
             conn.execute("ALTER TABLE dr_results ADD COLUMN IF NOT EXISTS sport_id TEXT NOT NULL DEFAULT 'baseball'")
             conn.execute("ALTER TABLE bp_runs ADD COLUMN IF NOT EXISTS sport_id TEXT NOT NULL DEFAULT 'baseball'")
             conn.execute("ALTER TABLE bp_runs DROP CONSTRAINT IF EXISTS bp_runs_seed_player_id_fkey")
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS manager_daily_starters (
+                       sport_id TEXT NOT NULL,
+                       starter_date DATE NOT NULL,
+                       player_id TEXT NOT NULL,
+                       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                       PRIMARY KEY (sport_id, starter_date)
+                   )"""
+            )
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS dr_queue (
                        guest_id UUID PRIMARY KEY REFERENCES guests(guest_id) ON DELETE CASCADE,
@@ -4492,8 +4501,21 @@ def _bp_daily_leaderboard(conn) -> list[dict]:
 def _manager_seed_for_day(conn, sport: str, puzzle_day: date | None = None) -> str:
     puzzle_day = puzzle_day or datetime.now(CENTRAL_TIME).date()
     cache_key = (sport, puzzle_day.isoformat())
+    row = conn.execute(
+        "SELECT player_id FROM manager_daily_starters WHERE sport_id=%s AND starter_date=%s",
+        (sport, puzzle_day),
+    ).fetchone()
+    if row:
+        MANAGER_SEED_CACHE[cache_key] = row[0]
+        return row[0]
     cached = MANAGER_SEED_CACHE.get(cache_key)
     if cached:
+        conn.execute(
+            """INSERT INTO manager_daily_starters (sport_id, starter_date, player_id)
+               VALUES (%s, %s, %s)
+               ON CONFLICT (sport_id, starter_date) DO NOTHING""",
+            (sport, puzzle_day, cached),
+        )
         return cached
     if sport == "baseball":
         rows = conn.execute(
@@ -4536,9 +4558,35 @@ def _manager_seed_for_day(conn, sport: str, puzzle_day: date | None = None) -> s
         fallback = LOCAL_SPORT_SEEDS.get(sport)
     candidates = [row[0] for row in rows]
     if not candidates:
-        return fallback
+        seed = fallback
+        conn.execute(
+            """INSERT INTO manager_daily_starters (sport_id, starter_date, player_id)
+               VALUES (%s, %s, %s)
+               ON CONFLICT (sport_id, starter_date) DO NOTHING""",
+            (sport, puzzle_day, seed),
+        )
+        row = conn.execute(
+            "SELECT player_id FROM manager_daily_starters WHERE sport_id=%s AND starter_date=%s",
+            (sport, puzzle_day),
+        ).fetchone()
+        if row:
+            seed = row[0]
+        MANAGER_SEED_CACHE[cache_key] = seed
+        return seed
     digest = hashlib.sha256(f"{sport}:{puzzle_day.isoformat()}".encode("utf-8")).hexdigest()
     seed = candidates[int(digest[:12], 16) % len(candidates)]
+    conn.execute(
+        """INSERT INTO manager_daily_starters (sport_id, starter_date, player_id)
+           VALUES (%s, %s, %s)
+           ON CONFLICT (sport_id, starter_date) DO NOTHING""",
+        (sport, puzzle_day, seed),
+    )
+    row = conn.execute(
+        "SELECT player_id FROM manager_daily_starters WHERE sport_id=%s AND starter_date=%s",
+        (sport, puzzle_day),
+    ).fetchone()
+    if row:
+        seed = row[0]
     MANAGER_SEED_CACHE[cache_key] = seed
     return seed
 
@@ -4733,13 +4781,13 @@ def _film_archive_days(conn, guest_id: str, sport: str) -> list[dict]:
     return days
 
 
-def _film_streak(conn, guest_id: str, sport: str) -> int:
+def _film_streak(conn, guest_id: str, sport: str, unit: str = "") -> int:
     won_days = {
         row[0] for row in conn.execute(
             """SELECT DISTINCT puzzle_date
                  FROM film_review_daily_attempts
-                WHERE owner_guest_id=%s AND sport_id=%s AND status='won' AND official""",
-            (guest_id, sport),
+                WHERE owner_guest_id=%s AND sport_id=%s AND unit=%s AND status='won' AND official""",
+            (guest_id, sport, unit),
         ).fetchall()
     }
     cursor = datetime.now(CENTRAL_TIME).date()
@@ -4804,12 +4852,13 @@ def film_archive_summary():
                 unit or "default": {
                     "success_rate": _film_success_rate(conn, sport, today, unit),
                     "preview": _film_preview_cards(conn, sport, today, unit),
+                    "streak": _film_streak(conn, guest_id, sport, unit),
                 }
                 for unit in units
             }
             payload[sport] = {
                 "days": _film_archive_days(conn, guest_id, sport),
-                "streak": _film_streak(conn, guest_id, sport),
+                "streak": max((entry["streak"] for entry in unit_payload.values()), default=0),
                 "today": unit_payload,
             }
         return jsonify({"sports": payload})
