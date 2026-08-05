@@ -258,6 +258,10 @@ button.danger:hover:not(:disabled) {
   gap: 0.75rem;
 }
 
+body[data-mode-hub="film"] .sport-tiles {
+  align-items: start;
+}
+
 .sport-tile {
   min-height: 148px;
   border: 1px solid var(--border-strong);
