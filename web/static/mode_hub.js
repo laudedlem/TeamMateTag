@@ -73,10 +73,11 @@ initHub();
 
 function displayStatus(status) {
   const normalized = String(status || 'unseen');
-  if (normalized === 'won') return 'fully scouted';
-  if (normalized === 'lost') return 'benched';
-  if (normalized === 'new') return 'new';
-  return normalized.replace(/_/g, ' ');
+  if (normalized === 'won') return 'Fully Scouted';
+  if (normalized === 'lost') return 'Benched';
+  if (normalized === 'new') return 'New';
+  if (normalized === 'in_progress') return 'In Progress';
+  return 'Unseen';
 }
 
 function formatArchiveLabel(day) {
@@ -110,7 +111,7 @@ function renderFilmReviewArchiveSelect(sport, days, unitData = null) {
     const streak = Number(unitData?.streak || 0);
     const rate = unitData?.success_rate || { percent: 0 };
     const display = current.is_today && current.status === 'unseen' ? 'new' : current.status || 'unseen';
-    status.innerHTML = `Streak ${streak}<br>${Number(rate.percent || 0)}% Fully Scouted Today<br>${displayStatus(display)}`;
+    status.innerHTML = `Streak ${streak}<br>${Number(rate.percent || 0)}% Fully Scouted<br>${displayStatus(display)}`;
     status.className = `fr-today-status ${display}`;
   }
   const sorted = [...days].sort((a, b) => {

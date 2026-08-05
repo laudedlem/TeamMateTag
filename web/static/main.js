@@ -2169,12 +2169,13 @@ function showFrSummaryBanner() {
   const progress = Math.min(frGame.total_cards || 0, (frGame.stats?.hits || 0) + 2);
   const total = frGame.total_cards || frGame.revealed_cards?.length || progress;
   const rate = Number(frGame.success_rate?.percent || 0);
+  const streakText = frGame.archive ? '' : ` Current streak: ${Number(frGame.current_streak || 0)}.`;
   if (frGame.won) {
     els.frSummaryText.textContent = 'Fully Scouted';
-    els.frSummaryDetail.textContent = `${total}/${total} Lineup. ${rate}% Fully Scouted.`;
+    els.frSummaryDetail.textContent = `${total}/${total} Lineup. ${rate}% Fully Scouted.${streakText}`;
   } else {
     els.frSummaryText.textContent = 'Benched';
-    els.frSummaryDetail.textContent = `${progress}/${total} Lineup. ${rate}% Fully Scouted.`;
+    els.frSummaryDetail.textContent = `${progress}/${total} Lineup. ${rate}% Fully Scouted.${streakText}`;
     loadFrAnswers();
   }
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -2255,7 +2256,12 @@ async function loadFrArchive() {
   if (!guestId) return;
   const res = await api(filmReviewPath('archive'), { guest_id: guestId });
   if (!res.days) return;
-  els.frArchiveList.innerHTML = res.days.map((day) => {
+  const activeUnit = frGame?.unit || '';
+  const days = (res.days || []).filter((day) => {
+    if (CURRENT_SPORT !== 'football') return true;
+    return (day.unit || '') === activeUnit;
+  });
+  els.frArchiveList.innerHTML = days.map((day) => {
     const state = escapeHtml(day.status);
     const date = escapeHtml(day.date);
     const label = day.is_today ? 'Today' : `#${day.number}`;
@@ -2268,7 +2274,7 @@ async function loadFrArchive() {
     return `<div class="fr-archive-day ${state}">
       <span class="fr-archive-number">${label}</span>
       <span class="fr-archive-status">${filmStatusText(day.status, day.is_today)} - ${pct}%</span>
-      <button class="fr-archive-action" data-date="${date}" data-game-id="${escapeHtml(day.game_id || '')}" data-action="${action}">${text}</button>
+      <button class="fr-archive-action" data-date="${date}" data-unit="${escapeHtml(day.unit || '')}" data-game-id="${escapeHtml(day.game_id || '')}" data-action="${action}">${text}</button>
       ${retry}
     </div>`;
   }).join('');
@@ -2276,9 +2282,9 @@ async function loadFrArchive() {
     button.addEventListener('click', async () => {
       const action = button.dataset.action;
       if (action === 'daily') {
-        await startFr();
+        await startFr(button.dataset.unit || activeUnit || null);
       } else if (action === 'archive' || action === 'retry') {
-        await startFr(null, { puzzle_date: button.dataset.date, archive: true });
+        await startFr(button.dataset.unit || activeUnit || null, { puzzle_date: button.dataset.date, archive: true });
       } else if (action === 'review') {
         const result = await api(filmReviewPath('daily_game'), {
           guest_id: profile?.guest_id || storedGuestId(), game_id: button.dataset.gameId,

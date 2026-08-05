@@ -73,7 +73,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.1.74"
+APP_VERSION = "0.1.75"
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
 # When running the local curation build we deliberately keep using SQLite so
@@ -94,6 +94,69 @@ LOCAL_SPORT_MODE_NAMES = {
     "football": "Manager Mode",
     "basketball": "Manager Mode",
     "hockey": "Manager Mode",
+}
+CURRENT_SPORT_TEAM_NAMES = {
+    "basketball": [
+        "Atlanta Hawks", "Boston Celtics", "Brooklyn Nets", "Charlotte Hornets", "Chicago Bulls",
+        "Cleveland Cavaliers", "Dallas Mavericks", "Denver Nuggets", "Detroit Pistons", "Golden State Warriors",
+        "Houston Rockets", "Indiana Pacers", "LA Clippers", "Los Angeles Lakers", "Memphis Grizzlies",
+        "Miami Heat", "Milwaukee Bucks", "Minnesota Timberwolves", "New Orleans Pelicans", "New York Knicks",
+        "Oklahoma City Thunder", "Orlando Magic", "Philadelphia 76ers", "Phoenix Suns", "Portland Trail Blazers",
+        "Sacramento Kings", "San Antonio Spurs", "Toronto Raptors", "Utah Jazz", "Washington Wizards",
+    ],
+    "hockey": [
+        "Anaheim Ducks", "Boston Bruins", "Buffalo Sabres", "Calgary Flames", "Carolina Hurricanes",
+        "Chicago Blackhawks", "Colorado Avalanche", "Columbus Blue Jackets", "Dallas Stars", "Detroit Red Wings",
+        "Edmonton Oilers", "Florida Panthers", "Los Angeles Kings", "Minnesota Wild", "Montreal Canadiens",
+        "Nashville Predators", "New Jersey Devils", "New York Islanders", "New York Rangers", "Ottawa Senators",
+        "Philadelphia Flyers", "Pittsburgh Penguins", "San Jose Sharks", "Seattle Kraken", "St. Louis Blues",
+        "Tampa Bay Lightning", "Toronto Maple Leafs", "Utah Mammoth", "Vancouver Canucks", "Vegas Golden Knights",
+        "Washington Capitals", "Winnipeg Jets",
+    ],
+    "football": [
+        "Arizona Cardinals", "Atlanta Falcons", "Baltimore Ravens", "Buffalo Bills", "Carolina Panthers",
+        "Chicago Bears", "Cincinnati Bengals", "Cleveland Browns", "Dallas Cowboys", "Denver Broncos",
+        "Detroit Lions", "Green Bay Packers", "Houston Texans", "Indianapolis Colts", "Jacksonville Jaguars",
+        "Kansas City Chiefs", "Las Vegas Raiders", "Los Angeles Chargers", "Los Angeles Rams", "Miami Dolphins",
+        "Minnesota Vikings", "New England Patriots", "New Orleans Saints", "New York Giants", "New York Jets",
+        "Philadelphia Eagles", "Pittsburgh Steelers", "San Francisco 49ers", "Seattle Seahawks", "Tampa Bay Buccaneers",
+        "Tennessee Titans", "Washington Commanders",
+    ],
+}
+SPORT_TEAM_CANONICAL_NAMES = {
+    "basketball": {
+        "Baltimore Bullets": "Washington Wizards", "Capital Bullets": "Washington Wizards",
+        "Washington Bullets": "Washington Wizards", "Charlotte Bobcats": "Charlotte Hornets",
+        "Buffalo Braves": "LA Clippers", "San Diego Clippers": "LA Clippers",
+        "Seattle SuperSonics": "Oklahoma City Thunder", "New Jersey Nets": "Brooklyn Nets",
+        "New Orleans Hornets": "New Orleans Pelicans", "New Orleans/Oklahoma City Hornets": "New Orleans Pelicans",
+        "Cincinnati Royals": "Sacramento Kings", "Kansas City Kings": "Sacramento Kings",
+        "Kansas City-Omaha Kings": "Sacramento Kings", "Fort Wayne Pistons": "Detroit Pistons",
+        "Ft. Wayne Zollner Pistons": "Detroit Pistons", "Minneapolis Lakers": "Los Angeles Lakers",
+        "Philadelphia Warriors": "Golden State Warriors", "San Francisco Warriors": "Golden State Warriors",
+        "Syracuse Nationals": "Philadelphia 76ers", "Vancouver Grizzlies": "Memphis Grizzlies",
+    },
+    "hockey": {
+        "AFM": "Calgary Flames", "Atlanta Flames": "Calgary Flames",
+        "ARI": "Utah Mammoth", "Arizona Coyotes": "Utah Mammoth", "Phoenix Coyotes": "Utah Mammoth",
+        "ATL": "Winnipeg Jets", "Atlanta Thrashers": "Winnipeg Jets",
+        "COR": "Colorado Avalanche", "Colorado Rockies": "Colorado Avalanche",
+        "QUE": "Colorado Avalanche", "Quebec Nordiques": "Colorado Avalanche",
+        "HFD": "Carolina Hurricanes", "Hartford Whalers": "Carolina Hurricanes",
+        "MNS": "Dallas Stars", "Minnesota North Stars": "Dallas Stars",
+        "CLR": "Dallas Stars", "California Golden Seals": "Dallas Stars",
+        "CLE": "Dallas Stars", "Cleveland Barons": "Dallas Stars",
+        "WIN": "Winnipeg Jets", "WPG": "Winnipeg Jets",
+    },
+    "football": {
+        "ARZ": "Arizona Cardinals", "CLV": "Cleveland Browns", "HST": "Houston Texans",
+        "Boston Patriots": "New England Patriots", "Houston Oilers": "Tennessee Titans",
+        "Tennessee Oilers": "Tennessee Titans", "Oakland Raiders": "Las Vegas Raiders",
+        "Los Angeles Raiders": "Las Vegas Raiders", "San Diego Chargers": "Los Angeles Chargers",
+        "St. Louis Rams": "Los Angeles Rams", "Phoenix Cardinals": "Arizona Cardinals",
+        "St. Louis Cardinals": "Arizona Cardinals", "Baltimore Colts": "Indianapolis Colts",
+        "Washington Redskins": "Washington Commanders", "Washington Football Team": "Washington Commanders",
+    },
 }
 NHL_TEAM_NAMES = {
     "ANA": "Anaheim Ducks", "ARI": "Arizona Coyotes", "ATL": "Atlanta Thrashers", "BOS": "Boston Bruins",
@@ -3065,8 +3128,24 @@ def _sport_team_name(conn, sport: str, team_id: str, season: int) -> str:
     name = row[0] if row else team_id
     if sport == "hockey":
         name = NHL_TEAM_NAMES.get(name, NHL_TEAM_NAMES.get(team_id, name))
+    name = _canonical_sport_team_name(sport, team_id, name)
     SPORT_TEAM_NAME_CACHE[cache_key] = name
     return name
+
+
+def _canonical_sport_team_name(sport: str, team_id: str | None, name: str | None) -> str:
+    raw_name = name or team_id or ""
+    clean_team_id = str(team_id or "").split(":")[-1]
+    aliases = SPORT_TEAM_CANONICAL_NAMES.get(sport, {})
+    if raw_name in aliases:
+        return aliases[raw_name]
+    if clean_team_id in aliases:
+        return aliases[clean_team_id]
+    if sport == "hockey":
+        nhl_name = NHL_TEAM_NAMES.get(raw_name, NHL_TEAM_NAMES.get(clean_team_id))
+        if nhl_name:
+            return aliases.get(nhl_name, nhl_name)
+    return raw_name
 
 
 def _sport_cards(conn, sport: str, player_ids: list[str]) -> dict[str, dict]:
@@ -3286,7 +3365,7 @@ def _local_fr_shared(conn: sqlite3.Connection, sport: str, first: str, second: s
         WHERE a.sport_id=? AND a.player_id=? AND b.player_id=?
         ORDER BY a.season, a.team_id
     """, (sport, first, second)).fetchall()
-    return [[team_id, season, _local_team_name(sport, team_id, season, conn)] for team_id, season in rows]
+    return [[team_id, season, _canonical_sport_team_name(sport, team_id, _local_team_name(sport, team_id, season, conn))] for team_id, season in rows]
 
 
 def _classify_local_fr_guess(team_text: str, year_text: str, shared: list[list]) -> tuple[str, list]:
@@ -3312,11 +3391,13 @@ def local_fr_team_autocomplete(sport: str):
     query = normalize(request.args.get("q") or "")
     if sport not in LOCAL_SPORT_SEEDS or not query:
         return jsonify([])
-    with _local_sport_conn() as conn:
-        names = sorted({_local_team_name(sport, team_id, season, conn)
-                        for team_id, season in conn.execute(
-                            "SELECT team_id, season FROM sport_teams WHERE sport_id=?", (sport,)
-                        )})
+    names = CURRENT_SPORT_TEAM_NAMES.get(sport)
+    if not names:
+        with _local_sport_conn() as conn:
+            names = sorted({_canonical_sport_team_name(sport, team_id, _local_team_name(sport, team_id, season, conn))
+                            for team_id, season in conn.execute(
+                                "SELECT team_id, season FROM sport_teams WHERE sport_id=?", (sport,)
+                            )})
     prefix = [name for name in names if normalize(name).startswith(query)]
     contains = [name for name in names if query in normalize(name) and not normalize(name).startswith(query)]
     return jsonify((prefix + contains)[:6])
@@ -4836,6 +4917,20 @@ def _film_streak(conn, guest_id: str, sport: str, unit: str = "") -> int:
         streak += 1
         cursor -= timedelta(days=1)
     return streak
+
+
+def _film_current_streak(conn, guest_id: str | None, sport: str, unit: str = "") -> int:
+    if not guest_id:
+        return 0
+    today = datetime.now(CENTRAL_TIME).date()
+    row = conn.execute(
+        """SELECT status FROM film_review_daily_attempts
+            WHERE owner_guest_id=%s AND sport_id=%s AND puzzle_date=%s AND unit=%s AND official""",
+        (guest_id, sport, today, unit),
+    ).fetchone()
+    if row and row[0] == "lost":
+        return 0
+    return _film_streak(conn, guest_id, sport, unit)
 
 
 def _film_success_rate(conn, sport: str, puzzle_day: date, unit: str = "") -> dict:
@@ -6441,11 +6536,15 @@ def fr_state_dict(gid: str, blob: dict, conn=None) -> dict:
         with db() as _conn:
             cards = _hydrate_player_cards(_conn, list(deck))
     success_rate = {"wins": 0, "finished": 0, "percent": 0}
+    current_streak = 0
     if conn and blob.get("puzzle_date"):
         try:
             success_rate = _film_success_rate(conn, "baseball", _film_review_day(blob.get("puzzle_date")), "")
+            if not blob.get("archive"):
+                current_streak = _film_current_streak(conn, blob.get("owner_guest_id"), "baseball", "")
         except Exception:
             success_rate = {"wins": 0, "finished": 0, "percent": 0}
+            current_streak = 0
     return {
         "game_id": gid,
         "mode": "fr",
@@ -6486,6 +6585,7 @@ def fr_state_dict(gid: str, blob: dict, conn=None) -> dict:
         "won": blob.get("won", False),
         "last_guess": blob.get("last_guess"),
         "success_rate": success_rate,
+        "current_streak": current_streak,
     }
 
 
@@ -6780,11 +6880,15 @@ def _sport_fr_state_dict(gid: str, blob: dict, conn) -> dict:
     sport, deck, pair_index = blob["sport"], blob["deck"], blob["pair_index"]
     cards = {pid: _sport_fr_card(pid, card) for pid, card in _sport_cards(conn, sport, deck).items()}
     success_rate = {"wins": 0, "finished": 0, "percent": 0}
+    current_streak = 0
     if blob.get("puzzle_date"):
         try:
             success_rate = _film_success_rate(conn, sport, _film_review_day(blob.get("puzzle_date")), blob.get("unit") or "")
+            if not blob.get("archive"):
+                current_streak = _film_current_streak(conn, blob.get("owner_guest_id"), sport, blob.get("unit") or "")
         except Exception:
             success_rate = {"wins": 0, "finished": 0, "percent": 0}
+            current_streak = 0
     return {
         "game_id": gid, "mode": "fr", "sport": sport, "puzzle_id": blob["puzzle_id"],
         "puzzle_date": blob.get("puzzle_date"), "puzzle_number": blob.get("puzzle_number"), "archive": bool(blob.get("archive")),
@@ -6800,6 +6904,7 @@ def _sport_fr_state_dict(gid: str, blob: dict, conn) -> dict:
                   "total_pairs": len(deck) - 1},
         "finished": blob["finished"], "won": blob["won"], "last_guess": blob.get("last_guess"),
         "success_rate": success_rate,
+        "current_streak": current_streak,
     }
 
 
@@ -6813,7 +6918,7 @@ def _sport_fr_shared(conn, sport: str, first: str, second: str) -> list[list]:
             WHERE a.sport_id=%s AND a.player_id=%s AND b.player_id=%s
             ORDER BY a.season, a.team_id""", (sport, first, second),
     ).fetchall()
-    return [[team_id, season, name] for team_id, season, name in rows]
+    return [[team_id, season, _canonical_sport_team_name(sport, team_id, name)] for team_id, season, name in rows]
 
 
 def _film_review_day(value: str | None = None) -> date:
@@ -6899,9 +7004,13 @@ def sport_fr_team_autocomplete(sport: str):
     q = normalize(request.args.get("q") or "")
     if not _is_cross_sport(sport) or not q:
         return jsonify([])
-    with db() as conn:
-        names = [r[0] for r in conn.execute(
-            "SELECT DISTINCT name FROM sport_teams WHERE sport_id=%s", (sport,)).fetchall()]
+    names = CURRENT_SPORT_TEAM_NAMES.get(sport)
+    if not names:
+        with db() as conn:
+            names = sorted({_canonical_sport_team_name(sport, team_id, name)
+                            for team_id, name in conn.execute(
+                                "SELECT DISTINCT team_id, name FROM sport_teams WHERE sport_id=%s", (sport,)
+                            ).fetchall()})
     prefix = [name for name in names if normalize(name).startswith(q)]
     contains = [name for name in names if q in normalize(name) and not normalize(name).startswith(q)]
     return jsonify((sorted(prefix) + sorted(contains))[:6])

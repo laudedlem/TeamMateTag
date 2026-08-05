@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.74`
+- Current display version: `0.1.75`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -760,6 +760,17 @@ and archive dropdowns now say `% Fully Scouted`, use statuses `new`, `unseen`,
 `in progress`, `benched`, and `fully scouted`, and include puzzle-level fully
 scouted percentages. Percentages count all finished daily or archive attempts
 and ignore unseen or in-progress attempts.
+
+Update, 2026-08-05 (0.1.75): Film Review button statuses are now title case
+(`New`, `In Progress`, `Benched`, `Fully Scouted`) and the compact button text
+uses `% Fully Scouted` instead of `% Fully Scouted Today`. Final daily Film
+Review banners show the current streak; archived attempts omit streak text.
+The in-game Film Review Archive filters Football by the active unit, so
+Defense no longer lists Offense tapes, and archive actions preserve the unit.
+Cross-sport Film Review team autocomplete now uses explicit current NBA, NHL,
+and NFL team-name lists instead of raw `sport_teams` names, avoiding entries
+such as `AFM`, `ANA`, `ARI`, or historical relocated names. Shared-link display
+also canonicalizes old/current franchise names for Film Review answers.
 
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.
