@@ -296,17 +296,15 @@ button.danger:hover:not(:disabled) {
 }
 
 .film-football-tile {
-  padding: 0;
-  overflow: hidden;
-  gap: 0;
+  gap: 0.35rem;
   display: flex;
   flex-direction: column;
   align-items: stretch;
 }
 
 .film-football-half {
-  min-height: 74px;
-  padding: 0.8rem 1rem;
+  min-height: 56px;
+  padding: 0.48rem 1rem;
   display: grid;
   grid-template-columns: minmax(0, 0.9fr) minmax(180px, 1.1fr);
   gap: 0.85rem;
@@ -315,12 +313,8 @@ button.danger:hover:not(:disabled) {
   text-decoration: none;
 }
 
-.film-football-half + .film-football-half {
-  border-top: 1px solid var(--border);
-}
-
-.film-football-half:hover {
-  background: var(--bg-hover);
+.film-football-half .sport-tile-status {
+  line-height: 1.25;
 }
 
 .sport-tile-copy {
@@ -337,6 +331,11 @@ button.danger:hover:not(:disabled) {
   border-radius: var(--radius-sm);
   padding: 0.55rem 0.65rem;
   font: inherit;
+}
+
+.football-archive-select {
+  min-height: 34px;
+  padding-block: 0.35rem;
 }
 
 .fr-hub-archive-select option.fr-option-today {
@@ -379,15 +378,6 @@ button.danger:hover:not(:disabled) {
   display: grid;
   gap: 0.45rem;
   min-width: 0;
-}
-
-.film-streak,
-.film-rate {
-  color: var(--text-muted);
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
 }
 
 .film-preview-pair {

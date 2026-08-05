@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.67`
+- Current display version: `0.1.68`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -712,6 +712,13 @@ rows forever. Timed move submissions now send the browser's remaining time and
 the server allows a narrow 1.25-second grace window when the player submitted
 at the buzzer, preventing valid Manager, Division Rivalry, and Playoffs moves
 from losing solely to request latency.
+
+Update, 2026-08-04 (0.1.68): `/film` hub tiles now put league, sport, streak,
+and today's solve percentage on the left side, with only the two preview
+players on the right. Football Film Review is two independent stacked cards:
+Offense has its own archive dropdown between Offense and Defense, while
+Defense has its own archive dropdown below Defense aligned with the other
+sport archive row. Hovering one Football unit no longer highlights the other.
 
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.

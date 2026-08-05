@@ -86,10 +86,11 @@ function formatArchiveLabel(day) {
 }
 
 function filmReviewUrl(sport, day) {
+  const routeSport = String(sport || '').split(':')[0];
   const unit = day.unit ? `unit=${encodeURIComponent(day.unit)}` : '';
   const archive = day.is_today ? '' : `date=${encodeURIComponent(day.date)}&archive=1`;
   const query = [unit, archive].filter(Boolean).join('&');
-  return `/film/${sport}${query ? '?' + query : ''}`;
+  return `/film/${routeSport}${query ? '?' + query : ''}`;
 }
 
 function unitLabel(unit) {
@@ -98,13 +99,15 @@ function unitLabel(unit) {
   return '';
 }
 
-function renderFilmReviewArchiveSelect(sport, days) {
+function renderFilmReviewArchiveSelect(sport, days, unitData = null) {
   const select = document.querySelector(`[data-fr-archive-select="${sport}"]`);
   const status = document.querySelector(`[data-fr-today-status="${sport}"]`);
   if (!select) return;
   const current = days.find((day) => day.is_today) || days[0];
   if (status && current) {
-    status.textContent = `Today: ${displayStatus(current.status)}`;
+    const streak = Number(unitData?.streak || 0);
+    const rate = unitData?.success_rate || { percent: 0 };
+    status.innerHTML = `Streak ${streak}<br>${Number(rate.percent || 0)}% solved today`;
     status.className = `fr-today-status ${current.status || 'unseen'}`;
   }
   const sorted = [...days].sort((a, b) => {
@@ -127,13 +130,10 @@ function renderFilmPreview(sport, data) {
   if (!tile) return;
   tile.querySelector('.film-hub-meta')?.remove();
   const preview = data.preview || [];
-  const rate = data.success_rate || { percent: 0, finished: 0 };
   const compact = preview.some((player) => String(player.name || '').length > 16);
   const meta = document.createElement('span');
   meta.className = `film-hub-meta ${compact ? 'compact-names' : ''}`;
-  meta.innerHTML = `<span class="film-streak">Streak ${Number(data.streak || 0)}</span>
-    <span class="film-rate">${Number(rate.percent || 0)}% solved today</span>
-    <span class="film-preview-pair">${preview.map((player) => `
+  meta.innerHTML = `<span class="film-preview-pair">${preview.map((player) => `
       <span class="film-preview-player">
         <span class="film-preview-photo">${player.headshot_url ? `<img src="${escapeHtml(player.headshot_url)}" alt="">` : ''}</span>
         <small>${escapeHtml(player.name || 'Unknown')}</small>
@@ -142,27 +142,17 @@ function renderFilmPreview(sport, data) {
 }
 
 function renderFilmReviewHubSport(sport, data) {
-  renderFilmReviewArchiveSelect(sport, data.days || []);
   if (sport === 'football') {
     ['offense', 'defense'].forEach((unit) => {
       const unitData = data.today?.[unit] || {};
-      const current = (data.days || []).find((day) => day.is_today && day.unit === unit);
-      const status = document.querySelector(`[data-fr-today-status="football:${unit}"]`);
-      if (status) {
-        status.textContent = `Streak ${Number(unitData.streak || 0)}`;
-        status.className = `fr-today-status ${current?.status || 'unseen'}`;
-      }
+      const unitDays = (data.days || []).filter((day) => day.unit === unit);
+      renderFilmReviewArchiveSelect(`football:${unit}`, unitDays, unitData);
       renderFilmPreview(`football:${unit}`, unitData);
     });
     return;
   }
   const unitData = data.today?.default || {};
-  const current = (data.days || []).find((day) => day.is_today);
-  const status = document.querySelector(`[data-fr-today-status="${sport}"]`);
-  if (status) {
-    status.textContent = `Streak ${Number(unitData.streak || data.streak || 0)}`;
-    status.className = `fr-today-status ${current?.status || 'unseen'}`;
-  }
+  renderFilmReviewArchiveSelect(sport, data.days || [], unitData);
   renderFilmPreview(sport, unitData);
 }
 
