@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.73`
+- Current display version: `0.1.74`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -749,6 +749,17 @@ validated before use; if an old persisted row has the wrong date, unit, deck,
 or slot shape, the server deletes and regenerates that row for the requested
 sport/date/unit. This was added after a reported Football Defense archive #3
 launch failure.
+
+Update, 2026-08-04 (0.1.74): Film Review terminology and results were updated
+across sports. Football feedback now says `COMPLETION` and `INCOMPLETION`.
+Winning shows `Fully Scouted`; losing shows `Benched`; final detail text is
+`x/y Lineup` plus `% Fully Scouted`. Finished Film Review chains render
+chronologically from top to bottom, and a loss reveal fills the lineup board as
+a key with earned players green and missed players red. `/film` sport buttons
+and archive dropdowns now say `% Fully Scouted`, use statuses `new`, `unseen`,
+`in progress`, `benched`, and `fully scouted`, and include puzzle-level fully
+scouted percentages. Percentages count all finished daily or archive attempts
+and ignore unseen or in-progress attempts.
 
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.

@@ -73,7 +73,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.1.73"
+APP_VERSION = "0.1.74"
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
 # When running the local curation build we deliberately keep using SQLite so
@@ -4812,9 +4812,10 @@ def _film_archive_days(conn, guest_id: str, sport: str) -> list[dict]:
             break
         for unit in units:
             status, game_id = rows.get((puzzle_day, unit), ("unseen", None))
+            success_rate = _film_success_rate(conn, sport, puzzle_day, unit)
             days.append({"date": puzzle_day.isoformat(), "number": _film_review_number(puzzle_day),
                          "status": status, "game_id": game_id, "is_today": puzzle_day == today,
-                         "unit": unit})
+                         "unit": unit, "success_rate": success_rate})
     return days
 
 
@@ -4843,7 +4844,7 @@ def _film_success_rate(conn, sport: str, puzzle_day: date, unit: str = "") -> di
               COALESCE(SUM(CASE WHEN status='won' THEN 1 ELSE 0 END), 0),
               COALESCE(SUM(CASE WHEN status IN ('won','lost') THEN 1 ELSE 0 END), 0)
              FROM film_review_daily_attempts
-            WHERE sport_id=%s AND puzzle_date=%s AND unit=%s AND official""",
+            WHERE sport_id=%s AND puzzle_date=%s AND unit=%s""",
         (sport, puzzle_day, unit),
     ).fetchone()
     wins, finished = row if row else (0, 0)
@@ -6439,6 +6440,12 @@ def fr_state_dict(gid: str, blob: dict, conn=None) -> dict:
     else:
         with db() as _conn:
             cards = _hydrate_player_cards(_conn, list(deck))
+    success_rate = {"wins": 0, "finished": 0, "percent": 0}
+    if conn and blob.get("puzzle_date"):
+        try:
+            success_rate = _film_success_rate(conn, "baseball", _film_review_day(blob.get("puzzle_date")), "")
+        except Exception:
+            success_rate = {"wins": 0, "finished": 0, "percent": 0}
     return {
         "game_id": gid,
         "mode": "fr",
@@ -6478,6 +6485,7 @@ def fr_state_dict(gid: str, blob: dict, conn=None) -> dict:
         "finished": blob["finished"],
         "won": blob.get("won", False),
         "last_guess": blob.get("last_guess"),
+        "success_rate": success_rate,
     }
 
 
@@ -6771,6 +6779,12 @@ def _sport_fr_card(player_id: str, card: dict) -> dict:
 def _sport_fr_state_dict(gid: str, blob: dict, conn) -> dict:
     sport, deck, pair_index = blob["sport"], blob["deck"], blob["pair_index"]
     cards = {pid: _sport_fr_card(pid, card) for pid, card in _sport_cards(conn, sport, deck).items()}
+    success_rate = {"wins": 0, "finished": 0, "percent": 0}
+    if blob.get("puzzle_date"):
+        try:
+            success_rate = _film_success_rate(conn, sport, _film_review_day(blob.get("puzzle_date")), blob.get("unit") or "")
+        except Exception:
+            success_rate = {"wins": 0, "finished": 0, "percent": 0}
     return {
         "game_id": gid, "mode": "fr", "sport": sport, "puzzle_id": blob["puzzle_id"],
         "puzzle_date": blob.get("puzzle_date"), "puzzle_number": blob.get("puzzle_number"), "archive": bool(blob.get("archive")),
@@ -6785,6 +6799,7 @@ def _sport_fr_state_dict(gid: str, blob: dict, conn) -> dict:
                   "max_strikes": FR_MAX_STRIKES, "consec_fouls": blob["consec_fouls"],
                   "total_pairs": len(deck) - 1},
         "finished": blob["finished"], "won": blob["won"], "last_guess": blob.get("last_guess"),
+        "success_rate": success_rate,
     }
 
 

@@ -319,6 +319,10 @@ button.danger:hover:not(:disabled) {
   color: var(--accent);
 }
 
+.fr-hub-archive-select option.fr-option-new {
+  color: var(--accent);
+}
+
 .fr-hub-archive-select option.fr-option-won,
 .fr-hub-archive-select option.fr-option-completed {
   color: var(--good);
@@ -349,6 +353,10 @@ button.danger:hover:not(:disabled) {
 
 .fr-today-status.in_progress {
   color: var(--burn);
+}
+
+.fr-today-status.new {
+  color: var(--accent);
 }
 
 .film-hub-meta {
@@ -1562,6 +1570,16 @@ button.secondary:hover { border-color: var(--accent); color: var(--accent); }
 .fr-board-slot.filled {
   background: #123b35;
   border-color: var(--good);
+}
+
+.fr-board-slot.filled.earned {
+  background: #123b35;
+  border-color: var(--good);
+}
+
+.fr-board-slot.filled.missed {
+  background: #3a1717;
+  border-color: var(--bad);
 }
 
 .fr-board-role {

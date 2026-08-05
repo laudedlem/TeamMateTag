@@ -2110,22 +2110,22 @@ function renderFrGame(initialRender) {
   els.frFeedback.innerHTML = renderFrFeedback(frGame.last_guess);
   renderFrLineupBoard();
 
-  const reversed = frGame.revealed_cards.slice().reverse();
+  const stackCards = frGame.finished ? frGame.revealed_cards.slice() : frGame.revealed_cards.slice().reverse();
   const solvedLinks = frGame.solved_links || [];
   els.frCardStack.innerHTML = '';
-  reversed.forEach((player, i) => {
-    const isSeed = i === reversed.length - 1;
+  stackCards.forEach((player, i) => {
+    const isSeed = frGame.finished ? i === 0 : i === stackCards.length - 1;
     const playerCard = makePlayerCard(player, isSeed, { showTeams: false });
-    if (!initialRender && i === 0 && reversed.length > 2) {
+    if (!frGame.finished && !initialRender && i === 0 && stackCards.length > 2) {
       playerCard.classList.add('slide-in');
     }
     els.frCardStack.appendChild(playerCard);
-    if (i < reversed.length - 1) {
-      const solvedIndex = solvedLinks.length - 1 - i;
+    if (i < stackCards.length - 1) {
+      const solvedIndex = frGame.finished ? i : solvedLinks.length - 1 - i;
       const solved = solvedLinks[solvedIndex];
       if (solved) {
         const bar = makeConnectionBar([solved], [], false);
-        if (!initialRender && i === 0 && reversed.length > 2) {
+        if (!frGame.finished && !initialRender && i === 0 && stackCards.length > 2) {
           bar.classList.add('slide-in');
         }
         els.frCardStack.appendChild(bar);
@@ -2166,17 +2166,18 @@ function renderFrFeedback(g) {
 function showFrSummaryBanner() {
   els.frTurnCard.hidden = true;
   els.frSummaryBanner.hidden = false;
-  const terms = frTerms();
+  const progress = Math.min(frGame.total_cards || 0, (frGame.stats?.hits || 0) + 2);
+  const total = frGame.total_cards || frGame.revealed_cards?.length || progress;
+  const rate = Number(frGame.success_rate?.percent || 0);
   if (frGame.won) {
-    els.frSummaryText.textContent = "That's the lineup!";
-    els.frSummaryDetail.textContent =
-      `${frGame.stats.hits} ${terms.hit.toLowerCase()}, ${frGame.stats.fouls} ${terms.foul.toLowerCase()}, ${frGame.stats.strikes} ${terms.strike.toLowerCase()}.`;
+    els.frSummaryText.textContent = 'Fully Scouted';
+    els.frSummaryDetail.textContent = `${total}/${total} Lineup. ${rate}% Fully Scouted.`;
   } else {
-    els.frSummaryText.textContent = 'Game called.';
-    els.frSummaryDetail.textContent =
-      `${frGame.stats.hits} ${terms.hit.toLowerCase()} before 3 ${terms.strikePlural}.`;
+    els.frSummaryText.textContent = 'Benched';
+    els.frSummaryDetail.textContent = `${progress}/${total} Lineup. ${rate}% Fully Scouted.`;
     loadFrAnswers();
   }
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function hideFrSummaryBanner() {
@@ -2187,10 +2188,13 @@ function hideFrSummaryBanner() {
 
 async function loadFrAnswers() {
   if (!frGame?.game_id || frGame?.won) return;
+  const earnedCount = Math.min(frGame.total_cards || 0, (frGame.stats?.hits || 0) + 2);
   const res = await api(filmReviewPath('reveal_answer'), { game_id: frGame.game_id });
   if (!res.full_cards || !res.canonical_links) return;
   if (res.full_cards && res.canonical_links) {
     frGame.revealed_cards = res.full_cards;
+    frGame.revealed_count = res.full_cards.length;
+    frGame.earned_count = earnedCount;
     frGame.solved_links = res.canonical_links;
     renderFrGame(true);
   }
@@ -2210,6 +2214,15 @@ function escapeHtml(s) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function filmStatusText(status, isToday = false) {
+  const normalized = String(status || 'unseen');
+  if (isToday && normalized === 'unseen') return 'New';
+  if (normalized === 'won') return 'Fully Scouted';
+  if (normalized === 'lost') return 'Benched';
+  if (normalized === 'in_progress') return 'In progress';
+  return 'Unseen';
 }
 
 function applyToggles() {
@@ -2246,6 +2259,7 @@ async function loadFrArchive() {
     const state = escapeHtml(day.status);
     const date = escapeHtml(day.date);
     const label = day.is_today ? 'Today' : `#${day.number}`;
+    const pct = Number(day.success_rate?.percent || 0);
     const action = day.is_today ? 'daily' : (day.status === 'unseen' ? 'archive' : 'review');
     const text = day.is_today ? (day.status === 'unseen' ? 'Play today' : 'Resume today')
       : (day.status === 'unseen' ? 'Play' : 'Review');
@@ -2253,7 +2267,7 @@ async function loadFrArchive() {
       ? `<button class="fr-archive-action" data-date="${date}" data-action="retry">Retry</button>` : '';
     return `<div class="fr-archive-day ${state}">
       <span class="fr-archive-number">${label}</span>
-      <span class="fr-archive-status">${state === 'won' ? 'Completed' : state === 'lost' ? 'Failed' : state === 'in_progress' ? 'In progress' : 'Unseen'}</span>
+      <span class="fr-archive-status">${filmStatusText(day.status, day.is_today)} - ${pct}%</span>
       <button class="fr-archive-action" data-date="${date}" data-game-id="${escapeHtml(day.game_id || '')}" data-action="${action}">${text}</button>
       ${retry}
     </div>`;
@@ -2296,7 +2310,7 @@ function frTerms() {
     baseball: { hit: 'HIT', foul: 'FOUL', strike: 'STRIKE', strikePlural: 'strikes', hitShort: 'H', foulShort: 'F', strikeShort: 'K' },
     basketball: { hit: 'BUCKET', foul: 'RIM OUT', strike: 'TURNOVER', strikePlural: 'turnovers', hitShort: 'B', foulShort: 'R', strikeShort: 'T' },
     hockey: { hit: 'GOAL', foul: 'OFFSIDE', strike: 'PENALTY', strikePlural: 'penalties', hitShort: 'G', foulShort: 'O', strikeShort: 'P' },
-    football: { hit: 'COMPLETE', foul: 'INCOMPLETE', strike: 'TURNOVER', strikePlural: 'turnovers', hitShort: 'C', foulShort: 'I', strikeShort: 'T' },
+    football: { hit: 'COMPLETION', foul: 'INCOMPLETION', strike: 'TURNOVER', strikePlural: 'turnovers', hitShort: 'C', foulShort: 'I', strikeShort: 'T' },
   })[frGame?.sport || CURRENT_SPORT || 'baseball'];
 }
 
@@ -2319,8 +2333,11 @@ function renderFrLineupBoard() {
   }
   const sport = frGame.sport || CURRENT_SPORT || 'baseball';
   const unit = frGame.unit || 'full';
-  const filledCount = Math.max(1, (frGame.revealed_count || 0) - 1);
+  const filledCount = frGame.finished ? slots.length : Math.max(1, (frGame.revealed_count || 0) - 1);
   const revealed = (frGame.revealed_cards || []).slice(0, filledCount);
+  const earnedCount = frGame.finished
+    ? (frGame.won ? slots.length : Math.min(slots.length, frGame.earned_count || ((frGame.stats?.hits || 0) + 2)))
+    : 0;
   els.frLineupBoard.className = `fr-lineup-board sport-${sport} unit-${unit}`;
   els.frLineupBoard.innerHTML = `
     <div class="fr-board-title">${sport === 'football' ? (unit === 'defense' ? 'Defensive Formation' : 'Offensive Formation') : 'Lineup Board'}</div>
@@ -2328,7 +2345,8 @@ function renderFrLineupBoard() {
       ${slots.map((slot, index) => {
         const player = revealed[index];
         const role = frBoardRole(sport, unit, slot, index);
-        return `<div class="fr-board-slot slot-${slot.toLowerCase()} slot-index-${index} ${player ? 'filled' : ''}">
+        const resultClass = frGame.finished && player ? (index < earnedCount ? 'earned' : 'missed') : '';
+        return `<div class="fr-board-slot slot-${slot.toLowerCase()} slot-index-${index} ${player ? 'filled' : ''} ${resultClass}">
           <span class="fr-board-role">${escapeHtml(role)}</span>
           <span class="fr-board-player">${player ? escapeHtml(player.name) : ''}</span>
         </div>`;

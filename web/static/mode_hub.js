@@ -73,16 +73,18 @@ initHub();
 
 function displayStatus(status) {
   const normalized = String(status || 'unseen');
-  if (normalized === 'won') return 'completed';
-  if (normalized === 'lost') return 'failed';
+  if (normalized === 'won') return 'fully scouted';
+  if (normalized === 'lost') return 'benched';
+  if (normalized === 'new') return 'new';
   return normalized.replace(/_/g, ' ');
 }
 
 function formatArchiveLabel(day) {
   const dateText = day.date ? new Date(day.date + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' }).replace(', 20', ", '") : '';
-  const status = displayStatus(day.status);
+  const status = displayStatus(day.is_today && day.status === 'unseen' ? 'new' : day.status);
   const prefix = day.is_today ? 'Today' : `#${day.number}`;
-  return `${prefix}${dateText ? ' - ' + dateText : ''} - ${status}`;
+  const pct = Number(day.success_rate?.percent || 0);
+  return `${prefix}${dateText ? ' - ' + dateText : ''} - ${status} - ${pct}%`;
 }
 
 function filmReviewUrl(sport, day) {
@@ -107,17 +109,19 @@ function renderFilmReviewArchiveSelect(sport, days, unitData = null) {
   if (status && current) {
     const streak = Number(unitData?.streak || 0);
     const rate = unitData?.success_rate || { percent: 0 };
-    status.innerHTML = `Streak ${streak}<br>${Number(rate.percent || 0)}% solved today`;
-    status.className = `fr-today-status ${current.status || 'unseen'}`;
+    const display = current.is_today && current.status === 'unseen' ? 'new' : current.status || 'unseen';
+    status.innerHTML = `Streak ${streak}<br>${Number(rate.percent || 0)}% Fully Scouted Today<br>${displayStatus(display)}`;
+    status.className = `fr-today-status ${display}`;
   }
   const sorted = [...days].sort((a, b) => {
     if (a.is_today) return -1;
     if (b.is_today) return 1;
     return Number(b.number || 0) - Number(a.number || 0);
   });
-  select.innerHTML = '<option value="">Select Archived Tape...</option>' + sorted.map((day) =>
-    `<option value="${filmReviewUrl(sport, day)}" class="fr-option-${day.is_today ? 'today' : day.status || 'unseen'}">${unitLabel(day.unit)}${day.unit ? ' - ' : ''}${formatArchiveLabel(day)}</option>`
-  ).join('');
+  select.innerHTML = '<option value="">Select Archived Tape...</option>' + sorted.map((day) => {
+    const optionStatus = day.is_today && day.status === 'unseen' ? 'new' : day.status || 'unseen';
+    return `<option value="${filmReviewUrl(sport, day)}" class="fr-option-${optionStatus}">${unitLabel(day.unit)}${day.unit ? ' - ' : ''}${formatArchiveLabel(day)}</option>`;
+  }).join('');
   select.value = '';
   select.addEventListener('change', () => {
     if (select.value) window.location.href = select.value;
