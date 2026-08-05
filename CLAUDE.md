@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.75`
+- Current display version: `0.1.76`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -771,6 +771,16 @@ Cross-sport Film Review team autocomplete now uses explicit current NBA, NHL,
 and NFL team-name lists instead of raw `sport_teams` names, avoiding entries
 such as `AFM`, `ANA`, `ARI`, or historical relocated names. Shared-link display
 also canonicalizes old/current franchise names for Film Review answers.
+
+Update, 2026-08-05 (0.1.76): Mode hub pages (`/manager`, `/film`,
+`/division`, `/playoffs`) now use normal header controls: Exit to home, a `?`
+rules modal, and Playoffs-specific Win Conditions and Powerups reference
+buttons. Sport/home page `?` rules were expanded into structured explanations
+for all four modes, and the home/sport `Ref` button now opens Playoffs
+win-condition and powerup reference content. Film Review archive rows now show
+one `Continue` button for in-progress old games; only Benched/Fully Scouted
+archive rows show Review and Retry. Football Film hub typography was normalized
+through the shared Film tile styles.
 
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.

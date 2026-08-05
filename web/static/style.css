@@ -224,6 +224,18 @@ input[type="password"]:focus {
   border-color: var(--accent);
 }
 
+.exit-btn {
+  width: auto;
+  border-radius: var(--radius-sm);
+  padding: 0 0.7rem;
+}
+
+.hub-ref-btn {
+  min-height: 28px;
+  padding: 0.25rem 0.65rem;
+  font-size: 0.82rem;
+}
+
 button.danger {
   background: #7f1d1d;
   color: #fee2e2;
@@ -297,6 +309,11 @@ button.danger:hover:not(:disabled) {
   grid-template-columns: minmax(0, 0.9fr) minmax(180px, 1.1fr);
   gap: 0.85rem;
   align-items: center;
+}
+
+.film-sport-tile .sport-tile-name {
+  font-size: 1.25rem;
+  line-height: 1.2;
 }
 
 .sport-tile-copy {

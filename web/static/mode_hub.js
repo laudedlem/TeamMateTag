@@ -32,6 +32,34 @@ const PLAYOFF_OPTIONS = {
   ],
 };
 
+const MODE_RULES = {
+  manager: `<h3>Manager Mode</h3><p>Build the longest lineup you can. You start with the daily starter, then name a teammate of the last player before the 20-second clock runs out. Every correct link resets the clock.</p><p>Each team used between two players gains a mark. When that team is maxed out, it cannot be used as a link again. Your score is the full lineup length, including the starter.</p>`,
+  film: `<h3>Film Review</h3><p>Solve the daily lineup by identifying the team and year connecting each revealed pair. A fully correct team and year advances the review and reveals the next player.</p><p>One correct field is a partial answer. The first partial answer in a streak is safe, then another partial answer in the same streak counts against you. Three misses benches the review. Completing every link is Fully Scouted.</p>`,
+  division: `<h3>Division Rivalry</h3><p>Queue into a live head-to-head lineup battle. Players alternate turns, naming a teammate of the top player before the 20-second clock expires. A correct answer passes the turn and resets the clock.</p><p>Teams collect marks as they are used. Once a team is maxed out, it cannot link future players. Win by leaving your opponent without a valid answer before time runs out.</p>`,
+  playoffs: `<h3>Playoffs</h3><p>Playoffs uses the Division Rivalry clock and lineup rules, then adds one-use powerups and a personal win condition. You can win on the clock, or by completing your chosen win condition first.</p><p>Choose a preferred win condition before queueing, or choose Random. Powerups can expand legal links, add time, or pressure the opponent's next turn.</p>`,
+};
+
+const POWERUP_REFERENCE = {
+  baseball: [['Bubblegum', 'Use a same-franchise 40+ home run season batter. +5 seconds.'], ['Pine Tar', 'Use a same-franchise 200+ strikeout season pitcher. +5 seconds.'], ['Bat Donut', 'Use a same-franchise Silver Slugger winner. +5 seconds.'], ['Sunglasses', 'Use a same-franchise All-Star. +5 seconds.'], ['Backup Mitt', 'Use a same-franchise Gold Glove winner. +5 seconds.'], ['ABS', 'Add 15 seconds to your turn.'], ['Quick Pitch', 'Opponent gets 10 seconds next turn.']],
+  basketball: [['Heat Check', 'Use a same-franchise 2,000-point season scorer. +5 seconds.'], ['Sixth Man', 'Use a same-franchise 7,000-assist player. +5 seconds.'], ['Switch', 'Use a same-position-group player from the same franchise. +5 seconds.'], ['MVP Badge', 'Use a same-franchise MVP winner. +5 seconds.'], ['All-Star Call-Up', 'Use a same-franchise All-Star. +5 seconds.'], ['Timeout', 'Add 15 seconds to your turn.'], ['Full-Court Press', 'Opponent gets 10 seconds next turn.']],
+  football: [['Trick Play', 'Use a same-franchise 20-touchdown scorer. +5 seconds.'], ['Iron Man', 'Use a same-franchise 100-game veteran. +5 seconds.'], ['Package Change', 'Use a same-unit player from the same franchise. +5 seconds.'], ['MVP Badge', 'Use a same-franchise MVP winner. +5 seconds.'], ['Pro Bowl Call-Up', 'Use a same-franchise Pro Bowl player. +5 seconds.'], ['Timeout', 'Add 15 seconds to your turn.'], ['Blitz', 'Opponent gets 10 seconds next turn.']],
+  hockey: [['Breakaway', 'Use a same-franchise 250-goal scorer. +5 seconds.'], ['Veteran Presence', 'Use a same-franchise 500-point scorer. +5 seconds.'], ['Line Change', 'Use a same-position-group player from the same franchise. +5 seconds.'], ['Hart Honor', 'Use a same-franchise Hart Trophy winner. +5 seconds.'], ['All-Star Call-Up', 'Use a same-franchise All-Star. +5 seconds.'], ['Timeout', 'Add 15 seconds to your turn.'], ['Forecheck', 'Opponent gets 10 seconds next turn.']],
+};
+
+const CONDITION_REQUIREMENTS = {
+  random: 'Randomly choose from available conditions.',
+  sunset_kingdom: 'Japanese players.', havana_heat: 'Cuban players.', maple_corridor: 'Canadian players.',
+  mvp_circle: 'MVP winners.', young_buck: 'Rookie of the Year winners.', gonna_be_golden: 'Gold Glove winners.',
+  secretariat: 'Triple Crown winner.', hound_dog: 'One-franchise lifers.', great_bambinos: '500 career home run player.',
+  ring_chaser: 'Combined championships.', journeyman: 'Players with many franchises.',
+  bucket_getter: 'Career scoring greats.', season_scorer: 'Peak single-season scorers.', playmaker: 'Career assist/playmaking greats.',
+  three_point_club: 'Elite three-point shooters.', ironhorse: 'Durable long-career players.', one_team: 'One-franchise players.',
+  all_star_marathon: 'Combined All-Star selections.', young_guns: 'Rookie of the Year winners.', touchdown_club: 'Career touchdown scorers.',
+  air_raid: 'Career passing leaders.', single_season_passer: 'Peak passing seasons.', sack_master: 'Career sack leaders.',
+  ballhawk: 'Career interception leaders.', pro_bowl_marathon: 'Combined Pro Bowl selections.', sniper: 'Career goal scorers.',
+  single_season_sniper: 'Peak goal seasons.', point_streak: 'Career point producers.',
+};
+
 async function post(url, body) {
   const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   return response.json();
@@ -349,3 +377,58 @@ function configureSharedQueue() {
     setQueueUi(false, 'Queue canceled.');
   });
 }
+
+function hubModal(title, html) {
+  const modal = document.getElementById('hub-modal');
+  const titleEl = document.getElementById('hub-modal-title');
+  const textEl = document.getElementById('hub-modal-text');
+  if (!modal || !titleEl || !textEl) return;
+  titleEl.textContent = title;
+  textEl.innerHTML = html;
+  modal.hidden = false;
+}
+
+function closeHubModal() {
+  const modal = document.getElementById('hub-modal');
+  if (modal) modal.hidden = true;
+}
+
+function allModeRulesHtml() {
+  if (hub && MODE_RULES[hub]) return MODE_RULES[hub];
+  return ['manager', 'film', 'division', 'playoffs'].map((key) => MODE_RULES[key]).join('');
+}
+
+function conditionsHtml(sport = null) {
+  const sports = sport ? [sport] : ['baseball', 'basketball', 'football', 'hockey'];
+  return sports.map((sportKey) => {
+    const rows = PLAYOFF_OPTIONS[sportKey] || [];
+    return `<h3>${escapeHtml(sportKey[0].toUpperCase() + sportKey.slice(1))}</h3><div class="reference-key">${rows.map(([key, label]) =>
+      `<div class="reference-row"><div class="reference-name">${escapeHtml(label)}</div><div class="muted small">${escapeHtml(CONDITION_REQUIREMENTS[key] || 'Complete the listed stat goal before your opponent.')}</div></div>`
+    ).join('')}</div>`;
+  }).join('');
+}
+
+function powerupsHtml(sport = null) {
+  const sports = sport ? [sport] : ['baseball', 'basketball', 'football', 'hockey'];
+  return sports.map((sportKey) => {
+    const rows = POWERUP_REFERENCE[sportKey] || [];
+    return `<h3>${escapeHtml(sportKey[0].toUpperCase() + sportKey.slice(1))}</h3><div class="reference-key">${rows.map(([label, desc]) =>
+      `<div class="reference-row"><div class="reference-name">${escapeHtml(label)}</div><div class="muted small">${escapeHtml(desc)}</div></div>`
+    ).join('')}</div>`;
+  }).join('');
+}
+
+document.getElementById('hub-exit-btn')?.addEventListener('click', () => {
+  window.location.href = '/';
+});
+document.getElementById('hub-rules-btn')?.addEventListener('click', () => {
+  hubModal('How to Play', allModeRulesHtml());
+});
+document.getElementById('hub-conditions-btn')?.addEventListener('click', () => {
+  hubModal('Win Conditions', conditionsHtml());
+});
+document.getElementById('hub-powerups-btn')?.addEventListener('click', () => {
+  hubModal('Powerups', powerupsHtml());
+});
+document.getElementById('hub-modal-close')?.addEventListener('click', closeHubModal);
+document.getElementById('hub-modal-backdrop')?.addEventListener('click', closeHubModal);

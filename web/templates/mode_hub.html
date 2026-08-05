@@ -8,8 +8,15 @@
 </head>
 <body data-mode-hub="{{ slug }}">
   <header class="site-header">
-    <a class="title" href="/"><div class="brand-row"><h1>TeamMateTag</h1></div></a>
-    <a class="secondary" href="/">Sports</a>
+    <a class="title" href="/"><div class="brand-row"><h1>TeamMateTag</h1><span class="app-version" title="Current version">{{ app_version }}</span></div></a>
+    <div class="header-controls">
+      <button id="hub-exit-btn" class="icon-btn exit-btn" title="Exit to home" aria-label="Exit to home">Exit</button>
+      <button id="hub-rules-btn" class="icon-btn" title="How to play" aria-label="How to play">?</button>
+      {% if slug == 'playoffs' %}
+      <button id="hub-conditions-btn" class="secondary hub-ref-btn" type="button">Win Conditions</button>
+      <button id="hub-powerups-btn" class="secondary hub-ref-btn" type="button">Powerups</button>
+      {% endif %}
+    </div>
   </header>
   <main class="home mode-hub-page">
     <a class="back-btn" href="/">&larr; Sports</a>
@@ -125,6 +132,14 @@
     </section>
     {% endif %}
   </main>
+  <div id="hub-modal" class="modal" hidden>
+    <div class="modal-backdrop" id="hub-modal-backdrop"></div>
+    <div class="modal-content">
+      <button id="hub-modal-close" class="modal-close" aria-label="Close">x</button>
+      <h2 id="hub-modal-title">How to Play</h2>
+      <div id="hub-modal-text"></div>
+    </div>
+  </div>
   <script src="{{ url_for('static', filename='mode_hub.js') }}?v={{ app_version }}"></script>
 </body>
 </html>

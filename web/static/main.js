@@ -828,8 +828,7 @@ function showScreen(name) {
   els.brandSubtitle.textContent = '';
 
   els.exitBtn.hidden = name === 'home' && !CURRENT_SPORT;
-  els.referenceBtn.hidden = currentMode !== 'po' || !(name === 'mp-setup' || name === 'po-game') ||
-    (usesLocalPlayoffs() && name === 'mp-setup');
+  els.referenceBtn.hidden = !(name === 'home' || (currentMode === 'po' && (name === 'mp-setup' || name === 'po-game')));
   const togglesRelevant = name === 'mp-game' || name === 'bp-game' || name === 'po-game';
   els.headerToggles.hidden = !togglesRelevant;
   els.lineupSection.hidden = !togglesRelevant || !els.toggleLineup.checked;
@@ -2235,20 +2234,28 @@ function applyToggles() {
 function rulesForMode() {
   const outTerm = ({ baseball: 'Struck Out', basketball: 'Fouled Out', hockey: 'Game Misconduct', football: 'Punted' })[CURRENT_SPORT] || 'Out';
   const sportName = ({ baseball: 'baseball', basketball: 'basketball', hockey: 'hockey', football: 'football' })[CURRENT_SPORT] || 'sports';
+  const allRules = `
+    <h3>Manager Mode</h3><p>Build the longest lineup you can from the daily starter. Name a teammate of the last player before the 20-second clock expires. A correct answer resets the timer. Teams used as links collect marks; once a team is maxed out, it cannot be used as a link again. Your score is the full lineup length.</p>
+    <h3>Film Review</h3><p>Solve the daily lineup by entering the team and year connecting each revealed pair. A full answer advances the lineup. One correct field is a partial answer; the first partial answer in a streak is safe, then another partial answer in the same streak counts against you. Three misses benches the review. Solving every link is Fully Scouted.</p>
+    <h3>Division Rivalry</h3><p>Queue into a live match and alternate turns building one shared lineup. The same team-mark rules apply. Win by leaving your opponent without a valid teammate before time expires.</p>
+    <h3>Playoffs</h3><p>Playoffs uses Division Rivalry rules plus one-use powerups and a selected or random win condition. Win on time, or by completing your win condition first.</p>`;
+  if (currentMode === 'home') {
+    return allRules;
+  }
   if (currentMode === 'bp') {
-    return `Build the longest lineup you can. You have 20 seconds to name a teammate of the last player, and a correct guess resets the clock. Each team shared by two linked players gets a strike. Once a team is ${outTerm}, that team cannot be used to link players again. Your run ends when the clock hits zero.`;
+    return `<h3>Manager Mode</h3><p>Build the longest lineup you can. You have 20 seconds to name a teammate of the last player, and a correct guess resets the clock. Each team shared by two linked players gets a mark. Once a team is ${outTerm}, that team cannot be used to link players again. Your run ends when the clock hits zero.</p>`;
   }
   if (currentMode === 'fr') {
     const terms = frTerms();
-    return `Review the revealed players and guess the team and year that links each pair. A correct team and year is a ${terms.hit.toLowerCase()} and reveals the next player. One correct field is a ${terms.foul.toLowerCase()}. The first ${terms.foul.toLowerCase()} in a streak is safe, then every ${terms.foul.toLowerCase()} after that in the same streak counts as a ${terms.strike.toLowerCase()}. Three ${terms.strikePlural} end the review.`;
+    return `<h3>Film Review</h3><p>Review the revealed players and guess the team and year that links each pair. A correct team and year is a ${terms.hit.toLowerCase()} and reveals the next player. One correct field is a ${terms.foul.toLowerCase()}. The first ${terms.foul.toLowerCase()} in a streak is safe, then every ${terms.foul.toLowerCase()} after that in the same streak counts as a ${terms.strike.toLowerCase()}.</p><p>Three ${terms.strikePlural} means Benched. Solve every link to become Fully Scouted. Daily puzzles count toward streaks; archive attempts do not.</p>`;
   }
   if (currentMode === 'mp') {
-    return `Queue into an online match and take turns building one lineup. After the 3 second countdown, the 20 second clock begins. On your turn, name a teammate of the last player before time runs out. Correct guesses pass the turn and reset the clock. Teams collect strikes when used, and ${outTerm} teams cannot link players again. You win when your opponent runs out of time.`;
+    return `<h3>Division Rivalry</h3><p>Queue into an online match and take turns building one lineup. After the 3 second countdown, the 20 second clock begins. On your turn, name a teammate of the last player before time runs out. Correct guesses pass the turn and reset the clock.</p><p>Teams collect marks when used, and ${outTerm} teams cannot link players again. You win when your opponent runs out of time or leaves.</p>`;
   }
   if (currentMode === 'po') {
-    return 'Playoffs uses the Division Rivalry rules, but both players also get one use of every powerup during the game and a secret win condition. You can use at most one powerup on a turn. Finish your win condition first, or win on time. Open Reference for the powerups.';
+    return '<h3>Playoffs</h3><p>Playoffs uses the Division Rivalry clock and lineup rules, but both players also get one use of every powerup and a chosen or random win condition. You can use at most one powerup on a turn. Finish your win condition first, or win on time.</p>';
   }
-  return `Pick a mode, then build or review a lineup by connecting ${sportName} players through their shared teams.`;
+  return `<p>Pick a mode, then build or review a lineup by connecting ${sportName} players through their shared teams.</p>${allRules}`;
 }
 
 async function loadFrArchive() {
@@ -2266,15 +2273,16 @@ async function loadFrArchive() {
     const date = escapeHtml(day.date);
     const label = day.is_today ? 'Today' : `#${day.number}`;
     const pct = Number(day.success_rate?.percent || 0);
-    const action = day.is_today ? 'daily' : (day.status === 'unseen' ? 'archive' : 'review');
+    const action = day.is_today ? 'daily' : (day.status === 'in_progress' ? 'continue' : (day.status === 'unseen' ? 'archive' : 'review'));
     const text = day.is_today ? (day.status === 'unseen' ? 'Play today' : 'Resume today')
-      : (day.status === 'unseen' ? 'Play' : 'Review');
-    const retry = !day.is_today && day.status !== 'unseen'
-      ? `<button class="fr-archive-action" data-date="${date}" data-action="retry">Retry</button>` : '';
+      : (day.status === 'in_progress' ? 'Continue' : (day.status === 'unseen' ? 'Play' : 'Review'));
+    const unitAttr = escapeHtml(day.unit || '');
+    const retry = !day.is_today && ['won', 'lost'].includes(day.status)
+      ? `<button class="fr-archive-action" data-date="${date}" data-unit="${unitAttr}" data-action="retry">Retry</button>` : '';
     return `<div class="fr-archive-day ${state}">
       <span class="fr-archive-number">${label}</span>
       <span class="fr-archive-status">${filmStatusText(day.status, day.is_today)} - ${pct}%</span>
-      <button class="fr-archive-action" data-date="${date}" data-unit="${escapeHtml(day.unit || '')}" data-game-id="${escapeHtml(day.game_id || '')}" data-action="${action}">${text}</button>
+      <button class="fr-archive-action" data-date="${date}" data-unit="${unitAttr}" data-game-id="${escapeHtml(day.game_id || '')}" data-action="${action}">${text}</button>
       ${retry}
     </div>`;
   }).join('');
@@ -2285,6 +2293,17 @@ async function loadFrArchive() {
         await startFr(button.dataset.unit || activeUnit || null);
       } else if (action === 'archive' || action === 'retry') {
         await startFr(button.dataset.unit || activeUnit || null, { puzzle_date: button.dataset.date, archive: true });
+      } else if (action === 'continue') {
+        const result = await api(filmReviewPath('daily_game'), {
+          guest_id: profile?.guest_id || storedGuestId(), game_id: button.dataset.gameId,
+        });
+        if (result.error) {
+          alert('error: ' + result.error);
+          return;
+        }
+        frGame = result;
+        hideFrSummaryBanner();
+        renderFrGame(true);
       } else if (action === 'review') {
         const result = await api(filmReviewPath('daily_game'), {
           guest_id: profile?.guest_id || storedGuestId(), game_id: button.dataset.gameId,
@@ -2407,10 +2426,28 @@ function renderPowerupReferenceHtml() {
   const labels = { ...names, heat_check: 'Heat Check', sixth_man: 'Sixth Man', switch: 'Switch', mvp_badge: 'MVP Badge', all_star_callup: 'All-Star Call-Up', timeout: 'Timeout', full_court_press: 'Full-Court Press', trick_play: 'Trick Play', iron_man: 'Iron Man', package_change: 'Package Change', pro_bowl_callup: 'Pro Bowl Call-Up', blitz: 'Blitz', breakaway: 'Breakaway', veteran_presence: 'Veteran Presence', line_change: 'Line Change', hart_honor: 'Hart Honor', forecheck: 'Forecheck' };
   const sport = CURRENT_SPORT || referenceSport;
   const rows = sportRows[sport] || baseballRows;
-  const picker = CURRENT_SPORT ? '' : `<label class="muted small" for="reference-sport-select">Sport</label><select id="reference-sport-select"><option value="baseball">Baseball</option><option value="basketball">Basketball</option><option value="football">Football</option><option value="hockey">Hockey</option></select>`;
+  const conditionRows = [
+    ['MVP / award circles', 'Name enough players with the listed major award.'],
+    ['Career milestones', 'Name players who reached the listed career stat threshold.'],
+    ['Peak seasons', 'Name players with a qualifying single-season feat.'],
+    ['One-team / journeyman goals', 'Name players who stayed with one franchise or moved through many.'],
+    ['Ring Chaser', 'Build the required combined championship total.'],
+  ];
+  if (!CURRENT_SPORT) {
+    const allSports = ['baseball', 'basketball', 'football', 'hockey'];
+    return `<p class="muted">Playoffs adds powerups and win conditions to the head-to-head lineup game.</p>
+      <h3>Win Conditions</h3><div class="reference-key">${conditionRows.map(([name, desc]) => `<div class="reference-row"><div class="reference-name">${escapeHtml(name)}</div><div class="muted small">${escapeHtml(desc)}</div></div>`).join('')}</div>
+      ${allSports.map((sportKey) => {
+        const sportRowsForKey = sportRows[sportKey] || baseballRows;
+        return `<h3>${escapeHtml(sportKey[0].toUpperCase() + sportKey.slice(1))} Powerups</h3><div class="reference-key">${sportRowsForKey.map(([key, desc]) => `
+          <div class="reference-row powerup-${powerupClass(key)}"><div class="reference-name">${escapeHtml(labels[key] || key)}</div><div class="muted small">${escapeHtml(desc)}</div></div>`).join('')}</div>`;
+      }).join('')}`;
+  }
   return `
-    <p class="muted">Each Playoffs game gives both players one use of every powerup. You can activate one powerup on a turn.</p>
-    ${picker}
+    <p class="muted">Each Playoffs game gives both players one use of every powerup. You can activate one powerup on a turn. Choose a preferred win condition before queueing, or choose Random.</p>
+    <h3>Win Conditions</h3>
+    <div class="reference-key">${conditionRows.map(([name, desc]) => `<div class="reference-row"><div class="reference-name">${escapeHtml(name)}</div><div class="muted small">${escapeHtml(desc)}</div></div>`).join('')}</div>
+    <h3>Powerups</h3>
     <div class="reference-key">
       ${rows.map(([key, desc]) => `
         <div class="reference-row powerup-${powerupClass(key)}">
@@ -2429,7 +2466,7 @@ function renderPowerupReferenceHtml() {
 
 function openRules() {
   els.rulesTitle.textContent = 'How to Play';
-  els.rulesText.innerHTML = `<p>${escapeHtml(rulesForMode())}</p>`;
+  els.rulesText.innerHTML = rulesForMode();
   els.rulesModal.hidden = false;
 }
 
