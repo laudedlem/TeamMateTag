@@ -317,6 +317,15 @@ button.danger:hover:not(:disabled) {
   line-height: 1.25;
 }
 
+body[data-mode-hub="film"] .sport-tile-hockey.film-sport-tile {
+  min-height: 56px;
+  padding: 0.48rem 1rem;
+}
+
+body[data-mode-hub="film"] .sport-tile-hockey .sport-tile-status {
+  line-height: 1.25;
+}
+
 .sport-tile-copy {
   display: flex;
   min-width: 0;

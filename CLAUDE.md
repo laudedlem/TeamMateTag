@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.68`
+- Current display version: `0.1.69`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -719,6 +719,11 @@ players on the right. Football Film Review is two independent stacked cards:
 Offense has its own archive dropdown between Offense and Defense, while
 Defense has its own archive dropdown below Defense aligned with the other
 sport archive row. Hovering one Football unit no longer highlights the other.
+
+Update, 2026-08-04 (0.1.69): `/film` applies a compact Hockey-only tile rule
+so Hockey's main Film Review button stays in line with the tighter Football
+Offense/Defense cards without changing the Baseball and Basketball buttons
+the user liked.
 
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.
