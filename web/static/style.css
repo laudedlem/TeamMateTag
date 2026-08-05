@@ -27,6 +27,11 @@
   --radius-sm: 6px;
 }
 
+/* Author styles can otherwise override the browser's default hidden behavior. */
+[hidden] {
+  display: none !important;
+}
+
 * { box-sizing: border-box; }
 
 html, body {
