@@ -73,7 +73,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.1.77"
+APP_VERSION = "0.2.0"
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
 # When running the local curation build we deliberately keep using SQLite so
@@ -7383,7 +7383,8 @@ def _multi_client_mode(mode: str) -> str:
 
 
 def _multi_redirect(sport: str, mode: str, game_id: str) -> str:
-    return f"/{sport}?mode={_multi_client_mode(mode)}&game_id={game_id}"
+    source = "playoffs" if mode == "po" else "division"
+    return f"/{sport}?mode={_multi_client_mode(mode)}&game_id={game_id}&source={source}"
 
 
 def _normalize_multi_sports(raw_sports) -> list[str]:
@@ -7397,23 +7398,7 @@ def _normalize_multi_sports(raw_sports) -> list[str]:
 
 
 def _load_active_multisport_game(conn, guest_id: str, mode: str, sports: list[str]):
-    if "baseball" in sports:
-        table = "po_games" if mode == "po" else "dr_games"
-        row = conn.execute(
-            f"""SELECT game_id::text, state, finished
-                  FROM {table}
-                 WHERE NOT finished
-                   AND ((state->>'p1_guest_id') = %s OR (state->>'p2_guest_id') = %s)
-                 ORDER BY created_at DESC
-                 LIMIT 1""",
-            (guest_id, guest_id),
-        ).fetchone()
-        if row:
-            game_id, blob, finished = row
-            blob["finished"] = finished
-            return "baseball", game_id
-
-    sport_list = [sport for sport in sports if sport != "baseball"]
+    sport_list = [sport for sport in sports if sport in MULTI_QUEUE_SPORTS]
     if sport_list:
         for sport in sport_list:
             _reap_expired_sport_games(conn, sport, mode)

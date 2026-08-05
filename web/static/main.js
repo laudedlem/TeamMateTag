@@ -2233,29 +2233,49 @@ function applyToggles() {
 
 function rulesForMode() {
   const outTerm = ({ baseball: 'Struck Out', basketball: 'Fouled Out', hockey: 'Game Misconduct', football: 'Punted' })[CURRENT_SPORT] || 'Out';
+  const outVerb = ({ baseball: 'struck out', basketball: 'fouled out', hockey: 'given a game misconduct', football: 'punted' })[CURRENT_SPORT] || 'maxed out';
   const sportName = ({ baseball: 'baseball', basketball: 'basketball', hockey: 'hockey', football: 'football' })[CURRENT_SPORT] || 'sports';
+  const starterTerm = ({ baseball: 'leadoff player', basketball: 'tipoff player', hockey: 'faceoff player', football: 'snapper' })[CURRENT_SPORT] || 'starter';
+  const linkIntro = `<p><strong>Teammate links:</strong> a legal link means the guessed player and the current top player were on the same franchise in the same season. The game may show several shared teams if their careers overlapped for multiple seasons.</p>`;
+  const markRule = `<p><strong>Team marks:</strong> every team-season used in a valid link receives a mark. At three marks, that team is ${outVerb} and cannot be used again. This is a hard stop: if your guessed player shares any team already marked as ${outTerm} with the top player, that guess is illegal even when another shared team is still open.</p>`;
   const allRules = `
-    <h3>Manager Mode</h3><p>Build the longest lineup you can from the daily starter. Name a teammate of the last player before the 20-second clock expires. A correct answer resets the timer. Teams used as links collect marks; once a team is maxed out, it cannot be used as a link again. Your score is the full lineup length.</p>
-    <h3>Film Review</h3><p>Solve the daily lineup by entering the team and year connecting each revealed pair. A full answer advances the lineup. One correct field is a partial answer; the first partial answer in a streak is safe, then another partial answer in the same streak counts against you. Three misses benches the review. Solving every link is Fully Scouted.</p>
-    <h3>Division Rivalry</h3><p>Queue into a live match and alternate turns building one shared lineup. The same team-mark rules apply. Win by leaving your opponent without a valid teammate before time expires.</p>
-    <h3>Playoffs</h3><p>Playoffs uses Division Rivalry rules plus one-use powerups and a selected or random win condition. Win on time, or by completing your win condition first.</p>`;
+    <h3>Manager Mode</h3><p>Solo endless lineup. Start from the daily ${starterTerm}, then name teammates before the 20-second timer expires. Correct answers reset the timer. Invalid guesses only cost time. Score the longest lineup you can, including the starter.</p>${linkIntro}${markRule}
+    <h3>Film Review</h3><p>Daily puzzle mode. Identify the team and year connecting each visible pair. A fully correct answer reveals the next player. One correct field is a partial answer; the first partial answer in a streak is safe, then every additional partial answer in that same streak counts against you. Three misses means Benched. Solving the full lineup is Fully Scouted.</p>
+    <h3>Division Rivalry</h3><p>Online head-to-head lineup battle. Players alternate turns after the countdown. On your turn, submit a teammate of the current top player before the 20-second clock expires. A correct answer passes the turn. Win when your opponent runs out of time or exits an active match.</p>${markRule}
+    <h3>Playoffs</h3><p>Advanced online battle. Playoffs uses Division Rivalry's teammate-link and team-mark rules, then adds one-use powerups and a personal win condition. You can win on time, or win immediately by completing your condition first.</p>`;
   if (currentMode === 'home') {
     return allRules;
   }
   if (currentMode === 'bp') {
-    return `<h3>Manager Mode</h3><p>Build the longest lineup you can. You have 20 seconds to name a teammate of the last player, and a correct guess resets the clock. Each team shared by two linked players gets a mark. Once a team is ${outTerm}, that team cannot be used to link players again. Your run ends when the clock hits zero.</p>`;
+    return `<h3>Manager Mode</h3>
+      <p>Manager Mode is solo and endless. You begin with the daily ${starterTerm} already in the lineup. After the countdown, the 20-second clock starts.</p>
+      <p><strong>Your action:</strong> type a player name, choose the right autocomplete result when needed, and submit a player who was teammates with the current top player. A correct answer adds that player to the lineup and resets the timer. If the answer is not a teammate, already used, or blocked by a maxed team, you can immediately guess again while time remains.</p>
+      ${linkIntro}${markRule}
+      <p><strong>Goal:</strong> build the longest lineup possible. The run ends when the clock hits zero, and your score is the full lineup length, including the starter.</p>`;
   }
   if (currentMode === 'fr') {
     const terms = frTerms();
-    return `<h3>Film Review</h3><p>Review the revealed players and guess the team and year that links each pair. A correct team and year is a ${terms.hit.toLowerCase()} and reveals the next player. One correct field is a ${terms.foul.toLowerCase()}. The first ${terms.foul.toLowerCase()} in a streak is safe, then every ${terms.foul.toLowerCase()} after that in the same streak counts as a ${terms.strike.toLowerCase()}.</p><p>Three ${terms.strikePlural} means Benched. Solve every link to become Fully Scouted. Daily puzzles count toward streaks; archive attempts do not.</p>`;
+    return `<h3>Film Review</h3>
+      <p>Film Review is the daily puzzle mode. You are reviewing a fixed lineup, one connection at a time. The visible pair of players has at least one shared team-season, and your job is to identify the team and year.</p>
+      <p><strong>Your action:</strong> enter a team and a season, then submit. Use the team autocomplete so franchise names match the game's current naming rules. The next player is only added to the lineup board after the current link is correct.</p>
+      <p><strong>Feedback:</strong> a correct team and year is a ${terms.hit}. If only the team or only the year is correct, that is a ${terms.foul}. The first ${terms.foul} in a streak is safe, then every additional ${terms.foul} in that same streak becomes a ${terms.strike}. A completely wrong answer is also a ${terms.strike}.</p>
+      <p><strong>Goal:</strong> three ${terms.strikePlural} means Benched. Solve every connection to become Fully Scouted. Today's first attempt controls your streak; archived tapes can be continued, reviewed, or retried without changing the daily streak.</p>`;
   }
   if (currentMode === 'mp') {
-    return `<h3>Division Rivalry</h3><p>Queue into an online match and take turns building one lineup. After the 3 second countdown, the 20 second clock begins. On your turn, name a teammate of the last player before time runs out. Correct guesses pass the turn and reset the clock.</p><p>Teams collect marks when used, and ${outTerm} teams cannot link players again. You win when your opponent runs out of time or leaves.</p>`;
+    return `<h3>Division Rivalry</h3>
+      <p>Division Rivalry is the basic online head-to-head lineup battle. The match starts from the sport's opening player, then one player is randomly chosen to take the first turn. After the countdown, the 20-second clock begins.</p>
+      <p><strong>Your action:</strong> when it is your turn, submit a teammate of the current top player. A correct answer adds your player, passes the turn to your opponent, and resets the clock. When it is not your turn, the answer box is locked while you watch the lineup build.</p>
+      ${linkIntro}${markRule}
+      <p><strong>Goal:</strong> make your opponent run out of time without an eligible teammate. You also win immediately if your opponent exits an active game. After the game, you can request a rematch or find a new match.</p>`;
   }
   if (currentMode === 'po') {
-    return '<h3>Playoffs</h3><p>Playoffs uses the Division Rivalry clock and lineup rules, but both players also get one use of every powerup and a chosen or random win condition. You can use at most one powerup on a turn. Finish your win condition first, or win on time.</p>';
+    return `<h3>Playoffs</h3>
+      <p>Playoffs is the advanced online battle mode. It starts like Division Rivalry: two players share one lineup, alternate turns, and have 20 seconds to name a legal teammate link.</p>
+      ${linkIntro}${markRule}
+      <p><strong>Powerups:</strong> each player gets one use of every sport-specific powerup. You can use at most one powerup on a turn. Some powerups let you play a same-franchise player who is not a direct teammate, as long as that player qualifies for the powerup. Team marks still apply. Other powerups add time or pressure your opponent's next turn.</p>
+      <p><strong>Win conditions:</strong> before queueing, choose a preferred condition or Random. Progress pips show what each player is chasing. A qualifying player highlights on the lineup. Complete your condition first to win immediately, or win on the clock like Division Rivalry.</p>`;
   }
-  return `<p>Pick a mode, then build or review a lineup by connecting ${sportName} players through their shared teams.</p>${allRules}`;
+  return `<p>Pick a mode, then build or review a lineup by connecting ${sportName} players through shared teams.</p>${allRules}`;
 }
 
 async function loadFrArchive() {

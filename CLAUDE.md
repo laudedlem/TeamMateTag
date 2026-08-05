@@ -9,14 +9,14 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.77`
+- Current display version: `0.2.0`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
-  2026-08-01. Database size is 170 MB, below the Free plan's 500 MB database
-  quota. The old materialized Baseball `teammates` table was removed because
-  it alone consumed roughly 400 MB; all game paths derive links from indexed
-  appearances instead.
+  2026-08-01. Database size was roughly 170 MB after the sport-runtime import,
+  below the Free plan's 500 MB database quota. The old materialized Baseball
+  `teammates` table was removed because it alone consumed roughly 400 MB; all
+  game paths derive links from indexed appearances instead.
 - Required environment values are documented in `.env.example`. Never commit
   `.env` or any Supabase password/key.
 
@@ -25,11 +25,9 @@ changes. It is the concise source of truth for another coding assistant.
 - `/` is the sport-selection home. It includes account/profile access and
   links to Baseball, Basketball, Hockey, and Football.
 - `/baseball` is the live baseball game hub with four modes.
-- `/basketball`, `/hockey`, and `/football` are local playtesting hubs when
-  `TEAMMATETAG_LOCAL_SPORTS=1`. Their roster graphs live in local SQLite and
-  are now mirrored into Supabase but are not yet used by Vercel. The remaining
-  work is to replace their local SQLite adapters with Postgres-backed runtime
-  adapters.
+- `/basketball`, `/hockey`, and `/football` now use the shared sport runtime
+  online when `DATABASE_URL` is present. Local playtesting can still use SQLite
+  by running with `TEAMMATETAG_LOCAL_SPORTS=1`.
 - The header brand is `TeamMateTag`; version number is shown beside it.
 - Use ASCII in code and player-facing strings. Do not use em dashes.
 
@@ -788,6 +786,17 @@ out toggles appearing on the homepage, sport pages, and Film Review screens;
 they should only appear during active Manager Mode, Division Rivalry, or
 Playoffs games.
 
+Update, 2026-08-05 (0.2.0): Cross-sport mode integration is now considered the
+first 0.2 baseline. The visible How to Play rules were expanded on homepage,
+sport pages, and mode hubs to explain teammate links, player actions, team
+marks, maxed teams, daily Film Review tapes, online turn flow, rematches,
+Playoffs powerups, and Playoffs win conditions. Shared mode-hub queue status
+now checks Baseball in the same `sport_online_games` table as NBA, NHL, and
+NFL, fixing a Baseball `/division` or `/playoffs` wait-state mismatch after a
+match is created. Hub-created multiplayer redirects now include
+`source=division` or `source=playoffs`, so exiting a hub-launched match can
+return to the proper mode page.
+
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.
   This explains the Firefox failure and can also affect Chrome when its cache
@@ -797,7 +806,10 @@ Playoffs games.
   sign-in flow. This was explicitly deferred.
 - Update `README.md` after the cross-sport data sources and first loader are
   selected. It is currently stale.
-- Complete a later baseball quality, rules, and Playoffs balance pass.
+- 0.2 follow-up priorities: finish quality-testing `/division` and `/playoffs`
+  queue/rematch behavior across all sports, overhaul the UI after functionality
+  is stable, fill player-picture gaps with clearer fallback handling, and
+  profile storage/load-time/database growth as user volume increases.
 - Supabase storage: full NFL roster data (118,070 player-team-seasons) plus
   baseball pair edges exceeded the free project capacity. Do not rerun the
   historical NFL or baseball loaders against production until moving to a

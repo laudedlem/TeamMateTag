@@ -33,10 +33,26 @@ const PLAYOFF_OPTIONS = {
 };
 
 const MODE_RULES = {
-  manager: `<h3>Manager Mode</h3><p>Build the longest lineup you can. You start with the daily starter, then name a teammate of the last player before the 20-second clock runs out. Every correct link resets the clock.</p><p>Each team used between two players gains a mark. When that team is maxed out, it cannot be used as a link again. Your score is the full lineup length, including the starter.</p>`,
-  film: `<h3>Film Review</h3><p>Solve the daily lineup by identifying the team and year connecting each revealed pair. A fully correct team and year advances the review and reveals the next player.</p><p>One correct field is a partial answer. The first partial answer in a streak is safe, then another partial answer in the same streak counts against you. Three misses benches the review. Completing every link is Fully Scouted.</p>`,
-  division: `<h3>Division Rivalry</h3><p>Queue into a live head-to-head lineup battle. Players alternate turns, naming a teammate of the top player before the 20-second clock expires. A correct answer passes the turn and resets the clock.</p><p>Teams collect marks as they are used. Once a team is maxed out, it cannot link future players. Win by leaving your opponent without a valid answer before time runs out.</p>`,
-  playoffs: `<h3>Playoffs</h3><p>Playoffs uses the Division Rivalry clock and lineup rules, then adds one-use powerups and a personal win condition. You can win on the clock, or by completing your chosen win condition first.</p><p>Choose a preferred win condition before queueing, or choose Random. Powerups can expand legal links, add time, or pressure the opponent's next turn.</p>`,
+  manager: `<h3>Manager Mode</h3>
+    <p>Manager Mode is the solo endless lineup mode. You start with the daily starter already on the board. After a short countdown, the 20-second clock begins.</p>
+    <p><strong>Your action:</strong> type a player name, use autocomplete when it helps, then submit a player who was teammates with the current top player. A teammate link means both players appeared for the same franchise in the same season.</p>
+    <p><strong>Team marks:</strong> every team-season used as a link receives a mark. At three marks, that team is maxed out and cannot be used as a link again. If your guessed player shares any maxed-out team with the top player, the guess is blocked, even if they also share another open team.</p>
+    <p><strong>Ending:</strong> invalid guesses do not end the run, but the clock keeps moving. Each valid teammate adds to the lineup and resets the clock. When time expires, your score is the full lineup length, including the starter.</p>`,
+  film: `<h3>Film Review</h3>
+    <p>Film Review is the daily puzzle mode. You are given a fixed lineup and must identify the team and year connecting each pair of players. Each daily tape is preserved in the archive forever, so Film Review #1 will always be the same puzzle.</p>
+    <p><strong>Your action:</strong> enter the team and the season for the visible pair. The next player is only added to the lineup board after the connection is correct. Football has separate Offense and Defense tapes.</p>
+    <p><strong>Feedback:</strong> a fully correct team and year advances the tape. If only one field is correct, that is a partial answer. The first partial answer in a streak is safe, then every additional partial answer in that same streak counts against you. A completely wrong answer also counts against you.</p>
+    <p><strong>Ending:</strong> three misses benches the review. Solving every connection is Fully Scouted. Today's first attempt controls your streak; archived attempts let you continue, review, or retry old tapes without changing the daily streak.</p>`,
+  division: `<h3>Division Rivalry</h3>
+    <p>Division Rivalry is the basic online head-to-head lineup battle. Queue for one sport, or use the multi-sport queue to enter whichever selected sport finds an opponent first.</p>
+    <p><strong>Game flow:</strong> one player is randomly chosen to go first. After the countdown, players alternate turns. On your turn, you have 20 seconds to name a teammate of the current top player. A valid answer adds that player to the shared lineup, passes the turn, and resets the clock.</p>
+    <p><strong>Team marks:</strong> the same maxed-team rule from Manager Mode applies. Baseball teams get Struck Out, Basketball teams Fouled Out, Football teams Punted, and Hockey teams receive Game Misconducts. Once a team is maxed out, it cannot be used to link future players.</p>
+    <p><strong>Winning:</strong> win by making your opponent run out of time, or when your opponent exits an active match. After a completed game, both players can request a rematch or find a new match.</p>`,
+  playoffs: `<h3>Playoffs</h3>
+    <p>Playoffs is the advanced online head-to-head mode. It uses the same teammate-link, turn timer, and maxed-team rules as Division Rivalry, then adds powerups and personal win conditions.</p>
+    <p><strong>Before queueing:</strong> choose a preferred win condition for each sport, or choose Random. Your selected condition becomes your default for the next queue.</p>
+    <p><strong>Powerups:</strong> each player gets one use of every powerup. Some powerups let you play a same-franchise player who is not a direct teammate, as long as that player qualifies for the powerup. Team marks still apply to powerup links. Other powerups add time to your turn or reduce the opponent's next turn.</p>
+    <p><strong>Winning:</strong> win on the clock like Division Rivalry, or immediately win by completing your win condition first. Progress pips show how close each player is, and qualifying players are highlighted on the lineup.</p>`,
 };
 
 const POWERUP_REFERENCE = {
