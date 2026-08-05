@@ -48,6 +48,7 @@ except ImportError:
     pass
 
 from flask import Flask, jsonify, make_response, redirect, render_template, request
+from werkzeug.exceptions import HTTPException
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "game"))
@@ -72,7 +73,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.1.72"
+APP_VERSION = "0.1.73"
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
 # When running the local curation build we deliberately keep using SQLite so
@@ -345,6 +346,17 @@ app = Flask(
     static_folder=str(ROOT / "web" / "static"),
     static_url_path="/static",
 )
+
+
+@app.errorhandler(Exception)
+def api_exception_response(error):
+    if request.path.startswith("/api/"):
+        status_code = error.code if isinstance(error, HTTPException) else 500
+        app.logger.exception("Unhandled API error on %s", request.path)
+        return jsonify({"error": f"server error: {error.__class__.__name__}"}), status_code
+    if isinstance(error, HTTPException):
+        return error
+    raise error
 
 
 # ============================================================
@@ -6799,6 +6811,23 @@ def _film_review_number(puzzle_day: date) -> int:
     return max(1, (puzzle_day - FILM_REVIEW_EPOCH).days + 1)
 
 
+def _valid_daily_film_puzzle(puzzle: dict, sport: str, puzzle_day: date, unit: str | None) -> bool:
+    deck = puzzle.get("deck")
+    slots = puzzle.get("slots")
+    if not isinstance(deck, list) or not isinstance(slots, list):
+        return False
+    if len(deck) < 2 or len(deck) != len(slots):
+        return False
+    if puzzle.get("puzzle_date") != puzzle_day.isoformat():
+        return False
+    expected_unit = unit or None
+    if (puzzle.get("unit") or None) != expected_unit:
+        return False
+    if sport == "football" and expected_unit not in {"offense", "defense"}:
+        return False
+    return True
+
+
 def _daily_film_review_puzzle(conn, sport: str, puzzle_day: date, unit: str | None, builder) -> dict:
     """Return the immutable daily deck, generating it only once if needed."""
     unit_key = unit or ""
@@ -6808,7 +6837,15 @@ def _daily_film_review_puzzle(conn, sport: str, puzzle_day: date, unit: str | No
         (sport, puzzle_day, unit_key),
     ).fetchone()
     if row:
-        return dict(row[0])
+        puzzle = dict(row[0])
+        if _valid_daily_film_puzzle(puzzle, sport, puzzle_day, unit):
+            return puzzle
+        app.logger.warning("Replacing invalid Film Review puzzle row: sport=%s date=%s unit=%s",
+                           sport, puzzle_day.isoformat(), unit_key)
+        conn.execute(
+            "DELETE FROM film_review_daily_puzzles WHERE sport_id=%s AND puzzle_date=%s AND unit=%s",
+            (sport, puzzle_day, unit_key),
+        )
     puzzle = builder()
     conn.execute(
         """INSERT INTO film_review_daily_puzzles (sport_id, puzzle_date, unit, puzzle)
