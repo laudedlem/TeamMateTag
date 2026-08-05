@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.1.71`
+- Current display version: `0.1.72`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -736,6 +736,11 @@ Football tile. Baseball, Basketball, Hockey, Football Offense, and Football
 Defense therefore use the same button and archive dropdown sizing in the same
 two-column grid. Removed the special Football/Hockey sizing overrides that
 caused the previous stretch/shrink cycle.
+
+Update, 2026-08-04 (0.1.72): `/film` keeps Football Defense in the right
+column directly below Football Offense by inserting a desktop-only empty grid
+spacer before the Defense tile. The spacer is hidden on mobile, where the Film
+choices collapse to one column.
 
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.

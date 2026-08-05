@@ -277,6 +277,10 @@ button.danger:hover:not(:disabled) {
   gap: 0.45rem;
 }
 
+.film-grid-spacer {
+  display: block;
+}
+
 .mode-sport-choice .sport-tile {
   min-height: 148px;
 }
@@ -1323,6 +1327,10 @@ button.secondary:hover { border-color: var(--accent); color: var(--accent); }
   .sport-tiles,
   .mode-preview-grid {
     grid-template-columns: 1fr;
+  }
+
+  .film-grid-spacer {
+    display: none;
   }
 
   .profile-name-row {
