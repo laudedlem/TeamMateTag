@@ -258,10 +258,6 @@ button.danger:hover:not(:disabled) {
   gap: 0.75rem;
 }
 
-body[data-mode-hub="film"] .sport-tiles {
-  align-items: start;
-}
-
 .sport-tile {
   min-height: 148px;
   border: 1px solid var(--border-strong);
@@ -299,37 +295,6 @@ body[data-mode-hub="film"] .sport-tiles {
   align-items: center;
 }
 
-.film-football-tile {
-  gap: 0.35rem;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-}
-
-.film-football-half {
-  min-height: 56px;
-  padding: 0.48rem 1rem;
-  display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(180px, 1.1fr);
-  gap: 0.85rem;
-  align-items: center;
-  color: inherit;
-  text-decoration: none;
-}
-
-.film-football-half .sport-tile-status {
-  line-height: 1.25;
-}
-
-body[data-mode-hub="film"] .sport-tile-hockey.film-sport-tile {
-  min-height: 56px;
-  padding: 0.48rem 1rem;
-}
-
-body[data-mode-hub="film"] .sport-tile-hockey .sport-tile-status {
-  line-height: 1.25;
-}
-
 .sport-tile-copy {
   display: flex;
   min-width: 0;
@@ -344,11 +309,6 @@ body[data-mode-hub="film"] .sport-tile-hockey .sport-tile-status {
   border-radius: var(--radius-sm);
   padding: 0.55rem 0.65rem;
   font: inherit;
-}
-
-.football-archive-select {
-  min-height: 34px;
-  padding-block: 0.35rem;
 }
 
 .fr-hub-archive-select option.fr-option-today {
@@ -1381,7 +1341,6 @@ button.secondary:hover { border-color: var(--accent); color: var(--accent); }
 
   .manager-sport-tile,
   .film-sport-tile,
-  .film-football-half,
   .manager-board-header,
   .manager-board-grid {
     grid-template-columns: 1fr;

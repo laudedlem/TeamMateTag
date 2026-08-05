@@ -18,31 +18,33 @@
     <h3>Choose a sport</h3>
     <div class="sport-tiles">
       {% for key, sport in sports.items() %}
-      <div class="mode-sport-choice">
         {% if slug == 'film' and key == 'football' %}
-        <div class="film-football-tile" data-sport="{{ key }}">
-          <a class="sport-tile sport-tile-{{ key }} film-sport-tile film-football-half" href="/film/football?unit=offense" data-film-unit-tile="football:offense">
-            <span class="sport-tile-copy">
-              <span class="sport-tile-league">{{ sport.league }}</span>
-              <span class="sport-tile-name">Football Offense</span>
-              <span class="sport-tile-status" data-fr-today-status="football:offense">Today's lineup</span>
-            </span>
-          </a>
-          <select class="fr-hub-archive-select football-archive-select" data-fr-archive-select="football:offense" aria-label="Football Offense Film Review archive">
-            <option>Loading tapes...</option>
-          </select>
-          <a class="sport-tile sport-tile-{{ key }} film-sport-tile film-football-half" href="/film/football?unit=defense" data-film-unit-tile="football:defense">
-            <span class="sport-tile-copy">
-              <span class="sport-tile-league">{{ sport.league }}</span>
-              <span class="sport-tile-name">Football Defense</span>
-              <span class="sport-tile-status" data-fr-today-status="football:defense">Today's lineup</span>
-            </span>
-          </a>
-          <select class="fr-hub-archive-select football-archive-select" data-fr-archive-select="football:defense" aria-label="Football Defense Film Review archive">
-            <option>Loading tapes...</option>
-          </select>
-        </div>
+      <div class="mode-sport-choice">
+        <a class="sport-tile sport-tile-{{ key }} film-sport-tile" href="/film/football?unit=offense" data-sport="football" data-film-unit-tile="football:offense">
+          <span class="sport-tile-copy">
+            <span class="sport-tile-league">{{ sport.league }}</span>
+            <span class="sport-tile-name">Football Offense</span>
+            <span class="sport-tile-status" data-fr-today-status="football:offense">Today's lineup</span>
+          </span>
+        </a>
+        <select class="fr-hub-archive-select" data-fr-archive-select="football:offense" aria-label="Football Offense Film Review archive">
+          <option>Loading tapes...</option>
+        </select>
+      </div>
+      <div class="mode-sport-choice">
+        <a class="sport-tile sport-tile-{{ key }} film-sport-tile" href="/film/football?unit=defense" data-sport="football" data-film-unit-tile="football:defense">
+          <span class="sport-tile-copy">
+            <span class="sport-tile-league">{{ sport.league }}</span>
+            <span class="sport-tile-name">Football Defense</span>
+            <span class="sport-tile-status" data-fr-today-status="football:defense">Today's lineup</span>
+          </span>
+        </a>
+        <select class="fr-hub-archive-select" data-fr-archive-select="football:defense" aria-label="Football Defense Film Review archive">
+          <option>Loading tapes...</option>
+        </select>
+      </div>
         {% else %}
+      <div class="mode-sport-choice">
         <a class="sport-tile sport-tile-{{ key }}{% if slug == 'manager' %} manager-sport-tile{% elif slug == 'film' %} film-sport-tile{% endif %}" href="{% if slug == 'division' or slug == 'playoffs' %}#{% elif slug == 'manager' or slug == 'film' %}/{{ slug }}/{{ key }}{% else %}/{{ key }}?mode={{ hub.mode }}{% endif %}" data-sport="{{ key }}" {% if slug == 'division' or slug == 'playoffs' %}data-direct-queue-sport="{{ key }}"{% endif %}>
           <span class="sport-tile-copy">
           <span class="sport-tile-league">{{ sport.league }}</span>
@@ -59,13 +61,13 @@
           </span>
           {% endif %}
         </a>
-        {% endif %}
         {% if slug == 'film' and key != 'football' %}
         <select class="fr-hub-archive-select" data-fr-archive-select="{{ key }}" aria-label="{{ sport.name }} Film Review archive">
           <option>Loading tapes...</option>
         </select>
         {% endif %}
       </div>
+        {% endif %}
       {% endfor %}
     </div>
     {% if slug == 'film' %}
