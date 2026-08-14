@@ -32,6 +32,12 @@
   display: none !important;
 }
 
+/* Do not flash the sport home while a direct launch is bootstrapping. */
+body[data-launch-mode="mp"] #home-screen,
+body[data-launch-mode="po"] #home-screen,
+body[data-launch-mode="bp"] #home-screen,
+body[data-launch-mode="fr"] #home-screen { display: none !important; }
+
 * { box-sizing: border-box; }
 
 html, body {

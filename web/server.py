@@ -73,7 +73,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.2.1"
+APP_VERSION = "0.2.2"
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
 # When running the local curation build we deliberately keep using SQLite so
@@ -4984,7 +4984,7 @@ def film_archive_summary():
             unit_payload = {
                 unit or "default": {
                     "success_rate": _film_success_rate(conn, sport, today, unit),
-                    "preview": _film_preview_cards(conn, sport, today, unit),
+                    "preview": [],
                     "streak": _film_streak(conn, guest_id, sport, unit),
                 }
                 for unit in units
