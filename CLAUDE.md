@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.2.3`
+- Current display version: `0.2.4`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -820,6 +820,12 @@ so the Film hub is usable before their data arrives. Multi-sport queue choices
 and Playoffs preferences are stored locally; `Find New Match` after a game
 entered from `/division` or `/playoffs` returns to that hub and resumes the
 same multi-sport search. Sport-page games retain their sport-page requeue flow.
+
+Update, 2026-08-14 (0.2.4): multi-sport matched-game redirects now fetch the
+game immediately with the stored guest id rather than waiting for profile
+bootstrap. Returning to a multi-sport mode hub with `Find New Match` preserves
+the selected sports and Playoffs condition choices but does not automatically
+requeue; the player can adjust the loadout and explicitly search again.
 
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.

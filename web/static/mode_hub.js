@@ -121,12 +121,6 @@ async function initHub() {
     }).catch(() => {});
   }
   configureSharedQueue();
-  const resume = sessionStorage.getItem(`tt_resume_multi_queue_${hub}`);
-  if (resume) {
-    sessionStorage.removeItem(`tt_resume_multi_queue_${hub}`);
-    const saved = JSON.parse(localStorage.getItem(`tt_multi_queue_${hub}`) || '{}');
-    if (Array.isArray(saved.sports) && saved.sports.length) queueForSports(saved.sports, saved.preferences || {});
-  }
 }
 initHub();
 

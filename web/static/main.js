@@ -1272,7 +1272,6 @@ async function requeueForNewMatch(message, options = {}) {
   }
   if (launchReturnPath === '/division' || launchReturnPath === '/playoffs') {
     const target = launchReturnPath;
-    sessionStorage.setItem(`tt_resume_multi_queue_${target.slice(1)}`, '1');
     launchReturnPath = '';
     window.location.assign(target);
     return;
@@ -2661,6 +2660,12 @@ async function handleQueryLaunch() {
 }
 
 if (CURRENT_SPORT && ['bp', 'fr'].includes(launchMode)) {
+  handleQueryLaunch();
+}
+
+// A multi-sport match already has a persisted guest id. Join immediately
+// instead of waiting for the nonessential profile refresh first.
+if (CURRENT_SPORT && launchGameId && ['mp', 'po'].includes(launchMode)) {
   handleQueryLaunch();
 }
 
