@@ -73,7 +73,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.2.0"
+APP_VERSION = "0.2.1"
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
 # When running the local curation build we deliberately keep using SQLite so
@@ -7453,7 +7453,20 @@ def multi_sport_queue(mode: str):
         avoid_guest_id = (data.get("avoid_guest_id") or "").strip() or None
         preferences = data.get("preferences") if isinstance(data.get("preferences"), dict) else {}
         with conn.transaction():
-            conn.execute("SELECT pg_advisory_xact_lock(4413000 + %s)", (0 if queue_mode == "dr" else 1,))
+            conn.execute("SELECT pg_advisory_xact_lock(4412000 + %s)", (0 if queue_mode == "dr" else 1,))
+            direct = conn.execute(
+                """SELECT guest_id::text, display_name, preference, sport_id
+                     FROM sport_online_queue
+                    WHERE mode=%s AND sport_id = ANY(%s) AND guest_id<>%s
+                    ORDER BY enqueued_at LIMIT 1 FOR UPDATE SKIP LOCKED""",
+                (queue_mode, sports, guest_id),
+            ).fetchone()
+            if direct:
+                opponent_id, opponent_name, opponent_preference, sport = direct
+                conn.execute("DELETE FROM sport_online_queue WHERE mode=%s AND guest_id=%s", (queue_mode, opponent_id))
+                game_id = _create_multisport_match(conn, sport, queue_mode, (opponent_id, opponent_name),
+                    (guest_id, display_name), {opponent_id: opponent_preference, guest_id: preferences.get(sport)})
+                return jsonify({"status":"matched","sport":sport,"game_id":game_id,"redirect":_multi_redirect(sport,queue_mode,game_id)})
             rows = conn.execute(
                 """SELECT guest_id::text, display_name, sports, preference
                      FROM multi_sport_queue
@@ -7555,6 +7568,18 @@ def sport_online_queue(sport: str, mode: str):
         name, avoid, preference = _guest_label(conn, guest), (data.get("avoid_guest_id") or "").strip() or None, data.get("win_condition_preference")
         with conn.transaction():
             conn.execute("SELECT pg_advisory_xact_lock(4412000 + %s)", (0 if mode == "dr" else 1,))
+            multi = conn.execute(
+                """SELECT guest_id::text, display_name, preference FROM multi_sport_queue
+                     WHERE mode=%s AND guest_id<>%s AND sports @> %s
+                     ORDER BY enqueued_at LIMIT 1 FOR UPDATE SKIP LOCKED""",
+                (mode, guest, Jsonb([sport])),
+            ).fetchone()
+            if multi:
+                oid, oname, oprefs = multi
+                conn.execute("DELETE FROM multi_sport_queue WHERE guest_id=%s", (oid,))
+                gid, blob, state = _sport_online_create(conn, sport, mode, (oid, oname), (guest, name),
+                    {oid: (oprefs or {}).get(sport), guest: preference})
+                return jsonify({"status":"matched", "game":_sport_online_state(conn,gid,blob,state,guest)})
             opp = conn.execute("""SELECT guest_id::text, display_name, preference FROM sport_online_queue
                                   WHERE sport_id=%s AND mode=%s AND guest_id<>%s
                                     AND (avoid_guest_id IS NULL OR avoid_guest_id<>CAST(%s AS uuid))

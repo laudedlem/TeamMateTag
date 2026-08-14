@@ -53,7 +53,7 @@
       </div>
         {% else %}
       <div class="mode-sport-choice">
-        <a class="sport-tile sport-tile-{{ key }}{% if slug == 'manager' %} manager-sport-tile{% elif slug == 'film' %} film-sport-tile{% endif %}" href="{% if slug == 'division' or slug == 'playoffs' %}#{% elif slug == 'manager' or slug == 'film' %}/{{ slug }}/{{ key }}{% else %}/{{ key }}?mode={{ hub.mode }}{% endif %}" data-sport="{{ key }}" {% if slug == 'division' or slug == 'playoffs' %}data-direct-queue-sport="{{ key }}"{% endif %}>
+        <a class="sport-tile sport-tile-{{ key }}{% if slug == 'manager' %} manager-sport-tile{% elif slug == 'film' %} film-sport-tile{% endif %}" href="{% if slug == 'division' %}/{{ key }}?mode=mp&source=division{% elif slug == 'playoffs' %}/{{ key }}?mode=po&source=playoffs{% elif slug == 'manager' or slug == 'film' %}/{{ slug }}/{{ key }}{% else %}/{{ key }}?mode={{ hub.mode }}{% endif %}" data-sport="{{ key }}">
           <span class="sport-tile-copy">
           <span class="sport-tile-league">{{ sport.league }}</span>
           <span class="sport-tile-name">{{ sport.name }}</span>

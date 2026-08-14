@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.2.0`
+- Current display version: `0.2.1`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -796,6 +796,15 @@ NFL, fixing a Baseball `/division` or `/playoffs` wait-state mismatch after a
 match is created. Hub-created multiplayer redirects now include
 `source=division` or `source=playoffs`, so exiting a hub-launched match can
 return to the proper mode page.
+
+Update, 2026-08-14 (0.2.1): direct sport tiles on `/division` and `/playoffs`
+now navigate to that sport's normal queue screen, preserving its single-sport
+queue, challenge-code, and Playoffs preference controls. The shared multi-sport
+queue and direct sport queues now match each other under the same per-mode
+advisory lock. A direct Hockey queue can therefore immediately match a
+Baseball/Hockey/Football multi-sport search on Hockey; the resulting game uses
+the existing sport page and game lifecycle. Verified this exact Division
+Rivalry scenario against the runtime configuration.
 
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.

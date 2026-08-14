@@ -367,14 +367,6 @@ function configureSharedQueue() {
     select.innerHTML = options.map(([value, label]) => `<option value="${value}">${label}</option>`).join('');
     select.value = localStorage.getItem('tt_hub_playoff_condition_' + sport) || 'random';
   });
-  document.querySelectorAll('[data-direct-queue-sport]').forEach((tile) => {
-    tile.addEventListener('click', async (event) => {
-      event.preventDefault();
-      const sport = tile.dataset.directQueueSport;
-      setQueueUi(true, `Searching ${sport}...`);
-      await queueForSports([sport], hub === 'playoffs' ? playoffPreferenceForSport(sport) : {});
-    });
-  });
   document.getElementById('shared-queue-btn')?.addEventListener('click', async () => {
     const sports = selectedSports();
     if (!sports.length) {
