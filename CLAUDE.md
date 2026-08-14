@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.2.2`
+- Current display version: `0.2.3`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -811,6 +811,15 @@ daily preview cards for all sports during page load, removing the largest
 source of repeat navigation delay. Direct mode and matched-game launches hide
 the sport home screen while the launch request bootstraps, preventing a visible
 flash of the sport mode tiles before the requested queue or game screen.
+
+Update, 2026-08-14 (0.2.3): Film hub archive rates are now fetched as one
+grouped aggregate per sport rather than one query per archive day, reducing
+runtime summary response from roughly 5.25 seconds to 1.5 seconds in the
+runtime check. Player preview cards load in a separate non-blocking request,
+so the Film hub is usable before their data arrives. Multi-sport queue choices
+and Playoffs preferences are stored locally; `Find New Match` after a game
+entered from `/division` or `/playoffs` returns to that hub and resumes the
+same multi-sport search. Sport-page games retain their sport-page requeue flow.
 
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.

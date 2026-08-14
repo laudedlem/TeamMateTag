@@ -110,8 +110,23 @@ async function initHub() {
   if (hub === 'film') {
     const summary = await post('/api/film/archive_summary', { guest_id: guestId });
     Object.entries(summary.sports || {}).forEach(([sport, data]) => renderFilmReviewHubSport(sport, data || {}));
+    post('/api/film/previews', {}).then((payload) => {
+      Object.entries(payload.previews || {}).forEach(([sport, units]) => {
+        if (sport === 'football') {
+          ['offense', 'defense'].forEach((unit) => renderFilmPreview(`football:${unit}`, { preview: units[unit] || [] }));
+        } else {
+          renderFilmPreview(sport, { preview: units.default || [] });
+        }
+      });
+    }).catch(() => {});
   }
   configureSharedQueue();
+  const resume = sessionStorage.getItem(`tt_resume_multi_queue_${hub}`);
+  if (resume) {
+    sessionStorage.removeItem(`tt_resume_multi_queue_${hub}`);
+    const saved = JSON.parse(localStorage.getItem(`tt_multi_queue_${hub}`) || '{}');
+    if (Array.isArray(saved.sports) && saved.sports.length) queueForSports(saved.sports, saved.preferences || {});
+  }
 }
 initHub();
 
@@ -330,6 +345,7 @@ async function handleQueueResponse(response) {
 async function queueForSports(sports, preferences = {}) {
   clearInterval(queuePoll);
   activeQueueSports = [...sports];
+  localStorage.setItem(`tt_multi_queue_${hub}`, JSON.stringify({ sports, preferences }));
   const response = await post(queueEndpoint('queue'), {
     guest_id: hubProfile?.guest_id || localStorage.getItem(guestKey) || '',
     sports,

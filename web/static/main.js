@@ -1270,6 +1270,13 @@ async function requeueForNewMatch(message, options = {}) {
       game_id: finishedGameId,
     });
   }
+  if (launchReturnPath === '/division' || launchReturnPath === '/playoffs') {
+    const target = launchReturnPath;
+    sessionStorage.setItem(`tt_resume_multi_queue_${target.slice(1)}`, '1');
+    launchReturnPath = '';
+    window.location.assign(target);
+    return;
+  }
   hideGameOverBanner();
   game = null;
   currentMode = onlineMode;

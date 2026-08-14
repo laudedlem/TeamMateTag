@@ -73,7 +73,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.2.2"
+APP_VERSION = "0.2.3"
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
 # When running the local curation build we deliberately keep using SQLite so
@@ -4885,6 +4885,22 @@ def _film_archive_days(conn, guest_id: str, sport: str) -> list[dict]:
             WHERE owner_guest_id=%s AND sport_id=%s""",
         (guest_id, sport),
     ).fetchall()}
+    rate_rows = conn.execute(
+        """SELECT puzzle_date, unit,
+                  COALESCE(SUM(CASE WHEN status='won' THEN 1 ELSE 0 END), 0),
+                  COALESCE(SUM(CASE WHEN status IN ('won','lost') THEN 1 ELSE 0 END), 0)
+             FROM film_review_daily_attempts
+            WHERE sport_id=%s
+            GROUP BY puzzle_date, unit""",
+        (sport,),
+    ).fetchall()
+    rates = {}
+    for puzzle_date, unit, wins, finished in rate_rows:
+        wins, finished = int(wins), int(finished)
+        rates[(puzzle_date, unit or "")] = {
+            "wins": wins, "finished": finished,
+            "percent": round((wins / finished) * 100) if finished else 0,
+        }
     days = []
     units = ["offense", "defense"] if sport == "football" else [""]
     for offset in range(min(60, max(1, (today - FILM_REVIEW_EPOCH).days + 1))):
@@ -4893,7 +4909,7 @@ def _film_archive_days(conn, guest_id: str, sport: str) -> list[dict]:
             break
         for unit in units:
             status, game_id = rows.get((puzzle_day, unit), ("unseen", None))
-            success_rate = _film_success_rate(conn, sport, puzzle_day, unit)
+            success_rate = rates.get((puzzle_day, unit), {"wins": 0, "finished": 0, "percent": 0})
             days.append({"date": puzzle_day.isoformat(), "number": _film_review_number(puzzle_day),
                          "status": status, "game_id": game_id, "is_today": puzzle_day == today,
                          "unit": unit, "success_rate": success_rate})
@@ -4995,6 +5011,18 @@ def film_archive_summary():
                 "today": unit_payload,
             }
         return jsonify({"sports": payload})
+
+
+@app.route("/api/film/previews", methods=["POST"])
+def film_previews():
+    ensure_runtime_schema()
+    today = datetime.now(CENTRAL_TIME).date()
+    with db() as conn:
+        payload = {}
+        for sport in ("baseball", "basketball", "hockey", "football"):
+            units = ("offense", "defense") if sport == "football" else ("",)
+            payload[sport] = {unit or "default": _film_preview_cards(conn, sport, today, unit) for unit in units}
+    return jsonify({"previews": payload})
 
 
 @app.route("/api/dr/queue", methods=["POST"])
