@@ -1033,6 +1033,15 @@ sport, player ID, display name, career years, current audit status, and review
 note. Use this file for targeted source research and user playtest feedback;
 do not rely on a stale one-off terminal list.
 
+Small community CSV pass, 2026-08-15: the IvoVillanueva MLB and NHL roster
+repositories were assessed. They are current-roster-oriented rather than
+historical maps, matching only 8 active baseball gaps and 15 hockey gaps.
+`scripts/import_small_community_headshots.py` byte-validated and promoted 7
+baseball and 15 hockey URLs as `Community roster CSV`, again marked
+playtest-only pending source/license review. Current status after this pass:
+baseball 4,863 verified / 2,305 unresolved; basketball 2,463 / 103; football
+10,577 / 4,659; hockey 3,318 / 1,272.
+
 Retention policy, 2026-08-15: preserve every completed ESPN catalog page under
 `raw/espn_<league>_athlete_pages/`, including athletes outside the current
 2000-present playable catalog. These identity files are a future expansion
