@@ -12,6 +12,7 @@ import csv
 import hashlib
 import io
 import sys
+import threading
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
@@ -26,6 +27,7 @@ import server  # noqa: E402
 
 REPORT = ROOT / "raw" / "headshot_audit_report.csv"
 USER_AGENT = "TeamMateTag headshot audit/1.0 (local verification)"
+_thread_local = threading.local()
 KNOWN_PLACEHOLDER_URLS = {
     "baseball": [server.HEADSHOT_URL.format(150411)],  # Brian Schneider silhouette
     "basketball": ["https://cdn.nba.com/headshots/nba/latest/1040x760/2557.png"],  # Luke Ridnour silhouette
@@ -52,7 +54,14 @@ def fetch(url: str | None) -> dict:
     if not url:
         return {"status": "missing", "error": "no candidate URL"}
     try:
-        response = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=8)
+        # Reuse a connection per worker. A full audit makes tens of thousands
+        # of requests; creating a new TLS connection for each one is needless.
+        session = getattr(_thread_local, "session", None)
+        if session is None:
+            session = requests.Session()
+            session.headers.update({"User-Agent": USER_AGENT})
+            _thread_local.session = session
+        response = session.get(url, timeout=8)
         content = response.content
         if response.status_code != 200:
             return {"status": "missing", "error": f"HTTP {response.status_code}"}
@@ -97,8 +106,28 @@ def main() -> None:
     parser.add_argument("--offset", type=int, default=0, help="Skip this many eligible rows before applying --limit.")
     parser.add_argument("--sport", choices=("baseball", "basketball", "football", "hockey"))
     parser.add_argument("--force", action="store_true", help="Recheck manually reviewed records too.")
+    parser.add_argument("--reclassify-duplicates", action="store_true",
+                        help="Mark every byte-identical image shared by multiple players as a placeholder.")
     args = parser.parse_args()
     server.ensure_runtime_schema()
+    if args.reclassify_duplicates:
+        with server.db() as conn:
+            rows = conn.execute(
+                """SELECT sport_id, content_sha256 FROM player_headshots
+                   WHERE content_sha256 IS NOT NULL
+                   GROUP BY sport_id, content_sha256 HAVING COUNT(*) > 1"""
+            ).fetchall()
+            changed = 0
+            for sport, digest in rows:
+                changed += conn.execute(
+                    """UPDATE player_headshots SET status='placeholder',
+                           review_note='Byte-identical image shared by multiple players; requires replacement.'
+                       WHERE sport_id=%s AND content_sha256=%s
+                         AND status IN ('verified', 'duplicate')""",
+                    (sport, digest),
+                ).rowcount
+        print(f"Marked {changed:,} shared-image records as placeholders.")
+        return
     with server.db() as conn:
         rows = candidates(conn)
         reviewed = {(sport, player_id): status for sport, player_id, status in conn.execute(
