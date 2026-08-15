@@ -900,6 +900,17 @@ worker and can reclassify a byte-identical image shared by multiple players as
 a placeholder. Continue the remaining football batches before treating any
 candidate URL as usable coverage.
 
+The full 15,236-player football scan was completed the same day. Before
+fallbacks it found 7,164 distinct images, 7,385 placeholders, and 687 missing
+responses. `scripts/resolve_nfl_espn_headshots.py` tested the ESPN identity
+from nflverse for every flagged player and promoted 1,737 additional unique
+portraits only after byte-level validation. Current coverage is 8,901 verified
+photos, 5,655 placeholders, and 680 missing responses. The unresolved set is
+intentionally suppressed in player cards, never displayed as a generic NFL
+headshot. `scripts/apply_verified_runtime_headshots.py` records hand-verified
+runtime exceptions, currently Devin Hester and Mike Brown; rerun it after any
+future forced audit. Trent Cole and Clifton Geathers are verified ESPN images.
+
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.
   This explains the Firefox failure and can also affect Chrome when its cache
