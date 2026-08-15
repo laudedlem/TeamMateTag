@@ -73,7 +73,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.2.4"
+APP_VERSION = "0.2.5"
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
 # When running the local curation build we deliberately keep using SQLite so
@@ -186,6 +186,7 @@ LOCAL_DR_POSTGAME_EXITS: dict[str, set[str]] = {}
 LOCAL_DR_LOCK = Lock()
 LOCAL_PO_GAMES: dict[str, dict] = {}
 LOCAL_PO_QUEUE: dict[str, list[dict]] = {sport: [] for sport in LOCAL_SPORT_SEEDS}
+LOCAL_RANDOM_PLAYOFF_HISTORY: dict[tuple[str, str], list[str]] = {}
 LOCAL_PO_MATCH_BY_PLAYER: dict[tuple[str, str], str] = {}
 LOCAL_PO_REMATCH_REQUESTS: dict[str, set[str]] = {}
 LOCAL_PO_REMATCH_LINKS: dict[str, str] = {}
@@ -825,6 +826,19 @@ def ensure_runtime_schema():
             )
             conn.execute("CREATE INDEX IF NOT EXISTS idx_sport_online_queue ON sport_online_queue(sport_id, mode, enqueued_at)")
             conn.execute(
+                """CREATE TABLE IF NOT EXISTS guest_random_playoff_conditions (
+                       event_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                       guest_id UUID NOT NULL REFERENCES guests(guest_id) ON DELETE CASCADE,
+                       sport_id TEXT NOT NULL REFERENCES sports(sport_id),
+                       condition_key TEXT NOT NULL,
+                       assigned_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                   )"""
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_guest_random_playoff_conditions_recent "
+                "ON guest_random_playoff_conditions(guest_id, sport_id, assigned_at DESC)"
+            )
+            conn.execute(
                 """CREATE TABLE IF NOT EXISTS sport_online_rematches (
                        original_game_id UUID NOT NULL REFERENCES sport_online_games(game_id) ON DELETE CASCADE,
                        requester_guest_id UUID NOT NULL REFERENCES guests(guest_id) ON DELETE CASCADE,
@@ -1441,6 +1455,25 @@ def _random_playoff_win_condition() -> str:
     return secrets.choice(list(PLAYOFF_WIN_CONDITIONS.keys()))
 
 
+def _random_playoff_condition_for_guest(conn, guest_id: str, sport: str, conditions: dict) -> str:
+    """Choose randomly without immediately recycling a guest's recent draw."""
+    rows = conn.execute(
+        """SELECT condition_key FROM guest_random_playoff_conditions
+             WHERE guest_id = %s AND sport_id = %s
+             ORDER BY assigned_at DESC LIMIT 3""",
+        (guest_id, sport),
+    ).fetchall()
+    recent = {row[0] for row in rows}
+    options = [key for key in conditions if key not in recent] or list(conditions)
+    choice = secrets.choice(options)
+    conn.execute(
+        """INSERT INTO guest_random_playoff_conditions (guest_id, sport_id, condition_key)
+             VALUES (%s, %s, %s)""",
+        (guest_id, sport, choice),
+    )
+    return choice
+
+
 def _normalized_playoff_preference(value: str | None) -> str:
     value = (value or "random").strip()
     return value if value in PLAYOFF_WIN_CONDITIONS else "random"
@@ -1452,7 +1485,8 @@ def _playoff_condition_for_guest(conn, guest_id: str) -> str:
         (guest_id,),
     ).fetchone()
     preference = _normalized_playoff_preference(row[0] if row else None)
-    return _random_playoff_win_condition() if preference == "random" else preference
+    return (_random_playoff_condition_for_guest(conn, guest_id, "baseball", PLAYOFF_WIN_CONDITIONS)
+            if preference == "random" else preference)
 
 
 def _save_playoff_preference(conn, guest_id: str, value: str | None) -> str:
@@ -1669,13 +1703,14 @@ def _playoff_qualification_rows(conn, current_player_id: str, candidate_player_i
               AND t.season = q.season
             WHERE q.player_id = %s
               AND q.powerup_key = %s
+              AND q.season >= 2000
               AND q.franchise_id IN (
                     SELECT DISTINCT tm.franchise_id
                       FROM appearances a
                       JOIN teams tm
                         ON tm.team_id = a.team_id
                        AND tm.season = a.season
-                     WHERE a.player_id = %s
+                     WHERE a.player_id = %s AND a.season >= 2000
               )
             ORDER BY q.season, q.team_id""",
         (candidate_player_id, powerup_key, current_player_id),
@@ -2086,7 +2121,7 @@ def _hydrate_player_cards(conn, player_ids: list[str]) -> dict[str, dict]:
             """SELECT a.player_id, a.season, t.name
                  FROM appearances a
                  JOIN teams t ON t.team_id = a.team_id AND t.season = a.season
-                WHERE a.player_id = ANY(%s)
+                WHERE a.player_id = ANY(%s) AND a.season >= 2000
                 ORDER BY a.player_id, a.season, t.team_id""",
             (missing,),
         ).fetchall()
@@ -2111,7 +2146,7 @@ def _hydrate_player_cards(conn, player_ids: list[str]) -> dict[str, dict]:
             card = {
                 "mlbam_id": mlbam_id,
                 "headshot_url": HEADSHOT_URL.format(mlbam_id) if mlbam_id else None,
-                "debut_year": debut_year,
+                "debut_year": max(debut_year or 2000, 2000),
                 "final_year": final_year,
                 "teams": teams_list,
                 "name_first": first,
@@ -3062,7 +3097,8 @@ def _local_sport_cards(conn: sqlite3.Connection, sport: str, player_ids: list[st
         appearances = conn.execute(
             """SELECT DISTINCT t.name, a.season FROM sport_appearances a
                  JOIN sport_teams t ON t.sport_id = a.sport_id AND t.team_id = a.team_id AND t.season = a.season
-                WHERE a.sport_id = ? AND a.player_id = ? ORDER BY a.season, t.name""",
+                WHERE a.sport_id = ? AND a.player_id = ? AND a.season >= 2000
+                ORDER BY a.season, t.name""",
             (sport, player_id),
         ).fetchall()
         spans_by_team = {}
@@ -3097,7 +3133,7 @@ def _local_sport_cards(conn: sqlite3.Connection, sport: str, player_ids: list[st
             headshot = f"/api/local/headshot/{sport}/{player_id}"
         out[player_id] = {
             "mlbam_id": None, "headshot_url": headshot,
-            "debut_year": row[1] if row else None, "final_year": row[2] if row else None,
+            "debut_year": max(row[1] or 2000, 2000) if row else None, "final_year": row[2] if row else None,
             "name_first": row[3] if row else None, "name_last": row[4] if row else None,
             "primary_pos": ({"R": "RW", "L": "LW", "D": "D"}.get(row[5], row[5]) if row else None), "teams": teams,
         }
@@ -3185,7 +3221,7 @@ def _sport_cards(conn, sport: str, player_ids: list[str]) -> dict[str, dict]:
              FROM sport_appearances a
              JOIN sport_teams t ON t.sport_id=a.sport_id
                AND t.team_id=a.team_id AND t.season=a.season
-            WHERE a.sport_id=%s AND a.player_id = ANY(%s)
+            WHERE a.sport_id=%s AND a.player_id = ANY(%s) AND a.season >= 2000
             ORDER BY a.player_id, a.season, t.name""",
         (sport, missing),
     ).fetchall()
@@ -3219,7 +3255,7 @@ def _sport_cards(conn, sport: str, player_ids: list[str]) -> dict[str, dict]:
         card = {
             "mlbam_id": None,
             "headshot_url": headshot_url,
-            "debut_year": debut,
+            "debut_year": max(debut or 2000, 2000),
             "final_year": final,
             "name_first": first,
             "name_last": last,
@@ -3506,7 +3542,8 @@ def local_sport_autocomplete(sport: str):
         rows = conn.execute(
             """SELECT p.player_id, p.display_name, sp.debut_year, sp.final_year, p.career_games
                  FROM sport_players_searchable p JOIN sport_players sp ON sp.sport_id = p.sport_id AND sp.player_id = p.player_id
-                WHERE p.sport_id = ? AND (p.search_key LIKE ? OR p.last_key LIKE ?)
+                WHERE p.sport_id = ? AND sp.final_year >= 2000
+                  AND (p.search_key LIKE ? OR p.last_key LIKE ?)
                 ORDER BY p.career_games DESC LIMIT 4""",
             (sport, normalized + "%", normalized + "%"),
         ).fetchall()
@@ -4022,7 +4059,14 @@ def _local_po_create_game(sport: str, first: dict, second: dict, preferences: di
     preferences = preferences or {}
     def selected(player: dict) -> str:
         preference = preferences.get(player["guest_id"], "random")
-        return preference if preference in conditions else secrets.choice(list(conditions))
+        if preference in conditions:
+            return preference
+        history_key = (player["guest_id"], sport)
+        recent = LOCAL_RANDOM_PLAYOFF_HISTORY.get(history_key, [])[-3:]
+        options = [key for key in conditions if key not in recent] or list(conditions)
+        choice = secrets.choice(options)
+        LOCAL_RANDOM_PLAYOFF_HISTORY[history_key] = (recent + [choice])[-3:]
+        return choice
     with _local_sport_conn() as conn:
         state = seed_game(conn, LOCAL_SPORT_SEEDS[sport], sport=sport)
     game_id = str(uuid.uuid4())
@@ -4055,7 +4099,10 @@ def _local_po_status(sport: str, guest_id: str) -> dict:
 
 def _local_po_pick(conn: sqlite3.Connection, sport: str, raw: str, player_id: str | None) -> tuple[str | None, str | None, str | None, int]:
     if player_id:
-        row = conn.execute("SELECT display_name, disambiguation FROM sport_players_searchable WHERE sport_id=? AND player_id=?", (sport, player_id)).fetchone()
+        row = conn.execute("""SELECT p.display_name, p.disambiguation
+                              FROM sport_players_searchable p
+                              JOIN sport_players sp ON sp.sport_id=p.sport_id AND sp.player_id=p.player_id
+                             WHERE p.sport_id=? AND p.player_id=? AND sp.final_year >= 2000""", (sport, player_id)).fetchone()
         return (player_id, row[0], row[1], 1) if row else (None, None, None, 0)
     matches = find_player_by_name(conn, raw, sport=sport)
     return (matches[0][0], matches[0][1], matches[0][2], len(matches)) if matches else (None, None, None, 0)
@@ -4072,7 +4119,7 @@ def _local_po_powerup_move(conn: sqlite3.Connection, game: dict, raw: str, playe
     current_franchises = {row[0] for row in conn.execute(
         """SELECT DISTINCT t.franchise_id FROM sport_appearances a JOIN sport_teams t
                ON t.sport_id=a.sport_id AND t.team_id=a.team_id AND t.season=a.season
-             WHERE a.sport_id=? AND a.player_id=?""", (sport, state.current_player_id))}
+             WHERE a.sport_id=? AND a.player_id=? AND a.season >= 2000""", (sport, state.current_player_id))}
     traits = _local_po_traits(conn, sport, candidate_id)
     eligible = bool(current_franchises)
     if meta["kind"] == "veteran":
@@ -4089,7 +4136,8 @@ def _local_po_powerup_move(conn: sqlite3.Connection, game: dict, raw: str, playe
     rows = conn.execute(
         """SELECT a.team_id, a.season FROM sport_appearances a JOIN sport_teams t
                ON t.sport_id=a.sport_id AND t.team_id=a.team_id AND t.season=a.season
-             WHERE a.sport_id=? AND a.player_id=? AND t.franchise_id IN ({}) ORDER BY a.season, a.team_id""".format(
+             WHERE a.sport_id=? AND a.player_id=? AND a.season >= 2000
+               AND t.franchise_id IN ({}) ORDER BY a.season, a.team_id""".format(
             ",".join("?" for _ in current_franchises)), (sport, candidate_id, *sorted(current_franchises))).fetchall()
     available = [(team, season) for team, season in rows if not state.is_burned((team, season))]
     if not available:
@@ -4295,18 +4343,18 @@ def autocomplete():
                   SELECT ps.player_id, ps.display_name, p.debut_year, p.final_year, ps.career_games
                     FROM players_searchable ps
                     JOIN players p ON p.player_id = ps.player_id
-                   WHERE ps.search_key LIKE %s || '%%'
+                   WHERE ps.search_key LIKE %s || '%%' AND p.final_year >= 2000
                   UNION
                   SELECT ps.player_id, ps.display_name, p.debut_year, p.final_year, ps.career_games
                     FROM players_searchable ps
                     JOIN players p ON p.player_id = ps.player_id
-                   WHERE ps.last_key LIKE %s || '%%'
+                   WHERE ps.last_key LIKE %s || '%%' AND p.final_year >= 2000
                   UNION
                   SELECT ps.player_id, ps.display_name, p.debut_year, p.final_year, ps.career_games
                     FROM players_searchable ps
                     JOIN players p ON p.player_id = ps.player_id
                     JOIN nickname_search ns ON ns.player_id = ps.player_id
-                   WHERE ns.nickname_key LIKE %s || '%%'
+                   WHERE ns.nickname_key LIKE %s || '%%' AND p.final_year >= 2000
                 ) AS u
                 ORDER BY career_games DESC
                 LIMIT 4""",
@@ -6378,7 +6426,8 @@ def sport_autocomplete(sport: str):
             """SELECT p.player_id, p.display_name, sp.debut_year, sp.final_year, p.career_games
                  FROM sport_players_searchable p
                  JOIN sport_players sp ON sp.sport_id=p.sport_id AND sp.player_id=p.player_id
-                WHERE p.sport_id=%s AND (p.search_key LIKE %s OR p.last_key LIKE %s)
+                WHERE p.sport_id=%s AND sp.final_year >= 2000
+                  AND (p.search_key LIKE %s OR p.last_key LIKE %s)
                 ORDER BY p.career_games DESC LIMIT 4""",
             (sport, q + "%", q + "%"),
         ).fetchall()
@@ -7366,7 +7415,11 @@ def _sport_online_create(conn, sport: str, mode: str, a: tuple[str, str], b: tup
     if mode == "po":
         conditions = PLAYOFF_WIN_CONDITIONS if sport == "baseball" else LOCAL_PLAYOFF_CONFIG[sport]["conditions"]
         preferences = preferences or {}
-        choose = lambda gid: preferences.get(gid) if preferences.get(gid) in conditions else secrets.choice(list(conditions))
+        def choose(guest_id: str) -> str:
+            preferred = preferences.get(guest_id)
+            if preferred in conditions:
+                return preferred
+            return _random_playoff_condition_for_guest(conn, guest_id, sport, conditions)
         blob.update({"active_turn_powerup": None, "next_turn_seconds_override": None, "turn_powerup_used": False,
                      "p1_powerup_used_keys": [], "p2_powerup_used_keys": [],
                      "p1_win_condition_key": choose(p1_id), "p2_win_condition_key": choose(p2_id),

@@ -31,6 +31,9 @@ from name_normalize import normalize  # noqa: E402
 
 STRIKES_TO_BURN = 3
 TURN_SECONDS = 30.0
+# Historical records stay in the dataset, but live play currently uses the
+# modern era. A future historical mode can lower this without a data reload.
+MIN_GAMEPLAY_SEASON = 2000
 
 
 class MoveOutcome(Enum):
@@ -88,8 +91,12 @@ def find_player_by_name(conn: sqlite3.Connection, raw: str, sport: str | None = 
             """SELECT player_id, display_name, disambiguation, career_games
                  FROM sport_players_searchable
                 WHERE sport_id = ? AND search_key = ?
+                  AND EXISTS (SELECT 1 FROM sport_appearances a
+                              WHERE a.sport_id = sport_players_searchable.sport_id
+                                AND a.player_id = sport_players_searchable.player_id
+                                AND a.season >= ?)
                 ORDER BY career_games DESC""",
-            (sport, q),
+            (sport, q, MIN_GAMEPLAY_SEASON),
         ).fetchall()
         if rows:
             return rows
@@ -97,15 +104,22 @@ def find_player_by_name(conn: sqlite3.Connection, raw: str, sport: str | None = 
             """SELECT player_id, display_name, disambiguation, career_games
                  FROM sport_players_searchable
                 WHERE sport_id = ? AND last_key = ?
+                  AND EXISTS (SELECT 1 FROM sport_appearances a
+                              WHERE a.sport_id = sport_players_searchable.sport_id
+                                AND a.player_id = sport_players_searchable.player_id
+                                AND a.season >= ?)
                 ORDER BY career_games DESC""",
-            (sport, q),
+            (sport, q, MIN_GAMEPLAY_SEASON),
         ).fetchall()
     rows = conn.execute(
         """SELECT player_id, display_name, disambiguation, career_games
              FROM players_searchable
             WHERE search_key = ?
+              AND EXISTS (SELECT 1 FROM appearances a
+                          WHERE a.player_id = players_searchable.player_id
+                            AND a.season >= ?)
             ORDER BY career_games DESC""",
-        (q,),
+        (q, MIN_GAMEPLAY_SEASON),
     ).fetchall()
     if rows:
         return rows
@@ -114,12 +128,20 @@ def find_player_by_name(conn: sqlite3.Connection, raw: str, sport: str | None = 
              FROM nickname_search ns
              JOIN players_searchable ps ON ps.player_id = ns.player_id
             WHERE ns.nickname_key = ?
+              AND EXISTS (SELECT 1 FROM appearances a
+                          WHERE a.player_id = ps.player_id AND a.season >= ?)
             ORDER BY ps.career_games DESC""",
-        (q,),
+        (q, MIN_GAMEPLAY_SEASON),
     ).fetchall()
 
 
-def get_shared_seasons(conn: sqlite3.Connection, a: str, b: str, sport: str | None = None) -> list[tuple[str, int]]:
+def get_shared_seasons(
+    conn: sqlite3.Connection,
+    a: str,
+    b: str,
+    sport: str | None = None,
+    min_season: int = MIN_GAMEPLAY_SEASON,
+) -> list[tuple[str, int]]:
     if a == b:
         return []
     if sport:
@@ -129,8 +151,9 @@ def get_shared_seasons(conn: sqlite3.Connection, a: str, b: str, sport: str | No
                  JOIN sport_appearances b
                    ON b.sport_id = a.sport_id AND b.team_id = a.team_id AND b.season = a.season
                 WHERE a.sport_id = ? AND a.player_id = ? AND b.player_id = ?
+                  AND a.season >= ?
                 ORDER BY a.season, a.team_id""",
-            (sport, a, b),
+            (sport, a, b, min_season),
         ).fetchall()
         return [(t, s) for t, s in rows]
     rows = conn.execute(
@@ -138,9 +161,9 @@ def get_shared_seasons(conn: sqlite3.Connection, a: str, b: str, sport: str | No
              FROM appearances a
              JOIN appearances b
                ON b.team_id = a.team_id AND b.season = a.season
-            WHERE a.player_id = ? AND b.player_id = ?
+            WHERE a.player_id = ? AND b.player_id = ? AND a.season >= ?
             ORDER BY a.season, a.team_id""",
-        (a, b),
+        (a, b, min_season),
     ).fetchall()
     return [(t, s) for t, s in rows]
 

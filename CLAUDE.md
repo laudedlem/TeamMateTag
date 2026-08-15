@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.2.4`
+- Current display version: `0.2.5`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -826,6 +826,15 @@ game immediately with the stored guest id rather than waiting for profile
 bootstrap. Returning to a multi-sport mode hub with `Find New Match` preserves
 the selected sports and Playoffs condition choices but does not automatically
 requeue; the player can adjust the loadout and explicitly search again.
+
+Update, 2026-08-14 (0.2.5): all active game modes now enforce a modern-era
+floor of 2000 for autocomplete eligibility and teammate links across MLB, NBA,
+NHL, and NFL. Historical records remain in the catalog for a later expansion,
+but a pre-2000-only player or a pre-2000 teammate connection cannot be used
+today. Random Playoffs assignments now exclude each guest's three most recent
+random conditions within the same sport; explicit condition choices are not
+altered. The local SQLite playtest path applies the same recent-repeat rule
+for its in-memory session.
 
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.
