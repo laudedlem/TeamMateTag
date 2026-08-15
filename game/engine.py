@@ -100,6 +100,21 @@ def find_player_by_name(conn: sqlite3.Connection, raw: str, sport: str | None = 
         ).fetchall()
         if rows:
             return rows
+        rows = conn.execute(
+            """SELECT s.player_id, s.display_name, s.disambiguation, s.career_games
+                 FROM sport_player_aliases a
+                 JOIN sport_players_searchable s
+                   ON s.sport_id = a.sport_id AND s.player_id = a.player_id
+                WHERE a.sport_id = ? AND a.alias_key = ?
+                  AND EXISTS (SELECT 1 FROM sport_appearances ap
+                              WHERE ap.sport_id = s.sport_id
+                                AND ap.player_id = s.player_id
+                                AND ap.season >= ?)
+                ORDER BY s.career_games DESC""",
+            (sport, q, MIN_GAMEPLAY_SEASON),
+        ).fetchall()
+        if rows:
+            return rows
         return conn.execute(
             """SELECT player_id, display_name, disambiguation, career_games
                  FROM sport_players_searchable

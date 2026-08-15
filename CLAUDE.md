@@ -1185,54 +1185,49 @@ Review workflow for manual replacements:
   separate verified record. Kevin Youkilis is now verified under both legacy
   source IDs and no longer appears in the sheet.
 
-Important unfinished work: NHL source-identity consolidation.
-- User correctly found stale truncated records in the NHL review sheet:
-  `hdb:grzelma01` is `Matthew Grzelcyk` with only Boston 2016-17, while
-  `nhl:8476891` is the same player as `Matt Grzelcyk` with the current career
-  through Pittsburgh 2024. Likewise `hdb:blaissa01` (`Samuel Blais`, only
-  2017) and `nhl:8478104` (`Sammy Blais`, through 2022) are the same player.
-  The official NHL IDs are the canonical runtime records; Hockey Databank alias
-  rows must not remain independently playable.
-- A strict inspection query found 80 safe NHL alias pairs. Each pair has the
-  same birth year, same surname, same first initial, at least one overlapping
-  canonical team-season, and compatible position family. Examples include
-  Alex/Alexander Steen, Matt/Matthew Grzelcyk, Sammy/Samuel Blais, Mike/Michael
-  Danton, and transliterations such as Andrei/Andrey Zubarev. This rule keeps
-  distinct same-name players separate, including the two Sebastian Ahos.
-- `scripts/synchronize_duplicate_headshot_aliases.py` currently only copies a
-  verified headshot from one known duplicate source ID to another. It does NOT
-  consolidate teammate/player data. It uses exact identity signatures, and was
-  updated to normalize Hockey Databank team code prefixes and `WAS -> WSH`,
-  `CBS -> CBJ`, plus `L -> LW` and `R -> RW` for audit grouping.
-- Next implementation: add a dedicated, transaction-safe NHL canonicalization
-  script. For each of the reviewed 80 HDB -> NHL pairs, merge HDB appearances
-  into the canonical `nhl:<id>` record with
-  `INSERT ... ON CONFLICT (sport_id, player_id, team_id, season) DO UPDATE SET
-  games_total=GREATEST(...)`; preserve alternate spellings in
-  `sport_player_aliases`; rebuild `sport_players_searchable` and relevant
-  player-card/search caches; migrate or recompute positions/traits carefully;
-  then remove or exclude the HDB alias record so it cannot appear in game,
-  autocomplete, Film Review, or headshot sheets. Inspect all dependent tables
-  first. `sport_appearances`, `sport_player_aliases`, `sport_player_images`,
-  `sport_player_positions`, `sport_player_season_traits`, `sport_player_traits`,
-  `sport_players_searchable`, `sport_teammates`, `player_headshots`,
-  `player_headshot_source_attempts`, `manager_daily_starters`, and
-  `sport_player_usage` may contain a `sport_id` + `player_id` reference.
-  `sport_teammates` is currently empty, while `sport_player_aliases` was empty
-  before this cleanup. Do not delete source rows until those dependencies are
-  handled.
-- The alias problem arose because `scripts/supplement_hockeydb_history.py`
-  initially matched only exact normalized names. Its `find_existing_player`
-  function failed on legitimate nickname/transliteration variants, creating
-  parallel `hdb:*` records. Update this loader or add a post-import canonical
-  pass so future refreshes cannot reintroduce aliases.
-- Game search for non-baseball sports currently relies on
-  `sport_players_searchable` exact `search_key` / `last_key` in
-  `game/engine.py`; `sport_player_aliases` is not currently used by that
-  non-baseball branch. The canonicalization pass should add alias-key lookup to
-  `game.engine.find_player_by_name` and the matching Flask autocomplete query,
-  so inputs such as Matt/Matthew and Sammy/Samuel both find the canonical NHL
-  player. This is required to protect real gameplay, not only headshot audits.
+Completed identity cleanup, 2026-08-15:
+- `scripts/canonicalize_sport_player_aliases.py` is the production repair pass
+  for source-level duplicate sport players and nickname aliases. It writes
+  `raw/sport_player_alias_canonicalization.csv` on dry run and applies changes
+  only with `--apply`.
+- Production NHL cleanup merged 89 Hockey Databank alias records into canonical
+  official `nhl:<id>` player records. Examples now resolved: Matthew/Matt
+  Grzelcyk, Samuel/Sammy Blais, Alex/Alexander Steen, Dmitri/Dmitry Orlov,
+  John/Johnny Gaudreau, Michael/Mike Matheson, Evgeny/Evgenii Dadonov, and
+  Anthony/Tony DeAngelo. A final dry run now reports zero NHL merge candidates.
+- The same script normalized 1,116 HockeyDB source-team appearances from old
+  source codes such as `hdb:CAL`, `hdb:FLO`, `hdb:WAS`, `hdb:CBS`, `hdb:NAS`,
+  `hdb:AND`, `hdb:VEG`, and `hdb:PHO` into the runtime team IDs used by the
+  game where the target team-season exists.
+- `sport_player_aliases` now has 8,849 alias rows. Non-baseball move lookup in
+  `game/engine.py` and both local/production sport autocomplete endpoints in
+  `web/server.py` now consult this table. Verified examples:
+  `Matthew Grzelcyk`, `Samuel Blais`, `Anthony DeAngelo`, `Dmitri Orlov`,
+  `John Gaudreau`, `Michael Matheson`, and `Evgeny Dadonov` all return the
+  canonical NHL player.
+- `scripts/supplement_hockeydb_history.py` was patched so future HockeyDB
+  refreshes understand common nickname/formal-name variants and should not
+  recreate these duplicate `hdb:*` player rows.
+
+Headshot cleanup snapshot after the identity pass:
+- Current unresolved review sheet:
+  `raw/headshot_submissions_current.csv`, 4,699 active rows.
+- Baseball: 5,150 verified, 87 placeholder. Five additional OOTP images were
+  manually matched and published to Supabase Storage: Jerry Hairston Jr,
+  Abraham Nunez, Craig Wilson, Ramon Castro, and Delino DeShields Jr.
+- Basketball: 2,472 verified, 94 placeholder. A focused TheSportsDB pass checked
+  25 unresolved NBA rows and promoted 9 validated portraits.
+- Hockey: 4,351 verified, 12 missing, 138 placeholder. The remaining prominent
+  gaps are now mostly real HockeyDB-only or NHL-placeholder records, not the
+  large nickname/source split that existed before this pass.
+- Football: 10,863 verified, 666 missing, 3,707 placeholder. The top remaining
+  prominent gaps, such as David Harris, Charles Johnson, Adam Jones, and Grady
+  Jackson, are still ESPN/nflverse placeholder responses and need another
+  source strategy.
+- Important current-season data gap: public NHL sources show Matt Grzelcyk had
+  a 2025-26 Chicago Blackhawks stint, but the runtime catalog still shows his
+  canonical NHL row through Pittsburgh 2024. Treat this as a current-season
+  hockey data refresh issue, separate from the alias merge.
 
 Latest code/data commits, all pushed to `main`:
 - `f45d23d` Add production MLB headshot publisher.

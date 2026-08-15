@@ -20,6 +20,14 @@ from name_normalize import normalize  # noqa: E402
 ARCHIVE = ROOT / "raw" / "ootp" / "COFacepackV18.zip"
 EXTRACTED = ROOT / "raw" / "ootp" / "matched_mlb_headshots"
 REPORT = ROOT / "raw" / "ootp_mlb_playtest_headshots.csv"
+MANUAL_FILENAME_OVERRIDES = {
+    # Lahman omits suffixes in these display names, while OOTP includes them.
+    "hairsje02": "Jerry Hairston Jr",
+    "nunezab01": "Abraham Nunez",
+    "wilsocr03": "Craig Wilson",
+    "castrra01": "Ramon Castro",
+    "deshide01": "Delino DeShields Jr",
+}
 
 
 def main() -> None:
@@ -43,6 +51,14 @@ def main() -> None:
                    if len(candidates := by_name.get(normalize(name), [])) == 1
                    and (local_names[normalize(name)] == 1
                         or (retro_id and name_retro_ids[normalize(name)] == {retro_id}))]
+        matched_ids = {player_id for player_id, _name, _info in matches}
+        for player_id, name, _retro_id in players:
+            if player_id in matched_ids or player_id not in MANUAL_FILENAME_OVERRIDES:
+                continue
+            candidates = by_name.get(normalize(MANUAL_FILENAME_OVERRIDES[player_id]), [])
+            if len(candidates) == 1:
+                matches.append((player_id, name, candidates[0]))
+                matched_ids.add(player_id)
         EXTRACTED.mkdir(parents=True, exist_ok=True)
         records=[]
         for player_id, name, info in matches:

@@ -40,6 +40,44 @@ TEAM_NAMES = {
     "VAN": "Vancouver Canucks", "VGK": "Vegas Golden Knights", "WPG": "Winnipeg Jets", "WSH": "Washington Capitals",
 }
 
+FIRST_NAME_GROUPS = [
+    ("alex", "alexander", "alexandre", "aleksander"),
+    ("andrei", "andrey"),
+    ("anthony", "tony"),
+    ("ben", "benjamin"),
+    ("cal", "calvin"),
+    ("cam", "cameron"),
+    ("chris", "christopher", "kris", "kristopher"),
+    ("dan", "danny", "daniel"),
+    ("dave", "david"),
+    ("denis", "dj", "d j"),
+    ("dimitri", "dmitry"),
+    ("don", "donald"),
+    ("fredrik", "freddy"),
+    ("jf", "j f", "jean francois"),
+    ("joe", "joey", "joseph"),
+    ("jon", "john", "johnny", "jonathan", "jonathon"),
+    ("ken", "kenneth"),
+    ("louie", "louis"),
+    ("matt", "matthew"),
+    ("max", "maxime"),
+    ("micheal", "michael", "mike"),
+    ("mitchell", "mitch"),
+    ("nick", "nicholas", "nicklas", "niclas"),
+    ("nikolai", "nikolay"),
+    ("olie", "olaf"),
+    ("pat", "patrick"),
+    ("ray", "raymond"),
+    ("rob", "robert"),
+    ("sam", "sammy", "samuel"),
+    ("steve", "steven", "stephen"),
+    ("theo", "theoren"),
+    ("toby", "tobias"),
+    ("tom", "thomas"),
+    ("vern", "vernon"),
+    ("vinnie", "vincent", "vinny"),
+]
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS sport_player_external_ids (
   sport_id TEXT NOT NULL,
@@ -77,6 +115,22 @@ def canonical_team_id(source_team: str, known_ids: set[str]) -> str:
     # Same-code clubs retain their existing ID. Obsolete HockeyDB-only codes
     # remain distinct rather than being incorrectly merged with a modern club.
     return source_team if source_team in known_ids else f"hdb:{source_team}"
+
+
+def name_parts(value: str) -> tuple[str, str]:
+    parts = normalize(value).split()
+    if not parts:
+        return "", ""
+    return parts[0], parts[-1]
+
+
+def first_variants(first: str) -> set[str]:
+    result = {normalize(first).replace(" ", "")}
+    for group in FIRST_NAME_GROUPS:
+        keys = {normalize(item).replace(" ", "") for item in group}
+        if result & keys:
+            result.update(keys)
+    return {item for item in result if item}
 
 
 def fetch_nhl_stats(season: int, kind: str) -> list[dict]:
@@ -140,7 +194,23 @@ def find_existing_player(players_by_name: dict[str, list[sqlite3.Row]], master: 
     exact = list(players_by_name.get(given_key, []))
     if len(exact) > 1 and first_nhl:
         exact = [row for row in exact if not row["debut_year"] or not row["final_year"] or row["debut_year"] <= last_nhl + 1 and row["final_year"] >= first_nhl - 1]
-    return exact[0]["player_id"] if len(exact) == 1 else None
+    if len(exact) == 1:
+        return exact[0]["player_id"]
+    first, last = name_parts(given)
+    birth_year = integer(master.get("birthYear"))
+    variants = first_variants(first)
+    candidates: list[sqlite3.Row] = []
+    for rows in players_by_name.values():
+        for row in rows:
+            local_first, local_last = name_parts(row["display_name"])
+            if local_last != last or not (variants & first_variants(local_first)):
+                continue
+            if birth_year and row["birth_year"] and birth_year != row["birth_year"]:
+                continue
+            if first_nhl and row["debut_year"] and row["final_year"] and not (row["debut_year"] <= last_nhl + 1 and row["final_year"] >= first_nhl - 1):
+                continue
+            candidates.append(row)
+    return candidates[0]["player_id"] if len(candidates) == 1 else None
 
 
 def main() -> None:
@@ -161,7 +231,7 @@ def main() -> None:
                 stints[(row["playerID"], season, row["tmID"])] += games or 0
 
         known_ids = {row[0] for row in conn.execute("SELECT DISTINCT team_id FROM sport_teams WHERE sport_id='hockey'")}
-        local_players = list(conn.execute("SELECT player_id, display_name, debut_year, final_year FROM sport_players WHERE sport_id='hockey'"))
+        local_players = list(conn.execute("SELECT player_id, display_name, birth_year, debut_year, final_year FROM sport_players WHERE sport_id='hockey'"))
         players_by_name: dict[str, list[sqlite3.Row]] = defaultdict(list)
         for player in local_players:
             players_by_name[normalize(player["display_name"])].append(player)
@@ -189,7 +259,7 @@ def main() -> None:
                     (player_id, hdb_id, name, master.get("firstName") or None, master.get("lastName") or None,
                      integer(master.get("birthYear")), first_nhl, last_nhl, master.get("pos") or None),
                 )
-                player = conn.execute("SELECT player_id, display_name, debut_year, final_year FROM sport_players WHERE sport_id='hockey' AND player_id=?", (player_id,)).fetchone()
+                player = conn.execute("SELECT player_id, display_name, birth_year, debut_year, final_year FROM sport_players WHERE sport_id='hockey' AND player_id=?", (player_id,)).fetchone()
                 local_players.append(player)
                 players_by_name[normalize(player["display_name"])].append(player)
                 added += 1

@@ -3697,12 +3697,22 @@ def local_sport_autocomplete(sport: str):
     normalized = "".join(char for char in normalize(q) if char.isalnum())
     with _local_sport_conn() as conn:
         rows = conn.execute(
-            """SELECT p.player_id, p.display_name, sp.debut_year, sp.final_year, p.career_games
-                 FROM sport_players_searchable p JOIN sport_players sp ON sp.sport_id = p.sport_id AND sp.player_id = p.player_id
-                WHERE p.sport_id = ? AND sp.final_year >= 2000
-                  AND (p.search_key LIKE ? OR p.last_key LIKE ?)
-                ORDER BY p.career_games DESC LIMIT 4""",
-            (sport, normalized + "%", normalized + "%"),
+            """SELECT player_id, display_name, debut_year, final_year, career_games
+                 FROM (
+                   SELECT p.player_id, p.display_name, sp.debut_year, sp.final_year, p.career_games
+                     FROM sport_players_searchable p
+                     JOIN sport_players sp ON sp.sport_id = p.sport_id AND sp.player_id = p.player_id
+                    WHERE p.sport_id = ? AND sp.final_year >= 2000
+                      AND (p.search_key LIKE ? OR p.last_key LIKE ?)
+                   UNION
+                   SELECT p.player_id, p.display_name, sp.debut_year, sp.final_year, p.career_games
+                     FROM sport_player_aliases a
+                     JOIN sport_players_searchable p ON p.sport_id = a.sport_id AND p.player_id = a.player_id
+                     JOIN sport_players sp ON sp.sport_id = p.sport_id AND sp.player_id = p.player_id
+                    WHERE a.sport_id = ? AND sp.final_year >= 2000 AND a.alias_key LIKE ?
+                 )
+                ORDER BY career_games DESC LIMIT 4""",
+            (sport, normalized + "%", normalized + "%", sport, normalized + "%"),
         ).fetchall()
     return jsonify([{"player_id": pid, "display_name": name, "debut_year": debut, "final_year": final,
                      "career_games": games} for pid, name, debut, final, games in rows])
@@ -6580,13 +6590,22 @@ def sport_autocomplete(sport: str):
         return jsonify([])
     with db() as conn:
         rows = conn.execute(
-            """SELECT p.player_id, p.display_name, sp.debut_year, sp.final_year, p.career_games
-                 FROM sport_players_searchable p
-                 JOIN sport_players sp ON sp.sport_id=p.sport_id AND sp.player_id=p.player_id
-                WHERE p.sport_id=%s AND sp.final_year >= 2000
-                  AND (p.search_key LIKE %s OR p.last_key LIKE %s)
-                ORDER BY p.career_games DESC LIMIT 4""",
-            (sport, q + "%", q + "%"),
+            """SELECT player_id, display_name, debut_year, final_year, career_games
+                 FROM (
+                   SELECT p.player_id, p.display_name, sp.debut_year, sp.final_year, p.career_games
+                     FROM sport_players_searchable p
+                     JOIN sport_players sp ON sp.sport_id=p.sport_id AND sp.player_id=p.player_id
+                    WHERE p.sport_id=%s AND sp.final_year >= 2000
+                      AND (p.search_key LIKE %s OR p.last_key LIKE %s)
+                   UNION
+                   SELECT p.player_id, p.display_name, sp.debut_year, sp.final_year, p.career_games
+                     FROM sport_player_aliases a
+                     JOIN sport_players_searchable p ON p.sport_id=a.sport_id AND p.player_id=a.player_id
+                     JOIN sport_players sp ON sp.sport_id=p.sport_id AND sp.player_id=p.player_id
+                    WHERE a.sport_id=%s AND sp.final_year >= 2000 AND a.alias_key LIKE %s
+                 ) matches
+                ORDER BY career_games DESC LIMIT 4""",
+            (sport, q + "%", q + "%", sport, q + "%"),
         ).fetchall()
     return jsonify([{"player_id": pid, "display_name": name, "debut_year": debut,
                      "final_year": final, "career_games": games}
