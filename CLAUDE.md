@@ -1123,6 +1123,126 @@ baseball 92 rows, basketball 103 rows, hockey 210 distinct-player rows. The
 only remaining repeated NHL display name is the two distinct Alexandre Picards
 (defenseman versus left wing).
 
+## Current handoff: headshot and NHL identity cleanup
+
+Update, 2026-08-15: the immediate user goal is accurate, production-visible
+headshots for every player in the current 2000-present playable catalog. The
+site to test is `https://teammatetag.com`; Vercel deploys from GitHub `main`.
+All confirmed registry URLs are used by production cards. Local source archives
+and generated review CSVs are under `raw/` and deliberately Git-ignored.
+
+Production headshot work completed:
+- The OOTP MLB Facepack V18 has 2,211 unambiguous matched images published to
+  the public Supabase Storage bucket `player-headshots` under `baseball/ootp/`.
+  The initial 40.22 MB upload completed successfully. Production URLs return
+  HTTP 200. OOTP images may later need provider-specific crop treatment.
+- The FHM Historical Photos Megapack 3.5 was downloaded locally from the FHM
+  forum/Google Drive. Its 6,396 uniquely keyed player photos matched 691
+  unresolved 2000-present NHL players by normalized name plus birth year. All
+  691 were published under `hockey/fhm-historical/`. The current FHM 24-25
+  pack added 5 more under `hockey/fhm-current/`.
+- All community/FHM/OOTP content is explicitly marked playtest-only in
+  `player_headshots.review_note`; it needs license/source review before any
+  commercial release decision.
+- Supabase Storage is being used for images, not Postgres. The bucket is public
+  and the web app only reads the public object URLs. `SUPABASE_URL` and the
+  service-role key are required only in the ignored local `.env` to publish
+  assets. The service-role key was supplied in the previous conversation and
+  should be rotated later, with the replacement also updated in Vercel if the
+  deployed app uses it for Supabase Auth.
+
+Current playable headshot status (raw source-record counts; aliases remain in
+the data until the cleanup below):
+- Baseball: 5,145 verified, 92 unresolved. Kevin Youkilis was repaired after
+  finding that one person existed under `youkike01` and `youklke01`; both now
+  use the same OOTP image in production.
+- Basketball: 2,463 verified, 103 unresolved.
+- Football: 10,783 verified, 4,453 unresolved (3,787 placeholders and 666
+  missing). The long-running SportsDB fallback job may still improve this.
+- Hockey: 4,374 verified, 215 unresolved raw records. The reviewed NHL sheet
+  collapses known duplicate source identities and currently shows 210 distinct
+  people.
+
+Review workflow for manual replacements:
+- `scripts/export_headshot_submission_sheet.py` creates CSVs with stable IDs,
+  position, teams, career years, and blank `replacement_url` / `source_note`.
+- `scripts/import_headshot_submissions.py --input <sheet>` validates direct
+  image URLs, blocks known placeholder hashes, then updates the live registry.
+- Current local review sheets: `raw/mlb_headshot_review_sheet.csv` (92),
+  `raw/nba_headshot_review_sheet.csv` (103), and
+  `raw/nhl_headshot_review_sheet.csv` (210). Do not edit IDs or player fields;
+  fill only `replacement_url`, optionally `source_note`.
+- MLB repeated names remaining in the sheet are genuine different players,
+  distinguished by position/team history. NBA's only repeated display name is
+  two different Marcus Williams players (PG versus SF). NHL's only remaining
+  repeated display name in the corrected sheet is two different Alexandre
+  Picards (defenseman versus left wing).
+- Specific user questions resolved: `braunry01` is pitcher Ryan Braun
+  (2006-07) and is the remaining MLB review-sheet row; famous Brewers outfielder
+  Ryan Braun is `braunry02` and has a verified MLBAM photo. Carlos Hernandez
+  appears for three distinct older players in the sheet, separated by years,
+  position, and teams; the current Kansas City pitcher Carlos Hernandez is a
+  separate verified record. Kevin Youkilis is now verified under both legacy
+  source IDs and no longer appears in the sheet.
+
+Important unfinished work: NHL source-identity consolidation.
+- User correctly found stale truncated records in the NHL review sheet:
+  `hdb:grzelma01` is `Matthew Grzelcyk` with only Boston 2016-17, while
+  `nhl:8476891` is the same player as `Matt Grzelcyk` with the current career
+  through Pittsburgh 2024. Likewise `hdb:blaissa01` (`Samuel Blais`, only
+  2017) and `nhl:8478104` (`Sammy Blais`, through 2022) are the same player.
+  The official NHL IDs are the canonical runtime records; Hockey Databank alias
+  rows must not remain independently playable.
+- A strict inspection query found 80 safe NHL alias pairs. Each pair has the
+  same birth year, same surname, same first initial, at least one overlapping
+  canonical team-season, and compatible position family. Examples include
+  Alex/Alexander Steen, Matt/Matthew Grzelcyk, Sammy/Samuel Blais, Mike/Michael
+  Danton, and transliterations such as Andrei/Andrey Zubarev. This rule keeps
+  distinct same-name players separate, including the two Sebastian Ahos.
+- `scripts/synchronize_duplicate_headshot_aliases.py` currently only copies a
+  verified headshot from one known duplicate source ID to another. It does NOT
+  consolidate teammate/player data. It uses exact identity signatures, and was
+  updated to normalize Hockey Databank team code prefixes and `WAS -> WSH`,
+  `CBS -> CBJ`, plus `L -> LW` and `R -> RW` for audit grouping.
+- Next implementation: add a dedicated, transaction-safe NHL canonicalization
+  script. For each of the reviewed 80 HDB -> NHL pairs, merge HDB appearances
+  into the canonical `nhl:<id>` record with
+  `INSERT ... ON CONFLICT (sport_id, player_id, team_id, season) DO UPDATE SET
+  games_total=GREATEST(...)`; preserve alternate spellings in
+  `sport_player_aliases`; rebuild `sport_players_searchable` and relevant
+  player-card/search caches; migrate or recompute positions/traits carefully;
+  then remove or exclude the HDB alias record so it cannot appear in game,
+  autocomplete, Film Review, or headshot sheets. Inspect all dependent tables
+  first. `sport_appearances`, `sport_player_aliases`, `sport_player_images`,
+  `sport_player_positions`, `sport_player_season_traits`, `sport_player_traits`,
+  `sport_players_searchable`, `sport_teammates`, `player_headshots`,
+  `player_headshot_source_attempts`, `manager_daily_starters`, and
+  `sport_player_usage` may contain a `sport_id` + `player_id` reference.
+  `sport_teammates` is currently empty, while `sport_player_aliases` was empty
+  before this cleanup. Do not delete source rows until those dependencies are
+  handled.
+- The alias problem arose because `scripts/supplement_hockeydb_history.py`
+  initially matched only exact normalized names. Its `find_existing_player`
+  function failed on legitimate nickname/transliteration variants, creating
+  parallel `hdb:*` records. Update this loader or add a post-import canonical
+  pass so future refreshes cannot reintroduce aliases.
+- Game search for non-baseball sports currently relies on
+  `sport_players_searchable` exact `search_key` / `last_key` in
+  `game/engine.py`; `sport_player_aliases` is not currently used by that
+  non-baseball branch. The canonicalization pass should add alias-key lookup to
+  `game.engine.find_player_by_name` and the matching Flask autocomplete query,
+  so inputs such as Matt/Matthew and Sammy/Samuel both find the canonical NHL
+  player. This is required to protect real gameplay, not only headshot audits.
+
+Latest code/data commits, all pushed to `main`:
+- `f45d23d` Add production MLB headshot publisher.
+- `ac85dfc` Record production MLB headshot publication.
+- `528892e` Add manual headshot review workflow.
+- `79d7241` Import historical NHL playtest headshots.
+- `49ee7c8` Audit duplicate player headshot identities.
+The current handoff commit includes the most recent team-code/position
+normalization and Kevin Youkilis alias repair.
+
 Retention policy, 2026-08-15: preserve every completed ESPN catalog page under
 `raw/espn_<league>_athlete_pages/`, including athletes outside the current
 2000-present playable catalog. These identity files are a future expansion
