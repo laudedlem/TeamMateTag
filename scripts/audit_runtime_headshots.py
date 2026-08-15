@@ -102,7 +102,7 @@ def main() -> None:
     with server.db() as conn:
         rows = candidates(conn)
         reviewed = {(sport, player_id): status for sport, player_id, status in conn.execute(
-            "SELECT sport_id, player_id, status FROM player_headshots WHERE status IN ('verified', 'wrong_player', 'bad_crop')"
+            "SELECT sport_id, player_id, status FROM player_headshots WHERE checked_at IS NOT NULL"
         ).fetchall()}
     if not args.force:
         rows = [row for row in rows if (row["sport"], row["player_id"]) not in reviewed]

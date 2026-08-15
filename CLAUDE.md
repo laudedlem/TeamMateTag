@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.2.8`
+- Current display version: `0.2.9`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -874,6 +874,11 @@ local Flask server is running; production access requires setting
 `HEADSHOT_AUDIT_TOKEN`. Brian Schneider, Luke Ridnour, Trent Cole, Clifton
 Geathers, and Jason Krog are seeded as blocked placeholders. The full photo
 coverage goal remains active: do not count a HTTP 200 response as a headshot.
+
+Update, 2026-08-14 (0.2.9): the headshot scanner now skips every already
+checked registry record by default, not just manual approvals. Repeated
+`--limit 500` batches therefore advance through the remaining catalog. Use
+`--force` only when intentionally rechecking prior results.
 
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.
