@@ -997,6 +997,14 @@ and TheSportsDB or another validated historical source. The local NBA source
 contains player name, debut/final years, position, and birthday. Do not claim
 the ESPN catalog is comprehensive for NBA history.
 
+Retention policy, 2026-08-15: preserve every completed ESPN catalog page under
+`raw/espn_<league>_athlete_pages/`, including athletes outside the current
+2000-present playable catalog. These identity files are a future expansion
+asset: when historical players become playable, match their local player record
+to the retained ESPN ID and reuse the same validated portrait pipeline. Do not
+delete the pre-2000 identity checkpoints merely because they are not currently
+eligible in gameplay.
+
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.
   This explains the Firefox failure and can also affect Chrome when its cache
