@@ -1212,12 +1212,16 @@ Completed identity cleanup, 2026-08-15:
 Headshot cleanup snapshot after the identity pass:
 - Current unresolved review sheet:
   `raw/headshot_submissions_current.csv`, 4,699 active rows.
-- Baseball: 7,166 verified, 2 placeholder in the production headshot
+- Baseball: 7,168 verified, 0 placeholder in the production headshot
   registry. `raw/mlb_headshot_review_sheet.csv` was regenerated after the
-  2026-08-15 Baseball Reference pass and now contains 2 unresolved active MLB
-  rows: Mark Johnson pitcher `johnsma03`/BRef `johnsma05` and Steve Sparks
-  pitcher `sparkst02`. Juan Morillo `morilju01` is now sourced from Baseball
-  Reference using the direct URL supplied by the user:
+  final 2026-08-15 manual pass and now contains 0 unresolved active MLB rows.
+  Mark Johnson pitcher `johnsma03`/BRef `johnsma05` is verified from Wikimedia
+  Commons via the user's linked `Mark Johnson (pitcher)` Wikipedia page. Steve
+  Sparks pitcher `sparkst02` is verified from the user-supplied local JPEG,
+  uploaded to Supabase Storage at
+  `https://olqefgxnxifuiyutjyqb.supabase.co/storage/v1/object/public/player-headshots/baseball/manual/sparkst02.jpg`.
+  Juan Morillo `morilju01` is now sourced from Baseball Reference using the
+  direct URL supplied by the user:
   `https://www.baseball-reference.com/req/2025011210/images/headshots/0/04d67323_davis.jpg`.
   Earlier in the same pass, Luis Matos, Mike Darr, Jose Ortiz, and Brian Hunter
   outfielder were promoted from Wikimedia. Brian Hunter first baseman
@@ -1231,10 +1235,9 @@ Headshot cleanup snapshot after the identity pass:
   `requests` hit BRef HTTP 403/429, plus using `players.bbref_id` instead of
   assuming `player_id` is always the BRef slug. This promoted 51 additional
   BRef portraits on 2026-08-15, bringing Baseball Reference to 71 verified
-  MLB headshots in production. The only current BRef-confirmed no-photo rows
-  are Mark Johnson pitcher and Steve Sparks pitcher. `braunry01`, the pitcher
-  Ryan Braun, was verified from his Baseball Reference page; the famous Brewers
-  outfielder remains `braunry02` and already had a verified MLBAM headshot.
+  MLB headshots in production. `braunry01`, the pitcher Ryan Braun, was
+  verified from his Baseball Reference page; the famous Brewers outfielder
+  remains `braunry02` and already had a verified MLBAM headshot.
 - `scripts/resolve_mlb_wikimedia_headshots.py` checks unresolved MLB rows
   against Wikipedia/Wikimedia. It searches likely article titles, requires a
   baseball article plus a current TeamMateTag team-context or role match,
