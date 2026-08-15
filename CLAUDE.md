@@ -1016,6 +1016,17 @@ pass promoted zero flagged players; it exists to validate the cross-sport ESPN
 workflow and preserve the mappings for source fallback. The remaining 182 ESPN
 records did not have an unambiguous local identity match and were not guessed.
 
+NBA rapid playtest image pass, 2026-08-15: `BasketBall-GM-Rosters` maintains a
+community `player-photos.json` map with 5,408 historical NBA image URLs.
+`scripts/import_nba_bbgm_playtest_headshots.py` resolves those Basketball-
+Reference IDs through the 26 public player-index pages, matches local flagged
+players by normalized name and career span, byte-checks every URL, and writes
+the result to `raw/nba_bbgm_playtest_headshots.csv`. First pass: 770 matched,
+748 usable images promoted. Every promoted row has provider `BBGM community
+map` and review note `Playtest-only community mapping; license and source
+review required.` This is deliberately separate from vetted sources so it can
+be replaced later without losing provenance.
+
 Retention policy, 2026-08-15: preserve every completed ESPN catalog page under
 `raw/espn_<league>_athlete_pages/`, including athletes outside the current
 2000-present playable catalog. These identity files are a future expansion
