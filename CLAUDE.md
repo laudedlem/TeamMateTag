@@ -1052,6 +1052,24 @@ current and historical MLB photo packs, including 2026 updates. Assess the
 pack's filename/identifier convention and source before importing; retain each
 mapping as playtest-only provenance until a licensing pass.
 
+ESPN/OOTP pass, 2026-08-15: all NFL and NHL ESPN identity pages are complete.
+`resolve_sport_espn_headshots.py --sport hockey` matched 1,151 unresolved NHL
+identities and promoted 358 validated ESPN portraits. The full NFL catalog
+resolver (`collect_nfl_espn_catalog_headshots.py`) matched 2,909 unresolved
+players by exact NFLverse birth date but promoted only 2 real images; the rest
+were generic, shared, or unavailable ESPN responses. ESPN is now effectively
+exhausted for historic NFL gaps.
+
+OOTP local MLB playtest pass, 2026-08-15: Cinemaodyssey Facepack V18 was
+downloaded to `raw/ootp/COFacepackV18.zip` (347 MB compressed, 21,264 JPGs).
+`import_ootp_mlb_playtest_headshots.py` matched 2,211 active baseball gaps by
+unambiguous normalized filename and extracted them under
+`raw/ootp/matched_mlb_headshots/`. Local Flask serves them at
+`/local-headshots/ootp/<player_id>.jpg` only when `TEAMMATETAG_LOCAL_SPORTS=1`.
+Production deliberately suppresses these local-only URLs until images are
+migrated to supported storage. All imported records are `OOTP Facepack` with a
+playtest-only review note. Result: baseball 7,074 verified / 94 unresolved.
+
 Retention policy, 2026-08-15: preserve every completed ESPN catalog page under
 `raw/espn_<league>_athlete_pages/`, including athletes outside the current
 2000-present playable catalog. These identity files are a future expansion

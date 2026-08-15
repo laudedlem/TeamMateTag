@@ -47,7 +47,7 @@ try:
 except ImportError:
     pass
 
-from flask import abort, Flask, jsonify, make_response, redirect, render_template, request
+from flask import abort, Flask, jsonify, make_response, redirect, render_template, request, send_from_directory
 from werkzeug.exceptions import HTTPException
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -194,6 +194,7 @@ LOCAL_PO_REMATCH_LINKS: dict[str, str] = {}
 LOCAL_PO_POSTGAME_EXITS: dict[str, set[str]] = {}
 LOCAL_PO_LOCK = Lock()
 HEADSHOT_URL = "https://midfield.mlbstatic.com/v1/people/{}/spots/120"
+LOCAL_OOTP_HEADSHOT_DIR = ROOT / "raw" / "ootp" / "matched_mlb_headshots"
 
 
 def _official_sport_headshot_url(sport: str, external_id: str | None) -> str | None:
@@ -222,6 +223,9 @@ def _headshot_registry_urls(conn, sport: str, player_ids: list[str]) -> dict[str
     urls = {}
     for player_id, source_url, fallback_url, status in rows:
         if status == "verified" and source_url:
+            if source_url.startswith("/local-headshots/") and not LOCAL_SPORTS_ENABLED:
+                urls[player_id] = fallback_url or None
+                continue
             urls[player_id] = source_url
         elif status in {"placeholder", "missing", "wrong_player", "bad_crop"}:
             urls[player_id] = fallback_url or None
@@ -2387,6 +2391,14 @@ def _insert_game(conn, table: str, blob: dict) -> str:
 # ============================================================
 # Routes
 # ============================================================
+
+@app.route("/local-headshots/ootp/<path:filename>")
+def local_ootp_headshot(filename: str):
+    """Serve imported OOTP images only in the local sports build."""
+    if not LOCAL_SPORTS_ENABLED:
+        abort(404)
+    return send_from_directory(LOCAL_OOTP_HEADSHOT_DIR, filename)
+
 
 @app.route("/")
 def index():
