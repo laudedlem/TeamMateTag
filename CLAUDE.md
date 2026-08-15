@@ -1081,6 +1081,11 @@ local-only `/local-headshots/...` URLs to public storage URLs. It requires
 to the existing `DATABASE_URL`. The service-role key must never be committed or
 placed in Vercel/browser code. The public bucket does not consume Postgres
 database capacity and requires no Vercel configuration to display its URLs.
+The initial production publication completed successfully: all 2,211 files
+were uploaded, their database URLs were changed to public Supabase Storage
+objects, and a direct public-image request returned HTTP 200 image/jpeg. A
+deployment restart clears any warm Vercel card cache that could still hold an
+old local-only image URL.
 
 Retention policy, 2026-08-15: preserve every completed ESPN catalog page under
 `raw/espn_<league>_athlete_pages/`, including athletes outside the current
