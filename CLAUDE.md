@@ -997,6 +997,15 @@ and TheSportsDB or another validated historical source. The local NBA source
 contains player name, debut/final years, position, and birthday. Do not claim
 the ESPN catalog is comprehensive for NBA history.
 
+NBA historical identity bridge: `scripts/build_nba_headshot_identity_map.py`
+creates `raw/nba_headshot_identity_matches.csv` from the local NBA career
+dataset. The current build produced 2,359 player-to-birth-date matches and
+covers 825 of the initially flagged NBA headshots. `resolve_sport_thesportsdb_headshots.py --sport basketball`
+uses that local birth date for an exact TheSportsDB identity match, then
+downloads and validates the returned portrait before promotion. It runs in
+five-player checkpoint batches because the free endpoint is slow and rate
+limited.
+
 Retention policy, 2026-08-15: preserve every completed ESPN catalog page under
 `raw/espn_<league>_athlete_pages/`, including athletes outside the current
 2000-present playable catalog. These identity files are a future expansion

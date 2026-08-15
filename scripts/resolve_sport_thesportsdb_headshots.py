@@ -25,6 +25,16 @@ CONFIG = {
 }
 
 
+def local_birth_dates(sport: str) -> dict[str, str]:
+    if sport != "basketball":
+        return {}
+    path = ROOT / "raw" / "nba_headshot_identity_matches.csv"
+    if not path.exists():
+        return {}
+    with path.open(encoding="utf-8", newline="") as handle:
+        return {row["player_id"]: row["birth_date"] for row in csv.DictReader(handle) if row.get("birth_date")}
+
+
 def espn_identities(sport: str, league: str) -> dict[tuple[str, int], list[str]]:
     """Return unambiguous ESPN birth dates keyed by normalized name and birth year."""
     dates: dict[tuple[str, int], list[str]] = {}
@@ -46,6 +56,7 @@ def main() -> None:
     args = parser.parse_args()
     league, expected_sport = CONFIG[args.sport]
     identities = espn_identities(args.sport, league)
+    local_births = local_birth_dates(args.sport)
     if not identities:
         raise RuntimeError(f"No completed ESPN {league.upper()} identity index found.")
     server.ensure_runtime_schema()
@@ -72,8 +83,12 @@ def main() -> None:
                 WHERE p.sport_id=%s AND h.status IN ('placeholder','missing') AND tried.player_id IS NULL
                 ORDER BY p.debut_year DESC NULLS LAST LIMIT %s
             """, (args.sport, args.limit * 4)).fetchall()
-    rows = [(player_id, name, identities.get((normalize(name), birth_year)))
-            for player_id, name, birth_year in raw if birth_year and identities.get((normalize(name), birth_year))]
+    rows = []
+    for player_id, name, birth_year in raw:
+        births = identities.get((normalize(name), birth_year)) if birth_year else None
+        births = births or ([local_births[player_id]] if player_id in local_births else None)
+        if births:
+            rows.append((player_id, name, births))
     rows = rows[:args.limit]
     if not rows:
         print("No flagged players with an unambiguous completed ESPN identity match.")
