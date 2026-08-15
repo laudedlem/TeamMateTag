@@ -89,6 +89,8 @@ def candidate_url(player_id: str, session: requests.Session) -> tuple[str | None
         response = session.get(url, timeout=30)
     except requests.RequestException as error:
         return None, f"page request failed: {error}"
+    if response.status_code in (403, 429):
+        return None, f"rate_limited HTTP {response.status_code}"
     if response.status_code != 200:
         return None, f"page HTTP {response.status_code}"
     page = response.text
@@ -131,9 +133,10 @@ def main() -> None:
     for index, (player_id, name, debut, final, position) in enumerate(players, 1):
         image_url, page_error = candidate_url(player_id, session)
         if not image_url:
+            status = "rate_limited" if page_error.startswith("rate_limited") else "missing"
             rows.append({
                 "player_id": player_id, "display_name": name, "debut_year": debut,
-                "final_year": final, "position": position or "", "status": "missing",
+                "final_year": final, "position": position or "", "status": status,
                 "image_url": "", "note": page_error,
             })
         else:

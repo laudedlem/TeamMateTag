@@ -53,7 +53,8 @@ def unresolved_players(conn, force: bool = False) -> list[dict]:
     tried_filter = "" if force else "AND tried.player_id IS NULL"
     rows = conn.execute(
         """SELECT p.player_id, concat_ws(' ', p.name_first, p.name_last), p.debut_year, p.final_year,
-                  p.primary_pos, array_agg(DISTINCT t.name) FILTER (WHERE t.name IS NOT NULL),
+                  p.primary_pos, p.birth_year, p.name_given,
+                  array_agg(DISTINCT t.name) FILTER (WHERE t.name IS NOT NULL),
                   COALESCE(ps.career_games, 0)
              FROM players p
              JOIN player_headshots h ON h.sport_id='baseball' AND h.player_id=p.player_id
@@ -66,7 +67,7 @@ def unresolved_players(conn, force: bool = False) -> list[dict]:
             WHERE p.final_year >= 2000
               AND h.status IN ('placeholder','missing')
               {tried_filter}
-            GROUP BY p.player_id,p.name_first,p.name_last,p.debut_year,p.final_year,p.primary_pos,ps.career_games
+            GROUP BY p.player_id,p.name_first,p.name_last,p.debut_year,p.final_year,p.primary_pos,p.birth_year,p.name_given,ps.career_games
             ORDER BY COALESCE(ps.career_games, 0) DESC, p.final_year DESC NULLS LAST, p.player_id""".format(tried_filter=tried_filter)
     ).fetchall()
     return [
@@ -76,9 +77,11 @@ def unresolved_players(conn, force: bool = False) -> list[dict]:
             "debut_year": debut,
             "final_year": final,
             "position": position or "",
+            "birth_year": birth_year,
+            "given_name": given_name or "",
             "teams": teams or [],
         }
-        for player_id, name, debut, final, position, teams, _career_games in rows
+        for player_id, name, debut, final, position, birth_year, given_name, teams, _career_games in rows
     ]
 
 
@@ -98,7 +101,10 @@ def role_title_guesses(name: str, position: str) -> list[str]:
 
 def search_titles(session: requests.Session, row: dict) -> list[str]:
     name = row["name"]
-    candidates = [name, f"{name} (baseball)", f"{name} (baseball player)", *role_title_guesses(name, row["position"])]
+    candidates = [name, f"{name} (baseball)", f"{name} (baseball player)"]
+    if row.get("birth_year"):
+        candidates.append(f"{name} (baseball, born {row['birth_year']})")
+    candidates.extend(role_title_guesses(name, row["position"]))
     try:
         response = session.get(
             API,
@@ -123,6 +129,11 @@ def search_titles(session: requests.Session, row: dict) -> list[str]:
             seen.add(title)
             result.append(title)
     return result
+
+
+def article_birth_year(text: str) -> int | None:
+    match = re.search(r"\bborn\s+(?:[A-Z][a-z]+\s+\d{1,2},\s+)?((?:19|20)\d{2})\b", text)
+    return int(match.group(1)) if match else None
 
 
 def summary_for(session: requests.Session, title: str) -> dict | None:
@@ -179,7 +190,10 @@ def role_match(text: str, position: str) -> bool:
 def is_baseball_article(page: dict, row: dict) -> tuple[bool, str]:
     title = page.get("title") or ""
     extract = page.get("extract") or ""
-    lower = f"{title} {extract}".lower()
+    description = page.get("description") or ""
+    if page.get("type") == "disambiguation" or "topics referred to by the same term" in description.lower():
+        return False, "disambiguation page"
+    lower = f"{title} {description} {extract}".lower()
     if "baseball" not in lower and "major league baseball" not in lower and "mlb" not in lower:
         return False, "not baseball article"
     if norm(title) != norm(row["name"]):
@@ -221,7 +235,16 @@ def candidate(session: requests.Session, row: dict, hashes: set[str], perceptual
         if not ok:
             rejected_notes.append(f"{page.get('title') or title}: {reason}")
             continue
-        full_text = f"{page.get('title') or ''}\n{page.get('extract') or ''}\n{article_extract(session, page.get('title') or title)}"
+        full_text = (
+            f"{page.get('title') or ''}\n"
+            f"{page.get('description') or ''}\n"
+            f"{page.get('extract') or ''}\n"
+            f"{article_extract(session, page.get('title') or title)}"
+        )
+        born = article_birth_year(full_text)
+        if born and row.get("birth_year") and born != int(row["birth_year"]):
+            rejected_notes.append(f"{page.get('title') or title}: birth year mismatch {born}")
+            continue
         matched_team = team_match(full_text, row["teams"])
         role_ok = role_match(full_text, row["position"])
         exact_title = norm(page.get("title") or title) == norm(row["name"])

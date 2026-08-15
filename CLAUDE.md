@@ -1212,24 +1212,38 @@ Completed identity cleanup, 2026-08-15:
 Headshot cleanup snapshot after the identity pass:
 - Current unresolved review sheet:
   `raw/headshot_submissions_current.csv`, 4,699 active rows.
-- Baseball: 5,179 verified, 58 placeholder. `scripts/resolve_mlb_bref_headshots.py`
+- Baseball: 7,115 verified, 53 placeholder in the production headshot
+  registry. `raw/mlb_headshot_review_sheet.csv` was regenerated after the
+  2026-08-15 Wikimedia pass and now contains 53 unresolved active MLB rows.
+  Juan Morillo `morilju01` is fixed from `Juan Morillo (baseball, born 1983)`.
+  Luis Matos, Mike Darr, Jose Ortiz, and Brian Hunter outfielder were also
+  promoted from Wikimedia in this pass. Brian Hunter first baseman `huntebr01`
+  was explicitly reverted after a same-name false match to the outfielder.
+- `scripts/resolve_mlb_bref_headshots.py`
   checks unresolved MLB rows against Baseball Reference player pages, extracts
   the structured `image.contentUrl`, rejects known placeholders/tiny images,
-  and writes validated URLs directly to the production registry. First pass:
-  19 Baseball Reference portraits promoted. `braunry01`, the pitcher Ryan
-  Braun, was verified from his Baseball Reference page; the famous Brewers
-  outfielder remains `braunry02` and already had a verified MLBAM headshot.
+  and writes validated URLs directly to the production registry. It now labels
+  BRef HTTP 403/429 as `rate_limited` instead of `missing`; do not interpret
+  BRef rate limits as proof that a player lacks a Baseball Reference photo.
+  Current dry run against the 53 unresolved MLB rows returned 53 `rate_limited`
+  rows. First successful pass promoted 19 Baseball Reference portraits.
+  `braunry01`, the pitcher Ryan Braun, was verified from his Baseball Reference
+  page; the famous Brewers outfielder remains `braunry02` and already had a
+  verified MLBAM headshot.
 - `scripts/resolve_mlb_wikimedia_headshots.py` checks unresolved MLB rows
   against Wikipedia/Wikimedia. It searches likely article titles, requires a
   baseball article plus a current TeamMateTag team-context or role match,
   validates image bytes against known placeholders when Wikimedia permits the
   download, and otherwise accepts Wikimedia API image metadata only for a
-  matched article image with dimensions over 80px. Current Wikimedia promotions:
-  Bill Mueller, Matt Young `youngma02` from `Matt Young (outfielder)`, Abraham
-  Nunez infielder, Craig Wilson first baseman, Mark McLemore, JD Closser, and
-  Ben Johnson. The generic `Matt Young` Wikipedia page remains rejected because
-  it is the older pitcher, not TeamMateTag's 2011-12 Braves/Tigers position
-  player.
+  matched article image with dimensions over 80px. It now includes birth-year
+  title guesses such as `Name (baseball, born YYYY)`, rejects disambiguation
+  pages, and rejects article birth-year mismatches to reduce same-name false
+  positives. Current Wikimedia promotions include Bill Mueller, Matt Young
+  `youngma02` from `Matt Young (outfielder)`, Abraham Nunez infielder, Craig
+  Wilson first baseman, Mark McLemore, JD Closser, Ben Johnson, Juan Morillo,
+  Luis Matos, Mike Darr, Jose Ortiz, and Brian Hunter outfielder. The generic
+  `Matt Young` Wikipedia page remains rejected because it is the older pitcher,
+  not TeamMateTag's 2011-12 Braves/Tigers position player.
 - OOTP same-name caution: visual review found several incorrect same-name
   matches and they were reverted to unresolved: `castrra02`, `deshide01`,
   `nunezab01`, `penato02`, `wilsocr02`, and `wilsocr03`. The OOTP importer now
