@@ -952,6 +952,15 @@ catalog. Use it to match unresolved nflverse players by name and birth date
 before requesting an alternate ESPN/college-football portrait. Do not use
 Madden game assets: they are not a licensed public media feed for redistribution.
 
+The ESPN index is checkpointed by catalog page in
+`raw/espn_nfl_athlete_pages/page_01.csv` through `page_21.csv`; each file holds
+up to 1,000 athlete identities. Run the remaining pages sequentially with
+`python scripts/index_espn_nfl_athletes.py --page N --workers 16`. This makes
+progress observable and prevents a long scan from losing all work. The
+TheSportsDB resolver treats 429/5xx/non-JSON responses as transient and does
+not permanently mark them as no-match; retryable attempt rows were cleared on
+2026-08-15.
+
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.
   This explains the Firefox failure and can also affect Chrome when its cache

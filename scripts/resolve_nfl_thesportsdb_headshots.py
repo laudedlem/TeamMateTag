@@ -69,13 +69,13 @@ def main() -> None:
             # and retry this player instead of abandoning the durable queue.
             print("  rate-limited; waiting 65 seconds before retrying", flush=True)
             time.sleep(65)
-        if response is None or response.status_code == 429:
-            results.append((player_id, "rate_limited", None, None))
+        if response is None or response.status_code != 200:
+            results.append((player_id, "transient_error", None, None))
             continue
         try:
             players = response.json().get("player") or []
         except ValueError:
-            results.append((player_id, "invalid_response", None, None))
+            results.append((player_id, "transient_error", None, None))
             continue
         birth = births.get(player_id, "")
         match = next((item for item in players
@@ -102,7 +102,7 @@ def main() -> None:
                 VALUES ('football', %s, 'TheSportsDB', %s, %s)
                 ON CONFLICT (sport_id, player_id, provider) DO UPDATE SET status=EXCLUDED.status,
                   source_url=EXCLUDED.source_url, checked_at=now()
-            """, [(player_id, status, url) for player_id, status, url, _ in results if status != "rate_limited"])
+            """, [(player_id, status, url) for player_id, status, url, _ in results if status != "transient_error"])
             cur.executemany("""
                 UPDATE player_headshots SET source_url=%s, fallback_url=NULL, provider='TheSportsDB', status='verified',
                   content_sha256=%s, perceptual_hash=%s, width=%s, height=%s,
