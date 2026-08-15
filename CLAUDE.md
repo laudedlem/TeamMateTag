@@ -961,6 +961,14 @@ TheSportsDB resolver treats 429/5xx/non-JSON responses as transient and does
 not permanently mark them as no-match; retryable attempt rows were cleared on
 2026-08-15.
 
+Cross-sport headshot pass, 2026-08-15: `scripts/export_headshot_registry.py`
+writes a local ignored snapshot of every production source URL, status, hash,
+and provider at `raw/headshot_registry_YYYY-MM-DD.csv`. This is the local
+record of confirmed mappings; do not needlessly revisit a verified player.
+Checkpointed `audit_runtime_headshots.py` batches are running for baseball,
+basketball, and hockey while the football resolvers continue. Audit first,
+then use provider-specific fallbacks only for the flagged rows.
+
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.
   This explains the Firefox failure and can also affect Chrome when its cache
