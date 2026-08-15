@@ -47,7 +47,7 @@ try:
 except ImportError:
     pass
 
-from flask import Flask, jsonify, make_response, redirect, render_template, request
+from flask import abort, Flask, jsonify, make_response, redirect, render_template, request
 from werkzeug.exceptions import HTTPException
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -73,7 +73,8 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.2.7"
+APP_VERSION = "0.2.8"
+HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
 # When running the local curation build we deliberately keep using SQLite so
@@ -193,6 +194,38 @@ LOCAL_PO_REMATCH_LINKS: dict[str, str] = {}
 LOCAL_PO_POSTGAME_EXITS: dict[str, set[str]] = {}
 LOCAL_PO_LOCK = Lock()
 HEADSHOT_URL = "https://midfield.mlbstatic.com/v1/people/{}/spots/120"
+
+
+def _official_sport_headshot_url(sport: str, external_id: str | None) -> str | None:
+    """Return the league CDN candidate when the catalog has a usable ID."""
+    external_id = str(external_id or "").strip()
+    if sport == "basketball" and external_id:
+        return f"https://cdn.nba.com/headshots/nba/latest/1040x760/{external_id}.png"
+    if sport == "hockey" and external_id.isdigit():
+        return f"https://assets.nhle.com/mugs/nhl/latest/{external_id}.png"
+    if sport == "football" and external_id.startswith("http"):
+        return external_id
+    if sport == "football" and external_id.isdigit():
+        return f"https://a.espncdn.com/i/headshots/nfl/players/full/{external_id}.png"
+    return None
+
+
+def _headshot_registry_urls(conn, sport: str, player_ids: list[str]) -> dict[str, str | None]:
+    """Return reviewed URLs, or an explicit block for known bad sources."""
+    if not player_ids:
+        return {}
+    rows = conn.execute(
+        """SELECT player_id, source_url, fallback_url, status FROM player_headshots
+             WHERE sport_id=%s AND player_id=ANY(%s)""",
+        (sport, player_ids),
+    ).fetchall()
+    urls = {}
+    for player_id, source_url, fallback_url, status in rows:
+        if status == "verified" and source_url:
+            urls[player_id] = source_url
+        elif status in {"placeholder", "missing", "wrong_player", "bad_crop"}:
+            urls[player_id] = fallback_url or None
+    return urls
 OPENING_COUNTDOWN_SECONDS = 3.0
 APP_TURN_SECONDS = 20.0
 MOVE_GRACE_SECONDS = 1.25
@@ -837,6 +870,30 @@ def ensure_runtime_schema():
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_guest_random_playoff_conditions_recent "
                 "ON guest_random_playoff_conditions(guest_id, sport_id, assigned_at DESC)"
+            )
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS player_headshots (
+                       sport_id TEXT NOT NULL,
+                       player_id TEXT NOT NULL,
+                       source_url TEXT,
+                       fallback_url TEXT,
+                       provider TEXT,
+                       status TEXT NOT NULL DEFAULT 'pending'
+                           CHECK (status IN ('pending', 'verified', 'placeholder', 'missing',
+                                             'duplicate', 'wrong_player', 'bad_crop', 'needs_review')),
+                       content_sha256 TEXT,
+                       perceptual_hash TEXT,
+                       width INTEGER,
+                       height INTEGER,
+                       checked_at TIMESTAMPTZ,
+                       reviewed_at TIMESTAMPTZ,
+                       review_note TEXT,
+                       PRIMARY KEY (sport_id, player_id)
+                   )"""
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_player_headshots_review "
+                "ON player_headshots(status, sport_id, checked_at DESC)"
             )
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS sport_online_rematches (
@@ -2117,6 +2174,7 @@ def _hydrate_player_cards(conn, player_ids: list[str]) -> dict[str, dict]:
             pid: (mlbam_id, debut_year, final_year, first, last)
             for pid, mlbam_id, debut_year, final_year, first, last in player_rows
         }
+        registry_urls = _headshot_registry_urls(conn, "baseball", missing)
         appearance_rows = conn.execute(
             """SELECT a.player_id, a.season, t.name
                  FROM appearances a
@@ -2145,7 +2203,8 @@ def _hydrate_player_cards(conn, player_ids: list[str]) -> dict[str, dict]:
             ]
             card = {
                 "mlbam_id": mlbam_id,
-                "headshot_url": HEADSHOT_URL.format(mlbam_id) if mlbam_id else None,
+                "headshot_url": (registry_urls[pid] if pid in registry_urls
+                                  else HEADSHOT_URL.format(mlbam_id) if mlbam_id else None),
                 "debut_year": max(debut_year or 2000, 2000),
                 "final_year": final_year,
                 "teams": teams_list,
@@ -2461,6 +2520,91 @@ def terms():
 @app.route("/contact")
 def contact():
     return render_template("contact.html", support_email=SUPPORT_EMAIL)
+
+
+def _headshot_audit_allowed() -> bool:
+    """Keep mutation tooling local unless an explicit audit token is configured."""
+    if HEADSHOT_AUDIT_TOKEN:
+        provided = request.args.get("token", "") or request.headers.get("X-Headshot-Audit-Token", "")
+        return hmac.compare_digest(provided, HEADSHOT_AUDIT_TOKEN)
+    return request.remote_addr in {"127.0.0.1", "::1"}
+
+
+@app.route("/headshot-audit")
+def headshot_audit_page():
+    if not _headshot_audit_allowed():
+        abort(404)
+    return render_template("headshot_audit.html", app_version=APP_VERSION)
+
+
+@app.route("/api/headshot-audit/summary")
+def headshot_audit_summary():
+    if not _headshot_audit_allowed():
+        abort(404)
+    with db() as conn:
+        rows = conn.execute(
+            """SELECT sport_id, status, COUNT(*) FROM player_headshots
+                 GROUP BY sport_id, status ORDER BY sport_id, status"""
+        ).fetchall()
+    return jsonify([{"sport": sport, "status": status, "count": count} for sport, status, count in rows])
+
+
+@app.route("/api/headshot-audit/items")
+def headshot_audit_items():
+    if not _headshot_audit_allowed():
+        abort(404)
+    allowed = {"pending", "verified", "placeholder", "missing", "duplicate", "wrong_player", "bad_crop", "needs_review"}
+    statuses = [item for item in request.args.get("status", "placeholder,missing,duplicate,wrong_player,bad_crop,needs_review").split(",") if item in allowed]
+    sport = request.args.get("sport", "all")
+    try:
+        offset = max(0, int(request.args.get("offset", "0")))
+    except ValueError:
+        offset = 0
+    if not statuses:
+        return jsonify({"items": [], "next_offset": None})
+    sport_clause, sport_params = ("", []) if sport == "all" else (" AND h.sport_id=%s", [sport])
+    with db() as conn:
+        rows = conn.execute(
+            f"""SELECT * FROM (
+                    SELECT h.sport_id, h.player_id, concat_ws(' ', p.name_first, p.name_last) AS display_name,
+                           p.debut_year, p.final_year, h.source_url, h.fallback_url, h.provider, h.status, h.review_note
+                      FROM player_headshots h JOIN players p ON h.sport_id='baseball' AND p.player_id=h.player_id
+                     WHERE h.sport_id='baseball'
+                    UNION ALL
+                    SELECT h.sport_id, h.player_id, p.display_name, p.debut_year, p.final_year,
+                           h.source_url, h.fallback_url, h.provider, h.status, h.review_note
+                      FROM player_headshots h JOIN sport_players p ON p.sport_id=h.sport_id AND p.player_id=h.player_id
+                     WHERE h.sport_id <> 'baseball'
+                 ) h WHERE h.status = ANY(%s){sport_clause}
+                 ORDER BY h.status, h.sport_id, h.final_year DESC, h.display_name
+                 LIMIT 48 OFFSET %s""",
+            (statuses, *sport_params, offset),
+        ).fetchall()
+    items = [{"sport": row[0], "player_id": row[1], "name": row[2], "debut_year": row[3],
+              "final_year": row[4], "source_url": row[5], "fallback_url": row[6], "provider": row[7],
+              "status": row[8], "review_note": row[9]} for row in rows]
+    return jsonify({"items": items, "next_offset": offset + len(items) if len(items) == 48 else None})
+
+
+@app.route("/api/headshot-audit/review", methods=["POST"])
+def headshot_audit_review():
+    if not _headshot_audit_allowed():
+        abort(404)
+    data = request.get_json(silent=True) or {}
+    sport, player_id = (data.get("sport") or "").strip(), (data.get("player_id") or "").strip()
+    status = (data.get("status") or "").strip()
+    if not sport or not player_id or status not in {"verified", "placeholder", "wrong_player", "bad_crop", "needs_review"}:
+        return jsonify({"error": "sport, player_id, and a valid review status are required"}), 400
+    replacement = (data.get("replacement_url") or "").strip() or None
+    note = (data.get("review_note") or "").strip()[:1000] or None
+    with db() as conn:
+        conn.execute(
+            """UPDATE player_headshots
+                  SET status=%s, source_url=COALESCE(%s, source_url), reviewed_at=now(), review_note=%s
+                WHERE sport_id=%s AND player_id=%s""",
+            (status, replacement, note, sport, player_id),
+        )
+    return jsonify({"ok": True})
 
 
 @app.route("/reset-password")
@@ -3216,6 +3360,7 @@ def _sport_cards(conn, sport: str, player_ids: list[str]) -> dict[str, dict]:
              WHERE sport_id = %s AND player_id = ANY(%s)""",
         (sport, missing),
     ).fetchall())
+    registry_urls = _headshot_registry_urls(conn, sport, missing)
     appearances = conn.execute(
         """SELECT DISTINCT a.player_id, t.name, a.season
              FROM sport_appearances a
@@ -3249,9 +3394,9 @@ def _sport_cards(conn, sport: str, player_ids: list[str]) -> dict[str, dict]:
         # NBA's official image CDN covers many older players omitted by the
         # source-image catalog. Broken URLs still fall through to the UI's
         # existing placeholder without affecting gameplay.
-        headshot_url = images.get(player_id)
-        if not headshot_url and sport == "basketball" and external_id:
-            headshot_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{external_id}.png"
+        headshot_url = registry_urls.get(player_id) if player_id in registry_urls else images.get(player_id)
+        if not headshot_url and player_id not in registry_urls:
+            headshot_url = _official_sport_headshot_url(sport, external_id)
         card = {
             "mlbam_id": None,
             "headshot_url": headshot_url,

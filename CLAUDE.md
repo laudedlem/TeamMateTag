@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.2.7`
+- Current display version: `0.2.8`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -858,6 +858,22 @@ Baseball was already modern-era for appearances, so only historical-only player
 metadata was removed. After `VACUUM FULL`, public Supabase table storage fell
 from about 170 MB to about 72 MB. All five Film Review generators were checked
 against the reduced runtime catalog successfully.
+
+Update, 2026-08-14 (0.2.8): added a verified-headshot pipeline. The
+`player_headshots` registry stores a source URL, provider, byte hash,
+perceptual hash, dimensions, audit status, and reviewer notes per player;
+Supabase stores this lightweight metadata, not image binaries. Player cards
+now suppress sources marked `placeholder`, `missing`, `wrong_player`, or
+`bad_crop` unless a reviewed fallback URL exists. `scripts/audit_runtime_headshots.py`
+downloads and decodes actual image bytes, detects known provider placeholders
+and byte-identical collisions, then writes flagged rows to
+`raw/headshot_audit_report.csv`. It is resumable by sport/offset/limit because
+league CDN rate limits make a 29,560-player scan unsuitable as one request
+burst. A localhost-only review UI is available at `/headshot-audit` when the
+local Flask server is running; production access requires setting
+`HEADSHOT_AUDIT_TOKEN`. Brian Schneider, Luke Ridnour, Trent Cole, Clifton
+Geathers, and Jason Krog are seeded as blocked placeholders. The full photo
+coverage goal remains active: do not count a HTTP 200 response as a headshot.
 
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Headshot Audit | TeamMateTag</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ app_version }}">
+</head>
+<body class="dark headshot-audit-page">
+  <header>
+    <a class="title brand-link" href="/" aria-label="TeamMateTag home">
+      <div class="brand-row"><h1>TeamMateTag</h1><span class="app-version">{{ app_version }}</span></div>
+      <span class="subtitle">Headshot Audit</span>
+    </a>
+  </header>
+  <main class="home audit-main">
+    <h2>Headshot Audit</h2>
+    <p class="muted">Only flagged sources appear here. Mark a result or add a replacement URL. Reviewed placeholders are blocked from player cards.</p>
+    <div id="audit-summary" class="audit-summary"></div>
+    <div class="audit-controls">
+      <label>Sport <select id="audit-sport"><option value="all">All sports</option><option value="baseball">Baseball</option><option value="basketball">Basketball</option><option value="football">Football</option><option value="hockey">Hockey</option></select></label>
+      <label>Status <select id="audit-status"><option value="placeholder,missing,duplicate,wrong_player,bad_crop,needs_review">Needs review</option><option value="placeholder">Placeholder</option><option value="missing">Missing</option><option value="duplicate">Duplicate</option><option value="wrong_player">Wrong player</option><option value="bad_crop">Bad crop</option><option value="pending">Pending audit</option></select></label>
+      <button id="audit-refresh" class="secondary" type="button">Refresh</button>
+    </div>
+    <div id="audit-grid" class="audit-grid"></div>
+    <button id="audit-more" class="secondary" type="button" hidden>Load More</button>
+  </main>
+  <script src="{{ url_for('static', filename='headshot_audit.js') }}?v={{ app_version }}"></script>
+</body>
+</html>
