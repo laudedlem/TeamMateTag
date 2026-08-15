@@ -1259,11 +1259,24 @@ Headshot cleanup snapshot after the identity pass:
   manual additions include Jerry Hairston Jr, Ramon Castro catcher, Alberto
   Castillo catcher, Tim Raines Jr, Eddy Rodriguez pitcher, and Abraham Nunez
   2002-04.
-- Basketball: 2,472 verified, 94 placeholder. A focused TheSportsDB pass checked
-  25 unresolved NBA rows and promoted 9 validated portraits.
-- Hockey: 4,351 verified, 12 missing, 138 placeholder. The remaining prominent
-  gaps are now mostly real HockeyDB-only or NHL-placeholder records, not the
-  large nickname/source split that existed before this pass.
+- Basketball: 2,484 verified, 82 placeholder after the 2026-08-15
+  Basketball-Reference plus Wikimedia pass. New script:
+  `scripts/resolve_reference_headshots.py --sport basketball` derives
+  Basketball-Reference slugs from the alphabetical player index, validates the
+  discovered page headshot, and updates Supabase. It promoted 11
+  Basketball-Reference portraits. `scripts/resolve_wikimedia_sport_headshots.py
+  --sport basketball` promoted 1 additional Wikimedia portrait. Current review
+  sheet: `raw/nba_headshot_review_sheet.csv`; combined NBA/NHL sheet:
+  `raw/basketball_hockey_headshot_gaps_after_reference_wiki.csv`.
+- Hockey: 4,370 verified, 10 missing, 121 placeholder after the 2026-08-15
+  Hockey-Reference plus Wikimedia pass. `scripts/resolve_reference_headshots.py
+  --sport hockey` derives Hockey-Reference slugs from the alphabetical player
+  index, validates page headshots, and updates Supabase. It promoted 16
+  Hockey-Reference portraits after retrying transient 429s.
+  `scripts/resolve_wikimedia_sport_headshots.py --sport hockey` promoted 3
+  Wikimedia portraits. Current review sheet: `raw/nhl_headshot_review_sheet.csv`.
+  The remaining gaps are mostly short-stint/placeholder players plus a few
+  source-identity alias rows, not broad famous-player misses.
 - Football: 10,863 verified, 666 missing, 3,707 placeholder. The top remaining
   prominent gaps, such as David Harris, Charles Johnson, Adam Jones, and Grady
   Jackson, are still ESPN/nflverse placeholder responses and need another
