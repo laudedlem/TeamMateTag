@@ -15,8 +15,13 @@ import re
 import sys
 import time
 from pathlib import Path
+from urllib.parse import quote
 
 import requests
+try:
+    from curl_cffi import requests as curl_requests
+except ImportError:  # pragma: no cover - optional local scraping dependency
+    curl_requests = None
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -30,8 +35,8 @@ REPORT = ROOT / "raw" / "mlb_bref_headshot_resolution.csv"
 USER_AGENT = "TeamMateTag MLB headshot resolver/1.0 (local verification)"
 
 
-def bref_player_url(player_id: str) -> str:
-    return f"https://www.baseball-reference.com/players/{player_id[0]}/{player_id}.shtml"
+def bref_player_url(bbref_id: str) -> str:
+    return f"https://www.baseball-reference.com/players/{bbref_id[0]}/{quote(bbref_id)}.shtml"
 
 
 def placeholder_fingerprints() -> tuple[set[str], set[str]]:
@@ -47,7 +52,7 @@ def placeholder_fingerprints() -> tuple[set[str], set[str]]:
 
 def unresolved_players(conn) -> list[tuple[str, str, int | None, int | None, str | None]]:
     return conn.execute(
-        """SELECT p.player_id, concat_ws(' ', p.name_first, p.name_last),
+        """SELECT p.player_id, COALESCE(NULLIF(p.bbref_id, ''), p.player_id), concat_ws(' ', p.name_first, p.name_last),
                   p.debut_year, p.final_year, p.primary_pos
              FROM players p
              JOIN player_headshots h
@@ -83,17 +88,31 @@ def extract_photo_tag(page: str) -> str | None:
     return match.group(1) if match else None
 
 
-def candidate_url(player_id: str, session: requests.Session) -> tuple[str | None, str]:
-    url = bref_player_url(player_id)
+def fetch_player_page(url: str, session: requests.Session) -> tuple[int, str, str]:
     try:
         response = session.get(url, timeout=30)
     except requests.RequestException as error:
-        return None, f"page request failed: {error}"
-    if response.status_code in (403, 429):
-        return None, f"rate_limited HTTP {response.status_code}"
-    if response.status_code != 200:
-        return None, f"page HTTP {response.status_code}"
-    page = response.text
+        return 0, "", f"page request failed: {error}"
+    if response.status_code == 200 and "images/headshots" in response.text:
+        return response.status_code, response.text, ""
+    if curl_requests is not None:
+        try:
+            fallback = curl_requests.get(url, impersonate="safari184", timeout=30)
+        except Exception as error:
+            return response.status_code, response.text, f"curl fallback failed: {error}"
+        return fallback.status_code, fallback.text, ""
+    return response.status_code, response.text, ""
+
+
+def candidate_url(player_id: str, session: requests.Session) -> tuple[str | None, str]:
+    url = bref_player_url(player_id)
+    status_code, page, fetch_error = fetch_player_page(url, session)
+    if fetch_error:
+        return None, fetch_error
+    if status_code in (403, 429):
+        return None, f"rate_limited HTTP {status_code}"
+    if status_code != 200:
+        return None, f"page HTTP {status_code}"
     image_url = extract_structured_image(page) or extract_photo_tag(page)
     if not image_url:
         return None, "no Baseball Reference photo URL"
@@ -130,8 +149,8 @@ def main() -> None:
     session.headers.update({"User-Agent": USER_AGENT})
     rows: list[dict] = []
     verified: list[tuple] = []
-    for index, (player_id, name, debut, final, position) in enumerate(players, 1):
-        image_url, page_error = candidate_url(player_id, session)
+    for index, (player_id, bbref_id, name, debut, final, position) in enumerate(players, 1):
+        image_url, page_error = candidate_url(bbref_id, session)
         if not image_url:
             status = "rate_limited" if page_error.startswith("rate_limited") else "missing"
             rows.append({

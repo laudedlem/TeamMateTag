@@ -1212,24 +1212,29 @@ Completed identity cleanup, 2026-08-15:
 Headshot cleanup snapshot after the identity pass:
 - Current unresolved review sheet:
   `raw/headshot_submissions_current.csv`, 4,699 active rows.
-- Baseball: 7,115 verified, 53 placeholder in the production headshot
+- Baseball: 7,166 verified, 2 placeholder in the production headshot
   registry. `raw/mlb_headshot_review_sheet.csv` was regenerated after the
-  2026-08-15 Wikimedia pass and now contains 53 unresolved active MLB rows.
-  Juan Morillo `morilju01` is fixed from `Juan Morillo (baseball, born 1983)`.
-  Luis Matos, Mike Darr, Jose Ortiz, and Brian Hunter outfielder were also
-  promoted from Wikimedia in this pass. Brian Hunter first baseman `huntebr01`
-  was explicitly reverted after a same-name false match to the outfielder.
+  2026-08-15 Baseball Reference pass and now contains 2 unresolved active MLB
+  rows: Mark Johnson pitcher `johnsma03`/BRef `johnsma05` and Steve Sparks
+  pitcher `sparkst02`. Juan Morillo `morilju01` is now sourced from Baseball
+  Reference using the direct URL supplied by the user:
+  `https://www.baseball-reference.com/req/2025011210/images/headshots/0/04d67323_davis.jpg`.
+  Earlier in the same pass, Luis Matos, Mike Darr, Jose Ortiz, and Brian Hunter
+  outfielder were promoted from Wikimedia. Brian Hunter first baseman
+  `huntebr01` was explicitly reverted after a same-name false match to the
+  outfielder.
 - `scripts/resolve_mlb_bref_headshots.py`
   checks unresolved MLB rows against Baseball Reference player pages, extracts
   the structured `image.contentUrl`, rejects known placeholders/tiny images,
-  and writes validated URLs directly to the production registry. It now labels
-  BRef HTTP 403/429 as `rate_limited` instead of `missing`; do not interpret
-  BRef rate limits as proof that a player lacks a Baseball Reference photo.
-  Current dry run against the 53 unresolved MLB rows returned 53 `rate_limited`
-  rows. First successful pass promoted 19 Baseball Reference portraits.
-  `braunry01`, the pitcher Ryan Braun, was verified from his Baseball Reference
-  page; the famous Brewers outfielder remains `braunry02` and already had a
-  verified MLBAM headshot.
+  and writes validated URLs directly to the production registry. The key fix
+  was using optional `curl_cffi` Safari impersonation as a fallback after plain
+  `requests` hit BRef HTTP 403/429, plus using `players.bbref_id` instead of
+  assuming `player_id` is always the BRef slug. This promoted 51 additional
+  BRef portraits on 2026-08-15, bringing Baseball Reference to 71 verified
+  MLB headshots in production. The only current BRef-confirmed no-photo rows
+  are Mark Johnson pitcher and Steve Sparks pitcher. `braunry01`, the pitcher
+  Ryan Braun, was verified from his Baseball Reference page; the famous Brewers
+  outfielder remains `braunry02` and already had a verified MLBAM headshot.
 - `scripts/resolve_mlb_wikimedia_headshots.py` checks unresolved MLB rows
   against Wikipedia/Wikimedia. It searches likely article titles, requires a
   baseball article plus a current TeamMateTag team-context or role match,
