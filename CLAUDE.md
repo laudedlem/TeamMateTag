@@ -920,8 +920,11 @@ is the next fallback. It requires exact name and nflverse birth-date matches,
 checks the returned image bytes, and respects TheSportsDB's free 30-request per
 minute limit. It has resolved Lance Briggs. The durable long-running pass is
 intentionally allowed to continue locally; it must not use placeholders as a
-fallback. Current football coverage is 8,933 verified images, 5,623 blocked
-placeholders, and 680 missing responses.
+fallback. The first run was interrupted by a free-tier rate limit after 1,001
+attempts, so the resolver now uses 25-player batches, a 2.5-second interval,
+and a 65-second retry window. A long-running local pass resumes the remaining
+queue from its durable attempt records. At that point in the pass, football had
+9,112 verified images, 5,458 blocked placeholders, and 666 missing responses.
 
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.

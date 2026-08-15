@@ -36,8 +36,8 @@ def birth_dates() -> dict[str, str]:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--limit", type=int, default=30)
-    parser.add_argument("--delay", type=float, default=2.1)
+    parser.add_argument("--limit", type=int, default=25)
+    parser.add_argument("--delay", type=float, default=2.5)
     parser.add_argument("--player-id", help="Resolve one explicit TeamMateTag player ID.")
     args = parser.parse_args()
     server.ensure_runtime_schema()
@@ -58,10 +58,23 @@ def main() -> None:
         """, (args.player_id, args.player_id, args.limit)).fetchall()
     results = []
     for index, (player_id, name) in enumerate(rows, 1):
-        response = requests.get(API, params={"p": name}, headers=HEADERS, timeout=30)
-        if response.status_code == 429:
-            raise RuntimeError("TheSportsDB rate-limited this run; wait before resuming.")
-        players = response.json().get("player") or []
+        response = None
+        for retry in range(3):
+            response = requests.get(API, params={"p": name}, headers=HEADERS, timeout=30)
+            if response.status_code != 429:
+                break
+            # The free key is globally rate-limited. Wait out the full window
+            # and retry this player instead of abandoning the durable queue.
+            print("  rate-limited; waiting 65 seconds before retrying", flush=True)
+            time.sleep(65)
+        if response is None or response.status_code == 429:
+            results.append((player_id, "rate_limited", None, None))
+            continue
+        try:
+            players = response.json().get("player") or []
+        except ValueError:
+            results.append((player_id, "invalid_response", None, None))
+            continue
         birth = births.get(player_id, "")
         match = next((item for item in players
                       if item.get("strSport") == "American Football"
@@ -87,7 +100,7 @@ def main() -> None:
                 VALUES ('football', %s, 'TheSportsDB', %s, %s)
                 ON CONFLICT (sport_id, player_id, provider) DO UPDATE SET status=EXCLUDED.status,
                   source_url=EXCLUDED.source_url, checked_at=now()
-            """, [(player_id, status, url) for player_id, status, url, _ in results])
+            """, [(player_id, status, url) for player_id, status, url, _ in results if status != "rate_limited"])
             cur.executemany("""
                 UPDATE player_headshots SET source_url=%s, fallback_url=NULL, provider='TheSportsDB', status='verified',
                   content_sha256=%s, perceptual_hash=%s, width=%s, height=%s,
