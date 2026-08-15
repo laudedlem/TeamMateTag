@@ -911,6 +911,18 @@ headshot. `scripts/apply_verified_runtime_headshots.py` records hand-verified
 runtime exceptions, currently Devin Hester and Mike Brown; rerun it after any
 future forced audit. Trent Cole and Clifton Geathers are verified ESPN images.
 
+Photo sourcing pass, 2026-08-15: `resolve_nfl_wikimedia_headshots.py` ran a
+strict name + American-football description + recorded-team match against every
+remaining NFL gap. It promoted 30 Commons photos and recorded every other
+outcome in `player_headshot_source_attempts`; most unresolved players simply
+do not have a matching Wikipedia article. `resolve_nfl_thesportsdb_headshots.py`
+is the next fallback. It requires exact name and nflverse birth-date matches,
+checks the returned image bytes, and respects TheSportsDB's free 30-request per
+minute limit. It has resolved Lance Briggs. The durable long-running pass is
+intentionally allowed to continue locally; it must not use placeholders as a
+fallback. Current football coverage is 8,933 verified images, 5,623 blocked
+placeholders, and 680 missing responses.
+
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.
   This explains the Firefox failure and can also affect Chrome when its cache
