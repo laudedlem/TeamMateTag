@@ -969,6 +969,26 @@ Checkpointed `audit_runtime_headshots.py` batches are running for baseball,
 basketball, and hockey while the football resolvers continue. Audit first,
 then use provider-specific fallbacks only for the flagged rows.
 
+Cross-sport ESPN identity pass, 2026-08-15: use
+`scripts/index_espn_sport_athletes.py` for checkpointed ESPN athlete identity
+catalogs. It writes immutable local CSV pages containing ESPN ID, name, birth
+date, debut year, active flag, and position. Catalog sizes: MLB 38 pages,
+NBA 1 page, NHL 12 pages; the NFL has its existing dedicated 21-page index.
+These jobs collect identities only. After a sport's pages are complete, match
+the flagged runtime players to ESPN by normalized name plus birth date/career
+context, then request and byte-validate the ESPN portrait URLs. TheSportsDB
+will be the secondary source, with exact identity checks and the same image
+audit; it must never promote a generic placeholder.
+
+Initial image-audit snapshot, 2026-08-15: all active 2000-present catalogs
+have completed the byte-level scan. Baseball: 7,168 total, 4,856 verified,
+2,312 flagged. Basketball: 2,566 total, 1,705 verified, 861 flagged.
+Football: 15,236 total, 10,552 verified, 4,684 flagged. Hockey: 4,590 total,
+3,303 verified, 1,287 flagged. "Flagged" means the current URL was proved to
+be a placeholder or unavailable; it is not displayable coverage. "Unchecked"
+is zero for all four sports. The local registry export remains the durable
+record of source URL, provider, hash, dimensions, and audit state.
+
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.
   This explains the Firefox failure and can also affect Chrome when its cache
