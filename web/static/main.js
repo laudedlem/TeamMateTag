@@ -2129,7 +2129,7 @@ function renderFrGame(initialRender) {
       const solvedIndex = frGame.finished ? i : solvedLinks.length - 1 - i;
       const solved = solvedLinks[solvedIndex];
       if (solved) {
-        const bar = makeConnectionBar([solved], [], false);
+        const bar = makeConnectionBar(Array.isArray(solved) ? solved : [solved], [], false);
         if (!frGame.finished && !initialRender && i === 0 && stackCards.length > 2) {
           bar.classList.add('slide-in');
         }
@@ -2201,7 +2201,7 @@ async function loadFrAnswers() {
     frGame.revealed_cards = res.full_cards;
     frGame.revealed_count = res.full_cards.length;
     frGame.earned_count = earnedCount;
-    frGame.solved_links = res.canonical_links;
+    frGame.solved_links = res.answers || res.canonical_links;
     renderFrGame(true);
   }
   els.frAnswerReveal.innerHTML = '';

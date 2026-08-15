@@ -73,7 +73,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.2.5"
+APP_VERSION = "0.2.6"
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
 # When running the local curation build we deliberately keep using SQLite so
@@ -2335,10 +2335,10 @@ def index():
 
 
 MODE_HUBS = {
-    "manager": {"title": "Manager Mode", "mode": "bp", "description": "Build the longest lineup you can before the clock expires."},
-    "film": {"title": "Film Review", "mode": "fr", "description": "Solve the daily lineup by naming the team and year between each pair."},
-    "division": {"title": "Division Rivalry", "mode": "mp", "description": "Take turns building one lineup against an online opponent."},
-    "playoffs": {"title": "Playoffs", "mode": "po", "description": "Online lineup battle with powerups and win conditions."},
+    "manager": {"title": "Manager Mode", "mode": "bp", "description": "Build an endless solo lineup. Name a teammate of the top player before the 20-second clock expires, avoid maxed-out team-years, and chase your longest lineup."},
+    "film": {"title": "Film Review", "mode": "fr", "description": "Solve the daily lineup by identifying the team and year between each visible pair. Three misses end the review; archived lineups are always available."},
+    "division": {"title": "Division Rivalry", "mode": "mp", "description": "Online head-to-head. Alternate teammate links on one lineup, manage team-year marks, and win when your opponent runs out of time or exits."},
+    "playoffs": {"title": "Playoffs", "mode": "po", "description": "Online lineup battle with the same turn-by-turn teammate rules, plus one-use powerups and a personal win condition that can end the game immediately."},
 }
 
 MODE_ALIASES = {
@@ -6557,8 +6557,14 @@ def generate_baseball_film_review(conn, puzzle_day: date) -> dict:
                 ORDER BY b.player_id, a.team_id, a.season""",
             (player_id, player_id),
         ).fetchall()
-        return [(pid, (team, season)) for pid, team, season in rows
-                if pid in eligible and pid not in used_players and (team, season) not in used_links]
+        by_candidate: dict[str, list[tuple[str, int]]] = {}
+        for pid, team, season in rows:
+            if pid in eligible and pid not in used_players and (team, season) not in used_links:
+                by_candidate.setdefault(pid, []).append((team, season))
+        unique = [(pid, links[0]) for pid, links in by_candidate.items() if len(links) == 1]
+        if unique:
+            return unique
+        return [(pid, link) for pid, links in by_candidate.items() for link in links]
 
     rng = random.Random(f"baseball:{puzzle_day.isoformat()}")
     for _ in range(500):
@@ -6872,10 +6878,13 @@ def fr_guess():
 
         if outcome == "hit":
             blob["hits"] += 1
-            t_id, season, team_name = matched[0]
-            blob["solved_links"][blob["pair_index"]] = {
-                "team_id": t_id, "season": season, "team_name": team_name,
-            }
+            matched_key = (matched[0][0], matched[0][1])
+            ordered = [row for row in shared if (row[0], row[1]) == matched_key]
+            ordered.extend(row for row in shared if (row[0], row[1]) != matched_key)
+            blob["solved_links"][blob["pair_index"]] = [
+                {"team_id": t_id, "season": season, "team_name": team_name}
+                for t_id, season, team_name in ordered
+            ]
             blob["pair_index"] += 1
             blob["revealed_count"] = min(blob["revealed_count"] + 1, len(blob["deck"]))
             if blob["hits"] >= len(blob["deck"]) - 1:
@@ -6930,10 +6939,7 @@ def fr_reveal_answer():
             for pid in blob["deck"]
         ],
         "canonical_links": [
-            (
-                {"team_id": pair[0][0], "season": pair[0][1], "team_name": pair[0][2]}
-                if pair else None
-            )
+            [{"team_id": row[0], "season": row[1], "team_name": row[2]} for row in pair]
             for pair in blob["shared_per_pair"]
         ],
         "answers": [
@@ -7209,7 +7215,12 @@ def sport_fr_guess(sport: str):
                     blob["consec_fouls"] = 0
                     blob["hits"] += 1
                     match = matched[0]
-                    blob["solved_links"][blob["pair_index"]] = {"team_id": match[0], "season": match[1], "team_name": match[2]}
+                    shared = blob["shared_per_pair"][blob["pair_index"]]
+                    ordered = [row for row in shared if (row[0], row[1]) == (match[0], match[1])]
+                    ordered.extend(row for row in shared if (row[0], row[1]) != (match[0], match[1]))
+                    blob["solved_links"][blob["pair_index"]] = [
+                        {"team_id": row[0], "season": row[1], "team_name": row[2]} for row in ordered
+                    ]
                     blob["pair_index"] += 1
                     blob["revealed_count"] = min(blob["revealed_count"] + 1, len(blob["deck"]))
                     if blob["hits"] >= len(blob["deck"]) - 1:
@@ -7270,7 +7281,8 @@ def sport_fr_reveal_answer(sport: str):
             return jsonify({"error": "game not finished"}), 400
         cards = _sport_cards(conn, sport, blob["deck"])
         return jsonify({"full_cards": [_sport_fr_card(pid, cards[pid]) for pid in blob["deck"]],
-                        "canonical_links": [{"team_id": pair[0][0], "season": pair[0][1], "team_name": pair[0][2]} if pair else None for pair in blob["shared_per_pair"]]})
+                        "canonical_links": [[{"team_id": row[0], "season": row[1], "team_name": row[2]} for row in pair]
+                                            for pair in blob["shared_per_pair"]]})
 
 
 # ============================================================

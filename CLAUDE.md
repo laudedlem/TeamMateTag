@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.2.5`
+- Current display version: `0.2.6`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -835,6 +835,18 @@ today. Random Playoffs assignments now exclude each guest's three most recent
 random conditions within the same sport; explicit condition choices are not
 altered. The local SQLite playtest path applies the same recent-repeat rule
 for its in-memory session.
+
+Update, 2026-08-14 (0.2.6): reset all derived gameplay records to align with
+the modern-era scope, including scores, leaderboards, ELO, team-out counts,
+daily attempts, active games, daily starters, and persisted Film Review decks.
+Accounts, auth, friendships, and athlete catalog records were retained. Film
+Review was backfilled from 2026-08-01 through 2026-08-14 for all sports and
+both Football units (70 puzzles). New dates are still generated and persisted
+on first request. Daily generators now prefer player pairs with exactly one
+valid shared team-year; when a multi-year overlap is used, solved links show
+all valid answers. The TeamMateTag header now links home without an underline,
+all sports are marked playable on the home page, and sport/mode copy was
+rewritten to describe the actual rules.
 
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.

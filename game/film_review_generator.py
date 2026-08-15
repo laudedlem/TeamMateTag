@@ -34,9 +34,9 @@ FOOTBALL_ROLE_POSITIONS = {
 
 QUALITY_FLOORS = {
     "baseball": (250, 2000),
-    "football": (32, 1990),
+    "football": (32, 2000),
     # NHL roster-history rows currently count seasons rather than games.
-    "hockey": (5, 1995),
+    "hockey": (5, 2000),
     # The local NBA importer stores one row per player-team-season, so its
     # career count is seasons rather than total games.
     "basketball": (5, 2000),
@@ -94,9 +94,17 @@ def _candidate_links(conn: sqlite3.Connection, sport: str, player_id: str,
         JOIN sport_players b_player ON b_player.sport_id=b.sport_id AND b_player.player_id=b.player_id
         WHERE a.sport_id=? AND a.player_id=? AND b.player_id<>? AND a.season>=?
     """, (sport, player_id, player_id, modern_final_year))
-    return [(candidate, (team_id, season)) for candidate, team_id, season in rows
-            if candidate in eligible and candidate not in used_players
-            and (team_id, season) not in used_links]
+    by_candidate: dict[str, list[tuple[str, int]]] = {}
+    for candidate, team_id, season in rows:
+        if (candidate in eligible and candidate not in used_players
+                and (team_id, season) not in used_links):
+            by_candidate.setdefault(candidate, []).append((team_id, season))
+    # A single shared team-year makes a clean daily puzzle. Retain broader
+    # overlaps as a fallback so position-constrained lineups remain feasible.
+    unique = [(candidate, links[0]) for candidate, links in by_candidate.items() if len(links) == 1]
+    if unique:
+        return unique
+    return [(candidate, link) for candidate, links in by_candidate.items() for link in links]
 
 
 def generate(conn: sqlite3.Connection, sport: str, puzzle_day: date | None = None,

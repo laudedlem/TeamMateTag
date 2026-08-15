@@ -8,13 +8,13 @@
 </head>
 <body class="dark" data-sport="{{ sport.key if sport else '' }}" data-cross-sports-online="{{ 'true' if cross_sports_online else 'false' }}" data-launch-mode="{{ launch.mode if launch else '' }}" data-launch-date="{{ launch.date if launch else '' }}" data-launch-archive="{{ launch.archive if launch else '' }}" data-launch-game-id="{{ launch.game_id if launch else '' }}" data-launch-source="{{ launch.source if launch else '' }}" data-launch-unit="{{ launch.unit if launch else '' }}">
   <header>
-    <div class="title">
+    <a class="title brand-link" href="/" aria-label="TeamMateTag home">
       <div class="brand-row">
         <h1>TeamMateTag</h1>
 <span class="app-version" title="Current version">{{ app_version }}</span>
       </div>
       <span class="subtitle" id="brand-subtitle"></span>
-    </div>
+    </a>
     <div class="header-controls">
       <button id="exit-btn" class="icon-btn exit-btn" title="Exit to home" aria-label="Exit to home" hidden>Exit</button>
       <button id="rules-btn" class="icon-btn" title="How to play" aria-label="How to play">?</button>
@@ -70,9 +70,9 @@
           <span class="mode-tile-name">Manager Mode</span>
           <span class="mode-tile-tag">solo</span>
         </div>
-        <span class="mode-tile-desc">
-            Solo. 20-second timer that resets on each link. Team strikeouts
-            apply. Goal: build the longest lineup you can.
+          <span class="mode-tile-desc">
+            Solo and endless. Name a teammate of the top player before time
+            expires. Correct links reset the clock. Build your longest lineup.
         </span>
         </button>
         <button class="mode-tile" data-mode="fr">
@@ -82,7 +82,7 @@
           </div>
           <span class="mode-tile-desc">
             {% if sport.key == 'football' %}24 players, 23 connections.{% elif sport.key == 'basketball' %}12 players, 11 connections.{% elif sport.key == 'hockey' %}11 players, 10 connections.{% else %}10 players, 9 connections.{% endif %}
-            Guess the team and year that links each pair. 3 strikes ends the review.
+            Identify the team and year linking each pair. Three misses end the review.
           </span>
         </button>
         <button class="mode-tile" data-mode="mp">
@@ -91,8 +91,8 @@
           <span class="mode-tile-tag">2 players</span>
         </div>
         <span class="mode-tile-desc">
-            Alternating turns, 20s clock, team strikeouts. Outlast your
-            opponent.
+            Alternate teammate links on one lineup. Team-year marks can block
+            future links. Win when your opponent runs out of time or exits.
         </span>
         </button>
         <button class="mode-tile" data-mode="po">
@@ -101,8 +101,8 @@
           <span class="mode-tile-tag">2 players</span>
         </div>
         <span class="mode-tile-desc">
-            Division Rivalry with a full powerup set for each player. Timer swings and
-            expanded links create a more chaotic battle.
+            Head-to-head lineup battle with one-use powerups and a personal
+            win condition. Win on time or complete your condition first.
         </span>
         </button>
       </div>
@@ -130,17 +130,17 @@
         <a class="sport-tile sport-tile-basketball" href="/basketball">
           <span class="sport-tile-league">NBA</span>
           <span class="sport-tile-name">Basketball</span>
-          <span class="sport-tile-status">Coming soon</span>
+          <span class="sport-tile-status">Play now</span>
         </a>
         <a class="sport-tile sport-tile-hockey" href="/hockey">
           <span class="sport-tile-league">NHL</span>
           <span class="sport-tile-name">Hockey</span>
-          <span class="sport-tile-status">Coming soon</span>
+          <span class="sport-tile-status">Play now</span>
         </a>
         <a class="sport-tile sport-tile-football" href="/football">
           <span class="sport-tile-league">NFL</span>
           <span class="sport-tile-name">Football</span>
-          <span class="sport-tile-status">Coming soon</span>
+          <span class="sport-tile-status">Play now</span>
         </a>
       </div>
       <h2 class="mode-home-heading">Or Choose A Mode</h2>
@@ -273,7 +273,7 @@
       <button class="back-btn" data-back="home">&larr; Home</button>
       <h2 id="match-mode-title">Division Rivalry</h2>
       <p class="muted">
-        Find an online opponent using your guest profile. Click the
+        Find an online opponent using your profile. Click the
         <b>?</b> in the header for full rules.
       </p>
       <p class="muted small" id="mp-status-text">You will queue as your current guest profile.</p>
