@@ -1068,7 +1068,19 @@ unambiguous normalized filename and extracted them under
 `/local-headshots/ootp/<player_id>.jpg` only when `TEAMMATETAG_LOCAL_SPORTS=1`.
 Production deliberately suppresses these local-only URLs until images are
 migrated to supported storage. All imported records are `OOTP Facepack` with a
-playtest-only review note. Result: baseball 7,074 verified / 94 unresolved.
+playtest-only review note. The all-history record count after import was 7,074
+verified. For the current 2000-present playable baseball catalog, the result
+is 5,143 verified / 94 unresolved.
+
+OOTP production publishing, 2026-08-15: `scripts/publish_ootp_mlb_headshots.py`
+is the resumable production bridge for the 2,211 extracted OOTP photos (40.22
+MB). It creates the public Supabase Storage bucket `player-headshots`, uploads
+objects under `baseball/ootp/`, and updates the OOTP database records from
+local-only `/local-headshots/...` URLs to public storage URLs. It requires
+`SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in the local `.env`, in addition
+to the existing `DATABASE_URL`. The service-role key must never be committed or
+placed in Vercel/browser code. The public bucket does not consume Postgres
+database capacity and requires no Vercel configuration to display its URLs.
 
 Retention policy, 2026-08-15: preserve every completed ESPN catalog page under
 `raw/espn_<league>_athlete_pages/`, including athletes outside the current
