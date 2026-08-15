@@ -1212,9 +1212,13 @@ Completed identity cleanup, 2026-08-15:
 Headshot cleanup snapshot after the identity pass:
 - Current unresolved review sheet:
   `raw/headshot_submissions_current.csv`, 4,699 active rows.
-- Baseball: 5,150 verified, 87 placeholder. Five additional OOTP images were
+- Baseball: 5,151 verified, 86 placeholder. Five additional OOTP images were
   manually matched and published to Supabase Storage: Jerry Hairston Jr,
   Abraham Nunez, Craig Wilson, Ramon Castro, and Delino DeShields Jr.
+  The remaining Ryan Braun pitcher record, `braunry01`, was also verified with
+  a Baseball Reference player-page headshot through the manual-submission
+  validator. The famous Brewers outfielder remains `braunry02` and already had
+  a verified MLBAM headshot.
 - Basketball: 2,472 verified, 94 placeholder. A focused TheSportsDB pass checked
   25 unresolved NBA rows and promoted 9 validated portraits.
 - Hockey: 4,351 verified, 12 missing, 138 placeholder. The remaining prominent
