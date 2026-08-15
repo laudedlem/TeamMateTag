@@ -98,17 +98,17 @@ def main() -> None:
         print(f"  checked {index}/{len(rows)}", flush=True)
         if index < len(rows): time.sleep(args.delay)
     promoted = [row for row in results if row[1] == "candidate"]
-    with server.db() as conn:
-        conn.executemany("""INSERT INTO player_headshot_source_attempts (sport_id, player_id, provider, status, source_url)
+    with server.db() as conn, conn.cursor() as cur:
+        cur.executemany("""INSERT INTO player_headshot_source_attempts (sport_id, player_id, provider, status, source_url)
             VALUES (%s,%s,'TheSportsDB',%s,%s) ON CONFLICT (sport_id,player_id,provider) DO UPDATE SET
             status=EXCLUDED.status, source_url=EXCLUDED.source_url, checked_at=now()""",
             [(args.sport, player_id, status, url) for player_id, status, url, _ in results if status != "transient_error"])
-        conn.executemany("""UPDATE player_headshots SET source_url=%s, fallback_url=NULL, provider='TheSportsDB', status='verified',
+        cur.executemany("""UPDATE player_headshots SET source_url=%s, fallback_url=NULL, provider='TheSportsDB', status='verified',
             content_sha256=%s, perceptual_hash=%s, width=%s, height=%s, review_note='ESPN-identity-matched TheSportsDB portrait.'
             WHERE sport_id=%s AND player_id=%s""",
             [(url, image['sha256'], image['perceptual_hash'], image['width'], image['height'], args.sport, player_id)
              for player_id, _, url, image in promoted])
-        conn.executemany("""INSERT INTO sport_player_images (sport_id, player_id, source_url) VALUES (%s,%s,%s)
+        cur.executemany("""INSERT INTO sport_player_images (sport_id, player_id, source_url) VALUES (%s,%s,%s)
             ON CONFLICT (sport_id,player_id) DO UPDATE SET source_url=EXCLUDED.source_url""",
             [(args.sport, player_id, url) for player_id, _, url, _ in promoted if args.sport != 'baseball'])
     print(f"Promoted {len(promoted)} TheSportsDB portraits from {len(results)} attempts.")

@@ -989,6 +989,14 @@ be a placeholder or unavailable; it is not displayable coverage. "Unchecked"
 is zero for all four sports. The local registry export remains the durable
 record of source URL, provider, hash, dimensions, and audit state.
 
+Important ESPN catalog limitation: the public NBA core catalog returned 614
+current athletes on one page, not the full historical league. It is useful for
+current NBA IDs and portraits, but historical NBA identity matching must also
+use the local `raw/nba_kaggle/positions_v2/NBA_PLAYERS.csv` birth-date source
+and TheSportsDB or another validated historical source. The local NBA source
+contains player name, debut/final years, position, and birthday. Do not claim
+the ESPN catalog is comprehensive for NBA history.
+
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.
   This explains the Firefox failure and can also affect Chrome when its cache
