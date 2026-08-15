@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.2.6`
+- Current display version: `0.2.7`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -847,6 +847,17 @@ valid shared team-year; when a multi-year overlap is used, solved links show
 all valid answers. The TeamMateTag header now links home without an underline,
 all sports are marked playable on the home page, and sport/mode copy was
 rewritten to describe the actual rules.
+
+Update, 2026-08-14 (0.2.7): Supabase was pruned to the active 2000-present
+catalog while retaining a complete local historical snapshot at
+`db/archive/teammatetag_historical_catalog_2026-08-14.sqlite` (SHA-256
+`221eb75ef592de85115c057b15a07f061282081b25b193519a4e17736dc69f29`). The
+archive is deliberately ignored by Git. Removed cross-sport pre-2000
+appearances, team seasons, season traits, and historical-only player metadata;
+Baseball was already modern-era for appearances, so only historical-only player
+metadata was removed. After `VACUUM FULL`, public Supabase table storage fell
+from about 170 MB to about 72 MB. All five Film Review generators were checked
+against the reduced runtime catalog successfully.
 
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.
