@@ -34,6 +34,7 @@ USER_AGENT = "TeamMateTag MLB Wikimedia headshot resolver/1.0 (local verificatio
 
 
 def norm(value: str) -> str:
+    value = re.sub(r"\s*\([^)]*\)\s*", " ", value)
     return re.sub(r"[^a-z0-9]", "", normalize(value).replace(" jr", "").replace(" sr", ""))
 
 
@@ -48,7 +49,8 @@ def placeholder_fingerprints() -> tuple[set[str], set[str]]:
     return hashes, perceptual
 
 
-def unresolved_players(conn) -> list[dict]:
+def unresolved_players(conn, force: bool = False) -> list[dict]:
+    tried_filter = "" if force else "AND tried.player_id IS NULL"
     rows = conn.execute(
         """SELECT p.player_id, concat_ws(' ', p.name_first, p.name_last), p.debut_year, p.final_year,
                   p.primary_pos, array_agg(DISTINCT t.name) FILTER (WHERE t.name IS NOT NULL),
@@ -63,9 +65,9 @@ def unresolved_players(conn) -> list[dict]:
              LEFT JOIN teams t ON t.team_id=a.team_id AND t.season=a.season
             WHERE p.final_year >= 2000
               AND h.status IN ('placeholder','missing')
-              AND tried.player_id IS NULL
+              {tried_filter}
             GROUP BY p.player_id,p.name_first,p.name_last,p.debut_year,p.final_year,p.primary_pos,ps.career_games
-            ORDER BY COALESCE(ps.career_games, 0) DESC, p.final_year DESC NULLS LAST, p.player_id"""
+            ORDER BY COALESCE(ps.career_games, 0) DESC, p.final_year DESC NULLS LAST, p.player_id""".format(tried_filter=tried_filter)
     ).fetchall()
     return [
         {
@@ -80,8 +82,23 @@ def unresolved_players(conn) -> list[dict]:
     ]
 
 
-def search_titles(session: requests.Session, name: str) -> list[str]:
-    candidates = [name, f"{name} (baseball)", f"{name} (baseball player)"]
+def role_title_guesses(name: str, position: str) -> list[str]:
+    if position == "P":
+        roles = ["pitcher", "baseball pitcher"]
+    else:
+        roles = [
+            "outfielder", "infielder", "catcher", "first baseman",
+            "second baseman", "third baseman", "shortstop",
+            "left fielder", "center fielder", "right fielder",
+            "designated hitter", "utility player",
+            "baseball outfielder", "baseball infielder", "baseball catcher",
+        ]
+    return [f"{name} ({role})" for role in roles]
+
+
+def search_titles(session: requests.Session, row: dict) -> list[str]:
+    name = row["name"]
+    candidates = [name, f"{name} (baseball)", f"{name} (baseball player)", *role_title_guesses(name, row["position"])]
     try:
         response = session.get(
             API,
@@ -118,6 +135,47 @@ def summary_for(session: requests.Session, title: str) -> dict | None:
         return None
 
 
+def article_extract(session: requests.Session, title: str) -> str:
+    try:
+        response = session.get(
+            API,
+            params={
+                "action": "query",
+                "prop": "extracts",
+                "explaintext": 1,
+                "titles": title,
+                "format": "json",
+                "redirects": 1,
+            },
+            timeout=20,
+        )
+        if response.status_code != 200:
+            return ""
+        pages = response.json().get("query", {}).get("pages", {})
+        return "\n".join(page.get("extract") or "" for page in pages.values())
+    except (requests.RequestException, ValueError):
+        return ""
+
+
+def team_match(text: str, teams: list[str]) -> str | None:
+    lower = text.lower()
+    return next((team for team in teams if team.lower() in lower or team.split()[-1].lower() in lower), None)
+
+
+def role_match(text: str, position: str) -> bool:
+    lower = text.lower()
+    if position == "P":
+        return "pitcher" in lower
+    batter_words = (
+        "outfielder", "infielder", "catcher", "first baseman",
+        "second baseman", "third baseman", "shortstop", "right fielder",
+        "left fielder", "center fielder", "designated hitter",
+    )
+    if "pitcher" in lower and not any(word in lower for word in batter_words):
+        return False
+    return any(word in lower for word in batter_words) or "position player" in lower
+
+
 def is_baseball_article(page: dict, row: dict) -> tuple[bool, str]:
     title = page.get("title") or ""
     extract = page.get("extract") or ""
@@ -130,21 +188,16 @@ def is_baseball_article(page: dict, row: dict) -> tuple[bool, str]:
         redirected = bool(title_parts and name_parts and title_parts[-1] == name_parts[-1] and title_parts[0][:1] == name_parts[0][:1])
         if not redirected:
             return False, f"title mismatch: {title}"
-    teams = row["teams"]
-    if teams:
-        team_match = next((team for team in teams if team.lower() in lower or team.split()[-1].lower() in lower), None)
-        if not team_match:
-            return False, "no team match"
     return True, ""
 
 
-def image_url(page: dict) -> str | None:
+def image_candidate(page: dict) -> tuple[str | None, int | None, int | None]:
     for key in ("thumbnail", "originalimage"):
         value = page.get(key) or {}
         url = value.get("source")
         if url and "upload.wikimedia.org" in url:
-            return url
-    return None
+            return url, value.get("width"), value.get("height")
+    return None, None, None
 
 
 def image_reject_reason(image: dict, hashes: set[str], perceptual: set[str]) -> str | None:
@@ -159,7 +212,7 @@ def image_reject_reason(image: dict, hashes: set[str], perceptual: set[str]) -> 
 
 def candidate(session: requests.Session, row: dict, hashes: set[str], perceptual: set[str]) -> dict:
     rejected_notes: list[str] = []
-    for title in search_titles(session, row["name"]):
+    for title in search_titles(session, row):
         page = summary_for(session, title)
         if not page:
             rejected_notes.append(f"{title}: no page")
@@ -168,15 +221,34 @@ def candidate(session: requests.Session, row: dict, hashes: set[str], perceptual
         if not ok:
             rejected_notes.append(f"{page.get('title') or title}: {reason}")
             continue
-        url = image_url(page)
+        full_text = f"{page.get('title') or ''}\n{page.get('extract') or ''}\n{article_extract(session, page.get('title') or title)}"
+        matched_team = team_match(full_text, row["teams"])
+        role_ok = role_match(full_text, row["position"])
+        exact_title = norm(page.get("title") or title) == norm(row["name"])
+        if row["teams"] and not matched_team and not (exact_title and role_ok):
+            rejected_notes.append(f"{page.get('title') or title}: no team match")
+            continue
+        url, meta_width, meta_height = image_candidate(page)
         if not url:
             rejected_notes.append(f"{page.get('title') or title}: no Wikimedia image")
             continue
         inspected = fetch(url)
         reason = image_reject_reason(inspected, hashes, perceptual)
-        if reason:
+        if reason and not (
+            inspected.get("error") == "HTTP 429"
+            and int(meta_width or 0) >= 80
+            and int(meta_height or 0) >= 80
+        ):
             rejected_notes.append(f"{page.get('title') or title}: {reason}")
             continue
+        if inspected.get("error") == "HTTP 429":
+            inspected = {
+                "status": "ok",
+                "sha256": None,
+                "perceptual_hash": None,
+                "width": meta_width,
+                "height": meta_height,
+            }
         source_page = ((page.get("content_urls") or {}).get("desktop") or {}).get("page")
         return {
             **row,
@@ -185,7 +257,7 @@ def candidate(session: requests.Session, row: dict, hashes: set[str], perceptual
             "source_page": source_page or "",
             "title": page.get("title") or title,
             "image": inspected,
-            "note": "Wikimedia image matched by baseball article and team context.",
+            "note": f"Wikimedia image matched by baseball article and team context: {matched_team or 'no team required'}.",
         }
     return {**row, "status": "no_match", "url": "", "source_page": "", "title": "", "note": " | ".join(rejected_notes[:4])}
 
@@ -195,12 +267,13 @@ def main() -> None:
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--delay", type=float, default=0.2)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--force", action="store_true", help="retry rows that already have a Wikimedia attempt")
     parser.add_argument("--report", type=Path, default=REPORT)
     args = parser.parse_args()
 
     hashes, perceptual = placeholder_fingerprints()
     with server.db() as conn:
-        rows = unresolved_players(conn)
+        rows = unresolved_players(conn, force=args.force)
     if args.limit:
         rows = rows[:args.limit]
     session = requests.Session()

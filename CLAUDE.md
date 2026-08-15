@@ -1212,7 +1212,7 @@ Completed identity cleanup, 2026-08-15:
 Headshot cleanup snapshot after the identity pass:
 - Current unresolved review sheet:
   `raw/headshot_submissions_current.csv`, 4,699 active rows.
-- Baseball: 5,172 verified, 65 placeholder. `scripts/resolve_mlb_bref_headshots.py`
+- Baseball: 5,179 verified, 58 placeholder. `scripts/resolve_mlb_bref_headshots.py`
   checks unresolved MLB rows against Baseball Reference player pages, extracts
   the structured `image.contentUrl`, rejects known placeholders/tiny images,
   and writes validated URLs directly to the production registry. First pass:
@@ -1221,11 +1221,15 @@ Headshot cleanup snapshot after the identity pass:
   outfielder remains `braunry02` and already had a verified MLBAM headshot.
 - `scripts/resolve_mlb_wikimedia_headshots.py` checks unresolved MLB rows
   against Wikipedia/Wikimedia. It searches likely article titles, requires a
-  baseball article plus a current TeamMateTag team-context match, validates the
-  image bytes against known placeholders, and then updates production. First
-  pass promoted Bill Mueller from Wikimedia Commons. The Matt Young Wikipedia
-  photo was deliberately rejected because that article is the older pitcher,
-  not TeamMateTag's 2011-12 Braves/Tigers position player.
+  baseball article plus a current TeamMateTag team-context or role match,
+  validates image bytes against known placeholders when Wikimedia permits the
+  download, and otherwise accepts Wikimedia API image metadata only for a
+  matched article image with dimensions over 80px. Current Wikimedia promotions:
+  Bill Mueller, Matt Young `youngma02` from `Matt Young (outfielder)`, Abraham
+  Nunez infielder, Craig Wilson first baseman, Mark McLemore, JD Closser, and
+  Ben Johnson. The generic `Matt Young` Wikipedia page remains rejected because
+  it is the older pitcher, not TeamMateTag's 2011-12 Braves/Tigers position
+  player.
 - OOTP same-name caution: visual review found several incorrect same-name
   matches and they were reverted to unresolved: `castrra02`, `deshide01`,
   `nunezab01`, `penato02`, `wilsocr02`, and `wilsocr03`. The OOTP importer now
