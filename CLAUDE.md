@@ -1042,6 +1042,16 @@ playtest-only pending source/license review. Current status after this pass:
 baseball 4,863 verified / 2,305 unresolved; basketball 2,463 / 103; football
 10,577 / 4,659; hockey 3,318 / 1,272.
 
+Community-source research, 2026-08-15: Reddit and GitHub found no NFL or NHL
+equivalent of the 5,408-entry Basketball GM map. NFL community results are
+Madden roster/face assets with incomplete or sometimes incorrect portraits,
+not a stable player-ID URL database. NHL results include Hockey Legacy Manager
+rosters with current-player photos, not a broad downloadable historical map.
+MLB has a stronger next lead: the OOTP Developments photo-pack forum hosts
+current and historical MLB photo packs, including 2026 updates. Assess the
+pack's filename/identifier convention and source before importing; retain each
+mapping as playtest-only provenance until a licensing pass.
+
 Retention policy, 2026-08-15: preserve every completed ESPN catalog page under
 `raw/espn_<league>_athlete_pages/`, including athletes outside the current
 2000-present playable catalog. These identity files are a future expansion
