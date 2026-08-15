@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.2.9`
+- Current display version: `0.3.0`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -879,6 +879,17 @@ Update, 2026-08-14 (0.2.9): the headshot scanner now skips every already
 checked registry record by default, not just manual approvals. Repeated
 `--limit 500` batches therefore advance through the remaining catalog. Use
 `--force` only when intentionally rechecking prior results.
+
+Update, 2026-08-14 (0.3.0): investigated the NFL photo failure. A first
+500-player byte audit found 479 generic placeholders and 21 unique images,
+confirming the old NFL catalog URLs are not reliable coverage. Added
+`scripts/refresh_nflverse_headshots.py`, which joins the current nflverse
+players file by GSIS ID and refreshed 13,728 NFL source candidates, preferring
+nflverse's player-specific NFL asset and using ESPN only when necessary.
+Trent Cole and Clifton Geathers were manually visually verified with ESPN
+portraits and saved as registry overrides. Do not call the catalog 100% covered
+yet: the remaining sources must still pass the resumable byte-level audit and
+the flagged players need reviewed replacement URLs.
 
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.
