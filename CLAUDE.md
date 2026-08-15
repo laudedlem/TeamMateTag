@@ -1110,6 +1110,19 @@ playtest sources and remain marked for license/source review. The historical
 import uses the local-only `py7zr` package (`python -m pip install py7zr`);
 do not add it to production Vercel requirements.
 
+Headshot identity audit, 2026-08-15: source imports had created a small number
+of duplicate source IDs for the same person. `synchronize_duplicate_headshot_aliases.py`
+now copies a verified image across aliases without touching player or teammate
+data. It identifies baseball aliases through a shared RetroSheet ID and NHL
+aliases through normalized name, birth year, position, and team-season career.
+The OOTP importer also permits same-RetroSheet aliases, which restored Kevin
+Youkilis under both legacy player IDs from a single OOTP image. Review-sheet
+exports now include position and team context, collapse NHL source aliases, and
+leave genuine same-name players as separate rows. Current review sheets:
+baseball 92 rows, basketball 103 rows, hockey 210 distinct-player rows. The
+only remaining repeated NHL display name is the two distinct Alexandre Picards
+(defenseman versus left wing).
+
 Retention policy, 2026-08-15: preserve every completed ESPN catalog page under
 `raw/espn_<league>_athlete_pages/`, including athletes outside the current
 2000-present playable catalog. These identity files are a future expansion

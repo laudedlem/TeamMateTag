@@ -31,12 +31,18 @@ def main() -> None:
         for info in files:
             by_name[normalize(Path(info.filename).stem.replace("_", " "))].append(info)
         with server.db() as conn:
-            players = conn.execute("""SELECT p.player_id,concat_ws(' ',p.name_first,p.name_last)
+            players = conn.execute("""SELECT p.player_id,concat_ws(' ',p.name_first,p.name_last),p.retro_id
                 FROM players p JOIN player_headshots h ON h.sport_id='baseball' AND h.player_id=p.player_id
                 WHERE h.status IN ('placeholder','missing')""").fetchall()
-        local_names = Counter(normalize(name) for _, name in players)
-        matches = [(player_id, name, candidates[0]) for player_id, name in players
-                   if len(candidates := by_name.get(normalize(name), [])) == 1 and local_names[normalize(name)] == 1]
+        local_names = Counter(normalize(name) for _, name, _ in players)
+        name_retro_ids: dict[str, set[str]] = defaultdict(set)
+        for _player_id, name, retro_id in players:
+            if retro_id:
+                name_retro_ids[normalize(name)].add(retro_id)
+        matches = [(player_id, name, candidates[0]) for player_id, name, retro_id in players
+                   if len(candidates := by_name.get(normalize(name), [])) == 1
+                   and (local_names[normalize(name)] == 1
+                        or (retro_id and name_retro_ids[normalize(name)] == {retro_id}))]
         EXTRACTED.mkdir(parents=True, exist_ok=True)
         records=[]
         for player_id, name, info in matches:
