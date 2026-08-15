@@ -1027,6 +1027,12 @@ map` and review note `Playtest-only community mapping; license and source
 review required.` This is deliberately separate from vetted sources so it can
 be replaced later without losing provenance.
 
+Gap reporting, 2026-08-15: `scripts/export_headshot_gaps.py` writes the active
+2000-present unresolved list to `raw/active_headshot_gaps.csv`, including
+sport, player ID, display name, career years, current audit status, and review
+note. Use this file for targeted source research and user playtest feedback;
+do not rely on a stale one-off terminal list.
+
 Retention policy, 2026-08-15: preserve every completed ESPN catalog page under
 `raw/espn_<league>_athlete_pages/`, including athletes outside the current
 2000-present playable catalog. These identity files are a future expansion
