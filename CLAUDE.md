@@ -1097,6 +1097,19 @@ updates the runtime registry. Current review sheets are generated locally under
 Git-ignored; a reviewer can fill only the two blank fields and hand the file
 back to the assistant for validation and import.
 
+NHL historical-photo pass, 2026-08-15: FHM's Historical Photos Megapack 3.5
+was downloaded locally from its maintained FHM forum listing (6,650 photos,
+updated June 2026). `scripts/import_fhm_historical_nhl_headshots.py` matched
+only normalized-name-plus-birth-year identities and found 691 unambiguous
+2000-present NHL gaps. All 691 were byte-checked, had no duplicate selected
+image hash, were uploaded to public Supabase Storage under
+`hockey/fhm-historical/`, and their runtime URLs now resolve publicly. The
+current FHM 24-25 pack added another 5 unambiguous current-player photos. NHL
+playable headshot gaps fell from 913 to 217. Both FHM sources are community
+playtest sources and remain marked for license/source review. The historical
+import uses the local-only `py7zr` package (`python -m pip install py7zr`);
+do not add it to production Vercel requirements.
+
 Retention policy, 2026-08-15: preserve every completed ESPN catalog page under
 `raw/espn_<league>_athlete_pages/`, including athletes outside the current
 2000-present playable catalog. These identity files are a future expansion
