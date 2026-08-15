@@ -925,6 +925,11 @@ attempts, so the resolver now uses 25-player batches, a 2.5-second interval,
 and a 65-second retry window. A long-running local pass resumes the remaining
 queue from its durable attempt records. At that point in the pass, football had
 9,112 verified images, 5,458 blocked placeholders, and 666 missing responses.
+The SportsDB resolver now orders unattempted records by total recorded NFL
+games, so high-visibility playable players are repaired before short-stint
+records. There are 31 non-GSIS football IDs needing a later identity-data
+review; several are historic names incorrectly attached to a modern season and
+must be removed or reconciled, not assigned a speculative photo.
 
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.

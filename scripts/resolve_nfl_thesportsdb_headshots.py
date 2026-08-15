@@ -52,9 +52,11 @@ def main() -> None:
             JOIN player_headshots h ON h.sport_id=p.sport_id AND h.player_id=p.player_id
             LEFT JOIN player_headshot_source_attempts tried
               ON tried.sport_id=p.sport_id AND tried.player_id=p.player_id AND tried.provider='TheSportsDB'
+            LEFT JOIN sport_appearances a ON a.sport_id=p.sport_id AND a.player_id=p.player_id
             WHERE p.sport_id='football' AND h.status IN ('placeholder','missing') AND tried.player_id IS NULL
               AND (%s::text IS NULL OR p.player_id=%s)
-            ORDER BY p.player_id LIMIT %s
+            GROUP BY p.player_id, p.display_name
+            ORDER BY COALESCE(SUM(a.games_total), 0) DESC, p.player_id LIMIT %s
         """, (args.player_id, args.player_id, args.limit)).fetchall()
     results = []
     for index, (player_id, name) in enumerate(rows, 1):
