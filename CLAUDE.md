@@ -1087,6 +1087,16 @@ objects, and a direct public-image request returned HTTP 200 image/jpeg. A
 deployment restart clears any warm Vercel card cache that could still hold an
 old local-only image URL.
 
+Manual replacement workflow, 2026-08-15: `scripts/export_headshot_submission_sheet.py`
+creates an Excel-friendly CSV with stable sport/player IDs and blank
+`replacement_url` / `source_note` fields. `scripts/import_headshot_submissions.py`
+downloads every supplied URL, requires a decodable non-placeholder image, then
+updates the runtime registry. Current review sheets are generated locally under
+`raw/mlb_headshot_review_sheet.csv` (94 rows) and
+`raw/nba_headshot_review_sheet.csv` (103 rows). The sheets and raw images stay
+Git-ignored; a reviewer can fill only the two blank fields and hand the file
+back to the assistant for validation and import.
+
 Retention policy, 2026-08-15: preserve every completed ESPN catalog page under
 `raw/espn_<league>_athlete_pages/`, including athletes outside the current
 2000-present playable catalog. These identity files are a future expansion
