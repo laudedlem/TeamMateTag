@@ -1212,13 +1212,20 @@ Completed identity cleanup, 2026-08-15:
 Headshot cleanup snapshot after the identity pass:
 - Current unresolved review sheet:
   `raw/headshot_submissions_current.csv`, 4,699 active rows.
-- Baseball: 5,151 verified, 86 placeholder. Five additional OOTP images were
-  manually matched and published to Supabase Storage: Jerry Hairston Jr,
-  Abraham Nunez, Craig Wilson, Ramon Castro, and Delino DeShields Jr.
-  The remaining Ryan Braun pitcher record, `braunry01`, was also verified with
-  a Baseball Reference player-page headshot through the manual-submission
-  validator. The famous Brewers outfielder remains `braunry02` and already had
-  a verified MLBAM headshot.
+- Baseball: 5,171 verified, 66 placeholder. `scripts/resolve_mlb_bref_headshots.py`
+  checks unresolved MLB rows against Baseball Reference player pages, extracts
+  the structured `image.contentUrl`, rejects known placeholders/tiny images,
+  and writes validated URLs directly to the production registry. First pass:
+  19 Baseball Reference portraits promoted. `braunry01`, the pitcher Ryan
+  Braun, was verified from his Baseball Reference page; the famous Brewers
+  outfielder remains `braunry02` and already had a verified MLBAM headshot.
+- OOTP same-name caution: visual review found several incorrect same-name
+  matches and they were reverted to unresolved: `castrra02`, `deshide01`,
+  `nunezab01`, `penato02`, `wilsocr02`, and `wilsocr03`. The OOTP importer now
+  blocks these IDs so they are not re-promoted accidentally. Current safe OOTP
+  manual additions include Jerry Hairston Jr, Ramon Castro catcher, Alberto
+  Castillo catcher, Tim Raines Jr, Eddy Rodriguez pitcher, and Abraham Nunez
+  2002-04.
 - Basketball: 2,472 verified, 94 placeholder. A focused TheSportsDB pass checked
   25 unresolved NBA rows and promoted 9 validated portraits.
 - Hockey: 4,351 verified, 12 missing, 138 placeholder. The remaining prominent

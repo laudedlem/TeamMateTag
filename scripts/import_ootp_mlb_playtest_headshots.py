@@ -23,10 +23,20 @@ REPORT = ROOT / "raw" / "ootp_mlb_playtest_headshots.csv"
 MANUAL_FILENAME_OVERRIDES = {
     # Lahman omits suffixes in these display names, while OOTP includes them.
     "hairsje02": "Jerry Hairston Jr",
-    "nunezab01": "Abraham Nunez",
-    "wilsocr03": "Craig Wilson",
     "castrra01": "Ramon Castro",
-    "deshide01": "Delino DeShields Jr",
+    "castial01": "Alberto Castillo",
+    "raineti02": "Tim Raines Jr",
+    "rodried03": "Eddy Rodriguez P",
+}
+UNSAFE_OOTP_PLAYER_IDS = {
+    # These names have multiple MLB players and the OOTP filename is either
+    # generic or known to be the wrong same-name player.
+    "castrra02",
+    "deshide01",
+    "nunezab01",
+    "penato02",
+    "wilsocr02",
+    "wilsocr03",
 }
 
 
@@ -48,7 +58,8 @@ def main() -> None:
             if retro_id:
                 name_retro_ids[normalize(name)].add(retro_id)
         matches = [(player_id, name, candidates[0]) for player_id, name, retro_id in players
-                   if len(candidates := by_name.get(normalize(name), [])) == 1
+                   if player_id not in UNSAFE_OOTP_PLAYER_IDS
+                   and len(candidates := by_name.get(normalize(name), [])) == 1
                    and (local_names[normalize(name)] == 1
                         or (retro_id and name_retro_ids[normalize(name)] == {retro_id}))]
         matched_ids = {player_id for player_id, _name, _info in matches}
