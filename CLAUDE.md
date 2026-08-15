@@ -942,6 +942,16 @@ Polamalu, Antonio Gates, Charles Woodson, Dwight Freeney, and Robert Mathis.
 Current snapshot: 9,223 verified football images, 5,347 placeholders, and 666
 missing responses. Never replace a blocked card with a generic league image.
 
+ESPN recovery, 2026-08-15: the original ESPN fallback incorrectly looped over
+unavailable records and never reached all historical ESPN IDs. It was changed
+to use the same durable provider-attempt table and prioritize players by games
+played. The complete known-ID pass promoted 1,100 more verified ESPN images,
+including Thomas Jones and Fred Taylor. `scripts/index_espn_nfl_athletes.py`
+builds a local identity index from ESPN's public 20k-player historical NFL
+catalog. Use it to match unresolved nflverse players by name and birth date
+before requesting an alternate ESPN/college-football portrait. Do not use
+Madden game assets: they are not a licensed public media feed for redistribution.
+
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.
   This explains the Firefox failure and can also affect Chrome when its cache
