@@ -49,12 +49,19 @@ def candidate(row: dict) -> dict:
         page = response.json()
         title, extract = page.get("title") or "", page.get("extract") or ""
         image = (page.get("thumbnail") or {}).get("source")
-        if norm(title) != norm(name) or not image or "upload.wikimedia.org" not in image:
+        name_parts, title_parts = name.lower().split(), title.lower().split()
+        redirected_name = (bool(name_parts and title_parts) and name_parts[-1] == title_parts[-1]
+                           and name_parts[0][0] == title_parts[0][0])
+        if (norm(title) != norm(name) and not redirected_name) or not image or "upload.wikimedia.org" not in image:
             return {"player_id": row["player_id"], "status": "no_match"}
         lower = extract.lower()
         if "football" not in lower or not any(word in lower for word in ("nfl", "national football league", "professional football")):
             return {"player_id": row["player_id"], "status": "not_nfl"}
-        team_match = next((team for team in teams if team.lower() in lower), None)
+        # Team names can change while the franchise does not (for example,
+        # San Diego/Los Angeles Chargers). The distinctive final team token is
+        # sufficient only after the exact-name and football-career checks.
+        team_match = next((team for team in teams if team.lower() in lower or
+                           (len(team.split()[-1]) > 3 and team.split()[-1].lower() in lower)), None)
         if not team_match:
             return {"player_id": row["player_id"], "status": "no_team_match"}
         source_page = ((page.get("content_urls") or {}).get("desktop") or {}).get("page")
@@ -63,10 +70,11 @@ def candidate(row: dict) -> dict:
         # attribution pass; Commons hosts freely licensed media only.
         license_name = "Wikimedia Commons media; attribution metadata pending"
         inspected = fetch(image.split("?")[0])
-        if inspected["status"] != "ok":
+        if inspected["status"] != "ok" and inspected.get("error") != "HTTP 429":
             return {"player_id": row["player_id"], "status": "unavailable"}
         return {"player_id": row["player_id"], "status": "candidate", "url": image.split("?")[0],
-                "source_page": source_page, "license": license_name, "team": team_match, "image": inspected}
+                "source_page": source_page, "license": license_name, "team": team_match,
+                "image": inspected if inspected["status"] == "ok" else None}
     except requests.RequestException:
         return {"player_id": row["player_id"], "status": "request_failed"}
 
@@ -94,7 +102,7 @@ def main() -> None:
               LEFT JOIN sport_teams t ON t.sport_id=a.sport_id AND t.team_id=a.team_id AND t.season=a.season
              WHERE p.sport_id='football' AND h.status IN ('placeholder', 'missing') AND tried.player_id IS NULL
              GROUP BY p.player_id, p.display_name
-             ORDER BY p.player_id
+             ORDER BY COALESCE(SUM(a.games_total), 0) DESC, p.player_id
         """).fetchall()
     jobs = [{"player_id": player_id, "name": name, "teams": teams or []} for player_id, name, teams in rows]
     if args.offset:
@@ -124,8 +132,8 @@ def main() -> None:
                     review_note=%s
                 WHERE sport_id='football' AND player_id=%s
             """, [
-                (result["url"], result["image"]["sha256"], result["image"]["perceptual_hash"],
-                 result["image"]["width"], result["image"]["height"],
+                (result["url"], (result["image"] or {}).get("sha256"), (result["image"] or {}).get("perceptual_hash"),
+                 (result["image"] or {}).get("width"), (result["image"] or {}).get("height"),
                  f"{result['license']}; {result['source_page']}; matched team: {result['team']}.", result["player_id"])
                 for result in promoted
             ])

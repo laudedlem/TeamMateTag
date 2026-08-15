@@ -931,6 +931,17 @@ records. There are 31 non-GSIS football IDs needing a later identity-data
 review; several are historic names incorrectly attached to a modern season and
 must be removed or reconciled, not assigned a speculative photo.
 
+Headshot follow-up, 2026-08-15: The complete unresolved queue can be exported
+with `scripts/report_nfl_headshot_gaps.py`; the generated ignored CSV is
+`raw/nfl_unresolved_headshots_YYYY-MM-DD.csv`, ordered by career games. The
+Wikimedia resolver now accepts a redirect only when first initial and last name
+match, then still requires the football-career and team checks. It also treats
+a CDN `429` as a temporary byte-check failure when the article identity is
+otherwise strict. This recovered high-usage players including Mike Vick, Troy
+Polamalu, Antonio Gates, Charles Woodson, Dwight Freeney, and Robert Mathis.
+Current snapshot: 9,223 verified football images, 5,347 placeholders, and 666
+missing responses. Never replace a blocked card with a generic league image.
+
 - The apex DNS record is currently missing: public resolvers return no A/AAAA
   record for `teammatetag.com`, while `www.teammatetag.com` has a Vercel CNAME.
   This explains the Firefox failure and can also affect Chrome when its cache
