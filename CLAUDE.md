@@ -1006,6 +1006,16 @@ downloads and validates the returned portrait before promotion. It runs in
 five-player checkpoint batches because the free endpoint is slow and rate
 limited.
 
+NBA ESPN catalog portrait pass, 2026-08-15: the completed ESPN current-NBA
+index has 614 athletes. `scripts/collect_nba_espn_catalog_headshots.py` matched
+432 to local players by normalized name plus exact birthday, downloaded and
+byte-validated their ESPN URLs, and saved the durable mapping at
+`raw/nba_espn_headshot_catalog.csv`. Results: 431 valid portraits and 1
+unavailable response. These were already valid through the NBA source, so this
+pass promoted zero flagged players; it exists to validate the cross-sport ESPN
+workflow and preserve the mappings for source fallback. The remaining 182 ESPN
+records did not have an unambiguous local identity match and were not guessed.
+
 Retention policy, 2026-08-15: preserve every completed ESPN catalog page under
 `raw/espn_<league>_athlete_pages/`, including athletes outside the current
 2000-present playable catalog. These identity files are a future expansion
