@@ -194,7 +194,8 @@ def candidate(session: requests.Session, sport: str, row: dict, hashes: set[str]
             notes.append(f"{page_title}: birth year mismatch {born}")
             continue
         matched_team = team_match(full_text, row["teams"])
-        if row["teams"] and not matched_team:
+        exact_or_redirected = norm(page_title) == norm(row["name"]) or redirected
+        if row["teams"] and not matched_team and not (sport == "basketball" and exact_or_redirected):
             notes.append(f"{page_title}: no team match")
             continue
         url, width, height = image_candidate(page)
@@ -210,8 +211,8 @@ def candidate(session: requests.Session, sport: str, row: dict, hashes: set[str]
             image = {"sha256": None, "perceptual_hash": None, "width": width, "height": height}
         source_page = ((page.get("content_urls") or {}).get("desktop") or {}).get("page") or ""
         return {
-            **row, "status": "verified", "title": page_title, "source_url": url, "source_page": source_page,
-            "note": f"Wikimedia image matched by sport article and team context: {matched_team or 'none'}.", **image,
+            **row, **image, "status": "verified", "title": page_title, "source_url": url, "source_page": source_page,
+            "note": f"Wikimedia image matched by sport article and team context: {matched_team or 'exact basketball article'}.",
         }
     return {**row, "status": "no_match", "title": "", "source_url": "", "source_page": "", "note": " | ".join(notes[:5])}
 

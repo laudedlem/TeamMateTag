@@ -1259,15 +1259,20 @@ Headshot cleanup snapshot after the identity pass:
   manual additions include Jerry Hairston Jr, Ramon Castro catcher, Alberto
   Castillo catcher, Tim Raines Jr, Eddy Rodriguez pitcher, and Abraham Nunez
   2002-04.
-- Basketball: 2,484 verified, 82 placeholder after the 2026-08-15
-  Basketball-Reference plus Wikimedia pass. New script:
+- Basketball: 2,566 verified, 0 placeholder/missing in production after the
+  2026-08-15 Basketball-Reference, Wikimedia, and web-image pass. New script:
   `scripts/resolve_reference_headshots.py --sport basketball` derives
   Basketball-Reference slugs from the alphabetical player index, validates the
   discovered page headshot, and updates Supabase. It promoted 11
   Basketball-Reference portraits. `scripts/resolve_wikimedia_sport_headshots.py
-  --sport basketball` promoted 1 additional Wikimedia portrait. Current review
-  sheet: `raw/nba_headshot_review_sheet.csv`; combined NBA/NHL sheet:
-  `raw/basketball_hockey_headshot_gaps_after_reference_wiki.csv`.
+  --sport basketball` was fixed so validated image dicts no longer overwrite
+  `status='verified'`; it promoted obvious Wikipedia cases including Speedy
+  Claxton, Sarunas Jasikevicius, Zeljko Rebraca, Boo Buie, Marcus Williams
+  born 1986, and Clarence Weatherspoon. `scripts/resolve_nba_web_image_headshots.py`
+  promoted 73 additional exact-name web-image matches for playtesting. These
+  web-image rows are useful for current gameplay but need later source/license
+  review. Current review sheet: `raw/nba_headshot_review_sheet.csv`, now 0
+  unresolved rows.
 - Hockey: 4,370 verified, 10 missing, 121 placeholder after the 2026-08-15
   Hockey-Reference plus Wikimedia pass. `scripts/resolve_reference_headshots.py
   --sport hockey` derives Hockey-Reference slugs from the alphabetical player
