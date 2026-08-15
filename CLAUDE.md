@@ -1212,13 +1212,20 @@ Completed identity cleanup, 2026-08-15:
 Headshot cleanup snapshot after the identity pass:
 - Current unresolved review sheet:
   `raw/headshot_submissions_current.csv`, 4,699 active rows.
-- Baseball: 5,171 verified, 66 placeholder. `scripts/resolve_mlb_bref_headshots.py`
+- Baseball: 5,172 verified, 65 placeholder. `scripts/resolve_mlb_bref_headshots.py`
   checks unresolved MLB rows against Baseball Reference player pages, extracts
   the structured `image.contentUrl`, rejects known placeholders/tiny images,
   and writes validated URLs directly to the production registry. First pass:
   19 Baseball Reference portraits promoted. `braunry01`, the pitcher Ryan
   Braun, was verified from his Baseball Reference page; the famous Brewers
   outfielder remains `braunry02` and already had a verified MLBAM headshot.
+- `scripts/resolve_mlb_wikimedia_headshots.py` checks unresolved MLB rows
+  against Wikipedia/Wikimedia. It searches likely article titles, requires a
+  baseball article plus a current TeamMateTag team-context match, validates the
+  image bytes against known placeholders, and then updates production. First
+  pass promoted Bill Mueller from Wikimedia Commons. The Matt Young Wikipedia
+  photo was deliberately rejected because that article is the older pitcher,
+  not TeamMateTag's 2011-12 Braves/Tigers position player.
 - OOTP same-name caution: visual review found several incorrect same-name
   matches and they were reverted to unresolved: `castrra02`, `deshide01`,
   `nunezab01`, `penato02`, `wilsocr02`, and `wilsocr03`. The OOTP importer now
