@@ -1586,3 +1586,22 @@ Update, 2026-08-16 (NFL priority headshot workflow): manual-first football gap l
 - The automated DuckDuckGo image candidate collector has been low yield for
   football. Do not rely on it as the primary NFL completion path unless the
   query/source strategy changes.
+- Added `scripts/collect_nfl_priority_source_candidates.py` for a better
+  semi-automated pass over the 50+ games priority group.
+  - It reads `raw/nfl_headshot_priority_50plus.csv`, optionally uses researched
+    values from `raw/nfl_50plus_photo_research_top10.csv`, searches likely
+    college/team/player source pages, scrapes page images, rejects known NFL
+    placeholders and obvious placeholder/logo URLs, and writes:
+    - `raw/nfl_priority_source_review/pending/*.jpg`
+    - `raw/nfl_priority_source_review/candidates.csv`
+    - `raw/nfl_priority_source_review/review.html`
+  - It does not promote anything into the game. User should open the review
+    HTML, delete bad images from `pending`, then run
+    `scripts/import_nfl_reviewed_headshots.py`.
+  - Importer was updated to support multiple candidate filenames per player,
+    such as `nfl_00-0022079__1.jpg`.
+  - First test with top 3 priority players found usable/visible candidates for
+    Leonardo Carson and Al Johnson. Micah Knorr still had no candidate in that
+    narrow pass. The process correctly remains manual-review-first because
+    source pages/search can still surface wrong players or placeholder graphics
+    such as the earlier Reynaldo Hill issue.

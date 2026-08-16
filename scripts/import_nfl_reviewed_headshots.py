@@ -50,9 +50,18 @@ def main() -> None:
     base_url, key = storage_config()
     ensure_public_bucket(base_url, key)
     updates = []
+    by_filename = {
+        Path(row.get("candidate_path", "")).name: row
+        for row in rows.values()
+        if row.get("candidate_path")
+    }
     for path in sorted(PENDING.glob("*.jpg")):
-        player_id = path.stem.replace("_", ":")
-        row = rows.get(player_id)
+        row = by_filename.get(path.name)
+        if row:
+            player_id = row["player_id"]
+        else:
+            player_id = path.stem.split("__", 1)[0].replace("_", ":")
+            row = rows.get(player_id)
         if not row:
             print(f"skip unknown file {path.name}")
             continue
