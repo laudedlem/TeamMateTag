@@ -1493,13 +1493,20 @@ Update, 2026-08-15 (0.2.15): FootballDB NFL headshot resolver.
   batch with `--flush-every`, preventing long web-search runs from losing all
   progress on timeout/interruption.
 - Ran the FootballDB resolver against the currently matching unresolved NFL
-  set. Result: 78 additional NFL headshots promoted.
+  set. The first loose exact-name pass promoted 78 candidates, but manual
+  inspection showed wrong-player risk on duplicate/common names, for example
+  older James Williams rows matching a 2025 FootballDB James Williams page. The
+  78 FootballDB promotions were reverted from `player_headshots` and
+  `sport_player_images`.
+- The FootballDB resolver now requires team evidence before promotion. Current
+  safe dry run against the 115 exact-name FootballDB matches produced 0
+  promotable rows; all 115 require review or a stronger team/year parser.
 - Current verified/display coverage after this pass:
   - MLB: 5,237 / 5,237 playable 2000-present players verified.
   - NBA: 2,566 / 2,566 playable 2000-present players verified/displayed.
   - NHL: 4,501 / 4,501 playable 2000-present players verified/displayed.
-  - NFL: 11,440 verified out of 15,205 playable 2000-present football players;
-    3,765 remain with `placeholder`, `missing`, `wrong_player`, or `bad_crop`
+  - NFL: 11,362 verified out of 15,205 playable 2000-present football players;
+    3,843 remain with `placeholder`, `missing`, `wrong_player`, or `bad_crop`
     status.
 - Remaining NFL examples after FootballDB: Chris Carter (2011-2017 OLB/LB),
   Edward Jasper (2000-2005 NT/DT), P.J. Alexander (2003-2007 G), Dan Buenning

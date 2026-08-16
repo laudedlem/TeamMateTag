@@ -192,6 +192,19 @@ def score_profile(row: dict, profile: dict) -> int:
     return score
 
 
+def team_overlap_count(row: dict, profile: dict) -> int:
+    text = normalize(" ".join([profile.get("description", ""), profile.get("title", "")]))
+    count = 0
+    for team in row["teams"]:
+        team_norm = normalize(team)
+        nickname = normalize(team.split()[-1])
+        if team_norm and team_norm in text:
+            count += 1
+        elif len(nickname) > 3 and nickname in text:
+            count += 1
+    return count
+
+
 def reject_reason(image: dict, hashes: set[str], perceptual: set[str]) -> str | None:
     if image.get("status") != "ok":
         return image.get("error") or image.get("status") or "not ok"
@@ -219,7 +232,13 @@ def resolve(row: dict, matches: list[dict], session: requests.Session, hashes: s
             time.sleep(delay)
     scored.sort(key=lambda item: item[0], reverse=True)
     best_score, best = scored[0]
-    if best_score < 30:
+    overlap = team_overlap_count(row, best)
+    ambiguous = len(matches) > 1 or compact(best.get("image_alt", "")) != row["norm_name"]
+    if overlap == 0:
+        return {**row, "result_status": "needs_review", "source_url": best.get("source_url", ""), "profile_url": best.get("profile_url", ""), "note": f"FootballDB profile lacks team evidence; score {best_score}"}
+    if ambiguous and overlap == 0:
+        return {**row, "result_status": "needs_review", "source_url": best.get("source_url", ""), "profile_url": best.get("profile_url", ""), "note": f"ambiguous FootballDB name without team evidence; score {best_score}"}
+    if best_score < 38:
         return {**row, "result_status": "needs_review", "source_url": best.get("source_url", ""), "profile_url": best.get("profile_url", ""), "note": f"low FootballDB match score {best_score}"}
     if not best.get("source_url"):
         return {**row, "result_status": "no_headshot_on_profile", "source_url": "", "profile_url": best.get("profile_url", ""), "note": f"score {best_score}"}
