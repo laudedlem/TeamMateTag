@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.2.14`
+- Current display version: `0.2.15`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -1468,3 +1468,41 @@ Update, 2026-08-15 (0.2.14): headshot status correction and NFL fallback tooling
   Bob Stein and Ernie Koy. The football loaders now skip 2002+ rows without a
   durable player identifier, and 31 bad fallback-ID football records were
   removed from production.
+
+Update, 2026-08-15 (0.2.15): FootballDB NFL headshot resolver.
+- Bumped visible app version to `0.2.15`.
+- Pro Football Reference is still not script-accessible from this environment:
+  both player pages and direct `/req/.../images/headshots/{pfr_id}.jpg` URLs
+  return Cloudflare-style `403` responses. Do not keep rerunning broad PFR or
+  ESPN scans unless a new access method or new IDs are added.
+- FootballDB is script-accessible with browser-style headers and exposes player
+  CDN headshots on profile pages, for example
+  `https://cdn.footballdb.com/headshots/NFL/2016/hestede01.jpg`.
+- Added `scripts/resolve_nfl_footballdb_headshots.py`.
+  - Builds/caches a paginated FootballDB player index in
+    `raw/footballdb_nfl_player_index.csv`.
+  - Matches remaining NFL gaps by normalized exact name.
+  - Fetches candidate profile pages and uses image alt text, title, position,
+    and team-name overlap to score identity confidence.
+  - Validates image bytes against known NFL placeholder hashes/perceptual
+    hashes.
+  - Promotes accepted images into both `player_headshots` and
+    `sport_player_images`, so accepted URLs are immediately visible in the live
+    game.
+- Made `scripts/resolve_nfl_web_image_headshots.py` flush verified rows every
+  batch with `--flush-every`, preventing long web-search runs from losing all
+  progress on timeout/interruption.
+- Ran the FootballDB resolver against the currently matching unresolved NFL
+  set. Result: 78 additional NFL headshots promoted.
+- Current verified/display coverage after this pass:
+  - MLB: 5,237 / 5,237 playable 2000-present players verified.
+  - NBA: 2,566 / 2,566 playable 2000-present players verified/displayed.
+  - NHL: 4,501 / 4,501 playable 2000-present players verified/displayed.
+  - NFL: 11,440 verified out of 15,205 playable 2000-present football players;
+    3,765 remain with `placeholder`, `missing`, `wrong_player`, or `bad_crop`
+    status.
+- Remaining NFL examples after FootballDB: Chris Carter (2011-2017 OLB/LB),
+  Edward Jasper (2000-2005 NT/DT), P.J. Alexander (2003-2007 G), Dan Buenning
+  (2005-2008 G), Eddie Berlin (2001-2005 WR), Leonardo Carson (2000-2004 DT),
+  Micah Knorr (2000-2004 P), Moe Williams (2000-2005 RB), Peter Warrick
+  (2000-2005 WR), and Scott McGarrahan (2000-2005 SS/DB).

@@ -204,11 +204,47 @@ def candidate(session: requests.Session, row: dict, hashes: set[str], perceptual
     return {**row, "result_status": "needs_review", "source_url": "", "source_page": "", "title": "", "note": " | ".join(notes[:5]) or "no exact-name image result"}
 
 
+def persist_promoted(rows: list[dict]) -> int:
+    promoted = [row for row in rows if row["result_status"] == "verified"]
+    if not promoted:
+        return 0
+    with server.db() as conn, conn.cursor() as cur:
+        cur.executemany(
+            """INSERT INTO player_headshot_source_attempts (sport_id,player_id,provider,status,source_url)
+               VALUES ('football',%s,'Web image search','verified',%s)
+               ON CONFLICT (sport_id,player_id,provider)
+               DO UPDATE SET status=EXCLUDED.status,source_url=EXCLUDED.source_url,checked_at=now()""",
+            [(row["player_id"], row["source_page"] or row["source_url"]) for row in promoted],
+        )
+        cur.executemany(
+            """UPDATE player_headshots SET source_url=%s,fallback_url=NULL,provider='Web image search',
+                  status='verified',content_sha256=%s,perceptual_hash=%s,width=%s,height=%s,
+                  reviewed_at=now(),review_note=%s
+               WHERE sport_id='football' AND player_id=%s""",
+            [
+                (
+                    row["source_url"], row["sha256"], row["perceptual_hash"], row["width"], row["height"],
+                    f"{row['note']} Source page: {row['source_page']}", row["player_id"],
+                )
+                for row in promoted
+            ],
+        )
+        cur.executemany(
+            """INSERT INTO sport_player_images (sport_id,player_id,source_url)
+               VALUES ('football',%s,%s)
+               ON CONFLICT (sport_id,player_id)
+               DO UPDATE SET source_url=EXCLUDED.source_url""",
+            [(row["player_id"], row["source_url"]) for row in promoted],
+        )
+    return len(promoted)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--offset", type=int, default=0)
     parser.add_argument("--delay", type=float, default=0.8)
+    parser.add_argument("--flush-every", type=int, default=25)
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
@@ -221,12 +257,26 @@ def main() -> None:
     session = requests.Session()
     session.headers.update({"User-Agent": USER_AGENT})
     results = []
+    batch = []
+    promoted_total = 0
     for index, row in enumerate(rows, 1):
-        results.append(candidate(session, row, hashes, perceptual))
+        result = candidate(session, row, hashes, perceptual)
+        results.append(result)
+        batch.append(result)
+        if not args.dry_run and args.flush_every > 0 and len(batch) >= args.flush_every:
+            promoted = persist_promoted(batch)
+            promoted_total += promoted
+            if promoted:
+                print(f"promoted {promoted_total} so far", flush=True)
+            batch.clear()
         if index % 10 == 0 or index == len(rows):
             print(f"checked {index}/{len(rows)}", flush=True)
         if args.delay:
             time.sleep(args.delay)
+
+    if not args.dry_run and batch:
+        promoted = persist_promoted(batch)
+        promoted_total += promoted
 
     REPORT.parent.mkdir(parents=True, exist_ok=True)
     fields = ["player_id", "name", "debut", "final", "position", "status", "career_games", "result_status", "title", "source_url", "source_page", "note", "width", "height"]
@@ -237,36 +287,7 @@ def main() -> None:
             writer.writerow({field: row.get(field, "") for field in fields})
 
     promoted = [row for row in results if row["result_status"] == "verified"]
-    if not args.dry_run and promoted:
-        with server.db() as conn, conn.cursor() as cur:
-            cur.executemany(
-                """INSERT INTO player_headshot_source_attempts (sport_id,player_id,provider,status,source_url)
-                   VALUES ('football',%s,'Web image search','verified',%s)
-                   ON CONFLICT (sport_id,player_id,provider)
-                   DO UPDATE SET status=EXCLUDED.status,source_url=EXCLUDED.source_url,checked_at=now()""",
-                [(row["player_id"], row["source_page"] or row["source_url"]) for row in promoted],
-            )
-            cur.executemany(
-                """UPDATE player_headshots SET source_url=%s,fallback_url=NULL,provider='Web image search',
-                      status='verified',content_sha256=%s,perceptual_hash=%s,width=%s,height=%s,
-                      reviewed_at=now(),review_note=%s
-                   WHERE sport_id='football' AND player_id=%s""",
-                [
-                    (
-                        row["source_url"], row["sha256"], row["perceptual_hash"], row["width"], row["height"],
-                        f"{row['note']} Source page: {row['source_page']}", row["player_id"],
-                    )
-                    for row in promoted
-                ],
-            )
-            cur.executemany(
-                """INSERT INTO sport_player_images (sport_id,player_id,source_url)
-                   VALUES ('football',%s,%s)
-                   ON CONFLICT (sport_id,player_id)
-                   DO UPDATE SET source_url=EXCLUDED.source_url""",
-                [(row["player_id"], row["source_url"]) for row in promoted],
-            )
-    print(f"Promoted {len(promoted)} NFL web-image headshots.")
+    print(f"Promoted {len(promoted) if args.dry_run else promoted_total} NFL web-image headshots.")
     print(f"Other results: {dict(Counter(row['result_status'] for row in results if row['result_status'] != 'verified'))}")
     print(f"Report: {REPORT}")
 
