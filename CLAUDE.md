@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.2.11`
+- Current display version: `0.2.12`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -1381,3 +1381,27 @@ Update, 2026-08-15 (0.2.11): Film Review quality and speed pass.
   Basketball sample openings include Russell Westbrook, LeBron James, Chris
   Paul, Kyle Lowry, and Stephen Curry. Hockey sample openings include Alex
   Ovechkin, Brad Marchand, David Perron, and James van Riemsdyk.
+
+Update, 2026-08-15 (0.2.12): strict teammate-overlap validation for NBA/NFL.
+- Bumped visible app version to `0.2.12`.
+- Added compact strict teammate-validation tables:
+  `sport_player_stints` and `sport_teammate_stint_coverage`.
+- Added `scripts/build_teammate_stints.py`, which builds local stint ranges and
+  publishes them to Supabase when `DATABASE_URL` is available.
+- Basketball strict coverage now uses NBA game/date evidence from
+  `raw/nba_kaggle/PlayerStatistics.csv`, with NBA season start year parsed from
+  `gameId` so the 2019-20 COVID bubble does not get mixed into 2020-21.
+- Football strict coverage now uses nflverse weekly roster overlap from
+  `raw/nfl/weekly_rosters`, excluding free-agent/cut/traded/retired statuses.
+- Runtime teammate checks now reject cross-sport links for covered seasons
+  unless both players overlap on the same team in the same stint window. This
+  applies through `game.engine.get_shared_seasons`, so Manager Mode, Division
+  Rivalry, Playoffs, and most typed-link validation share the correction.
+- Current strict coverage published to Supabase: basketball 2000-2025
+  (14,049 stints) and football 2002-2025 (54,705 stints), 68,754 total rows.
+- Verified against Supabase through `PgEngineConn`: Brad Wanamaker/Jeff Teague
+  no longer resolve on Boston 2020; Derrick Rose/Carlos Boozer and Devin
+  Hester/Matt Forte still resolve.
+- Hockey is not strict yet because the current local NHL cache does not contain
+  complete per-game or transaction stint windows. It still uses the
+  season-level appearance fallback until NHL overlap evidence is added.

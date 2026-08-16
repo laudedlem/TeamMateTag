@@ -38,6 +38,8 @@ TABLES = (
     ("sport_players", ("sport_id", "player_id", "external_id", "display_name", "first_name", "last_name", "birth_year", "debut_year", "final_year", "primary_pos")),
     ("sport_player_positions", ("sport_id", "player_id", "position", "games")),
     ("sport_appearances", ("sport_id", "player_id", "team_id", "season", "games_total")),
+    ("sport_player_stints", ("sport_id", "player_id", "team_id", "season", "first_unit", "last_unit", "first_label", "last_label", "source")),
+    ("sport_teammate_stint_coverage", ("sport_id", "season", "coverage_type", "strict", "source")),
     ("sport_players_searchable", ("sport_id", "player_id", "display_name", "disambiguation", "search_key", "last_key", "career_games", "teammate_count")),
     ("sport_player_traits", ("sport_id", "player_id", "career_games", "career_points", "career_goals", "career_assists", "career_touchdowns", "passing_touchdowns", "rushing_touchdowns", "receiving_touchdowns", "career_sacks", "career_interceptions", "all_star_count", "mvp_count", "roty_count", "championship_count", "source", "updated_at")),
     ("sport_player_season_traits", ("sport_id", "player_id", "season", "games", "points", "goals", "assists", "touchdowns", "passing_touchdowns", "rushing_touchdowns", "receiving_touchdowns", "sacks", "interceptions", "source")),
@@ -108,7 +110,7 @@ def main() -> int:
                 # previous migration created it.
                 cur.execute("DROP TABLE IF EXISTS teammates CASCADE")
                 # Foreign-key-safe replacement for only the three incoming sports.
-                for table in ("sport_teammates", "sport_player_aliases", "sport_data_provenance", "sport_player_images", "sport_player_positions"):
+                for table in ("sport_teammates", "sport_player_aliases", "sport_data_provenance", "sport_player_images", "sport_player_positions", "sport_player_stints", "sport_teammate_stint_coverage"):
                     cur.execute(f"DELETE FROM {table} WHERE sport_id = ANY(%s)", (list(SPORTS),))
                 for table in reversed([name for name, _ in TABLES]):
                     cur.execute(f"DELETE FROM {table} WHERE sport_id = ANY(%s)", (list(SPORTS),))

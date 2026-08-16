@@ -73,7 +73,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.2.11"
+APP_VERSION = "0.2.12"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -909,6 +909,35 @@ def ensure_runtime_schema():
                        reason TEXT,
                        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
                        PRIMARY KEY (sport_id, player_a_id, player_b_id, team_id, season)
+                   )"""
+            )
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS sport_player_stints (
+                       sport_id TEXT NOT NULL,
+                       player_id TEXT NOT NULL,
+                       team_id TEXT NOT NULL,
+                       season INTEGER NOT NULL,
+                       first_unit INTEGER NOT NULL,
+                       last_unit INTEGER NOT NULL,
+                       first_label TEXT,
+                       last_label TEXT,
+                       source TEXT,
+                       PRIMARY KEY (sport_id, player_id, team_id, season)
+                   )"""
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_sport_stints_link "
+                "ON sport_player_stints(sport_id, team_id, season, player_id)"
+            )
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS sport_teammate_stint_coverage (
+                       sport_id TEXT NOT NULL,
+                       season INTEGER NOT NULL,
+                       coverage_type TEXT NOT NULL,
+                       strict INTEGER NOT NULL DEFAULT 1,
+                       source TEXT,
+                       updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                       PRIMARY KEY (sport_id, season)
                    )"""
             )
             conn.execute(
@@ -3387,14 +3416,40 @@ def _sport_fr_year_matches(sport: str, season: int, guessed_year: int | None) ->
 
 
 def _sport_link_allowed(conn, sport: str, first: str, second: str, team_id: str, season: int) -> bool:
-    row = conn.execute(
+    excluded = conn.execute(
         """SELECT 1 FROM sport_teammate_exclusions
              WHERE sport_id=%s AND team_id=%s AND season=%s
                AND ((player_a_id=%s AND player_b_id=%s)
                  OR (player_a_id=%s AND player_b_id=%s))""",
         (sport, team_id, season, first, second, second, first),
     ).fetchone()
-    return row is None
+    if excluded is not None:
+        return False
+    strict = conn.execute(
+        """SELECT 1 FROM sport_teammate_stint_coverage
+            WHERE sport_id=%s AND season=%s AND strict <> 0""",
+        (sport, season),
+    ).fetchone()
+    if strict is None:
+        return True
+    overlap = conn.execute(
+        """SELECT 1
+             FROM sport_player_stints a
+             JOIN sport_player_stints b
+               ON b.sport_id = a.sport_id
+              AND b.team_id = a.team_id
+              AND b.season = a.season
+            WHERE a.sport_id=%s
+              AND a.player_id=%s
+              AND b.player_id=%s
+              AND a.team_id=%s
+              AND a.season=%s
+              AND a.first_unit <= b.last_unit
+              AND b.first_unit <= a.last_unit
+            LIMIT 1""",
+        (sport, first, second, team_id, season),
+    ).fetchone()
+    return overlap is not None
 
 
 def _sport_cards(conn, sport: str, player_ids: list[str]) -> dict[str, dict]:

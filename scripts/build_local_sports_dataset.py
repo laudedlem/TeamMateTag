@@ -80,6 +80,19 @@ CREATE INDEX IF NOT EXISTS idx_local_appearances_team
   ON sport_appearances(sport_id, team_id, season, player_id);
 CREATE INDEX IF NOT EXISTS idx_local_appearances_player
   ON sport_appearances(sport_id, player_id, season);
+CREATE TABLE IF NOT EXISTS sport_player_stints (
+  sport_id TEXT NOT NULL, player_id TEXT NOT NULL, team_id TEXT NOT NULL,
+  season INTEGER NOT NULL, first_unit INTEGER NOT NULL, last_unit INTEGER NOT NULL,
+  first_label TEXT, last_label TEXT, source TEXT,
+  PRIMARY KEY (sport_id, player_id, team_id, season)
+);
+CREATE INDEX IF NOT EXISTS idx_local_stints_link
+  ON sport_player_stints(sport_id, team_id, season, player_id);
+CREATE TABLE IF NOT EXISTS sport_teammate_stint_coverage (
+  sport_id TEXT NOT NULL, season INTEGER NOT NULL, coverage_type TEXT NOT NULL,
+  strict INTEGER NOT NULL DEFAULT 1, source TEXT, updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (sport_id, season)
+);
 CREATE TABLE IF NOT EXISTS sport_players_searchable (
   sport_id TEXT NOT NULL, player_id TEXT NOT NULL, display_name TEXT NOT NULL,
   disambiguation TEXT NOT NULL, search_key TEXT NOT NULL, last_key TEXT NOT NULL,

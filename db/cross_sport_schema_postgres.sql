@@ -107,6 +107,39 @@ CREATE INDEX IF NOT EXISTS idx_sport_appearances_team_season
 CREATE INDEX IF NOT EXISTS idx_sport_appearances_player
     ON sport_appearances(sport_id, player_id);
 
+-- Optional strict teammate validation. When a sport/season is listed in
+-- sport_teammate_stint_coverage with strict=1, players only count as
+-- teammates if their player/team/season stint ranges overlap.
+CREATE TABLE IF NOT EXISTS sport_player_stints (
+    sport_id       TEXT NOT NULL,
+    player_id      TEXT NOT NULL,
+    team_id        TEXT NOT NULL,
+    season         INTEGER NOT NULL,
+    first_unit     INTEGER NOT NULL,
+    last_unit      INTEGER NOT NULL,
+    first_label    TEXT,
+    last_label     TEXT,
+    source         TEXT,
+    PRIMARY KEY (sport_id, player_id, team_id, season),
+    FOREIGN KEY (sport_id, player_id)
+        REFERENCES sport_players(sport_id, player_id),
+    FOREIGN KEY (sport_id, team_id, season)
+        REFERENCES sport_teams(sport_id, team_id, season)
+);
+
+CREATE INDEX IF NOT EXISTS idx_sport_stints_link
+    ON sport_player_stints(sport_id, team_id, season, player_id);
+
+CREATE TABLE IF NOT EXISTS sport_teammate_stint_coverage (
+    sport_id       TEXT NOT NULL REFERENCES sports(sport_id),
+    season         INTEGER NOT NULL,
+    coverage_type  TEXT NOT NULL,
+    strict         INTEGER NOT NULL DEFAULT 1,
+    source         TEXT,
+    updated_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (sport_id, season)
+);
+
 -- Derived player-pair graph. player_a_id must sort before player_b_id.
 CREATE TABLE IF NOT EXISTS sport_teammates (
     sport_id       TEXT NOT NULL REFERENCES sports(sport_id),
