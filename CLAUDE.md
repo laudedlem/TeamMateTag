@@ -1273,15 +1273,22 @@ Headshot cleanup snapshot after the identity pass:
   web-image rows are useful for current gameplay but need later source/license
   review. Current review sheet: `raw/nba_headshot_review_sheet.csv`, now 0
   unresolved rows.
-- Hockey: 4,370 verified, 10 missing, 121 placeholder after the 2026-08-15
-  Hockey-Reference plus Wikimedia pass. `scripts/resolve_reference_headshots.py
-  --sport hockey` derives Hockey-Reference slugs from the alphabetical player
-  index, validates page headshots, and updates Supabase. It promoted 16
-  Hockey-Reference portraits after retrying transient 429s.
-  `scripts/resolve_wikimedia_sport_headshots.py --sport hockey` promoted 3
-  Wikimedia portraits. Current review sheet: `raw/nhl_headshot_review_sheet.csv`.
-  The remaining gaps are mostly short-stint/placeholder players plus a few
-  source-identity alias rows, not broad famous-player misses.
+- Hockey: 4,501 verified, 0 placeholder/missing in production after the
+  2026-08-15 Hockey-Reference, Wikimedia, web-image, and final HockeyDB pass.
+  `scripts/resolve_reference_headshots.py --sport hockey` derives
+  Hockey-Reference slugs from the alphabetical player index, validates page
+  headshots, and updates Supabase. It promoted 16 Hockey-Reference portraits
+  after retrying transient 429s. `scripts/resolve_wikimedia_sport_headshots.py
+  --sport hockey` promoted/retained 10 Wikimedia portraits, including manual
+  exact-identity fixes for Sean Collins defenseman, Alexandre Picard winger,
+  Petr Sykora born 1978, and Andy Berenzweig. New script:
+  `scripts/resolve_nhl_web_image_headshots.py` promoted 119 exact-name
+  web-image matches; five final rows were manually patched from HockeyDB or
+  Hockey News Windsor: Melvin Angelstad, Tommy Vestlund/Westlund, Matthieu
+  Descoteaux, Michael Rucinski, and William/Billy Bowler. Current review sheet:
+  `raw/nhl_headshot_review_sheet.csv`, now 0 unresolved rows. Review fallback
+  images at `raw/nhl_headshot_fallback_review.md`; these playtest images need
+  later source/license review.
 - Football: 10,863 verified, 666 missing, 3,707 placeholder. The top remaining
   prominent gaps, such as David Harris, Charles Johnson, Adam Jones, and Grady
   Jackson, are still ESPN/nflverse placeholder responses and need another
