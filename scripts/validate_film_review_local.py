@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from game.film_review_generator import LINEUP_SLOTS, generate
+from game.film_review_generator import FOOTBALL_UNITS, LINEUP_SLOTS, generate
 
 
 def main() -> None:
@@ -21,12 +21,14 @@ def main() -> None:
     args = parser.parse_args()
     conn = sqlite3.connect(ROOT / "db" / "teammatetag_local.sqlite")
     failures = []
-    for sport in LINEUP_SLOTS:
+    targets = [(sport, None) for sport in LINEUP_SLOTS if sport != "football"]
+    targets.extend(("football", unit) for unit in FOOTBALL_UNITS)
+    for sport, unit in targets:
         passed = 0
         for offset in range(args.days):
             puzzle_day = args.start + timedelta(days=offset)
             try:
-                puzzle = generate(conn, sport, puzzle_day)
+                puzzle = generate(conn, sport, puzzle_day, unit=unit)
                 if len(puzzle.deck) != len(puzzle.slots):
                     raise AssertionError("wrong card count")
                 if len(set(puzzle.deck)) != len(puzzle.deck):
@@ -37,8 +39,10 @@ def main() -> None:
                     raise AssertionError("wrong link count")
                 passed += 1
             except (AssertionError, RuntimeError, ValueError) as error:
-                failures.append(f"{sport} {puzzle_day}: {error}")
-        print(f"{sport}: {passed}/{args.days} generated")
+                label = f"{sport}:{unit}" if unit else sport
+                failures.append(f"{label} {puzzle_day}: {error}")
+        label = f"{sport}:{unit}" if unit else sport
+        print(f"{label}: {passed}/{args.days} generated")
     if failures:
         print("Failures:")
         print("\n".join(failures))

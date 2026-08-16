@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.2.15`
+- Current display version: `0.2.16`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -1605,3 +1605,26 @@ Update, 2026-08-16 (NFL priority headshot workflow): manual-first football gap l
     narrow pass. The process correctly remains manual-review-first because
     source pages/search can still surface wrong players or placeholder graphics
     such as the earlier Reynaldo Hill issue.
+
+Update, 2026-08-16 (0.2.16): curated puzzles now require verified headshots.
+- User decided to stop chasing every obscure NFL photo for now. Remaining NFL
+  placeholder/missing players should stay playable in user-driven modes
+  (Division Rivalry and Playoffs) if someone names them, but they should not be
+  selected by curated daily experiences.
+- Bumped visible app version to `0.2.16`.
+- `game/film_review_generator.py` now requires `player_headshots.status =
+  'verified'` for Film Review eligibility whenever the headshot registry table
+  exists. This blocks missing/placeholder/bad-crop NFL players from starters
+  and from every planned Film Review card.
+- Existing daily Film Review rows are revalidated in `web/server.py`; cached
+  puzzles whose deck includes a non-verified headshot are deleted and rebuilt.
+- Manager Mode daily starters now require a verified headshot as well, including
+  baseball, basketball, hockey, and football. User-played cards in Manager Mode
+  may still show placeholders if the user chooses an unresolved player.
+- Updated `scripts/validate_film_review_local.py` so football validation checks
+  the actual offense/defense puzzle units instead of the obsolete 24-card full
+  football lineup.
+- Validation run passed:
+  `python scripts\validate_film_review_local.py --days 14 --start 2026-08-16`
+  generated 14/14 for baseball, basketball, hockey, football offense, and
+  football defense.

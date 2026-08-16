@@ -73,7 +73,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.2.15"
+APP_VERSION = "0.2.16"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -5002,6 +5002,18 @@ def _bp_daily_leaderboard(conn) -> list[dict]:
     ]
 
 
+def _curated_player_has_verified_headshot(conn, sport: str, player_id: str) -> bool:
+    if not sport or not player_id:
+        return False
+    row = conn.execute(
+        """SELECT 1 FROM player_headshots
+            WHERE sport_id=%s AND player_id=%s AND status='verified'
+            LIMIT 1""",
+        (sport, player_id),
+    ).fetchone()
+    return bool(row)
+
+
 def _manager_seed_for_day(conn, sport: str, puzzle_day: date | None = None) -> str:
     puzzle_day = puzzle_day or datetime.now(CENTRAL_TIME).date()
     cache_key = (sport, puzzle_day.isoformat())
@@ -5010,10 +5022,15 @@ def _manager_seed_for_day(conn, sport: str, puzzle_day: date | None = None) -> s
         (sport, puzzle_day),
     ).fetchone()
     if row:
-        MANAGER_SEED_CACHE[cache_key] = row[0]
-        return row[0]
+        if _curated_player_has_verified_headshot(conn, sport, row[0]):
+            MANAGER_SEED_CACHE[cache_key] = row[0]
+            return row[0]
+        conn.execute(
+            "DELETE FROM manager_daily_starters WHERE sport_id=%s AND starter_date=%s",
+            (sport, puzzle_day),
+        )
     cached = MANAGER_SEED_CACHE.get(cache_key)
-    if cached:
+    if cached and _curated_player_has_verified_headshot(conn, sport, cached):
         conn.execute(
             """INSERT INTO manager_daily_starters (sport_id, starter_date, player_id)
                VALUES (%s, %s, %s)
@@ -5032,9 +5049,11 @@ def _manager_seed_for_day(conn, sport: str, puzzle_day: date | None = None) -> s
             """SELECT ps.player_id
                  FROM players_searchable ps
                  JOIN players p ON p.player_id=ps.player_id
+                 JOIN player_headshots h ON h.sport_id='baseball' AND h.player_id=ps.player_id
                 WHERE ps.career_games >= 650
                   AND p.final_year >= 2018
                   AND p.mlbam_id IS NOT NULL
+                  AND h.status='verified'
                   AND NOT (ps.player_id = ANY(%s))
                 ORDER BY ps.career_games DESC, ps.player_id
                 LIMIT 500""",
@@ -5046,9 +5065,11 @@ def _manager_seed_for_day(conn, sport: str, puzzle_day: date | None = None) -> s
             """SELECT ps.player_id
                  FROM sport_players_searchable ps
                  JOIN sport_players p ON p.sport_id=ps.sport_id AND p.player_id=ps.player_id
+                 JOIN player_headshots h ON h.sport_id=ps.sport_id AND h.player_id=ps.player_id
                 WHERE ps.sport_id=%s
                   AND ps.career_games >= %s
                   AND p.final_year >= 2018
+                  AND h.status='verified'
                   AND NOT (ps.player_id = ANY(%s))
                 ORDER BY ps.career_games DESC, ps.player_id
                 LIMIT 500""",
@@ -5059,9 +5080,11 @@ def _manager_seed_for_day(conn, sport: str, puzzle_day: date | None = None) -> s
                  FROM sport_players_searchable ps
                  JOIN sport_players p ON p.sport_id=ps.sport_id AND p.player_id=ps.player_id
                  JOIN sport_player_images i ON i.sport_id=ps.sport_id AND i.player_id=ps.player_id
+                 JOIN player_headshots h ON h.sport_id=ps.sport_id AND h.player_id=ps.player_id
                 WHERE ps.sport_id=%s
                   AND ps.career_games >= %s
                   AND p.final_year >= 2018
+                  AND h.status='verified'
                   AND NOT (ps.player_id = ANY(%s))
                 ORDER BY ps.career_games DESC, ps.player_id
                 LIMIT 500""",
@@ -7453,12 +7476,25 @@ def _film_review_number(puzzle_day: date) -> int:
     return max(1, (puzzle_day - FILM_REVIEW_EPOCH).days + 1)
 
 
-def _valid_daily_film_puzzle(puzzle: dict, sport: str, puzzle_day: date, unit: str | None) -> bool:
+def _film_deck_has_verified_headshots(conn, sport: str, deck: list[str]) -> bool:
+    if not deck:
+        return False
+    rows = conn.execute(
+        """SELECT COUNT(*) FROM player_headshots
+            WHERE sport_id=%s AND status='verified' AND player_id = ANY(%s)""",
+        (sport, deck),
+    ).fetchone()
+    return bool(rows and int(rows[0] or 0) == len(set(deck)))
+
+
+def _valid_daily_film_puzzle(conn, puzzle: dict, sport: str, puzzle_day: date, unit: str | None) -> bool:
     deck = puzzle.get("deck")
     slots = puzzle.get("slots")
     if not isinstance(deck, list) or not isinstance(slots, list):
         return False
     if len(deck) < 2 or len(deck) != len(slots):
+        return False
+    if len(set(deck)) != len(deck):
         return False
     if puzzle.get("puzzle_date") != puzzle_day.isoformat():
         return False
@@ -7466,6 +7502,8 @@ def _valid_daily_film_puzzle(puzzle: dict, sport: str, puzzle_day: date, unit: s
     if (puzzle.get("unit") or None) != expected_unit:
         return False
     if sport == "football" and expected_unit not in {"offense", "defense"}:
+        return False
+    if not _film_deck_has_verified_headshots(conn, sport, deck):
         return False
     return True
 
@@ -7480,7 +7518,7 @@ def _daily_film_review_puzzle(conn, sport: str, puzzle_day: date, unit: str | No
     ).fetchone()
     if row:
         puzzle = dict(row[0])
-        if _valid_daily_film_puzzle(puzzle, sport, puzzle_day, unit):
+        if _valid_daily_film_puzzle(conn, puzzle, sport, puzzle_day, unit):
             deck = list(puzzle.get("deck") or [])
             if sport == "baseball":
                 still_resolves = all(_fr_compute_shared(conn, deck)[i] for i in range(len(deck) - 1))

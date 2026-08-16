@@ -122,6 +122,7 @@ def _eligible(conn: sqlite3.Connection, sport: str, slot: str) -> dict[str, int]
     has_headshots = _table_exists(conn, "player_headshots")
     headshot_join = "LEFT JOIN player_headshots h ON h.sport_id=p.sport_id AND h.player_id=p.player_id" if has_headshots else ""
     provider_select = "h.provider" if has_headshots else "NULL"
+    headshot_filter = "AND h.status='verified'" if has_headshots else ""
     recency_sql = _recency_score_sql()
     if slot == "ANY":
         return {row[0]: row[1] for row in conn.execute(f"""
@@ -139,6 +140,7 @@ def _eligible(conn: sqlite3.Connection, sport: str, slot: str) -> dict[str, int]
               ON s.sport_id=p.sport_id AND s.player_id=p.player_id
             {headshot_join}
             WHERE p.sport_id=? AND s.career_games>=? AND p.final_year>=?
+              {headshot_filter}
         """, (*sorted(STABLE_HEADSHOT_PROVIDERS.get(sport, set())), *sorted(FALLBACK_HEADSHOT_PROVIDERS),
               sport, career_floor, modern_final_year))}
     expected = FOOTBALL_ROLE_POSITIONS.get(slot, {slot}) if sport == "football" else {slot}
@@ -159,7 +161,8 @@ def _eligible(conn: sqlite3.Connection, sport: str, slot: str) -> dict[str, int]
              JOIN sport_players_searchable s ON s.sport_id=pp.sport_id AND s.player_id=pp.player_id
              {headshot_join}
              WHERE pp.sport_id=? AND pp.position IN ({placeholders})
-               AND s.career_games>=? AND p.final_year>=?""",
+               AND s.career_games>=? AND p.final_year>=?
+               {headshot_filter}""",
         (*sorted(STABLE_HEADSHOT_PROVIDERS.get(sport, set())), *sorted(FALLBACK_HEADSHOT_PROVIDERS),
          sport, *sorted(expected), career_floor, modern_final_year))}
 
