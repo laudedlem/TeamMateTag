@@ -1537,3 +1537,14 @@ Update, 2026-08-16 (0.2.15 data pass): NFL headshot long-run status.
 - After web-image URL promotion, crop and publish accepted fallback photos to
   Supabase Storage with:
   `python scripts\crop_recent_headshots.py --sport football --provider "Web image search" --workers 8`
+- Added review-based candidate collection:
+  - `scripts/collect_nfl_headshot_review_candidates.py` gathers loose image
+    candidates into `raw/nfl_headshot_review/pending` and creates
+    `raw/nfl_headshot_review/review.html`.
+  - `scripts/import_nfl_reviewed_headshots.py` imports whatever remains in
+    `pending` after manual deletion, crops it, uploads it to Supabase Storage,
+    and updates `player_headshots` plus `sport_player_images`.
+  - Collector now defaults to a priority queue from the newest
+    `raw/nfl_unresolved_headshots_*.csv`, supports `--min-games`,
+    `--queries-per-player`, and prints every completed player so it does not
+    feel stalled.

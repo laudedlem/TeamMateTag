@@ -12,6 +12,7 @@ import csv
 import io
 import os
 import re
+import shutil
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -27,7 +28,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 load_dotenv(ROOT / ".env")
 
 import server  # noqa: E402
-from audit_runtime_headshots import KNOWN_PLACEHOLDER_URLS, fetch, hamming  # noqa: E402
+from audit_runtime_headshots import KNOWN_PLACEHOLDER_URLS, dhash, fetch, hamming  # noqa: E402
 from name_normalize import normalize  # noqa: E402
 
 OUT = ROOT / "raw" / "nfl_headshot_review"
@@ -42,7 +43,7 @@ def safe(value: str) -> str:
     return re.sub(r"[^A-Za-z0-9_.-]+", "_", value)
 
 
-def unresolved_players(include_attempted: bool = False) -> list[dict]:
+def unresolved_players(include_attempted: bool = False, min_games: int = 0) -> list[dict]:
     attempted_filter = ""
     if not include_attempted:
         attempted_filter = """
@@ -64,9 +65,13 @@ def unresolved_players(include_attempted: bool = False) -> list[dict]:
                  LEFT JOIN sport_teams st ON st.sport_id=a.sport_id AND st.team_id=a.team_id AND st.season=a.season
                 WHERE p.sport_id='football' AND p.final_year>=2000
                   AND h.status IN ('placeholder','missing','wrong_player','bad_crop')
+                  AND COALESCE(a.games_total, 0) >= 0
                   {attempted_filter}
                 GROUP BY p.player_id,p.display_name,p.debut_year,p.final_year,p.primary_pos,h.status
+                HAVING COALESCE(SUM(a.games_total), 0) >= %s
                 ORDER BY career_games DESC, p.final_year DESC NULLS LAST, p.display_name,p.player_id"""
+            ,
+            (min_games,),
         ).fetchall()
     return [
         {
@@ -81,6 +86,52 @@ def unresolved_players(include_attempted: bool = False) -> list[dict]:
         }
         for pid, name, debut, final, pos, status, games, teams in rows
     ]
+
+
+def latest_gap_csv() -> Path | None:
+    files = sorted((ROOT / "raw").glob("nfl_unresolved_headshots_*.csv"), key=lambda path: path.stat().st_mtime, reverse=True)
+    return files[0] if files else None
+
+
+def unresolved_players_from_csv(path: Path, min_games: int = 0) -> list[dict]:
+    rows: list[dict] = []
+    with path.open(encoding="utf-8", newline="") as handle:
+        for row in csv.DictReader(handle):
+            games = int(float(row.get("career_games") or 0))
+            if games < min_games:
+                continue
+            rows.append(
+                {
+                    "player_id": row["player_id"],
+                    "name": row["display_name"],
+                    "debut": row.get("debut_year") or "",
+                    "final": row.get("final_year") or "",
+                    "position": "",
+                    "status": row.get("headshot_status") or "",
+                    "career_games": games,
+                    "teams": [],
+                }
+            )
+    selected_ids = [row["player_id"] for row in rows]
+    if not selected_ids:
+        return rows
+    with server.db() as conn:
+        details = {
+            player_id: (pos or "", teams or [])
+            for player_id, pos, teams in conn.execute(
+                """SELECT p.player_id,p.primary_pos,
+                          array_agg(DISTINCT st.name) FILTER (WHERE st.name IS NOT NULL)
+                     FROM sport_players p
+                     LEFT JOIN sport_appearances a ON a.sport_id=p.sport_id AND a.player_id=p.player_id
+                     LEFT JOIN sport_teams st ON st.sport_id=a.sport_id AND st.team_id=a.team_id AND st.season=a.season
+                    WHERE p.sport_id='football' AND p.player_id = ANY(%s)
+                    GROUP BY p.player_id,p.primary_pos""",
+                (selected_ids,),
+            )
+        }
+    for row in rows:
+        row["position"], row["teams"] = details.get(row["player_id"], ("", []))
+    return rows
 
 
 def placeholder_fingerprints() -> tuple[set[str], set[str]]:
@@ -103,7 +154,7 @@ def placeholder_fingerprints() -> tuple[set[str], set[str]]:
 
 def ddg_vqd(session: requests.Session, query: str) -> str | None:
     try:
-        response = session.get("https://duckduckgo.com/", params={"q": query}, timeout=12)
+        response = session.get("https://duckduckgo.com/", params={"q": query}, timeout=6)
     except requests.RequestException:
         return None
     match = re.search(r"vqd=([\"']?)([\d-]+)\1", response.text)
@@ -119,7 +170,7 @@ def image_results(session: requests.Session, query: str) -> list[dict]:
             "https://duckduckgo.com/i.js",
             params={"q": query, "o": "json", "p": "1", "s": "0", "u": "bing", "f": ",,,", "l": "us-en", "vqd": vqd},
             headers={"Referer": "https://duckduckgo.com/"},
-            timeout=15,
+            timeout=8,
         )
         return response.json().get("results") if response.status_code == 200 else []
     except Exception:
@@ -147,30 +198,42 @@ def score(row: dict, item: dict) -> int:
 
 
 def valid_image(url: str, hashes: set[str], perceptual: set[str]) -> tuple[bool, bytes | None, str]:
-    image = fetch(url)
-    if image.get("status") != "ok":
-        return False, None, image.get("error") or image.get("status") or "not ok"
-    if image.get("sha256") in hashes:
-        return False, None, "placeholder hash"
-    if any(hamming(image.get("perceptual_hash", ""), phash) <= 4 for phash in perceptual):
-        return False, None, "placeholder perceptual match"
-    if int(image.get("width") or 0) < 120 or int(image.get("height") or 0) < 120:
-        return False, None, f"too small {image.get('width')}x{image.get('height')}"
     try:
-        content = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=20).content
+        response = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=8)
+        response.raise_for_status()
+        content = response.content
         opened = Image.open(io.BytesIO(content))
-        opened.verify()
-        return True, content, ""
+        opened = ImageOps.exif_transpose(opened).convert("RGB")
+        width, height = opened.size
+        if width < 120 or height < 120:
+            return False, None, f"too small {width}x{height}"
+        buffer = io.BytesIO()
+        opened.save(buffer, format="JPEG", quality=90)
+        normalized = buffer.getvalue()
+        import hashlib
+
+        digest = hashlib.sha256(normalized).hexdigest()
+        phash, _, _ = dhash(normalized)
+        if digest in hashes:
+            return False, None, "placeholder hash"
+        if any(hamming(phash, known) <= 4 for known in perceptual):
+            return False, None, "placeholder perceptual match"
+        return True, normalized, ""
     except Exception as exc:
         return False, None, str(exc)[:160]
 
 
-def collect_one(row: dict, hashes: set[str], perceptual: set[str], max_results: int) -> dict:
+def collect_one(row: dict, hashes: set[str], perceptual: set[str], max_results: int, require_name_evidence: bool, queries_per_player: int) -> dict:
     session = requests.Session()
     session.headers.update({"User-Agent": USER_AGENT})
-    queries = [f'"{row["name"]}" football headshot']
+    queries = [
+        f'"{row["name"]}" NFL football player photo',
+        f'"{row["name"]}" football headshot',
+    ]
     if row["teams"]:
-        queries.insert(0, f'"{row["name"]}" "{row["teams"][0]}" football')
+        queries.insert(0, f'"{row["name"]}" "{row["teams"][0]}" football photo')
+        queries.insert(1, f'"{row["name"]}" "{row["teams"][0]}" NFL')
+    queries = queries[: max(1, queries_per_player)]
     seen = set()
     items = []
     for query in queries:
@@ -178,7 +241,7 @@ def collect_one(row: dict, hashes: set[str], perceptual: set[str], max_results: 
             image_url = item.get("image") or ""
             if not image_url or image_url in seen or not image_url.startswith(("http://", "https://")):
                 continue
-            if not has_name_evidence(row, item):
+            if require_name_evidence and not has_name_evidence(row, item):
                 continue
             seen.add(image_url)
             item["_query"] = query
@@ -253,26 +316,49 @@ def main() -> None:
     parser.add_argument("--limit", type=int, default=250)
     parser.add_argument("--offset", type=int, default=0)
     parser.add_argument("--workers", type=int, default=4)
-    parser.add_argument("--max-results", type=int, default=8)
+    parser.add_argument("--max-results", type=int, default=4)
+    parser.add_argument("--queries-per-player", type=int, default=2)
+    parser.add_argument("--min-games", type=int, default=50)
+    parser.add_argument("--require-name-evidence", action="store_true")
+    parser.add_argument("--clear-pending", action="store_true")
     parser.add_argument("--include-attempted", action="store_true")
+    parser.add_argument("--from-csv", default="", help="Use an unresolved headshot CSV instead of the live DB queue. Defaults to the newest raw/nfl_unresolved_headshots_*.csv.")
     args = parser.parse_args()
 
+    if args.clear_pending and PENDING.exists():
+        shutil.rmtree(PENDING)
     PENDING.mkdir(parents=True, exist_ok=True)
     REJECTED.mkdir(parents=True, exist_ok=True)
-    rows = unresolved_players(include_attempted=args.include_attempted)
+    csv_path = Path(args.from_csv) if args.from_csv else latest_gap_csv()
+    if csv_path and csv_path.exists():
+        rows = unresolved_players_from_csv(csv_path, min_games=args.min_games)
+        print(f"Loaded unresolved queue from {csv_path}", flush=True)
+    else:
+        rows = unresolved_players(include_attempted=args.include_attempted, min_games=args.min_games)
     if args.offset:
         rows = rows[args.offset:]
     if args.limit:
         rows = rows[:args.limit]
+    print(f"Review collection target: {len(rows)} players, min_games={args.min_games}, workers={args.workers}", flush=True)
     hashes, perceptual = placeholder_fingerprints()
     results: list[dict] = []
     with ThreadPoolExecutor(max_workers=max(1, args.workers)) as pool:
-        futures = {pool.submit(collect_one, row, hashes, perceptual, args.max_results): row for row in rows}
+        futures = {
+            pool.submit(
+                collect_one,
+                row,
+                hashes,
+                perceptual,
+                args.max_results,
+                args.require_name_evidence,
+                args.queries_per_player,
+            ): row
+            for row in rows
+        }
         for index, future in enumerate(as_completed(futures), 1):
             results.append(future.result())
-            if index % 10 == 0 or index == len(rows):
-                found = sum(row.get("result_status") == "candidate" for row in results)
-                print(f"checked {index}/{len(rows)} candidates={found}", flush=True)
+            found = sum(row.get("result_status") == "candidate" for row in results)
+            print(f"checked {index}/{len(rows)} candidates={found}", flush=True)
     write_outputs(results)
     print(f"Candidates: {sum(row.get('result_status') == 'candidate' for row in results)}")
     print(f"Review folder: {PENDING}")
