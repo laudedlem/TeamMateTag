@@ -14,7 +14,9 @@ import csv
 import re
 import sys
 import time
+import unicodedata
 from collections import Counter, defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from html import unescape
 from pathlib import Path
 
@@ -38,6 +40,25 @@ def compact(value: str) -> str:
     return re.sub(r"[^a-z0-9]", "", normalize(value))
 
 
+def ascii_letters(value: str) -> str:
+    value = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
+    return re.sub(r"[^a-z]", "", value.lower())
+
+
+def slug_base(name: str) -> str:
+    parts = [part for part in re.split(r"\s+", normalize(name)) if part]
+    suffixes = {"jr", "sr", "ii", "iii", "iv", "v"}
+    while parts and ascii_letters(parts[-1]) in suffixes:
+        parts.pop()
+    if len(parts) < 2:
+        return ""
+    first = ascii_letters(parts[0])
+    last = ascii_letters(parts[-1])
+    if not first or not last:
+        return ""
+    return f"{last[:5]}{first[:2]}"
+
+
 def display_from_index(text: str) -> str:
     text = unescape(re.sub(r"<.*?>", "", text)).strip()
     if "," in text:
@@ -50,6 +71,12 @@ def get(session: requests.Session, url: str) -> str:
     response = session.get(url, timeout=25)
     response.raise_for_status()
     return response.text
+
+
+def new_session() -> requests.Session:
+    session = requests.Session()
+    session.headers.update({"User-Agent": USER_AGENT})
+    return session
 
 
 def index_pages(session: requests.Session, delay: float) -> list[dict]:
@@ -164,12 +191,26 @@ def profile_candidate(session: requests.Session, profile_url: str) -> dict:
     image_match = re.search(r'<img src="(https://cdn\.footballdb\.com/headshots/[^"]+)" alt="([^"]+)"', html)
     description_match = re.search(r'<meta name="description" content="([^"]+)"', html, flags=re.I)
     title_match = re.search(r"<title>(.*?)</title>", html, flags=re.I | re.S)
+    pro_years: set[int] = set()
+    pro_teams: set[str] = set()
+    for tr in re.findall(r'(<tr[^>]*class="[^"]*row_pro[^"]*"[^>]*>.*?</tr>)', html, flags=re.S | re.I):
+        if "TOT ALS" in tr or "row_total" in tr:
+            continue
+        year_match = re.search(r"row_[A-Z]+_reg_(\d{4})_NFL", tr)
+        if year_match:
+            pro_years.add(int(year_match.group(1)))
+        for title in re.findall(r'title="([^"]+) \(NFL\)"', tr):
+            if title and not title.startswith(("TOT", "2 Teams", "3 Teams", "4 Teams")):
+                pro_teams.add(unescape(title))
     return {
         "profile_url": profile_url,
         "source_url": unescape(image_match.group(1)) if image_match else "",
         "image_alt": unescape(image_match.group(2)) if image_match else "",
         "description": unescape(description_match.group(1)) if description_match else "",
         "title": unescape(re.sub(r"\s+", " ", title_match.group(1))).strip() if title_match else "",
+        "pro_first": min(pro_years) if pro_years else None,
+        "pro_final": max(pro_years) if pro_years else None,
+        "pro_teams": sorted(pro_teams),
     }
 
 
@@ -193,7 +234,7 @@ def score_profile(row: dict, profile: dict) -> int:
 
 
 def team_overlap_count(row: dict, profile: dict) -> int:
-    text = normalize(" ".join([profile.get("description", ""), profile.get("title", "")]))
+    text = normalize(" ".join([profile.get("description", ""), profile.get("title", ""), " ".join(profile.get("pro_teams") or [])]))
     count = 0
     for team in row["teams"]:
         team_norm = normalize(team)
@@ -203,6 +244,23 @@ def team_overlap_count(row: dict, profile: dict) -> int:
         elif len(nickname) > 3 and nickname in text:
             count += 1
     return count
+
+
+def career_year_match(row: dict, profile: dict) -> bool:
+    first, final = profile.get("pro_first"), profile.get("pro_final")
+    if not first or not final:
+        return False
+    debut, row_final = row.get("debut"), row.get("final")
+    if not debut or not row_final:
+        return False
+    # Rows are already 2000-present playable rows. Older players may have true
+    # FootballDB careers starting before 2000, so compare against the playable
+    # window by overlap and require the same final year when possible.
+    if final < debut or first > row_final:
+        return False
+    if row_final != final and abs(int(row_final) - int(final)) > 1:
+        return False
+    return True
 
 
 def reject_reason(image: dict, hashes: set[str], perceptual: set[str]) -> str | None:
@@ -233,11 +291,11 @@ def resolve(row: dict, matches: list[dict], session: requests.Session, hashes: s
     scored.sort(key=lambda item: item[0], reverse=True)
     best_score, best = scored[0]
     overlap = team_overlap_count(row, best)
-    ambiguous = len(matches) > 1 or compact(best.get("image_alt", "")) != row["norm_name"]
+    year_match = career_year_match(row, best)
+    if not year_match:
+        return {**row, "result_status": "needs_review", "source_url": best.get("source_url", ""), "profile_url": best.get("profile_url", ""), "note": f"FootballDB career years do not match; profile {best.get('pro_first')}-{best.get('pro_final')}; score {best_score}"}
     if overlap == 0:
-        return {**row, "result_status": "needs_review", "source_url": best.get("source_url", ""), "profile_url": best.get("profile_url", ""), "note": f"FootballDB profile lacks team evidence; score {best_score}"}
-    if ambiguous and overlap == 0:
-        return {**row, "result_status": "needs_review", "source_url": best.get("source_url", ""), "profile_url": best.get("profile_url", ""), "note": f"ambiguous FootballDB name without team evidence; score {best_score}"}
+        return {**row, "result_status": "needs_review", "source_url": best.get("source_url", ""), "profile_url": best.get("profile_url", ""), "note": f"FootballDB profile lacks team evidence; profile {best.get('pro_first')}-{best.get('pro_final')}; score {best_score}"}
     if best_score < 38:
         return {**row, "result_status": "needs_review", "source_url": best.get("source_url", ""), "profile_url": best.get("profile_url", ""), "note": f"low FootballDB match score {best_score}"}
     if not best.get("source_url"):
@@ -301,6 +359,8 @@ def main() -> None:
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--delay", type=float, default=0.2)
     parser.add_argument("--flush-every", type=int, default=25)
+    parser.add_argument("--slug-sequences", type=int, default=20)
+    parser.add_argument("--workers", type=int, default=1)
     parser.add_argument("--reindex", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
@@ -308,29 +368,57 @@ def main() -> None:
     if args.reindex and INDEX.exists():
         INDEX.unlink()
 
-    session = requests.Session()
-    session.headers.update({"User-Agent": USER_AGENT})
+    session = new_session()
     indexed = index_pages(session, args.delay)
     by_name: dict[str, list[dict]] = defaultdict(list)
     for row in indexed:
         by_name[row["norm_name"]].append(row)
 
-    rows = [row for row in unresolved_players() if row["norm_name"] in by_name]
+    all_rows = unresolved_players()
+    rows = []
+    for row in all_rows:
+        matches = list(by_name.get(row["norm_name"], []))
+        base = slug_base(row["name"])
+        if base:
+            existing = {match["profile_url"] for match in matches}
+            for number in range(1, args.slug_sequences + 1):
+                url = f"{BASE}/players/{normalize(row['name']).replace(' ', '-')}-{base}{number:02d}"
+                if url not in existing:
+                    matches.append({"name": row["name"], "norm_name": row["norm_name"], "profile_url": url})
+        if matches:
+            row["_matches"] = matches
+            rows.append(row)
     if args.limit:
         rows = rows[: args.limit]
     hashes, perceptual = placeholder_fingerprints()
     results: list[dict] = []
     batch: list[dict] = []
     promoted_total = 0
-    for index, row in enumerate(rows, 1):
-        result = resolve(row, by_name[row["norm_name"]], session, hashes, perceptual, args.delay)
-        results.append(result)
-        batch.append(result)
-        if not args.dry_run and args.flush_every > 0 and len(batch) >= args.flush_every:
-            promoted_total += persist(batch)
-            batch.clear()
-        if index % 10 == 0 or index == len(rows):
-            print(f"checked {index}/{len(rows)} promoted={promoted_total}", flush=True)
+    if args.workers > 1:
+        def run_row(row: dict) -> dict:
+            return resolve(row, row["_matches"], new_session(), hashes, perceptual, args.delay)
+
+        with ThreadPoolExecutor(max_workers=args.workers) as pool:
+            futures = {pool.submit(run_row, row): row for row in rows}
+            for index, future in enumerate(as_completed(futures), 1):
+                result = future.result()
+                results.append(result)
+                batch.append(result)
+                if not args.dry_run and args.flush_every > 0 and len(batch) >= args.flush_every:
+                    promoted_total += persist(batch)
+                    batch.clear()
+                if index % 10 == 0 or index == len(rows):
+                    print(f"checked {index}/{len(rows)} promoted={promoted_total}", flush=True)
+    else:
+        for index, row in enumerate(rows, 1):
+            result = resolve(row, row["_matches"], session, hashes, perceptual, args.delay)
+            results.append(result)
+            batch.append(result)
+            if not args.dry_run and args.flush_every > 0 and len(batch) >= args.flush_every:
+                promoted_total += persist(batch)
+                batch.clear()
+            if index % 10 == 0 or index == len(rows):
+                print(f"checked {index}/{len(rows)} promoted={promoted_total}", flush=True)
     if not args.dry_run and batch:
         promoted_total += persist(batch)
 

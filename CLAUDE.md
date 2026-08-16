@@ -1498,15 +1498,19 @@ Update, 2026-08-15 (0.2.15): FootballDB NFL headshot resolver.
   older James Williams rows matching a 2025 FootballDB James Williams page. The
   78 FootballDB promotions were reverted from `player_headshots` and
   `sport_player_images`.
-- The FootballDB resolver now requires team evidence before promotion. Current
-  safe dry run against the 115 exact-name FootballDB matches produced 0
-  promotable rows; all 115 require review or a stronger team/year parser.
+- The FootballDB resolver now generates likely profile slugs such as
+  `chris-carter-cartech02`, parses FootballDB NFL stat rows for pro career
+  years and teams, and requires career-year plus team evidence before
+  promotion. It also supports `--workers` for concurrent profile checks.
+- First safe FootballDB live batch promoted 7 rows: Chris Carter, B.J.
+  Daniels, John Lotulelei, Gabe Ikard, Dwayne Gratz, Khyri Thornton, and Kevin
+  Norwood.
 - Current verified/display coverage after this pass:
   - MLB: 5,237 / 5,237 playable 2000-present players verified.
   - NBA: 2,566 / 2,566 playable 2000-present players verified/displayed.
   - NHL: 4,501 / 4,501 playable 2000-present players verified/displayed.
-  - NFL: 11,362 verified out of 15,205 playable 2000-present football players;
-    3,843 remain with `placeholder`, `missing`, `wrong_player`, or `bad_crop`
+  - NFL: 11,369 verified out of 15,205 playable 2000-present football players;
+    3,836 remain with `placeholder`, `missing`, `wrong_player`, or `bad_crop`
     status.
 - Remaining NFL examples after FootballDB: Chris Carter (2011-2017 OLB/LB),
   Edward Jasper (2000-2005 NT/DT), P.J. Alexander (2003-2007 G), Dan Buenning
