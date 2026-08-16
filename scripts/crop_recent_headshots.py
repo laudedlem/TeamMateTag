@@ -16,7 +16,9 @@ import csv
 import hashlib
 import io
 import os
+import subprocess
 import sys
+import tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from urllib.parse import quote
@@ -45,11 +47,53 @@ DEFAULT_PROVIDERS = (
 OUT_DIR = ROOT / "raw" / "cropped_headshots"
 REPORT = ROOT / "raw" / "cropped_headshots_review.md"
 CSV_REPORT = ROOT / "raw" / "cropped_headshots_review.csv"
-USER_AGENT = "TeamMateTag headshot cropper/0.2.10"
+USER_AGENT = "TeamMateTag/0.2.10 (local playtest headshot cleanup; contact: teammatetag.com/contact)"
 
 
 def fetch_bytes(url: str) -> bytes:
-    response = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=30)
+    headers_map = {
+        "User-Agent": USER_AGENT,
+        "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+    }
+    if "wikimedia.org/" in url:
+        headers_map["Referer"] = "https://commons.wikimedia.org/"
+    response = requests.get(url, headers=headers_map, timeout=30)
+    if response.status_code == 429 and "wikimedia.org/" in url:
+        headers_map["User-Agent"] = (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 Chrome/127 Safari/537.36"
+        )
+        response = requests.get(url, headers=headers_map, timeout=30)
+    if response.status_code == 429 and "wikimedia.org/" in url:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".img") as handle:
+            temp_path = Path(handle.name)
+        env = {**os.environ, "TMT_IMAGE_URL": url, "TMT_IMAGE_OUT": str(temp_path)}
+        command = (
+            "$headers=@{'User-Agent'='Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 Chrome/127 Safari/537.36';"
+            "'Referer'='https://commons.wikimedia.org/'};"
+            "Invoke-WebRequest -Uri $env:TMT_IMAGE_URL -Headers $headers "
+            "-TimeoutSec 30 -UseBasicParsing -OutFile $env:TMT_IMAGE_OUT"
+        )
+        try:
+            completed = subprocess.run(
+                ["powershell", "-NoProfile", "-Command", command],
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=45,
+                check=False,
+            )
+            if completed.returncode == 0 and temp_path.exists() and temp_path.stat().st_size:
+                return temp_path.read_bytes()
+            detail = (completed.stderr or completed.stdout or "PowerShell fallback failed").strip()
+            response.raise_for_status()
+            raise RuntimeError(detail[:300])
+        finally:
+            try:
+                temp_path.unlink(missing_ok=True)
+            except OSError:
+                pass
     response.raise_for_status()
     return response.content
 

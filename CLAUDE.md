@@ -1292,12 +1292,12 @@ Headshot cleanup snapshot after the identity pass:
 - 2026-08-15 crop cleanup: added `scripts/crop_recent_headshots.py` to normalize
   recent fallback photos into 360x450 card portraits, upload them to Supabase
   Storage under `player-headshots/<sport>/cropped/`, and update both
-  `player_headshots` and `sport_player_images`. Published 200 cropped NBA/NHL
+  `player_headshots` and `sport_player_images`. Published 217 cropped NBA/NHL
   fallback images: all basketball `Web image search` rows, all hockey
-  `Web image search` rows, all hockey `HockeyDB` rows, and 3 Wikimedia rows.
-  Seventeen Wikimedia rows remain uncropped because Wikimedia returned HTTP 429
-  from this environment; their original verified URLs still work in gameplay.
-  Local review files: `raw/cropped_headshots_review.md` and
+  `Web image search` rows, all basketball/hockey `Wikimedia Commons` rows, and
+  all hockey `HockeyDB` rows. The cropper has a Wikimedia-specific fetch
+  fallback for intermittent HTTP 429s. Local review files:
+  `raw/cropped_headshots_review.md` and
   `raw/cropped_headshots_review.csv`.
 - Football: 10,863 verified, 666 missing, 3,707 placeholder. The top remaining
   prominent gaps, such as David Harris, Charles Johnson, Adam Jones, and Grady
