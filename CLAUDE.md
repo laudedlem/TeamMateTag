@@ -1548,3 +1548,41 @@ Update, 2026-08-16 (0.2.15 data pass): NFL headshot long-run status.
     `raw/nfl_unresolved_headshots_*.csv`, supports `--min-games`,
     `--queries-per-player`, and prints every completed player so it does not
     feel stalled.
+
+Update, 2026-08-16 (NFL priority headshot workflow): manual-first football gap list.
+- User wants remaining NFL photos resolved by priority, starting with players
+  who have the most corrected games played. College photos are acceptable when
+  NFL uniform photos are unavailable, as long as identity is reliable.
+- Added `scripts/export_nfl_headshot_priority.py`.
+  - Exports every unresolved 2000-present NFL player from Supabase into
+    `raw/nfl_headshot_priority_list.csv`.
+  - Uses corrected games played: one max games value per player/team/season,
+    avoiding inflated totals from duplicate appearance rows.
+  - Adds known teams, season/team context, existing attempted sources, Google
+    web/image links, college-image search links, and likely FootballDB profile
+    guesses.
+  - Current all-gap export: 3,163 unresolved NFL players.
+- Exported the high-priority subset to
+  `raw/nfl_headshot_priority_50plus.csv`: 234 unresolved NFL players with at
+  least 50 corrected games played.
+- Added `scripts/build_nfl_headshot_priority_review.py`, which turns the 50+
+  CSV into `raw/nfl_headshot_priority_50plus_review.html` for browser review.
+  Open this file locally to click through candidates/search links.
+- Added `raw/nfl_50plus_photo_research_top10.csv` as the first researched
+  batch. Good/likely candidates found:
+  - Leonardo Carson: Auburn, direct image from Auburn archive:
+    `https://www.autigers.com/archive/1997/fb-peach/carson.jpg`.
+  - Al Johnson: Wisconsin, UW coach page has a usable current/professional
+    image.
+  - Otis Grigsby: Kentucky, official Kentucky roster page has a headshot.
+  - Cecil Sapp: Colorado State, official CSU hall-of-fame page has an image.
+  - Reynaldo Hill: Florida, official Florida roster page plus Getty references.
+  - Others in the first ten have college/source context but still need visual
+    confirmation or a cleaner image.
+- Attempted a Wikipedia college supplement script, but Wikipedia API returned
+  429 rate-limit responses quickly. The local nflverse roster files have many
+  blank college values for older 2000s players, so the current reliable path is
+  source-by-source/manual priority review, not another broad blind scrape.
+- The automated DuckDuckGo image candidate collector has been low yield for
+  football. Do not rely on it as the primary NFL completion path unless the
+  query/source strategy changes.
