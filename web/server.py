@@ -73,7 +73,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.2.12"
+APP_VERSION = "0.2.13"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -909,6 +909,43 @@ def ensure_runtime_schema():
                        reason TEXT,
                        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
                        PRIMARY KEY (sport_id, player_a_id, player_b_id, team_id, season)
+                   )"""
+            )
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS player_stints (
+                       player_id TEXT NOT NULL REFERENCES players(player_id),
+                       team_id TEXT NOT NULL,
+                       season INTEGER NOT NULL,
+                       first_unit INTEGER NOT NULL,
+                       last_unit INTEGER NOT NULL,
+                       first_label TEXT,
+                       last_label TEXT,
+                       source TEXT,
+                       PRIMARY KEY (player_id, team_id, season)
+                   )"""
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_player_stints_link "
+                "ON player_stints(team_id, season, player_id)"
+            )
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS teammate_stint_coverage (
+                       season INTEGER PRIMARY KEY,
+                       coverage_type TEXT NOT NULL,
+                       strict INTEGER NOT NULL DEFAULT 1,
+                       source TEXT,
+                       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                   )"""
+            )
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS teammate_exclusions (
+                       player_a_id TEXT NOT NULL REFERENCES players(player_id),
+                       player_b_id TEXT NOT NULL REFERENCES players(player_id),
+                       team_id TEXT NOT NULL,
+                       season INTEGER NOT NULL,
+                       reason TEXT,
+                       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                       PRIMARY KEY (player_a_id, player_b_id, team_id, season)
                    )"""
             )
             conn.execute(
@@ -6916,6 +6953,26 @@ def generate_baseball_film_review(conn, puzzle_day: date) -> dict:
                  JOIN players p ON p.player_id=b.player_id
                 WHERE a.player_id=%s AND b.player_id<>%s
                   AND a.season>=2000 AND p.final_year>=2000
+                  AND (
+                      NOT EXISTS (
+                          SELECT 1 FROM teammate_stint_coverage c
+                           WHERE c.season = a.season
+                             AND c.strict <> 0
+                      )
+                      OR EXISTS (
+                          SELECT 1
+                            FROM player_stints sa
+                            JOIN player_stints sb
+                              ON sb.team_id = sa.team_id
+                             AND sb.season = sa.season
+                           WHERE sa.player_id = a.player_id
+                             AND sb.player_id = b.player_id
+                             AND sa.team_id = a.team_id
+                             AND sa.season = a.season
+                             AND sa.first_unit <= sb.last_unit
+                             AND sb.first_unit <= sa.last_unit
+                      )
+                  )
                 ORDER BY b.player_id, a.team_id, a.season""",
             (player_id, player_id),
         ).fetchall()

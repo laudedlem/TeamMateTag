@@ -186,6 +186,29 @@ def _candidate_links(conn: sqlite3.Connection, sport: str, player_id: str,
         JOIN sport_players b_player ON b_player.sport_id=b.sport_id AND b_player.player_id=b.player_id
         WHERE a.sport_id=? AND a.player_id=? AND b.player_id<>? AND a.season>=?
         {exclusion_clause}
+          AND (
+              NOT EXISTS (
+                  SELECT 1 FROM sport_teammate_stint_coverage c
+                   WHERE c.sport_id = a.sport_id
+                     AND c.season = a.season
+                     AND c.strict <> 0
+              )
+              OR EXISTS (
+                  SELECT 1
+                    FROM sport_player_stints sa
+                    JOIN sport_player_stints sb
+                      ON sb.sport_id = sa.sport_id
+                     AND sb.team_id = sa.team_id
+                     AND sb.season = sa.season
+                   WHERE sa.sport_id = a.sport_id
+                     AND sa.player_id = a.player_id
+                     AND sb.player_id = b.player_id
+                     AND sa.team_id = a.team_id
+                     AND sa.season = a.season
+                     AND sa.first_unit <= sb.last_unit
+                     AND sb.first_unit <= sa.last_unit
+              )
+          )
     """, (sport, player_id, player_id, modern_final_year))
     by_candidate: dict[str, list[tuple[str, int]]] = {}
     for candidate, team_id, season in rows:

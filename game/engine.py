@@ -208,6 +208,33 @@ def get_shared_seasons(
              JOIN appearances b
                ON b.team_id = a.team_id AND b.season = a.season
             WHERE a.player_id = ? AND b.player_id = ? AND a.season >= ?
+              AND NOT EXISTS (
+                  SELECT 1 FROM teammate_exclusions e
+                   WHERE e.team_id = a.team_id
+                     AND e.season = a.season
+                     AND ((e.player_a_id = a.player_id AND e.player_b_id = b.player_id)
+                       OR (e.player_a_id = b.player_id AND e.player_b_id = a.player_id))
+              )
+              AND (
+                  NOT EXISTS (
+                      SELECT 1 FROM teammate_stint_coverage c
+                       WHERE c.season = a.season
+                         AND c.strict <> 0
+                  )
+                  OR EXISTS (
+                      SELECT 1
+                        FROM player_stints sa
+                        JOIN player_stints sb
+                          ON sb.team_id = sa.team_id
+                         AND sb.season = sa.season
+                       WHERE sa.player_id = a.player_id
+                         AND sb.player_id = b.player_id
+                         AND sa.team_id = a.team_id
+                         AND sa.season = a.season
+                         AND sa.first_unit <= sb.last_unit
+                         AND sb.first_unit <= sa.last_unit
+                  )
+              )
             ORDER BY a.season, a.team_id""",
         (a, b, min_season),
     ).fetchall()

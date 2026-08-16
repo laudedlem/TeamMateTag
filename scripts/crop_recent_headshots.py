@@ -47,7 +47,7 @@ DEFAULT_PROVIDERS = (
 OUT_DIR = ROOT / "raw" / "cropped_headshots"
 REPORT = ROOT / "raw" / "cropped_headshots_review.md"
 CSV_REPORT = ROOT / "raw" / "cropped_headshots_review.csv"
-USER_AGENT = "TeamMateTag/0.2.12 (local playtest headshot cleanup; contact: teammatetag.com/contact)"
+USER_AGENT = "TeamMateTag/0.2.13 (local playtest headshot cleanup; contact: teammatetag.com/contact)"
 
 
 def fetch_bytes(url: str) -> bytes:

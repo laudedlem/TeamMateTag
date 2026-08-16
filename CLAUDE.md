@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.2.12`
+- Current display version: `0.2.13`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -1405,3 +1405,36 @@ Update, 2026-08-15 (0.2.12): strict teammate-overlap validation for NBA/NFL.
 - Hockey is not strict yet because the current local NHL cache does not contain
   complete per-game or transaction stint windows. It still uses the
   season-level appearance fallback until NHL overlap evidence is added.
+
+Update, 2026-08-15 (0.2.13): strict teammate overlap across all four sports.
+- Bumped visible app version to `0.2.13`.
+- Added baseball-only strict tables: `player_stints`,
+  `teammate_stint_coverage`, and `teammate_exclusions`, with matching SQLite,
+  Postgres, and runtime-schema definitions.
+- Patched the baseball branch of `game.engine.get_shared_seasons` so covered
+  baseball seasons require overlapping player stint ranges.
+- Expanded `scripts/build_teammate_stints.py`:
+  - `--sports` selector supports targeted rebuilds.
+  - MLB stints are derived from official MLB Stats API regular-season
+    boxscores, cached under `raw/mlb_statsapi`, with MLBAM IDs mapped back to
+    Lahman/Baseball Reference IDs through the Chadwick register.
+  - NHL stints are derived from official NHL GameCenter regular-season
+    boxscores, cached under `raw/nhl_gamecenter`.
+  - Boxscore fetching is parallel and cache-first.
+- Published strict stint data to Supabase:
+  - baseball: 37,773 stints, 2000-2025 strict coverage.
+  - basketball: 14,049 stints, 2000-2025 strict coverage.
+  - football: 54,705 stints, 2002-2025 strict coverage.
+  - hockey: 25,739 stints, 2000-2025 strict coverage.
+- Verified in production through `PgEngineConn`:
+  - Kris Bryant / Frank Schwindel and Anthony Rizzo / Frank Schwindel no
+    longer resolve through 2021 Cubs season-only overlap.
+  - Anthony Rizzo / David Ross and Anthony Rizzo / Gleyber Torres still
+    resolve.
+  - Patrick Kane / Jonathan Toews still resolves; Kane / Connor Bedard does
+    not.
+- Film Review candidate generation now filters through strict overlap SQL for
+  baseball and all cross-sport generators, preventing daily puzzle builders
+  from proposing stale season-level-only links.
+- Rebuilt Film Review archive rows for 2026-08-01 through 2026-08-16 for all
+  four sports, including football offense and defense: 80 rows total.

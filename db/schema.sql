@@ -70,6 +70,40 @@ CREATE TABLE IF NOT EXISTS appearances (
 CREATE INDEX IF NOT EXISTS idx_appearances_team_season ON appearances(team_id, season);
 CREATE INDEX IF NOT EXISTS idx_appearances_season      ON appearances(season);
 
+CREATE TABLE IF NOT EXISTS player_stints (
+    player_id   TEXT NOT NULL REFERENCES players(player_id),
+    team_id     TEXT NOT NULL,
+    season      INTEGER NOT NULL,
+    first_unit  INTEGER NOT NULL,
+    last_unit   INTEGER NOT NULL,
+    first_label TEXT,
+    last_label  TEXT,
+    source      TEXT,
+    PRIMARY KEY (player_id, team_id, season),
+    FOREIGN KEY (team_id, season) REFERENCES teams(team_id, season)
+);
+
+CREATE INDEX IF NOT EXISTS idx_player_stints_link
+    ON player_stints(team_id, season, player_id);
+
+CREATE TABLE IF NOT EXISTS teammate_stint_coverage (
+    season        INTEGER PRIMARY KEY,
+    coverage_type TEXT NOT NULL,
+    strict        INTEGER NOT NULL DEFAULT 1,
+    source        TEXT,
+    updated_at    TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS teammate_exclusions (
+    player_a_id TEXT NOT NULL REFERENCES players(player_id),
+    player_b_id TEXT NOT NULL REFERENCES players(player_id),
+    team_id     TEXT NOT NULL,
+    season      INTEGER NOT NULL,
+    reason      TEXT,
+    created_at  TEXT DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (player_a_id, player_b_id, team_id, season)
+);
+
 -- ============================================================
 -- THE TEAMMATE GRAPH (DERIVED)
 -- This is what the game queries on every move.
