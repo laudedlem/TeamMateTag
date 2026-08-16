@@ -73,7 +73,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.2.13"
+APP_VERSION = "0.2.14"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -696,10 +696,21 @@ def ensure_runtime_schema():
             )
             conn.execute("ALTER TABLE film_review_daily_attempts ADD COLUMN IF NOT EXISTS unit TEXT NOT NULL DEFAULT ''")
             conn.execute("ALTER TABLE film_review_daily_attempts ADD COLUMN IF NOT EXISTS official BOOLEAN NOT NULL DEFAULT true")
-            conn.execute("ALTER TABLE film_review_daily_attempts DROP CONSTRAINT IF EXISTS film_review_daily_attempts_pkey")
-            conn.execute("""ALTER TABLE film_review_daily_attempts
-                            ADD CONSTRAINT film_review_daily_attempts_pkey
-                            PRIMARY KEY (owner_guest_id, sport_id, puzzle_date, unit)""")
+            conn.execute(
+                """DO $$
+                   BEGIN
+                     IF NOT EXISTS (
+                         SELECT 1
+                           FROM pg_constraint
+                          WHERE conrelid = 'film_review_daily_attempts'::regclass
+                            AND contype = 'p'
+                     ) THEN
+                       ALTER TABLE film_review_daily_attempts
+                         ADD CONSTRAINT film_review_daily_attempts_pkey
+                         PRIMARY KEY (owner_guest_id, sport_id, puzzle_date, unit);
+                     END IF;
+                   END $$"""
+            )
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS dr_results (
                        result_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

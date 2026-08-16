@@ -117,6 +117,10 @@ def player_id(row: dict) -> str | None:
     return f"nfl:{clean_key(name)}:{birth}" if name else None
 
 
+def has_durable_player_id(row: dict) -> bool:
+    return any((row.get(column) or "").strip() for column in ("gsis_id", "pfr_id", "espn_id", "sportradar_id"))
+
+
 def source_for_season(season: int) -> tuple[str, str]:
     if season >= WEEKLY_START:
         filename = f"roster_weekly_{season}.csv"
@@ -152,6 +156,8 @@ def upsert_season(conn, season: int, rows: list[dict], source: str, url: str) ->
 
     for row in rows:
         raw_team = (row.get("team") or "").strip().upper()
+        if season >= WEEKLY_START and not has_durable_player_id(row):
+            continue
         pid = player_id(row)
         name = (row.get("full_name") or "").strip()
         if not raw_team or not pid or not name:

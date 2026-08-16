@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.2.13`
+- Current display version: `0.2.14`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -1438,3 +1438,33 @@ Update, 2026-08-15 (0.2.13): strict teammate overlap across all four sports.
   from proposing stale season-level-only links.
 - Rebuilt Film Review archive rows for 2026-08-01 through 2026-08-16 for all
   four sports, including football offense and defense: 80 rows total.
+
+Update, 2026-08-15 (0.2.14): headshot status correction and NFL fallback tooling.
+- Bumped visible app version to `0.2.14`.
+- Clarified the image-count definition:
+  - MLB has full playable 2000-present display coverage.
+  - NBA and NHL had verified registry URLs that were not published to
+    `sport_player_images`; syncing those fixed display coverage to 100%.
+  - NFL still has a large usable-image gap when placeholders are counted as
+    missing. The correct current gap after two web-image batches and bad-row
+    cleanup is 3,843
+    playable NFL players with `player_headshots.status IN ('placeholder',
+    'missing')`.
+- Synced 74 verified NBA/NHL registry headshots into `sport_player_images`.
+- Added `scripts/sync_verified_headshots_to_display.py` so verified
+  `player_headshots` URLs can be republished into the app display table.
+- Added `scripts/resolve_nfl_web_image_headshots.py`, a football-specific web
+  image fallback resolver with exact-name, football-context, team-cue, and
+  placeholder-fingerprint checks.
+- Ran NFL web fallback batches:
+  - First batch: 249 promoted from 250 checked.
+  - Second batch: 169 promoted from 500 checked.
+  - Third run hit search-provider timeouts and was stopped; no results from
+    that run were written.
+- Fixed `ensure_runtime_schema()` so it no longer tries to add a primary key to
+  `film_review_daily_attempts` when the table already has one.
+- Important NFL data-quality fix: nflverse 2025 weekly roster rows contained
+  some no-identifier records with implausible `years_exp` values, for example
+  Bob Stein and Ernie Koy. The football loaders now skip 2002+ rows without a
+  durable player identifier, and 31 bad fallback-ID football records were
+  removed from production.

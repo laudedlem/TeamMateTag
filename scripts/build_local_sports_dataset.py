@@ -239,7 +239,10 @@ def load_nfl(conn: sqlite3.Connection, raw: Path) -> None:
             raw_team = (row.get("team") or "").upper().strip()
             name = (row.get("full_name") or "").strip()
             source_id = (row.get("gsis_id") or row.get("pfr_id") or row.get("espn_id") or "").strip()
-            if not raw_team or not name: continue
+            if not raw_team or not name:
+                continue
+            if season >= 2002 and not source_id:
+                continue
             pid = f"nfl:{source_id or key(name) + ':' + (row.get('birth_date') or '')}"
             franchise, team_name = nfl_team(raw_team, season)
             if team_name == raw_team: continue

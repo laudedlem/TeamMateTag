@@ -46,7 +46,7 @@ NHL_CACHE = ROOT / "raw" / "nhl_gamecenter"
 STRICT_SPORTS = ("basketball", "football", "hockey")
 NFL_EXCLUDED_STATUSES = {"CUT", "TRD", "TRT", "RET", "UFA", "RFA"}
 SESSION = requests.Session()
-SESSION.headers.update({"User-Agent": "TeamMateTag/0.2.13 teammate-stint-builder"})
+SESSION.headers.update({"User-Agent": "TeamMateTag/0.2.14 teammate-stint-builder"})
 MAX_WORKERS = int(os.environ.get("TEAMMATETAG_STINT_WORKERS", "16"))
 
 
