@@ -73,7 +73,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.2.10"
+APP_VERSION = "0.2.11"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -5267,21 +5267,20 @@ def _film_success_rate(conn, sport: str, puzzle_day: date, unit: str = "") -> di
 
 
 def _film_preview_cards(conn, sport: str, puzzle_day: date, unit: str = "") -> list[dict]:
-    if sport == "baseball":
-        puzzle = _daily_film_review_puzzle(
-            conn, "baseball", puzzle_day, None,
-            lambda: generate_baseball_film_review(conn, puzzle_day),
-        )
-        cards = _hydrate_player_cards(conn, list(puzzle["deck"][:2]))
-    else:
-        unit_arg = unit or None
-        puzzle = _daily_film_review_puzzle(
-            conn, sport, puzzle_day, unit_arg,
-            lambda: _local_film_review_puzzle_dict(conn, sport, unit_arg, puzzle_day),
-        )
-        cards = _sport_cards(conn, sport, list(puzzle["deck"][:2]))
+    row = conn.execute(
+        """SELECT puzzle FROM film_review_daily_puzzles
+             WHERE sport_id=%s AND puzzle_date=%s AND unit=%s""",
+        (sport, puzzle_day, unit or ""),
+    ).fetchone()
+    if not row:
+        return []
+    puzzle = dict(row[0])
+    deck = list(puzzle.get("deck") or [])
+    if len(deck) < 2:
+        return []
+    cards = _hydrate_player_cards(conn, deck[:2]) if sport == "baseball" else _sport_cards(conn, sport, deck[:2])
     preview = []
-    for player_id in puzzle["deck"][:2]:
+    for player_id in deck[:2]:
         card = cards.get(player_id, {})
         name = " ".join(part for part in [card.get("name_first"), card.get("name_last")] if part).strip() or player_id
         preview.append({"player_id": player_id, "name": name, "headshot_url": card.get("headshot_url")})
@@ -5303,7 +5302,7 @@ def film_archive_summary():
             unit_payload = {
                 unit or "default": {
                     "success_rate": _film_success_rate(conn, sport, today, unit),
-                    "preview": [],
+                    "preview": _film_preview_cards(conn, sport, today, unit),
                     "streak": _film_streak(conn, guest_id, sport, unit),
                 }
                 for unit in units
@@ -6774,9 +6773,47 @@ def sport_bp_timeout(sport: str):
 # Film Review (daily puzzle)
 # ============================================================
 
-BASEBALL_FR_SLOTS = ("C", "1B", "2B", "3B", "SS", "LF", "CF", "RF", "DH", "SP")
+BASEBALL_FR_SLOTS = ("DH", "1B", "SP", "2B", "3B", "SS", "LF", "CF", "RF", "C")
 
 FR_MAX_STRIKES = 3
+
+FR_STABLE_HEADSHOT_PROVIDERS = {
+    "baseball": {"MLBAM", "OOTP Facepack"},
+    "basketball": {"catalog", "NBA", "BBGM community map"},
+    "hockey": {"catalog", "NHL", "ESPN", "FHM Historical Photos Megapack 3.5", "FHM Facepack 24-25"},
+}
+FR_FALLBACK_HEADSHOT_PROVIDERS = {
+    "Web image search", "Wikimedia Commons", "HockeyDB", "Basketball Reference",
+    "Hockey Reference", "Baseball Reference", "manual_submission", "manual_upload",
+    "Community roster CSV", "TheSportsDB",
+}
+
+
+def _fr_choice_window(slot_index: int, total_slots: int, choices_len: int) -> int:
+    if slot_index <= 2:
+        return min(8, choices_len)
+    if slot_index <= max(4, total_slots // 2):
+        return min(28, choices_len)
+    if slot_index <= total_slots - 3:
+        return min(60, choices_len)
+    return min(140, choices_len)
+
+
+def _fr_photo_score(sport: str, provider: str | None) -> int:
+    if provider in FR_STABLE_HEADSHOT_PROVIDERS.get(sport, set()):
+        return 600
+    if provider in FR_FALLBACK_HEADSHOT_PROVIDERS:
+        return -450
+    return 0
+
+
+def _fr_player_quality(career_games: int | None, teammate_count: int | None, final_year: int | None,
+                       provider: str | None, sport: str) -> int:
+    final_year = final_year or 2000
+    recency = max(0, min(2026, final_year) - 2015) * 90
+    return int(career_games or 0) + int(teammate_count or 0) * 4 + recency \
+        + (500 if final_year >= 2024 else 0) + (250 if final_year >= 2020 else 0) \
+        + _fr_photo_score(sport, provider)
 
 
 def _fr_compute_shared(conn, deck: list[str]) -> list[list[tuple[str, int, str]]]:
@@ -6795,22 +6832,27 @@ def generate_baseball_film_review(conn, puzzle_day: date) -> dict:
     cron job or a pre-generated deck file. Distinct team-seasons are enforced
     for every connection in the chain.
     """
-    pools: dict[str, set[str]] = {}
+    pools: dict[str, dict[str, int]] = {}
     for slot in BASEBALL_FR_SLOTS:
         rows = conn.execute(
-            """SELECT bp.player_id
+            """SELECT bp.player_id, ps.career_games, ps.teammate_count, p.final_year, h.provider
                  FROM baseball_player_positions bp
                  JOIN players p ON p.player_id=bp.player_id
+                 JOIN players_searchable ps ON ps.player_id=p.player_id
+                 LEFT JOIN player_headshots h ON h.sport_id='baseball' AND h.player_id=p.player_id
                 WHERE bp.position=%s AND bp.games>=25 AND p.final_year>=2000
                 ORDER BY bp.player_id""",
             (slot,),
         ).fetchall()
-        pools[slot] = {row[0] for row in rows}
+        pools[slot] = {
+            player_id: _fr_player_quality(career_games, teammate_count, final_year, provider, "baseball")
+            for player_id, career_games, teammate_count, final_year, provider in rows
+        }
     missing = [slot for slot, players in pools.items() if not players]
     if missing:
         raise RuntimeError("baseball Film Review position data is unavailable for " + ", ".join(missing))
 
-    def candidates(player_id: str, eligible: set[str], used_players: set[str],
+    def candidates(player_id: str, eligible: dict[str, int], used_players: set[str],
                    used_links: set[tuple[str, int]]) -> list[tuple[str, tuple[str, int]]]:
         rows = conn.execute(
             """SELECT DISTINCT b.player_id, a.team_id, a.season
@@ -6828,22 +6870,27 @@ def generate_baseball_film_review(conn, puzzle_day: date) -> dict:
                 by_candidate.setdefault(pid, []).append((team, season))
         unique = [(pid, links[0]) for pid, links in by_candidate.items() if len(links) == 1]
         if unique:
-            return unique
-        return [(pid, link) for pid, links in by_candidate.items() for link in links]
+            return sorted(unique, key=lambda item: eligible[item[0]], reverse=True)
+        return sorted(
+            [(pid, link) for pid, links in by_candidate.items() for link in links],
+            key=lambda item: eligible[item[0]],
+            reverse=True,
+        )
 
     rng = random.Random(f"baseball:{puzzle_day.isoformat()}")
     for _ in range(500):
-        first = sorted(pools[BASEBALL_FR_SLOTS[0]])
-        deck = [rng.choice(first)]
+        first = sorted(pools[BASEBALL_FR_SLOTS[0]], key=pools[BASEBALL_FR_SLOTS[0]].get, reverse=True)
+        deck = [rng.choice(first[:min(5, len(first))])]
         used_players, used_links = {deck[0]}, set()
         failed = False
-        for slot in BASEBALL_FR_SLOTS[1:]:
+        for slot_index, slot in enumerate(BASEBALL_FR_SLOTS[1:], 1):
             choices = candidates(deck[-1], pools[slot], used_players, used_links)
             if not choices:
                 failed = True
                 break
             rng.shuffle(choices)
-            next_player, link = choices[0]
+            choices.sort(key=lambda item: pools[slot][item[0]], reverse=True)
+            next_player, link = rng.choice(choices[:_fr_choice_window(slot_index, len(BASEBALL_FR_SLOTS), len(choices))])
             deck.append(next_player)
             used_players.add(next_player)
             used_links.add(link)

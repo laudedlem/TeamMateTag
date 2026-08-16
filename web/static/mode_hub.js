@@ -110,15 +110,6 @@ async function initHub() {
   if (hub === 'film') {
     const summary = await post('/api/film/archive_summary', { guest_id: guestId });
     Object.entries(summary.sports || {}).forEach(([sport, data]) => renderFilmReviewHubSport(sport, data || {}));
-    post('/api/film/previews', {}).then((payload) => {
-      Object.entries(payload.previews || {}).forEach(([sport, units]) => {
-        if (sport === 'football') {
-          ['offense', 'defense'].forEach((unit) => renderFilmPreview(`football:${unit}`, { preview: units[unit] || [] }));
-        } else {
-          renderFilmPreview(sport, { preview: units.default || [] });
-        }
-      });
-    }).catch(() => {});
   }
   configureSharedQueue();
 }
@@ -193,7 +184,7 @@ function renderFilmPreview(sport, data) {
   meta.className = `film-hub-meta ${compact ? 'compact-names' : ''}`;
   meta.innerHTML = `<span class="film-preview-pair">${preview.map((player) => `
       <span class="film-preview-player">
-        <span class="film-preview-photo">${player.headshot_url ? `<img src="${escapeHtml(player.headshot_url)}" alt="">` : ''}</span>
+        <span class="film-preview-photo">${player.headshot_url ? `<img src="${escapeHtml(player.headshot_url)}" alt="" loading="lazy" decoding="async">` : ''}</span>
         <small>${escapeHtml(player.name || 'Unknown')}</small>
       </span>`).join('')}</span>`;
   tile.appendChild(meta);

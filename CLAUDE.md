@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.2.10`
+- Current display version: `0.2.11`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -1354,3 +1354,30 @@ eligible in gameplay.
   baseball pair edges exceeded the free project capacity. Do not rerun the
   historical NFL or baseball loaders against production until moving to a
   larger database or changing the connection storage/query strategy.
+
+Update, 2026-08-15 (0.2.11): Film Review quality and speed pass.
+- Bumped visible app version to `0.2.11`; legal/account templates were updated
+  from stale `0.1.33` text.
+- `/film` now uses a single `archive_summary` request. Preview cards are read
+  only from already-stored daily puzzles instead of generating/hydrating every
+  sport's current puzzle on page load, and preview images use lazy/async
+  loading. Test-client timing dropped to roughly 3.0s cold and 1.8s warm from
+  this environment.
+- Added `scripts/rebuild_film_review_puzzles.py` for repeatable archive
+  rebuilds. It clears stored puzzles/attempts/results for selected sports/date
+  ranges, validates every adjacent pair, and stores regenerated puzzles.
+- Rebuilt Film Review #1 through #15 (`2026-08-01` through `2026-08-15`) for
+  baseball, basketball, and hockey. Football was intentionally left alone for a
+  later pass.
+- Generator now scores candidates by career games, teammate count, recency, and
+  headshot provider reliability. Starters are chosen from the top 5 eligible
+  players for the opening slot; early links use narrower high-quality windows,
+  while later links gradually allow more obscure players. Fallback-photo
+  providers are penalized, so searched-web/Wikimedia/HockeyDB-style images are
+  avoided near the beginning unless unavoidable.
+- Baseball Film Review slot order now begins with `DH` instead of `C` or `SP`
+  to avoid obscure catcher/reliever starters. Current sample openings include
+  Robinson Cano, Albert Pujols, Ichiro Suzuki, Carlos Beltran, and Nelson Cruz.
+  Basketball sample openings include Russell Westbrook, LeBron James, Chris
+  Paul, Kyle Lowry, and Stephen Curry. Hockey sample openings include Alex
+  Ovechkin, Brad Marchand, David Perron, and James van Riemsdyk.
