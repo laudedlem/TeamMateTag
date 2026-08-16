@@ -13,7 +13,7 @@ import re
 import sys
 import time
 from collections import Counter
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, TimeoutError, as_completed
 from pathlib import Path
 
 import requests
@@ -28,16 +28,29 @@ from name_normalize import normalize  # noqa: E402
 
 REPORT = ROOT / "raw" / "nfl_web_image_headshots.csv"
 USER_AGENT = "Mozilla/5.0 TeamMateTag NFL headshot resolver/0.2.14"
+PROVIDER = "Web image search"
 
 
 def norm_compact(value: str) -> str:
     return re.sub(r"[^a-z0-9]", "", normalize(value))
 
 
-def unresolved_players() -> list[dict]:
+def unresolved_players(include_attempted: bool = False) -> list[dict]:
+    attempted_filter = ""
+    if not include_attempted:
+        attempted_filter = f"""
+                  AND NOT EXISTS (
+                        SELECT 1
+                          FROM player_headshot_source_attempts x
+                         WHERE x.sport_id=p.sport_id
+                           AND x.player_id=p.player_id
+                           AND x.provider='{PROVIDER}'
+                           AND x.status IN ('verified','needs_review','rejected','failed')
+                  )
+        """
     with server.db() as conn:
         rows = conn.execute(
-            """SELECT p.player_id,p.display_name,p.debut_year,p.final_year,p.primary_pos,h.status,
+            f"""SELECT p.player_id,p.display_name,p.debut_year,p.final_year,p.primary_pos,h.status,
                       COALESCE(SUM(a.games_total), 0) AS career_games,
                       array_agg(DISTINCT st.name) FILTER (WHERE st.name IS NOT NULL)
                  FROM sport_players p
@@ -46,6 +59,7 @@ def unresolved_players() -> list[dict]:
                  LEFT JOIN sport_teams st ON st.sport_id=a.sport_id AND st.team_id=a.team_id AND st.season=a.season
                 WHERE p.sport_id='football' AND p.final_year>=2000
                   AND h.status IN ('placeholder','missing')
+                  {attempted_filter}
                 GROUP BY p.player_id,p.display_name,p.debut_year,p.final_year,p.primary_pos,h.status
                 ORDER BY career_games DESC, p.final_year DESC NULLS LAST, p.display_name,p.player_id"""
         ).fetchall()
@@ -218,18 +232,33 @@ def candidate(session: requests.Session, row: dict, hashes: set[str], perceptual
     return {**row, "result_status": "needs_review", "source_url": "", "source_page": "", "title": "", "note": " | ".join(notes[:5]) or "no exact-name image result"}
 
 
-def persist_promoted(rows: list[dict]) -> int:
-    promoted = [row for row in rows if row["result_status"] == "verified"]
-    if not promoted:
-        return 0
+def persist_attempts(rows: list[dict]) -> None:
+    if not rows:
+        return
     with server.db() as conn, conn.cursor() as cur:
         cur.executemany(
             """INSERT INTO player_headshot_source_attempts (sport_id,player_id,provider,status,source_url)
-               VALUES ('football',%s,'Web image search','verified',%s)
+               VALUES ('football',%s,%s,%s,%s)
                ON CONFLICT (sport_id,player_id,provider)
                DO UPDATE SET status=EXCLUDED.status,source_url=EXCLUDED.source_url,checked_at=now()""",
-            [(row["player_id"], row["source_page"] or row["source_url"]) for row in promoted],
+            [
+                (
+                    row["player_id"],
+                    PROVIDER,
+                    row.get("result_status") or "failed",
+                    row.get("source_page") or row.get("source_url") or None,
+                )
+                for row in rows
+            ],
         )
+
+
+def persist_promoted(rows: list[dict]) -> int:
+    promoted = [row for row in rows if row["result_status"] == "verified"]
+    persist_attempts(rows)
+    if not promoted:
+        return 0
+    with server.db() as conn, conn.cursor() as cur:
         cur.executemany(
             """UPDATE player_headshots SET source_url=%s,fallback_url=NULL,provider='Web image search',
                   status='verified',content_sha256=%s,perceptual_hash=%s,width=%s,height=%s,
@@ -260,10 +289,12 @@ def main() -> None:
     parser.add_argument("--delay", type=float, default=0.8)
     parser.add_argument("--flush-every", type=int, default=25)
     parser.add_argument("--workers", type=int, default=1)
+    parser.add_argument("--include-attempted", action="store_true")
+    parser.add_argument("--heartbeat", type=int, default=30)
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
-    rows = unresolved_players()
+    rows = unresolved_players(include_attempted=args.include_attempted)
     if args.offset:
         rows = rows[args.offset:]
     if args.limit:
@@ -281,20 +312,43 @@ def main() -> None:
         return result
 
     if args.workers > 1:
+        last_heartbeat = time.monotonic()
         with ThreadPoolExecutor(max_workers=max(1, args.workers)) as pool:
             futures = {pool.submit(run_row, row): row for row in rows}
-            for index, future in enumerate(as_completed(futures), 1):
-                result = future.result()
-                results.append(result)
-                batch.append(result)
-                if not args.dry_run and args.flush_every > 0 and len(batch) >= args.flush_every:
-                    promoted = persist_promoted(batch)
-                    promoted_total += promoted
-                    if promoted:
-                        print(f"promoted {promoted_total} so far", flush=True)
-                    batch.clear()
-                if index % 10 == 0 or index == len(rows):
-                    print(f"checked {index}/{len(rows)}", flush=True)
+            completed = 0
+            pending = set(futures)
+            while pending:
+                done = []
+                try:
+                    for future in as_completed(pending, timeout=args.heartbeat):
+                        done.append(future)
+                        break
+                except TimeoutError:
+                    done = []
+                if not done:
+                    now = time.monotonic()
+                    if now - last_heartbeat >= args.heartbeat:
+                        print(
+                            f"heartbeat: checked {completed}/{len(rows)} pending={len(pending)} promoted={promoted_total}",
+                            flush=True,
+                        )
+                        last_heartbeat = now
+                    continue
+                for future in done:
+                    pending.remove(future)
+                    result = future.result()
+                    completed += 1
+                    results.append(result)
+                    batch.append(result)
+                    if not args.dry_run and args.flush_every > 0 and len(batch) >= args.flush_every:
+                        promoted = persist_promoted(batch)
+                        promoted_total += promoted
+                        if promoted:
+                            print(f"promoted {promoted_total} so far", flush=True)
+                        batch.clear()
+                    if completed % 10 == 0 or completed == len(rows):
+                        counts = dict(Counter(row["result_status"] for row in results))
+                        print(f"checked {completed}/{len(rows)} promoted={promoted_total} results={counts}", flush=True)
     else:
         for index, row in enumerate(rows, 1):
             result = run_row(row)
