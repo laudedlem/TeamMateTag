@@ -1296,9 +1296,21 @@ Headshot cleanup snapshot after the identity pass:
   fallback images: all basketball `Web image search` rows, all hockey
   `Web image search` rows, all basketball/hockey `Wikimedia Commons` rows, and
   all hockey `HockeyDB` rows. The cropper has a Wikimedia-specific fetch
-  fallback for intermittent HTTP 429s. Local review files:
-  `raw/cropped_headshots_review.md` and
+  fallback for intermittent HTTP 429s. On 2026-08-15 these 217 rows were
+  recropped from their original fallback URLs with looser, higher framing
+  (`PORTRAIT_ZOOM=0.95`) after testing showed the first crop was too tight and
+  low. Local review files: `raw/cropped_headshots_review.md` and
   `raw/cropped_headshots_review.csv`.
+- 2026-08-15 Film Review fixes: archive rows now expose a player's own
+  `progress_percent`, so completed/in-progress/failed tapes no longer display
+  as 0% just because the global success rate is empty. A finished daily attempt
+  opens as review/retry instead of a dead resume state. Cross-year sports
+  (NBA/NHL/NFL) display shared seasons as labels such as `2020-21`, and Film
+  Review accepts either year for that season. Added
+  `sport_teammate_exclusions` for transaction/date-overlap corrections; seeded
+  Brad Wanamaker / Jeff Teague / Boston Celtics / 2020 because Wanamaker left
+  before Teague joined for 2020-21. Deleted the cached 2026-08-15 basketball
+  puzzle containing that invalid link so it will regenerate.
 - Football: 10,863 verified, 666 missing, 3,707 placeholder. The top remaining
   prominent gaps, such as David Harris, Charles Johnson, Adam Jones, and Grady
   Jackson, are still ESPN/nflverse placeholder responses and need another

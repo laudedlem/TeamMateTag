@@ -137,7 +137,7 @@ function formatArchiveLabel(day) {
   const dateText = day.date ? new Date(day.date + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' }).replace(', 20', ", '") : '';
   const status = displayStatus(day.is_today && day.status === 'unseen' ? 'new' : day.status);
   const prefix = day.is_today ? 'Today' : `#${day.number}`;
-  const pct = Number(day.success_rate?.percent || 0);
+  const pct = Number(day.progress_percent ?? day.success_rate?.percent ?? 0);
   return `${prefix}${dateText ? ' - ' + dateText : ''} - ${status} - ${pct}%`;
 }
 
@@ -162,7 +162,7 @@ function renderFilmReviewArchiveSelect(sport, days, unitData = null) {
   const current = days.find((day) => day.is_today) || days[0];
   if (status && current) {
     const streak = Number(unitData?.streak || 0);
-    const rate = unitData?.success_rate || { percent: 0 };
+    const rate = { percent: current.progress_percent ?? unitData?.success_rate?.percent ?? 0 };
     const display = current.is_today && current.status === 'unseen' ? 'new' : current.status || 'unseen';
     status.innerHTML = `Streak ${streak}<br>${Number(rate.percent || 0)}% Fully Scouted<br>${displayStatus(display)}`;
     status.className = `fr-today-status ${display}`;

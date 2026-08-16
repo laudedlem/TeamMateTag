@@ -37,7 +37,7 @@ from audit_runtime_headshots import dhash  # noqa: E402
 from publish_ootp_mlb_headshots import BUCKET, ensure_public_bucket, headers, public_url, storage_config  # noqa: E402
 
 TARGET_SIZE = (360, 450)
-PORTRAIT_ZOOM = 0.82
+PORTRAIT_ZOOM = 0.95
 DEFAULT_PROVIDERS = (
     "Web image search",
     "Wikimedia Commons",
@@ -144,7 +144,7 @@ def choose_crop_box(image: Image.Image) -> tuple[int, int, int, int]:
     max_x = max(0, width - crop_w)
     max_y = max(0, height - crop_h)
 
-    y = min(max_y, int(height * 0.04))
+    y = 0
     if max_x == 0:
         x = 0
     else:
@@ -164,10 +164,12 @@ def crop_image(content: bytes) -> tuple[bytes, tuple[int, int], tuple[int, int, 
     return output.getvalue(), image.size, box
 
 
-def selected_rows(sports: list[str], providers: list[str], limit: int) -> list[dict]:
+def selected_rows(sports: list[str], providers: list[str], limit: int, recrop_cropped: bool = False) -> list[dict]:
     params: list[object] = [sports, providers]
     sql = """
-        SELECT h.sport_id,h.player_id,h.provider,h.source_url,h.width,h.height,
+        SELECT h.sport_id,h.player_id,h.provider,
+               CASE WHEN %s THEN COALESCE(h.fallback_url, h.source_url) ELSE h.source_url END AS source_url,
+               h.width,h.height,
                COALESCE(sp.display_name, concat_ws(' ', p.name_first, p.name_last)) AS display_name
           FROM player_headshots h
           LEFT JOIN sport_players sp ON sp.sport_id=h.sport_id AND sp.player_id=h.player_id
@@ -176,10 +178,11 @@ def selected_rows(sports: list[str], providers: list[str], limit: int) -> list[d
            AND h.provider = ANY(%s)
            AND h.status='verified'
            AND h.source_url IS NOT NULL
-           AND h.source_url NOT LIKE %s
+           AND (%s OR h.source_url NOT LIKE %s)
          ORDER BY h.sport_id,h.provider,display_name,h.player_id
     """
-    params.append("%/storage/v1/object/public/player-headshots/%/cropped/%")
+    params.insert(0, recrop_cropped)
+    params.extend([recrop_cropped, "%/storage/v1/object/public/player-headshots/%/cropped/%"])
     if limit:
         sql += " LIMIT %s"
         params.append(limit)
@@ -274,11 +277,12 @@ def main() -> None:
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--workers", type=int, default=8)
     parser.add_argument("--dry-run", action="store_true", help="Create local crops and reports only.")
+    parser.add_argument("--recrop-cropped", action="store_true", help="Recrop already published cropped rows from fallback_url originals.")
     args = parser.parse_args()
 
     sports = args.sport or ["basketball", "hockey"]
     providers = args.provider or list(DEFAULT_PROVIDERS)
-    rows = selected_rows(sports, providers, args.limit)
+    rows = selected_rows(sports, providers, args.limit, args.recrop_cropped)
     print(f"Preparing {len(rows):,} recent fallback headshots for {', '.join(sports)}.", flush=True)
 
     results: list[dict] = []

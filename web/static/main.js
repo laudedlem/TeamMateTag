@@ -405,7 +405,7 @@ function renderProfile() {
   els.profileDrRecord.textContent = `${drWins}-${drLosses}`;
   const topStruck = stats.top_struck_teams || [];
   els.profileTopStruck.textContent = topStruck.length
-    ? topStruck.map((t) => `${t.team_name} ${t.season} (${t.count})`).join(', ')
+    ? topStruck.map((t) => `${t.team_name} ${seasonText(t)} (${t.count})`).join(', ')
     : 'None yet';
   els.profileBpBestLabel.textContent = `${sportTerms.reps} Longest Lineup`;
   els.profileBpPlaysLabel.textContent = `${sportTerms.reps} Plays`;
@@ -1137,8 +1137,11 @@ async function startFr(unit = null, options = {}) {
     return;
   }
   renderFrGame(true);
+  if (frGame.finished) {
+    showFrSummaryBanner();
+  }
   loadFrArchive();
-  els.frTeamInput.focus();
+  if (!frGame.finished) els.frTeamInput.focus();
 }
 
 function renderLoadingGame(label, prompt) {
@@ -1966,14 +1969,14 @@ function makeConnectionBar(sharedSeasons, allStrikes, showStrikes, linkMeta) {
     pill.className = 'season-pill' + (burned ? ' burned' : '');
     if (showStrikes) {
       pill.innerHTML = `
-        ${escapeHtml(s.team_name)} ${s.season}
+        ${escapeHtml(s.team_name)} ${escapeHtml(seasonText(s))}
         <span class="x-marks">
           <span class="x-mark ${count >= 1 ? 's' + Math.min(count, 3) : ''}"></span>
           <span class="x-mark ${count >= 2 ? 's' + Math.min(count, 3) : ''}"></span>
           <span class="x-mark ${count >= 3 ? 's3' : ''}"></span>
         </span>`;
     } else {
-      pill.innerHTML = `${escapeHtml(s.team_name)} ${s.season}`;
+      pill.innerHTML = `${escapeHtml(s.team_name)} ${escapeHtml(seasonText(s))}`;
     }
     seasons.appendChild(pill);
   });
@@ -1994,7 +1997,7 @@ function renderOut(strikes) {
     els.outList.innerHTML = '';
   } else {
     els.outEmpty.hidden = true;
-    els.outList.innerHTML = burned.map((s) => `<li>${escapeHtml(s.team_name)} ${s.season}</li>`).join('');
+    els.outList.innerHTML = burned.map((s) => `<li>${escapeHtml(s.team_name)} ${escapeHtml(seasonText(s))}</li>`).join('');
   }
 }
 
@@ -2015,13 +2018,13 @@ function renderMoveFeedback(m, g) {
 
   switch (m.outcome) {
     case 'valid': {
-      const teams = m.shared_seasons.map((s) => `${s.team_name} ${s.season}`).join(', ');
+      const teams = m.shared_seasons.map((s) => `${s.team_name} ${seasonText(s)}`).join(', ');
       const newOut = m.shared_seasons
         .filter((s) => {
           const row = g.strikes.find((x) => x.team_id === s.team_id && x.season === s.season);
           return row && row.count >= 3;
         })
-        .map((s) => `${s.team_name} ${s.season}`).join(', ');
+        .map((s) => `${s.team_name} ${seasonText(s)}`).join(', ');
       const lead = m.move_via_powerup
         ? `${escapeHtml(m.powerup_label || 'Powerup')}: ${name}${ambig}. Linked through ${escapeHtml(teams)}.`
         : `${name}${ambig}. Teammates on ${escapeHtml(teams)}.`;
@@ -2046,8 +2049,8 @@ function renderMoveFeedback(m, g) {
     }
     case 'blocked_by_burned': {
       const prev = g.chain[g.chain.length - 1].name;
-      const allShared = m.shared_seasons.map((s) => `${s.team_name} ${s.season}`).join(', ');
-      const out = m.burned_seasons.map((s) => `${s.team_name} ${s.season}`).join(', ');
+      const allShared = m.shared_seasons.map((s) => `${s.team_name} ${seasonText(s)}`).join(', ');
+      const out = m.burned_seasons.map((s) => `${s.team_name} ${seasonText(s)}`).join(', ');
       const verb = m.burned_seasons.length === 1 ? 'is' : 'are';
       return `<span class="bad">${name}${ambig} and ${escapeHtml(prev)} were linked on ${escapeHtml(allShared)},<br>` +
         `but ${escapeHtml(out)} ${verb} already ${outTerm.toLowerCase()}. Pick someone else.</span>`;
@@ -2153,7 +2156,7 @@ function renderFrFeedback(g) {
   }
   if (g.outcome === 'hit') {
     const m = g.matched && g.matched[0];
-    const detail = m ? ` (${escapeHtml(m.team_name)} ${m.season})` : '';
+    const detail = m ? ` (${escapeHtml(m.team_name)} ${escapeHtml(seasonText(m))})` : '';
     return `<span class="ok">${frTerms().hit}${escapeHtml(detail)}.</span>`;
   }
   if (g.outcome === 'foul') {
@@ -2211,6 +2214,10 @@ function formatYears(debut, final) {
   if (debut == null) return '';
   if (final == null) return `${debut}-`;
   return debut === final ? `${debut}` : `${debut}-${final}`;
+}
+
+function seasonText(item) {
+  return item?.season_label || item?.season || '';
 }
 
 function escapeHtml(s) {
@@ -2298,12 +2305,15 @@ async function loadFrArchive() {
     const state = escapeHtml(day.status);
     const date = escapeHtml(day.date);
     const label = day.is_today ? 'Today' : `#${day.number}`;
-    const pct = Number(day.success_rate?.percent || 0);
-    const action = day.is_today ? 'daily' : (day.status === 'in_progress' ? 'continue' : (day.status === 'unseen' ? 'archive' : 'review'));
-    const text = day.is_today ? (day.status === 'unseen' ? 'Play today' : 'Resume today')
+    const pct = Number(day.progress_percent ?? day.success_rate?.percent ?? 0);
+    const action = day.is_today
+      ? (day.status === 'unseen' ? 'daily' : (day.status === 'in_progress' ? 'continue' : 'review'))
+      : (day.status === 'in_progress' ? 'continue' : (day.status === 'unseen' ? 'archive' : 'review'));
+    const text = day.is_today
+      ? (day.status === 'unseen' ? 'Play today' : (day.status === 'in_progress' ? 'Resume today' : 'Review today'))
       : (day.status === 'in_progress' ? 'Continue' : (day.status === 'unseen' ? 'Play' : 'Review'));
     const unitAttr = escapeHtml(day.unit || '');
-    const retry = !day.is_today && ['won', 'lost'].includes(day.status)
+    const retry = ['won', 'lost'].includes(day.status)
       ? `<button class="fr-archive-action" data-date="${date}" data-unit="${unitAttr}" data-action="retry">Retry</button>` : '';
     return `<div class="fr-archive-day ${state}">
       <span class="fr-archive-number">${label}</span>

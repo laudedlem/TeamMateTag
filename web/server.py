@@ -900,6 +900,25 @@ def ensure_runtime_schema():
                 "ON player_headshots(status, sport_id, checked_at DESC)"
             )
             conn.execute(
+                """CREATE TABLE IF NOT EXISTS sport_teammate_exclusions (
+                       sport_id TEXT NOT NULL,
+                       player_a_id TEXT NOT NULL,
+                       player_b_id TEXT NOT NULL,
+                       team_id TEXT NOT NULL,
+                       season INTEGER NOT NULL,
+                       reason TEXT,
+                       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                       PRIMARY KEY (sport_id, player_a_id, player_b_id, team_id, season)
+                   )"""
+            )
+            conn.execute(
+                """INSERT INTO sport_teammate_exclusions
+                       (sport_id, player_a_id, player_b_id, team_id, season, reason)
+                   VALUES ('basketball', 'nba:202954', 'nba:201952', '1610612738', 2020,
+                           'Brad Wanamaker left Boston in the 2020 offseason before Jeff Teague joined for 2020-21.')
+                   ON CONFLICT DO NOTHING"""
+            )
+            conn.execute(
                 """CREATE TABLE IF NOT EXISTS sport_online_rematches (
                        original_game_id UUID NOT NULL REFERENCES sport_online_games(game_id) ON DELETE CASCADE,
                        requester_guest_id UUID NOT NULL REFERENCES guests(guest_id) ON DELETE CASCADE,
@@ -1393,7 +1412,7 @@ def _guest_stats(conn, guest_id: str) -> dict:
         "dr_losses": max(0, dr_plays - dr_wins),
         "dr_elo": elo,
         "top_struck_teams": [
-            {"team_name": team_name, "season": season, "count": count}
+            {"team_name": team_name, "season": season, "season_label": str(season), "count": count}
             for team_name, season, count in top_struck
         ],
         "fr_daily_streak": daily_streak("baseball"),
@@ -1434,7 +1453,8 @@ def _guest_stats(conn, guest_id: str) -> dict:
             "fr_offense_plays": fr_off_plays, "fr_offense_wins": fr_off_wins,
             "fr_defense_plays": fr_def_plays, "fr_defense_wins": fr_def_wins,
             "dr_losses": max(0, dr_plays_s - dr_wins_s), "dr_elo": elo_s or 1200,
-            "top_struck_teams": [{"team_name": name, "season": season, "count": count}
+            "top_struck_teams": [{"team_name": name, "season": season,
+                                  "season_label": _sport_season_label(sport, season), "count": count}
                                   for name, season, count in struck],
             "fr_daily_streak": daily_streak(sport),
         }
@@ -3273,7 +3293,11 @@ def _local_sport_cards(conn: sqlite3.Connection, sport: str, player_ids: list[st
                 spans.append([season, season])
         teams = []
         for team, ranges in spans_by_team.items():
-            years = ", ".join(str(start) if start == end else f"{start}-{end}" for start, end in ranges)
+            years = ", ".join(
+                _sport_season_label(sport, start) if start == end
+                else f"{_sport_season_label(sport, start)} to {_sport_season_label(sport, end)}"
+                for start, end in ranges
+            )
             teams.append(f"{team} {years}")
         external_id = row[0] if row else None
         image_row = conn.execute("SELECT local_path FROM local_player_images WHERE sport_id = ? AND player_id = ?", (sport, player_id)).fetchone() if conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='local_player_images'").fetchone() else None
@@ -3340,6 +3364,39 @@ def _canonical_sport_team_name(sport: str, team_id: str | None, name: str | None
     return raw_name
 
 
+def _cross_year_season_sports(sport: str) -> bool:
+    return sport in {"basketball", "football", "hockey"}
+
+
+def _sport_season_label(sport: str, season: int | str | None) -> str:
+    if season is None:
+        return ""
+    try:
+        year = int(season)
+    except (TypeError, ValueError):
+        return str(season)
+    if _cross_year_season_sports(sport):
+        return f"{year}-{str(year + 1)[-2:]}"
+    return str(year)
+
+
+def _sport_fr_year_matches(sport: str, season: int, guessed_year: int | None) -> bool:
+    if guessed_year is None:
+        return False
+    return guessed_year == season or (_cross_year_season_sports(sport) and guessed_year == season + 1)
+
+
+def _sport_link_allowed(conn, sport: str, first: str, second: str, team_id: str, season: int) -> bool:
+    row = conn.execute(
+        """SELECT 1 FROM sport_teammate_exclusions
+             WHERE sport_id=%s AND team_id=%s AND season=%s
+               AND ((player_a_id=%s AND player_b_id=%s)
+                 OR (player_a_id=%s AND player_b_id=%s))""",
+        (sport, team_id, season, first, second, second, first),
+    ).fetchone()
+    return row is None
+
+
 def _sport_cards(conn, sport: str, player_ids: list[str]) -> dict[str, dict]:
     """Hydrate cross-sport cards from the compact Postgres catalog.
 
@@ -3401,7 +3458,11 @@ def _sport_cards(conn, sport: str, player_ids: list[str]) -> dict[str, dict]:
     for player_id, external_id, debut, final, first, last, primary_pos in rows:
         teams = []
         for team, ranges in teams_by_player.get(player_id, {}).items():
-            years = ", ".join(str(a) if a == b else f"{a}-{b}" for a, b in ranges)
+            years = ", ".join(
+                _sport_season_label(sport, a) if a == b
+                else f"{_sport_season_label(sport, a)} to {_sport_season_label(sport, b)}"
+                for a, b in ranges
+            )
             teams.append(f"{team} {years}")
         # NBA's official image CDN covers many older players omitted by the
         # source-image catalog. Broken URLs still fall through to the UI's
@@ -3435,7 +3496,8 @@ def _sport_chain_dict(conn, sport: str, state: GameState) -> list[dict]:
             "id": player_id, "name": name, **card,
             "shared_with_prev": [
                 {"team_id": team, "season": season,
-                 "team_name": _sport_team_name(conn, sport, team, season)}
+                 "team_name": _sport_team_name(conn, sport, team, season),
+                 "season_label": _sport_season_label(sport, season)}
                 for team, season in state.chain_shared_with_prev[index]
             ],
         })
@@ -3447,7 +3509,8 @@ def _sport_strikes_dict(conn, sport: str, state: GameState) -> list[dict]:
         return strikes_dict(state)
     return [
         {"team_id": team, "season": season, "count": count,
-         "team_name": _sport_team_name(conn, sport, team, season)}
+         "team_name": _sport_team_name(conn, sport, team, season),
+         "season_label": _sport_season_label(sport, season)}
         for (team, season), count in state.strikes.items()
     ]
 
@@ -3481,17 +3544,20 @@ def _local_bp_state(game_id: str, game: dict) -> dict:
     for index, (player_id, name) in enumerate(zip(state.chain, state.chain_names)):
         card = cards[player_id]
         chain.append({"id": player_id, "name": name, **card, "shared_with_prev": [
-            {"team_id": team, "season": season, "team_name": team_names.get((team, season), team)}
+            {"team_id": team, "season": season, "team_name": team_names.get((team, season), team),
+             "season_label": _sport_season_label(sport, season)}
             for team, season in state.chain_shared_with_prev[index]
         ]})
     last_move = dict(game["last_move"] or {})
     for field in ("shared_seasons", "burned_seasons"):
         for item in last_move.get(field, []):
             item["team_name"] = team_names.get((item["team_id"], item["season"]), item["team_id"])
+            item["season_label"] = _sport_season_label(sport, item["season"])
     return {"game_id": game_id, "mode": "bp", "sport": sport, "mode_name": LOCAL_SPORT_MODE_NAMES[sport],
             "current_player": {"id": state.current_player_id, "name": state.current_player_name},
             "chain": chain, "strikes": [{"team_id": team, "season": season, "count": count,
-            "team_name": team_names.get((team, season), team)} for (team, season), count in state.strikes.items()],
+            "team_name": team_names.get((team, season), team),
+            "season_label": _sport_season_label(sport, season)} for (team, season), count in state.strikes.items()],
             "chain_length": len(state.chain), "longest_chain": len(state.chain), "turn_seconds": APP_TURN_SECONDS,
             "countdown_seconds_remaining": countdown, "remaining_seconds": remaining,
             "finished": game["finished"], "last_move": last_move}
@@ -3558,24 +3624,28 @@ def _local_fr_shared(conn: sqlite3.Connection, sport: str, first: str, second: s
         WHERE a.sport_id=? AND a.player_id=? AND b.player_id=?
         ORDER BY a.season, a.team_id
     """, (sport, first, second)).fetchall()
-    return [[team_id, season, _canonical_sport_team_name(sport, team_id, _local_team_name(sport, team_id, season, conn))] for team_id, season in rows]
+    return [
+        [team_id, season, _canonical_sport_team_name(sport, team_id, _local_team_name(sport, team_id, season, conn)),
+         _sport_season_label(sport, season)]
+        for team_id, season in rows
+    ]
 
 
-def _classify_local_fr_guess(team_text: str, year_text: str, shared: list[list]) -> tuple[str, list]:
+def _classify_local_fr_guess(team_text: str, year_text: str, shared: list[list], sport: str = "") -> tuple[str, list]:
     try:
         year = int(year_text)
     except (TypeError, ValueError):
         year = None
     query = normalize(team_text)
     team_matches, year_match = [], False
-    for team_id, season, team_name in shared:
+    for team_id, season, team_name, *_rest in shared:
         aliases = {normalize(team_id), normalize(team_name)}
         team_hit = bool(query) and any(query == alias or query in alias or alias in query for alias in aliases)
         if team_hit:
             team_matches.append([team_id, season, team_name])
-        if season == year:
+        if _sport_fr_year_matches(sport, season, year):
             year_match = True
-    hits = [row for row in team_matches if row[1] == year]
+    hits = [row for row in team_matches if _sport_fr_year_matches(sport, row[1], year)]
     return ("hit", hits) if hits else (("foul", []) if team_matches or year_match else ("strike", []))
 
 
@@ -3638,7 +3708,7 @@ def local_fr_guess(sport: str):
         if not team_text or not year_text:
             blob["last_guess"] = {"outcome": "invalid", "team": team_text, "year": year_text}
             return jsonify(_local_fr_state(game_id, game))
-        outcome, matched = _classify_local_fr_guess(team_text, year_text, blob["shared_per_pair"][blob["pair_index"]])
+        outcome, matched = _classify_local_fr_guess(team_text, year_text, blob["shared_per_pair"][blob["pair_index"]], sport)
         converted = outcome == "foul" and blob["consec_fouls"] + 1 >= 2
         if outcome == "foul":
             blob["consec_fouls"] += 1
@@ -3648,8 +3718,11 @@ def local_fr_guess(sport: str):
             blob["consec_fouls"] = 0
         if outcome == "hit":
             blob["hits"] += 1
-            team_id, season, team_name = matched[0]
-            blob["solved_links"][blob["pair_index"]] = {"team_id": team_id, "season": season, "team_name": team_name}
+            team_id, season, team_name = matched[0][:3]
+            blob["solved_links"][blob["pair_index"]] = {
+                "team_id": team_id, "season": season, "team_name": team_name,
+                "season_label": _sport_season_label(sport, season),
+            }
             blob["pair_index"] += 1
             blob["revealed_count"] = min(blob["revealed_count"] + 1, len(blob["deck"]))
             if blob["hits"] == len(blob["deck"]) - 1:
@@ -3663,7 +3736,8 @@ def local_fr_guess(sport: str):
         blob["last_guess"] = {
             "outcome": outcome, "team": team_text, "year": year_text,
             "converted_from_foul": converted,
-            "matched": [{"team_id": item[0], "season": item[1], "team_name": item[2]} for item in matched],
+            "matched": [{"team_id": item[0], "season": item[1], "team_name": item[2],
+                         "season_label": _sport_season_label(sport, item[1])} for item in matched],
         }
         return jsonify(_local_fr_state(game_id, game))
 
@@ -3683,7 +3757,8 @@ def local_fr_reveal_answer(sport: str):
         return jsonify({
             "full_cards": [_local_fr_card(player_id, cards[player_id]) for player_id in blob["deck"]],
             "canonical_links": [
-                {"team_id": pair[0][0], "season": pair[0][1], "team_name": pair[0][2]} if pair else None
+                {"team_id": pair[0][0], "season": pair[0][1], "team_name": pair[0][2],
+                 "season_label": _sport_season_label(sport, pair[0][1])} if pair else None
                 for pair in blob["shared_per_pair"]
             ],
         })
@@ -3813,13 +3888,15 @@ def _local_dr_chain(state: GameState, sport: str) -> tuple[list[dict], list[dict
             "name": name,
             **cards[player_id],
             "shared_with_prev": [
-                {"team_id": team, "season": season, "team_name": team_names.get((team, season), team)}
+                {"team_id": team, "season": season, "team_name": team_names.get((team, season), team),
+                 "season_label": _sport_season_label(sport, season)}
                 for team, season in state.chain_shared_with_prev[index]
             ],
         })
     strikes = [
         {"team_id": team, "season": season, "count": count,
-         "team_name": team_names.get((team, season), team)}
+         "team_name": team_names.get((team, season), team),
+         "season_label": _sport_season_label(sport, season)}
         for (team, season), count in state.strikes.items()
     ]
     return chain, strikes
@@ -3840,6 +3917,7 @@ def _local_dr_state(game_id: str, game: dict, viewer_guest_id: str) -> dict:
             # The chain has already normalized names for display; resolve move feedback too.
             with _local_sport_conn() as conn:
                 item["team_name"] = _local_team_name(game["sport"], item["team_id"], item["season"], conn)
+                item["season_label"] = _sport_season_label(game["sport"], item["season"])
     return {
         "game_id": game_id,
         "mode": "mp",
@@ -5094,9 +5172,10 @@ def manager_tiles():
 
 def _film_archive_days(conn, guest_id: str, sport: str) -> list[dict]:
     today = datetime.now(CENTRAL_TIME).date()
-    rows = {(row[0], row[1] or ""): (row[2], row[3]) for row in conn.execute(
-        """SELECT puzzle_date, unit, status, game_id::text
-             FROM film_review_daily_attempts
+    rows = {(row[0], row[1] or ""): (row[2], row[3], row[4]) for row in conn.execute(
+        """SELECT a.puzzle_date, a.unit, a.status, a.game_id::text, g.state
+             FROM film_review_daily_attempts a
+             LEFT JOIN fr_games g ON g.game_id=a.game_id
             WHERE owner_guest_id=%s AND sport_id=%s""",
         (guest_id, sport),
     ).fetchall()}
@@ -5123,11 +5202,20 @@ def _film_archive_days(conn, guest_id: str, sport: str) -> list[dict]:
         if puzzle_day < FILM_REVIEW_EPOCH:
             break
         for unit in units:
-            status, game_id = rows.get((puzzle_day, unit), ("unseen", None))
+            status, game_id, state = rows.get((puzzle_day, unit), ("unseen", None, None))
             success_rate = rates.get((puzzle_day, unit), {"wins": 0, "finished": 0, "percent": 0})
+            progress_percent = 0
+            if isinstance(state, dict):
+                total_pairs = max(1, len(state.get("deck") or []) - 1)
+                hits = int(state.get("hits") or 0)
+                if status == "won":
+                    progress_percent = 100
+                elif status in {"lost", "in_progress"}:
+                    progress_percent = round((min(hits, total_pairs) / total_pairs) * 100)
             days.append({"date": puzzle_day.isoformat(), "number": _film_review_number(puzzle_day),
                          "status": status, "game_id": game_id, "is_today": puzzle_day == today,
-                         "unit": unit, "success_rate": success_rate})
+                         "unit": unit, "success_rate": success_rate,
+                         "progress_percent": progress_percent})
     return days
 
 
@@ -6556,6 +6644,7 @@ def _sport_bp_state_dict(gid: str, blob: dict, state: GameState, conn) -> dict:
     for field in ("shared_seasons", "burned_seasons"):
         for item in last_move.get(field, []):
             item["team_name"] = _sport_team_name(conn, sport, item["team_id"], item["season"])
+            item["season_label"] = _sport_season_label(sport, item["season"])
     return {
         "game_id": gid, "mode": "bp", "sport": sport,
         "mode_name": LOCAL_SPORT_MODE_NAMES[sport],
@@ -7177,7 +7266,11 @@ def _sport_fr_shared(conn, sport: str, first: str, second: str) -> list[list]:
             WHERE a.sport_id=%s AND a.player_id=%s AND b.player_id=%s
             ORDER BY a.season, a.team_id""", (sport, first, second),
     ).fetchall()
-    return [[team_id, season, _canonical_sport_team_name(sport, team_id, name)] for team_id, season, name in rows]
+    return [
+        [team_id, season, _canonical_sport_team_name(sport, team_id, name), _sport_season_label(sport, season)]
+        for team_id, season, name in rows
+        if _sport_link_allowed(conn, sport, first, second, team_id, season)
+    ]
 
 
 def _film_review_day(value: str | None = None) -> date:
@@ -7218,7 +7311,13 @@ def _daily_film_review_puzzle(conn, sport: str, puzzle_day: date, unit: str | No
     if row:
         puzzle = dict(row[0])
         if _valid_daily_film_puzzle(puzzle, sport, puzzle_day, unit):
-            return puzzle
+            deck = list(puzzle.get("deck") or [])
+            if sport == "baseball":
+                still_resolves = all(_fr_compute_shared(conn, deck)[i] for i in range(len(deck) - 1))
+            else:
+                still_resolves = all(_sport_fr_shared(conn, sport, deck[i], deck[i + 1]) for i in range(len(deck) - 1))
+            if still_resolves:
+                return puzzle
         app.logger.warning("Replacing invalid Film Review puzzle row: sport=%s date=%s unit=%s",
                            sport, puzzle_day.isoformat(), unit_key)
         conn.execute(
@@ -7378,7 +7477,7 @@ def sport_fr_guess(sport: str):
             if not team or not year:
                 blob["last_guess"] = {"outcome": "invalid", "team": team, "year": year}
             else:
-                outcome, matched = _classify_local_fr_guess(team, year, blob["shared_per_pair"][blob["pair_index"]])
+                outcome, matched = _classify_local_fr_guess(team, year, blob["shared_per_pair"][blob["pair_index"]], sport)
                 converted = outcome == "foul" and blob["consec_fouls"] + 1 >= 2
                 if outcome == "foul":
                     blob["consec_fouls"] += 1
@@ -7395,7 +7494,9 @@ def sport_fr_guess(sport: str):
                     ordered = [row for row in shared if (row[0], row[1]) == (match[0], match[1])]
                     ordered.extend(row for row in shared if (row[0], row[1]) != (match[0], match[1]))
                     blob["solved_links"][blob["pair_index"]] = [
-                        {"team_id": row[0], "season": row[1], "team_name": row[2]} for row in ordered
+                        {"team_id": row[0], "season": row[1], "team_name": row[2],
+                         "season_label": row[3] if len(row) > 3 else _sport_season_label(sport, row[1])}
+                        for row in ordered
                     ]
                     blob["pair_index"] += 1
                     blob["revealed_count"] = min(blob["revealed_count"] + 1, len(blob["deck"]))
@@ -7408,7 +7509,9 @@ def sport_fr_guess(sport: str):
                     blob.update({"finished": True, "won": False})
                 blob["last_guess"] = {"outcome": outcome, "team": team, "year": year,
                                       "converted_from_foul": converted,
-                                      "matched": [{"team_id": t, "season": s, "team_name": n} for t, s, n in matched]}
+                                      "matched": [{"team_id": row[0], "season": row[1], "team_name": row[2],
+                                                   "season_label": row[3] if len(row) > 3 else _sport_season_label(sport, row[1])}
+                                                  for row in matched]}
             if blob["finished"] and not blob.get("result_saved") and blob.get("owner_guest_id"):
                 conn.execute("""INSERT INTO fr_results (owner_guest_id, sport_id, puzzle_id, hits, fouls, strikes, won, unit)
                                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
@@ -7457,7 +7560,9 @@ def sport_fr_reveal_answer(sport: str):
             return jsonify({"error": "game not finished"}), 400
         cards = _sport_cards(conn, sport, blob["deck"])
         return jsonify({"full_cards": [_sport_fr_card(pid, cards[pid]) for pid in blob["deck"]],
-                        "canonical_links": [[{"team_id": row[0], "season": row[1], "team_name": row[2]} for row in pair]
+                        "canonical_links": [[{"team_id": row[0], "season": row[1], "team_name": row[2],
+                                              "season_label": row[3] if len(row) > 3 else _sport_season_label(sport, row[1])}
+                                             for row in pair]
                                             for pair in blob["shared_per_pair"]]})
 
 
@@ -7551,6 +7656,7 @@ def _sport_online_state(conn, game_id: str, blob: dict, state: GameState, viewer
     for field in ("shared_seasons", "burned_seasons"):
         for item in last_move.get(field, []):
             item["team_name"] = _sport_team_name(conn, sport, item["team_id"], item["season"])
+            item["season_label"] = _sport_season_label(sport, item["season"])
     output = {
         # The browser uses `mp` for Division Rivalry. `dr` is only the
         # database route/table mode; leaking it here disabled the shared
