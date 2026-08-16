@@ -1517,3 +1517,23 @@ Update, 2026-08-15 (0.2.15): FootballDB NFL headshot resolver.
   (2005-2008 G), Eddie Berlin (2001-2005 WR), Leonardo Carson (2000-2004 DT),
   Micah Knorr (2000-2004 P), Moe Williams (2000-2005 RB), Peter Warrick
   (2000-2005 WR), and Scott McGarrahan (2000-2005 SS/DB).
+
+Update, 2026-08-16 (0.2.15 data pass): NFL headshot long-run status.
+- User ran the full FootballDB resolver locally. Current Supabase football
+  headshot status:
+  - `verified`: 12,022
+  - `placeholder`: 2,799
+  - `missing`: 384
+  - remaining unresolved: 3,183
+  - FootballDB provider rows: 660
+- Verified that all 660 FootballDB rows are also present in
+  `sport_player_images` with matching URLs, so they are available to the live
+  game.
+- `scripts/resolve_nfl_web_image_headshots.py` now supports `--workers` and
+  adds team-specific search queries such as `"Player Name" "Team Name" NFL
+  headshot`. This is the next unattended local pass after FootballDB.
+- Recommended local run for the next pass:
+  `python scripts\resolve_nfl_web_image_headshots.py --delay 0.2 --workers 3 --flush-every 10`
+- After web-image URL promotion, crop and publish accepted fallback photos to
+  Supabase Storage with:
+  `python scripts\crop_recent_headshots.py --sport football --provider "Web image search" --workers 8`

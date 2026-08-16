@@ -13,6 +13,7 @@ import re
 import sys
 import time
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import requests
@@ -123,6 +124,13 @@ def team_cue(row: dict, text: str) -> str | None:
     return None
 
 
+def top_team_queries(row: dict) -> list[str]:
+    teams = [team for team in row["teams"] if team]
+    # Keep the query set small. DuckDuckGo is the bottleneck, and broad query
+    # explosion makes long unattended runs fragile.
+    return teams[:3]
+
+
 def name_evidence(row: dict, item: dict) -> bool:
     name = norm_compact(row["name"])
     haystack = norm_compact(" ".join(str(item.get(key) or "") for key in ("title", "image", "url")))
@@ -170,6 +178,8 @@ def candidate(session: requests.Session, row: dict, hashes: set[str], perceptual
         f'"{row["name"]}" NFL headshot',
         f'"{row["name"]}" football portrait',
     ]
+    for team in top_team_queries(row):
+        queries.append(f'"{row["name"]}" "{team}" NFL headshot')
     seen = set()
     candidates = []
     for query in queries:
@@ -187,6 +197,10 @@ def candidate(session: requests.Session, row: dict, hashes: set[str], perceptual
         score = result_score(row, item)
         if score < 4:
             notes.append(f"low score: {item.get('title')}")
+            continue
+        evidence_text = " ".join(str(item.get(key) or "") for key in ("title", "image", "url"))
+        if row["ambiguous_name"] and not team_cue(row, evidence_text):
+            notes.append(f"{item.get('title')}: ambiguous name without team evidence")
             continue
         image_url = item.get("image") or ""
         if not image_url.startswith(("https://", "http://")):
@@ -245,6 +259,7 @@ def main() -> None:
     parser.add_argument("--offset", type=int, default=0)
     parser.add_argument("--delay", type=float, default=0.8)
     parser.add_argument("--flush-every", type=int, default=25)
+    parser.add_argument("--workers", type=int, default=1)
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
@@ -254,25 +269,45 @@ def main() -> None:
     if args.limit:
         rows = rows[:args.limit]
     hashes, perceptual = placeholder_fingerprints()
-    session = requests.Session()
-    session.headers.update({"User-Agent": USER_AGENT})
     results = []
     batch = []
     promoted_total = 0
-    for index, row in enumerate(rows, 1):
+    def run_row(row: dict) -> dict:
+        session = requests.Session()
+        session.headers.update({"User-Agent": USER_AGENT})
         result = candidate(session, row, hashes, perceptual)
-        results.append(result)
-        batch.append(result)
-        if not args.dry_run and args.flush_every > 0 and len(batch) >= args.flush_every:
-            promoted = persist_promoted(batch)
-            promoted_total += promoted
-            if promoted:
-                print(f"promoted {promoted_total} so far", flush=True)
-            batch.clear()
-        if index % 10 == 0 or index == len(rows):
-            print(f"checked {index}/{len(rows)}", flush=True)
         if args.delay:
             time.sleep(args.delay)
+        return result
+
+    if args.workers > 1:
+        with ThreadPoolExecutor(max_workers=max(1, args.workers)) as pool:
+            futures = {pool.submit(run_row, row): row for row in rows}
+            for index, future in enumerate(as_completed(futures), 1):
+                result = future.result()
+                results.append(result)
+                batch.append(result)
+                if not args.dry_run and args.flush_every > 0 and len(batch) >= args.flush_every:
+                    promoted = persist_promoted(batch)
+                    promoted_total += promoted
+                    if promoted:
+                        print(f"promoted {promoted_total} so far", flush=True)
+                    batch.clear()
+                if index % 10 == 0 or index == len(rows):
+                    print(f"checked {index}/{len(rows)}", flush=True)
+    else:
+        for index, row in enumerate(rows, 1):
+            result = run_row(row)
+            results.append(result)
+            batch.append(result)
+            if not args.dry_run and args.flush_every > 0 and len(batch) >= args.flush_every:
+                promoted = persist_promoted(batch)
+                promoted_total += promoted
+                if promoted:
+                    print(f"promoted {promoted_total} so far", flush=True)
+                batch.clear()
+            if index % 10 == 0 or index == len(rows):
+                print(f"checked {index}/{len(rows)}", flush=True)
 
     if not args.dry_run and batch:
         promoted = persist_promoted(batch)
