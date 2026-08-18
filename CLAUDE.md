@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.2.16`
+- Current display version: `0.2.17`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -751,17 +751,15 @@ launch failure.
 Update, 2026-08-04 (0.1.74): Film Review terminology and results were updated
 across sports. Football feedback now says `COMPLETION` and `INCOMPLETION`.
 Winning shows `Fully Scouted`; losing shows `Benched`; final detail text is
-`x/y Lineup` plus `% Fully Scouted`. Finished Film Review chains render
+`x/y Lineup`. Finished Film Review chains render
 chronologically from top to bottom, and a loss reveal fills the lineup board as
 a key with earned players green and missed players red. `/film` sport buttons
-and archive dropdowns now say `% Fully Scouted`, use statuses `new`, `unseen`,
+and archive dropdowns use statuses `new`, `unseen`,
 `in progress`, `benched`, and `fully scouted`, and include puzzle-level fully
-scouted percentages. Percentages count all finished daily or archive attempts
-and ignore unseen or in-progress attempts.
+scouted status. User-facing percentages were later removed in 0.2.17.
 
 Update, 2026-08-05 (0.1.75): Film Review button statuses are now title case
-(`New`, `In Progress`, `Benched`, `Fully Scouted`) and the compact button text
-uses `% Fully Scouted` instead of `% Fully Scouted Today`. Final daily Film
+(`New`, `In Progress`, `Benched`, `Fully Scouted`). Final daily Film
 Review banners show the current streak; archived attempts omit streak text.
 The in-game Film Review Archive filters Football by the active unit, so
 Defense no longer lists Offense tapes, and archive actions preserve the unit.
@@ -1301,9 +1299,9 @@ Headshot cleanup snapshot after the identity pass:
   (`PORTRAIT_ZOOM=0.95`) after testing showed the first crop was too tight and
   low. Local review files: `raw/cropped_headshots_review.md` and
   `raw/cropped_headshots_review.csv`.
-- 2026-08-15 Film Review fixes: archive rows now expose a player's own
-  `progress_percent`, so completed/in-progress/failed tapes no longer display
-  as 0% just because the global success rate is empty. A finished daily attempt
+- 2026-08-15 Film Review fixes: archive rows exposed a player's own
+  `progress_percent`, but user-facing percentages were removed later in
+  0.2.17. A finished daily attempt
   opens as review/retry instead of a dead resume state. Cross-year sports
   (NBA/NHL/NFL) display shared seasons as labels such as `2020-21`, and Film
   Review accepts either year for that season. Added
@@ -1628,3 +1626,31 @@ Update, 2026-08-16 (0.2.16): curated puzzles now require verified headshots.
   `python scripts\validate_film_review_local.py --days 14 --start 2026-08-16`
   generated 14/14 for baseball, basketball, hockey, football offense, and
   football defense.
+
+Update, 2026-08-17 (0.2.17): playtest bug pass for baseball search and Film Review.
+- Bumped visible app version to `0.2.17`.
+- Fixed baseball autocomplete excluding active/current players. The `players`
+  table stores active players with `final_year = NULL`, so autocomplete now
+  uses `COALESCE(final_year, 9999) >= 2000`. Verified that `/api/autocomplete`
+  and `/api/sports/baseball/autocomplete` both return Kris Bryant for
+  `kris bryant`.
+- Patched `/api/sports/baseball/autocomplete` to delegate to the established
+  baseball autocomplete path so baseball does not use cross-sport search logic.
+- Patched cross-sport Manager Mode endpoints to route baseball engine calls
+  through `_engine_sport("baseball")`, keeping baseball on the established MLB
+  tables if those endpoints are reached.
+- Verified Rizzo to Kris Bryant through `/api/bp/move` returns `valid`.
+- Removed Film Review percentage display from the end summary, in-game archive,
+  and `/film` mode hub labels. API fields may still exist internally, but the
+  player-facing percentage is gone.
+- Fixed Film Review progress counting on failure: zero solved links now shows
+  `0/total`; after the first solved link, progress resumes from the revealed
+  lineup count.
+- Added `/api/cron/generate-film-review`, which prebuilds today's Film Review
+  puzzles for baseball, basketball, hockey, football offense, and football
+  defense. It supports optional `CRON_SECRET` through `Authorization: Bearer`
+  or `?token=`.
+- Updated `vercel.json` with daily cron hits at `05:05 UTC` and `06:05 UTC`.
+  The endpoint is idempotent; the two schedules cover midnight Central across
+  daylight/standard time. Manual test generated all five daily puzzle units for
+  2026-08-17.

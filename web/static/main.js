@@ -803,7 +803,9 @@ async function cancelFriendChallenge(challengeId) {
 }
 
 async function getAutocomplete(q) {
-  const endpoint = LOCAL_SOLO_SPORTS.has(CURRENT_SPORT)
+  const endpoint = CURRENT_SPORT === 'baseball'
+    ? '/api/autocomplete'
+    : LOCAL_SOLO_SPORTS.has(CURRENT_SPORT)
     ? (USE_LOCAL_CROSS_SPORTS ? '/api/local/' : '/api/sports/') + CURRENT_SPORT + '/autocomplete'
     : '/api/autocomplete';
   const r = await fetch(endpoint + '?q=' + encodeURIComponent(q));
@@ -2174,16 +2176,16 @@ function renderFrFeedback(g) {
 function showFrSummaryBanner() {
   els.frTurnCard.hidden = true;
   els.frSummaryBanner.hidden = false;
-  const progress = Math.min(frGame.total_cards || 0, (frGame.stats?.hits || 0) + 2);
+  const hits = Number(frGame.stats?.hits || 0);
+  const progress = hits > 0 ? Math.min(frGame.total_cards || 0, hits + 2) : 0;
   const total = frGame.total_cards || frGame.revealed_cards?.length || progress;
-  const rate = Number(frGame.success_rate?.percent || 0);
   const streakText = frGame.archive ? '' : ` Current streak: ${Number(frGame.current_streak || 0)}.`;
   if (frGame.won) {
     els.frSummaryText.textContent = 'Fully Scouted';
-    els.frSummaryDetail.textContent = `${total}/${total} Lineup. ${rate}% Fully Scouted.${streakText}`;
+    els.frSummaryDetail.textContent = `${total}/${total} Lineup.${streakText}`;
   } else {
     els.frSummaryText.textContent = 'Benched';
-    els.frSummaryDetail.textContent = `${progress}/${total} Lineup. ${rate}% Fully Scouted.${streakText}`;
+    els.frSummaryDetail.textContent = `${progress}/${total} Lineup.${streakText}`;
     loadFrAnswers();
   }
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -2197,7 +2199,8 @@ function hideFrSummaryBanner() {
 
 async function loadFrAnswers() {
   if (!frGame?.game_id || frGame?.won) return;
-  const earnedCount = Math.min(frGame.total_cards || 0, (frGame.stats?.hits || 0) + 2);
+  const hits = Number(frGame.stats?.hits || 0);
+  const earnedCount = hits > 0 ? Math.min(frGame.total_cards || 0, hits + 2) : 0;
   const res = await api(filmReviewPath('reveal_answer'), { game_id: frGame.game_id });
   if (!res.full_cards || !res.canonical_links) return;
   if (res.full_cards && res.canonical_links) {
@@ -2305,7 +2308,6 @@ async function loadFrArchive() {
     const state = escapeHtml(day.status);
     const date = escapeHtml(day.date);
     const label = day.is_today ? 'Today' : `#${day.number}`;
-    const pct = Number(day.progress_percent ?? day.success_rate?.percent ?? 0);
     const action = day.is_today
       ? (day.status === 'unseen' ? 'daily' : (day.status === 'in_progress' ? 'continue' : 'review'))
       : (day.status === 'in_progress' ? 'continue' : (day.status === 'unseen' ? 'archive' : 'review'));
@@ -2317,7 +2319,7 @@ async function loadFrArchive() {
       ? `<button class="fr-archive-action" data-date="${date}" data-unit="${unitAttr}" data-action="retry">Retry</button>` : '';
     return `<div class="fr-archive-day ${state}">
       <span class="fr-archive-number">${label}</span>
-      <span class="fr-archive-status">${filmStatusText(day.status, day.is_today)} - ${pct}%</span>
+      <span class="fr-archive-status">${filmStatusText(day.status, day.is_today)}</span>
       <button class="fr-archive-action" data-date="${date}" data-unit="${unitAttr}" data-game-id="${escapeHtml(day.game_id || '')}" data-action="${action}">${text}</button>
       ${retry}
     </div>`;

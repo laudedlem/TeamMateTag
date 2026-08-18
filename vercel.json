@@ -1,3 +1,13 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json"
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/cron/generate-film-review",
+      "schedule": "5 5 * * *"
+    },
+    {
+      "path": "/api/cron/generate-film-review",
+      "schedule": "5 6 * * *"
+    }
+  ]
 }

@@ -24,7 +24,7 @@ import sys
 import uuid
 import hashlib
 import hmac
-from urllib.parse import urljoin
+from urllib.parse import quote_plus, urljoin
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta, date
@@ -73,7 +73,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.2.16"
+APP_VERSION = "0.2.17"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -4691,18 +4691,18 @@ def autocomplete():
                   SELECT ps.player_id, ps.display_name, p.debut_year, p.final_year, ps.career_games
                     FROM players_searchable ps
                     JOIN players p ON p.player_id = ps.player_id
-                   WHERE ps.search_key LIKE %s || '%%' AND p.final_year >= 2000
+                   WHERE ps.search_key LIKE %s || '%%' AND COALESCE(p.final_year, 9999) >= 2000
                   UNION
                   SELECT ps.player_id, ps.display_name, p.debut_year, p.final_year, ps.career_games
                     FROM players_searchable ps
                     JOIN players p ON p.player_id = ps.player_id
-                   WHERE ps.last_key LIKE %s || '%%' AND p.final_year >= 2000
+                   WHERE ps.last_key LIKE %s || '%%' AND COALESCE(p.final_year, 9999) >= 2000
                   UNION
                   SELECT ps.player_id, ps.display_name, p.debut_year, p.final_year, ps.career_games
                     FROM players_searchable ps
                     JOIN players p ON p.player_id = ps.player_id
                     JOIN nickname_search ns ON ns.player_id = ps.player_id
-                   WHERE ns.nickname_key LIKE %s || '%%' AND p.final_year >= 2000
+                   WHERE ns.nickname_key LIKE %s || '%%' AND COALESCE(p.final_year, 9999) >= 2000
                 ) AS u
                 ORDER BY career_games DESC
                 LIMIT 4""",
@@ -5298,29 +5298,12 @@ def manager_tiles():
 
 def _film_archive_days(conn, guest_id: str, sport: str) -> list[dict]:
     today = datetime.now(CENTRAL_TIME).date()
-    rows = {(row[0], row[1] or ""): (row[2], row[3], row[4]) for row in conn.execute(
-        """SELECT a.puzzle_date, a.unit, a.status, a.game_id::text, g.state
+    rows = {(row[0], row[1] or ""): (row[2], row[3]) for row in conn.execute(
+        """SELECT a.puzzle_date, a.unit, a.status, a.game_id::text
              FROM film_review_daily_attempts a
-             LEFT JOIN fr_games g ON g.game_id=a.game_id
             WHERE owner_guest_id=%s AND sport_id=%s""",
         (guest_id, sport),
     ).fetchall()}
-    rate_rows = conn.execute(
-        """SELECT puzzle_date, unit,
-                  COALESCE(SUM(CASE WHEN status='won' THEN 1 ELSE 0 END), 0),
-                  COALESCE(SUM(CASE WHEN status IN ('won','lost') THEN 1 ELSE 0 END), 0)
-             FROM film_review_daily_attempts
-            WHERE sport_id=%s
-            GROUP BY puzzle_date, unit""",
-        (sport,),
-    ).fetchall()
-    rates = {}
-    for puzzle_date, unit, wins, finished in rate_rows:
-        wins, finished = int(wins), int(finished)
-        rates[(puzzle_date, unit or "")] = {
-            "wins": wins, "finished": finished,
-            "percent": round((wins / finished) * 100) if finished else 0,
-        }
     days = []
     units = ["offense", "defense"] if sport == "football" else [""]
     for offset in range(min(60, max(1, (today - FILM_REVIEW_EPOCH).days + 1))):
@@ -5328,20 +5311,10 @@ def _film_archive_days(conn, guest_id: str, sport: str) -> list[dict]:
         if puzzle_day < FILM_REVIEW_EPOCH:
             break
         for unit in units:
-            status, game_id, state = rows.get((puzzle_day, unit), ("unseen", None, None))
-            success_rate = rates.get((puzzle_day, unit), {"wins": 0, "finished": 0, "percent": 0})
-            progress_percent = 0
-            if isinstance(state, dict):
-                total_pairs = max(1, len(state.get("deck") or []) - 1)
-                hits = int(state.get("hits") or 0)
-                if status == "won":
-                    progress_percent = 100
-                elif status in {"lost", "in_progress"}:
-                    progress_percent = round((min(hits, total_pairs) / total_pairs) * 100)
+            status, game_id = rows.get((puzzle_day, unit), ("unseen", None))
             days.append({"date": puzzle_day.isoformat(), "number": _film_review_number(puzzle_day),
                          "status": status, "game_id": game_id, "is_today": puzzle_day == today,
-                         "unit": unit, "success_rate": success_rate,
-                         "progress_percent": progress_percent})
+                         "unit": unit})
     return days
 
 
@@ -5413,6 +5386,43 @@ def _film_preview_cards(conn, sport: str, puzzle_day: date, unit: str = "") -> l
     return preview
 
 
+def _ensure_daily_film_puzzles(conn, puzzle_day: date | None = None) -> dict[str, list[str]]:
+    puzzle_day = puzzle_day or datetime.now(CENTRAL_TIME).date()
+    generated: dict[str, list[str]] = {}
+    for sport in ("baseball", "basketball", "hockey", "football"):
+        units = ("offense", "defense") if sport == "football" else ("",)
+        for unit in units:
+            unit_key = unit or "default"
+            exists = conn.execute(
+                """SELECT 1 FROM film_review_daily_puzzles
+                    WHERE sport_id=%s AND puzzle_date=%s AND unit=%s
+                    LIMIT 1""",
+                (sport, puzzle_day, unit or ""),
+            ).fetchone()
+            if exists:
+                generated.setdefault(sport, []).append(unit_key)
+                continue
+            try:
+                if sport == "baseball":
+                    _daily_film_review_puzzle(
+                        conn, sport, puzzle_day, None,
+                        lambda puzzle_day=puzzle_day: generate_baseball_film_review(conn, puzzle_day),
+                    )
+                else:
+                    _daily_film_review_puzzle(
+                        conn, sport, puzzle_day, unit or None,
+                        lambda sport=sport, unit=unit, puzzle_day=puzzle_day:
+                            _local_film_review_puzzle_dict(conn, sport, unit or None, puzzle_day),
+                    )
+                generated.setdefault(sport, []).append(unit_key)
+            except Exception as error:
+                app.logger.warning(
+                    "Could not prebuild Film Review puzzle: sport=%s date=%s unit=%s error=%s",
+                    sport, puzzle_day.isoformat(), unit_key, error,
+                )
+    return generated
+
+
 @app.route("/api/film/archive_summary", methods=["POST"])
 def film_archive_summary():
     ensure_runtime_schema()
@@ -5422,12 +5432,12 @@ def film_archive_summary():
     sports = ["baseball", "basketball", "hockey", "football"]
     today = datetime.now(CENTRAL_TIME).date()
     with db() as conn:
+        _ensure_daily_film_puzzles(conn, today)
         payload = {}
         for sport in sports:
             units = ["offense", "defense"] if sport == "football" else [""]
             unit_payload = {
                 unit or "default": {
-                    "success_rate": _film_success_rate(conn, sport, today, unit),
                     "preview": _film_preview_cards(conn, sport, today, unit),
                     "streak": _film_streak(conn, guest_id, sport, unit),
                 }
@@ -5446,11 +5456,26 @@ def film_previews():
     ensure_runtime_schema()
     today = datetime.now(CENTRAL_TIME).date()
     with db() as conn:
+        _ensure_daily_film_puzzles(conn, today)
         payload = {}
         for sport in ("baseball", "basketball", "hockey", "football"):
             units = ("offense", "defense") if sport == "football" else ("",)
             payload[sport] = {unit or "default": _film_preview_cards(conn, sport, today, unit) for unit in units}
     return jsonify({"previews": payload})
+
+
+@app.route("/api/cron/generate-film-review", methods=["GET", "POST"])
+def cron_generate_film_review():
+    ensure_runtime_schema()
+    expected = os.environ.get("CRON_SECRET", "")
+    if expected:
+        supplied = request.headers.get("Authorization", "")
+        if supplied != f"Bearer {expected}" and request.args.get("token") != expected:
+            return jsonify({"error": "unauthorized"}), 401
+    puzzle_day = datetime.now(CENTRAL_TIME).date()
+    with db() as conn:
+        generated = _ensure_daily_film_puzzles(conn, puzzle_day)
+    return jsonify({"date": puzzle_day.isoformat(), "generated": generated})
 
 
 @app.route("/api/dr/queue", methods=["POST"])
@@ -6802,6 +6827,9 @@ def sport_autocomplete(sport: str):
     q = "".join(char for char in normalize(request.args.get("q") or "") if char.isalnum())
     if not _is_cross_sport(sport) or not q:
         return jsonify([])
+    if sport == "baseball":
+        with app.test_request_context(f"/api/autocomplete?q={quote_plus(request.args.get('q') or '')}"):
+            return autocomplete()
     with db() as conn:
         rows = conn.execute(
             """SELECT player_id, display_name, debut_year, final_year, career_games
@@ -6809,14 +6837,14 @@ def sport_autocomplete(sport: str):
                    SELECT p.player_id, p.display_name, sp.debut_year, sp.final_year, p.career_games
                      FROM sport_players_searchable p
                      JOIN sport_players sp ON sp.sport_id=p.sport_id AND sp.player_id=p.player_id
-                    WHERE p.sport_id=%s AND sp.final_year >= 2000
+                    WHERE p.sport_id=%s AND COALESCE(sp.final_year, 9999) >= 2000
                       AND (p.search_key LIKE %s OR p.last_key LIKE %s)
                    UNION
                    SELECT p.player_id, p.display_name, sp.debut_year, sp.final_year, p.career_games
                      FROM sport_player_aliases a
                      JOIN sport_players_searchable p ON p.sport_id=a.sport_id AND p.player_id=a.player_id
                      JOIN sport_players sp ON sp.sport_id=p.sport_id AND sp.player_id=p.player_id
-                    WHERE a.sport_id=%s AND sp.final_year >= 2000 AND a.alias_key LIKE %s
+                    WHERE a.sport_id=%s AND COALESCE(sp.final_year, 9999) >= 2000 AND a.alias_key LIKE %s
                  ) matches
                 ORDER BY career_games DESC LIMIT 4""",
             (sport, q + "%", q + "%", sport, q + "%"),
@@ -6836,7 +6864,7 @@ def sport_bp_new(sport: str):
     with db() as conn:
         if guest_id and not conn.execute("SELECT 1 FROM guests WHERE guest_id=%s", (guest_id,)).fetchone():
             guest_id = None
-        state = seed_game(PgEngineConn(conn), data.get("seed") or _manager_seed_for_day(conn, sport), sport=sport)
+        state = seed_game(PgEngineConn(conn), data.get("seed") or _manager_seed_for_day(conn, sport), sport=_engine_sport(sport))
         _record_sport_player_usage(conn, sport, state.current_player_id, "bp")
         blob = bp_blob_from_state(state, APP_TURN_SECONDS, now_utc(), OPENING_COUNTDOWN_SECONDS,
                                   owner_guest_id=guest_id, seed_player_id=state.current_player_id)
@@ -6866,7 +6894,7 @@ def sport_bp_move(sport: str):
             raw = (data.get("raw") or "").strip()
             if player_id or raw:
                 result = validate_and_apply_move(state, PgEngineConn(conn), raw_input=None if player_id else raw,
-                                                 player_id=player_id, track_strikes=True, sport=sport)
+                                                 player_id=player_id, track_strikes=True, sport=_engine_sport(sport))
                 blob.update(serialize_state(state))
                 blob["last_move"] = result_to_dict(result)
                 if result.outcome == MoveOutcome.VALID:
