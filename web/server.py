@@ -73,7 +73,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.2.18"
+APP_VERSION = "0.2.19"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -5404,15 +5404,43 @@ def _build_film_preview_cards(conn, sport: str, deck: list[str]) -> list[dict]:
     return preview
 
 
-def _film_puzzle_with_preview(conn, sport: str, puzzle_day: date, unit: str | None, puzzle: dict) -> dict:
+def _film_card_map(conn, sport: str, deck: list[str]) -> dict[str, dict]:
+    if sport == "baseball":
+        cards = _hydrate_player_cards(conn, deck)
+        return {pid: fr_card_dict_from_card(pid, cards.get(pid) or player_card(pid)) for pid in deck}
+    return {pid: _sport_fr_card(pid, card) for pid, card in _sport_cards(conn, sport, deck).items()}
+
+
+def _film_shared_for_deck(conn, sport: str, deck: list[str]) -> list[list]:
+    if len(deck) < 2:
+        return []
+    if sport == "baseball":
+        return [
+            [[team_id, season, team_name] for team_id, season, team_name in pair]
+            for pair in _fr_compute_shared(conn, deck)
+        ]
+    return [_sport_fr_shared(conn, sport, deck[i], deck[i + 1]) for i in range(len(deck) - 1)]
+
+
+def _film_puzzle_with_cached_payload(conn, sport: str, puzzle_day: date, unit: str | None, puzzle: dict) -> dict:
     preview = puzzle.get("preview_cards")
-    if isinstance(preview, list) and len(preview) >= 2:
+    card_map = puzzle.get("card_map")
+    shared = puzzle.get("shared_per_pair")
+    if (isinstance(preview, list) and len(preview) >= 2
+            and isinstance(card_map, dict)
+            and isinstance(shared, list)
+            and len(shared) == max(0, len(puzzle.get("deck") or []) - 1)):
         return puzzle
     deck = list(puzzle.get("deck") or [])
     if len(deck) < 2:
         return puzzle
     enriched = dict(puzzle)
-    enriched["preview_cards"] = _build_film_preview_cards(conn, sport, deck)
+    if not isinstance(preview, list) or len(preview) < 2:
+        enriched["preview_cards"] = _build_film_preview_cards(conn, sport, deck)
+    if not isinstance(card_map, dict):
+        enriched["card_map"] = _film_card_map(conn, sport, deck)
+    if not isinstance(shared, list) or len(shared) != len(deck) - 1:
+        enriched["shared_per_pair"] = _film_shared_for_deck(conn, sport, deck)
     conn.execute(
         """UPDATE film_review_daily_puzzles
               SET puzzle=%s
@@ -5420,6 +5448,10 @@ def _film_puzzle_with_preview(conn, sport: str, puzzle_day: date, unit: str | No
         (Jsonb(enriched), sport, puzzle_day, unit or ""),
     )
     return enriched
+
+
+def _film_puzzle_with_preview(conn, sport: str, puzzle_day: date, unit: str | None, puzzle: dict) -> dict:
+    return _film_puzzle_with_cached_payload(conn, sport, puzzle_day, unit, puzzle)
 
 
 def _film_preview_cards(conn, sport: str, puzzle_day: date, unit: str = "") -> list[dict]:
@@ -5558,10 +5590,19 @@ def cron_generate_film_review():
         supplied = request.headers.get("Authorization", "")
         if supplied != f"Bearer {expected}" and request.args.get("token") != expected:
             return jsonify({"error": "unauthorized"}), 401
-    puzzle_day = datetime.now(CENTRAL_TIME).date()
+    today = datetime.now(CENTRAL_TIME).date()
+    try:
+        days = max(1, min(60, int(request.args.get("days") or 1)))
+    except ValueError:
+        days = 1
     with db() as conn:
-        generated = _ensure_daily_film_puzzles(conn, puzzle_day)
-    return jsonify({"date": puzzle_day.isoformat(), "generated": generated})
+        generated = {}
+        for offset in range(days):
+            puzzle_day = today - timedelta(days=offset)
+            if puzzle_day < FILM_REVIEW_EPOCH:
+                break
+            generated[puzzle_day.isoformat()] = _ensure_daily_film_puzzles(conn, puzzle_day)
+    return jsonify({"date": today.isoformat(), "days": days, "generated": generated})
 
 
 @app.route("/api/dr/queue", methods=["POST"])
@@ -7185,20 +7226,18 @@ def fr_card_dict_from_card(player_id: str, card: dict) -> dict:
 def fr_state_dict(gid: str, blob: dict, conn=None) -> dict:
     deck = blob["deck"]
     pair_index = blob["pair_index"]
-    if conn:
-        cards = _hydrate_player_cards(conn, list(deck))
-    else:
+    cards = blob.get("card_map") if isinstance(blob.get("card_map"), dict) else None
+    if not cards and conn:
+        cards = _film_card_map(conn, "baseball", list(deck))
+    elif not cards:
         with db() as _conn:
-            cards = _hydrate_player_cards(_conn, list(deck))
-    success_rate = {"wins": 0, "finished": 0, "percent": 0}
+            cards = _film_card_map(_conn, "baseball", list(deck))
     current_streak = 0
     if conn and blob.get("puzzle_date"):
         try:
-            success_rate = _film_success_rate(conn, "baseball", _film_review_day(blob.get("puzzle_date")), "")
             if not blob.get("archive"):
                 current_streak = _film_current_streak(conn, blob.get("owner_guest_id"), "baseball", "")
         except Exception:
-            success_rate = {"wins": 0, "finished": 0, "percent": 0}
             current_streak = 0
     return {
         "game_id": gid,
@@ -7212,19 +7251,14 @@ def fr_state_dict(gid: str, blob: dict, conn=None) -> dict:
         "total_cards": len(deck),
         "revealed_count": blob["revealed_count"],
         "revealed_cards": [
-            fr_card_dict_from_card(pid, cards.get(pid) or player_card(pid))
+            cards.get(pid) or fr_card_dict(pid)
             for pid in deck[:blob["revealed_count"]]
         ],
         "pair_index": pair_index,
         "pair_names": [
-            (fr_card_dict_from_card(
-                deck[pair_index], cards.get(deck[pair_index]) or player_card(deck[pair_index])
-            )["name"]
+            ((cards.get(deck[pair_index]) or fr_card_dict(deck[pair_index]))["name"]
              if pair_index < len(deck) else None),
-            (fr_card_dict_from_card(
-                deck[pair_index + 1],
-                cards.get(deck[pair_index + 1]) or player_card(deck[pair_index + 1]),
-            )["name"]
+            ((cards.get(deck[pair_index + 1]) or fr_card_dict(deck[pair_index + 1]))["name"]
              if pair_index + 1 < len(deck) else None),
         ],
         "solved_links": blob["solved_links"][: max(0, blob["revealed_count"] - 1)],
@@ -7239,7 +7273,6 @@ def fr_state_dict(gid: str, blob: dict, conn=None) -> dict:
         "finished": blob["finished"],
         "won": blob.get("won", False),
         "last_guess": blob.get("last_guess"),
-        "success_rate": success_rate,
         "current_streak": current_streak,
     }
 
@@ -7351,13 +7384,16 @@ def fr_new():
         except RuntimeError as error:
             return jsonify({"error": str(error)}), 500
         deck = list(puz["deck"])
-        shared_per_pair = _fr_compute_shared(conn, deck)
+        shared_per_pair = puz.get("shared_per_pair")
+        if not isinstance(shared_per_pair, list) or len(shared_per_pair) != len(deck) - 1:
+            shared_per_pair = _fr_compute_shared(conn, deck)
         bad = [i for i, lst in enumerate(shared_per_pair) if not lst]
         if bad:
             return jsonify({
                 "error": f"puzzle {puz['id']!r} has unsolvable pair(s): {bad}",
             }), 500
         blob = fr_blob_from_puzzle(puz, shared_per_pair, owner_guest_id=guest_id, archive=archive)
+        blob["card_map"] = puz.get("card_map") or _film_card_map(conn, "baseball", deck)
         gid = _insert_game(conn, "fr_games", blob)
         if guest_id:
             if archive:
@@ -7533,16 +7569,15 @@ def _sport_fr_card(player_id: str, card: dict) -> dict:
 
 def _sport_fr_state_dict(gid: str, blob: dict, conn) -> dict:
     sport, deck, pair_index = blob["sport"], blob["deck"], blob["pair_index"]
-    cards = {pid: _sport_fr_card(pid, card) for pid, card in _sport_cards(conn, sport, deck).items()}
-    success_rate = {"wins": 0, "finished": 0, "percent": 0}
+    cards = blob.get("card_map") if isinstance(blob.get("card_map"), dict) else None
+    if not cards:
+        cards = _film_card_map(conn, sport, deck)
     current_streak = 0
     if blob.get("puzzle_date"):
         try:
-            success_rate = _film_success_rate(conn, sport, _film_review_day(blob.get("puzzle_date")), blob.get("unit") or "")
             if not blob.get("archive"):
                 current_streak = _film_current_streak(conn, blob.get("owner_guest_id"), sport, blob.get("unit") or "")
         except Exception:
-            success_rate = {"wins": 0, "finished": 0, "percent": 0}
             current_streak = 0
     return {
         "game_id": gid, "mode": "fr", "sport": sport, "puzzle_id": blob["puzzle_id"],
@@ -7558,7 +7593,6 @@ def _sport_fr_state_dict(gid: str, blob: dict, conn) -> dict:
                   "max_strikes": FR_MAX_STRIKES, "consec_fouls": blob["consec_fouls"],
                   "total_pairs": len(deck) - 1},
         "finished": blob["finished"], "won": blob["won"], "last_guess": blob.get("last_guess"),
-        "success_rate": success_rate,
         "current_streak": current_streak,
     }
 
@@ -7635,7 +7669,10 @@ def _daily_film_review_puzzle(conn, sport: str, puzzle_day: date, unit: str | No
         if _valid_daily_film_puzzle(conn, puzzle, sport, puzzle_day, unit):
             puzzle = _film_puzzle_with_preview(conn, sport, puzzle_day, unit, puzzle)
             deck = list(puzzle.get("deck") or [])
-            if sport == "baseball":
+            shared = puzzle.get("shared_per_pair")
+            if isinstance(shared, list) and len(shared) == len(deck) - 1:
+                still_resolves = all(bool(pair) for pair in shared)
+            elif sport == "baseball":
                 still_resolves = all(_fr_compute_shared(conn, deck)[i] for i in range(len(deck) - 1))
             else:
                 still_resolves = all(_sport_fr_shared(conn, sport, deck[i], deck[i + 1]) for i in range(len(deck) - 1))
@@ -7756,7 +7793,9 @@ def sport_fr_new(sport: str):
         except (RuntimeError, ValueError) as error:
             return jsonify({"error": f"could not build Film Review: {error}"}), 500
         deck = saved_puzzle["deck"]
-        shared = [_sport_fr_shared(conn, sport, deck[i], deck[i + 1]) for i in range(len(deck) - 1)]
+        shared = saved_puzzle.get("shared_per_pair")
+        if not isinstance(shared, list) or len(shared) != len(deck) - 1:
+            shared = [_sport_fr_shared(conn, sport, deck[i], deck[i + 1]) for i in range(len(deck) - 1)]
         if any(not pair for pair in shared):
             return jsonify({"error": "generated puzzle has an unresolved connection"}), 500
         blob = {
@@ -7767,6 +7806,7 @@ def sport_fr_new(sport: str):
             "consec_fouls": 0, "solved_links": [None] * (len(deck) - 1),
             "shared_per_pair": shared, "owner_guest_id": guest_id, "result_saved": False,
             "finished": False, "won": False, "last_guess": None,
+            "card_map": saved_puzzle.get("card_map") or _film_card_map(conn, sport, deck),
         }
         gid = _insert_game(conn, "fr_games", blob)
         if guest_id:

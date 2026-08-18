@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.2.18`
+- Current display version: `0.2.19`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -1672,3 +1672,20 @@ Update, 2026-08-17 (0.2.18): Film Review hub storage/performance pass.
   6.6 seconds in the local shell, repeated warm requests about 0.9 seconds.
   The midnight Vercel cron remains important because it ensures the daily tape
   and preview payload are present before users open `/film`.
+
+Update, 2026-08-17 (0.2.19): Film Review launch payload cache.
+- Bumped visible app version to `0.2.19`.
+- Film Review daily puzzle rows now also store the full launch payload needed
+  by `/api/fr/new` and `/api/sports/<sport>/fr/new`: `card_map` and
+  `shared_per_pair`, in addition to the `preview_cards` from 0.2.18.
+- Launch routes now copy cards and teammate-link answers from the immutable
+  daily puzzle JSON instead of recalculating every player card and every link
+  the first time a player opens that day's puzzle.
+- Existing puzzle rows are enriched idempotently when read. The cron endpoint
+  now supports `?days=N` with a max of 60, so after deploy run
+  `/api/cron/generate-film-review?days=60` once to backfill the archive and
+  keep first player puzzle loads from doing enrichment work.
+- Local launch timing after enrichment: baseball, basketball, hockey, and
+  football Film Review starts were about 0.65-0.75 seconds through Flask's test
+  client. The remaining time is mostly database round trips and game-row
+  creation, not puzzle generation.
