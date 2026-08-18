@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.2.20`
+- Current display version: `0.2.21`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -1703,3 +1703,14 @@ Update, 2026-08-18 (0.2.20): cross-year Film Review season input and card ranges
   `Chicago Blackhawks 2007-2023` instead of
   `2007-08 to 2022-23`. Single cross-year seasons still display as
   `2024-25`, and separated same-team returns remain comma-separated ranges.
+
+Update, 2026-08-18 (0.2.21): Film Review season input simplification.
+- Bumped visible app version to `0.2.21`.
+- Basketball, hockey, and football Film Review now use one editable full
+  start-year field, e.g. `2020`, with a read-only suffix that displays the
+  submitted season as `2020-21`.
+- The submitted value remains the exact season label (`2020-21`), so backend
+  validation from 0.2.20 still requires the correct cross-year season instead
+  of accepting either calendar year.
+- Updated Film Review page and rules copy from "team and year" to
+  "team and season" where appropriate.

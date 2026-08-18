@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.2.20"
+APP_VERSION = "0.2.21"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -2505,7 +2505,7 @@ def index():
 
 MODE_HUBS = {
     "manager": {"title": "Manager Mode", "mode": "bp", "description": "Build an endless solo lineup. Name a teammate of the top player before the 20-second clock expires, avoid maxed-out team-years, and chase your longest lineup."},
-    "film": {"title": "Film Review", "mode": "fr", "description": "Solve the daily lineup by identifying the team and year between each visible pair. Three misses end the review; archived lineups are always available."},
+    "film": {"title": "Film Review", "mode": "fr", "description": "Solve the daily lineup by identifying the team and season between each visible pair. Three misses end the review; archived lineups are always available."},
     "division": {"title": "Division Rivalry", "mode": "mp", "description": "Online head-to-head. Alternate teammate links on one lineup, manage team-year marks, and win when your opponent runs out of time or exits."},
     "playoffs": {"title": "Playoffs", "mode": "po", "description": "Online lineup battle with the same turn-by-turn teammate rules, plus one-use powerups and a personal win condition that can end the game immediately."},
 }

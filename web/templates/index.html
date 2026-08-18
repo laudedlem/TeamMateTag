@@ -82,7 +82,7 @@
           </div>
           <span class="mode-tile-desc">
             {% if sport.key == 'football' %}24 players, 23 connections.{% elif sport.key == 'basketball' %}12 players, 11 connections.{% elif sport.key == 'hockey' %}11 players, 10 connections.{% else %}10 players, 9 connections.{% endif %}
-            Identify the team and year linking each pair. Three misses end the review.
+            Identify the team and season linking each pair. Three misses end the review.
           </span>
         </button>
         <button class="mode-tile" data-mode="mp">
@@ -438,12 +438,9 @@
                    placeholder="Year" />
             <div id="fr-season-inputs" class="fr-season-inputs" hidden>
               <input id="fr-season-start-input" type="text" autocomplete="off" spellcheck="false"
-                     inputmode="numeric" pattern="\d{2}" maxlength="2"
-                     aria-label="Season start year" placeholder="YY" />
-              <span class="fr-season-dash">-</span>
-              <input id="fr-season-end-input" type="text" autocomplete="off" spellcheck="false"
-                     inputmode="numeric" pattern="\d{2}" maxlength="2"
-                     aria-label="Season end year" placeholder="YY" />
+                     inputmode="numeric" pattern="\d{4}" maxlength="4"
+                     aria-label="Season start year" placeholder="2020" />
+              <span id="fr-season-end-display" class="fr-season-end-display">- --</span>
             </div>
             <button type="submit" class="primary">Guess</button>
           </form>

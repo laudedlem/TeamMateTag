@@ -1333,14 +1333,16 @@ button.secondary:hover { border-color: var(--accent); color: var(--accent); }
 }
 
 .fr-season-inputs input {
-  width: 3.4rem;
+  width: 5.4rem;
   flex: 0 0 auto;
   text-align: center;
 }
 
-.fr-season-dash {
+.fr-season-end-display {
+  min-width: 3.2rem;
   color: var(--text-muted);
   font-weight: 700;
+  font-family: ui-monospace, 'SF Mono', Consolas, monospace;
 }
 
 

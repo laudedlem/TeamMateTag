@@ -131,7 +131,7 @@ const els = {
   frYearInput: document.getElementById('fr-year-input'),
   frSeasonInputs: document.getElementById('fr-season-inputs'),
   frSeasonStartInput: document.getElementById('fr-season-start-input'),
-  frSeasonEndInput: document.getElementById('fr-season-end-input'),
+  frSeasonEndDisplay: document.getElementById('fr-season-end-display'),
   frGuessForm: document.getElementById('fr-guess-form'),
   frFeedback: document.getElementById('fr-feedback'),
   frCardStack: document.getElementById('fr-card-stack'),
@@ -337,19 +337,18 @@ function configureFrSeasonInputs() {
   }
   if (els.frSeasonInputs) els.frSeasonInputs.hidden = !split;
   if (els.frSeasonStartInput) els.frSeasonStartInput.disabled = !split || frGame?.finished;
-  if (els.frSeasonEndInput) els.frSeasonEndInput.disabled = !split || frGame?.finished;
+  updateFrSeasonSuffix();
 }
 
 function setFrSeasonInputsDisabled(disabled) {
   if (els.frYearInput) els.frYearInput.disabled = disabled || usesSplitSeasonInput();
   if (els.frSeasonStartInput) els.frSeasonStartInput.disabled = disabled || !usesSplitSeasonInput();
-  if (els.frSeasonEndInput) els.frSeasonEndInput.disabled = disabled || !usesSplitSeasonInput();
 }
 
 function clearFrSeasonInputs() {
   if (els.frYearInput) els.frYearInput.value = '';
   if (els.frSeasonStartInput) els.frSeasonStartInput.value = '';
-  if (els.frSeasonEndInput) els.frSeasonEndInput.value = '';
+  updateFrSeasonSuffix();
 }
 
 function focusFrSeasonInput() {
@@ -360,21 +359,27 @@ function focusFrSeasonInput() {
 function frSeasonGuessValue() {
   if (!usesSplitSeasonInput()) return els.frYearInput.value.trim();
   const start = (els.frSeasonStartInput.value || '').trim();
-  const end = (els.frSeasonEndInput.value || '').trim();
-  return start && end ? `${start}-${end}` : '';
+  if (!/^\d{4}$/.test(start)) return '';
+  return `${start}-${String((Number(start) + 1) % 100).padStart(2, '0')}`;
 }
 
 function frSplitSeasonIsValid() {
   if (!usesSplitSeasonInput()) return true;
   const startText = (els.frSeasonStartInput.value || '').trim();
-  const endText = (els.frSeasonEndInput.value || '').trim();
-  if (!/^\d{2}$/.test(startText) || !/^\d{2}$/.test(endText)) return false;
-  const start = Number(startText);
-  const expectedEnd = (start + 1) % 100;
-  return Number(endText) === expectedEnd;
+  return /^\d{4}$/.test(startText);
 }
 
-function digitsOnly(value, maxLen = 2) {
+function updateFrSeasonSuffix() {
+  if (!els.frSeasonEndDisplay) return;
+  const startText = (els.frSeasonStartInput?.value || '').trim();
+  if (!/^\d{4}$/.test(startText)) {
+    els.frSeasonEndDisplay.textContent = '- --';
+    return;
+  }
+  els.frSeasonEndDisplay.textContent = `- ${String((Number(startText) + 1) % 100).padStart(2, '0')}`;
+}
+
+function digitsOnly(value, maxLen = 4) {
   return String(value || '').replace(/\D/g, '').slice(0, maxLen);
 }
 
@@ -1684,29 +1689,15 @@ function closeTeamAutocomplete(opts = {}) {
 }
 
 function onSeasonStartInput(e) {
-  const value = digitsOnly(e.target.value, 2);
+  const value = digitsOnly(e.target.value, 4);
   e.target.value = value;
-  if (value.length === 2) {
-    const start = Number(value);
-    if (Number.isFinite(start)) {
-      const next = String((start + 1) % 100).padStart(2, '0');
-      if (!els.frSeasonEndInput.value) els.frSeasonEndInput.value = next[0];
-    }
-    els.frSeasonEndInput.focus();
-    els.frSeasonEndInput.setSelectionRange(els.frSeasonEndInput.value.length, els.frSeasonEndInput.value.length);
-  }
-}
-
-function onSeasonEndInput(e) {
-  e.target.value = digitsOnly(e.target.value, 2);
+  updateFrSeasonSuffix();
 }
 
 function onSeasonKeydown(e) {
   if (e.key === 'Enter') {
     e.preventDefault();
     els.frGuessForm.requestSubmit();
-  } else if (e.key === 'Backspace' && e.target === els.frSeasonEndInput && !els.frSeasonEndInput.value) {
-    els.frSeasonStartInput.focus();
   }
 }
 
@@ -2158,7 +2149,7 @@ async function frSubmit(e) {
   const year = frSeasonGuessValue();
   if (!team || !year) return;
   if (!frSplitSeasonIsValid()) {
-    els.frFeedback.innerHTML = `<span class="bad">Enter the season as oldest year first, like 24 - 25.</span>`;
+    els.frFeedback.innerHTML = `<span class="bad">Enter the full starting year, like 2020.</span>`;
     return;
   }
   closeTeamAutocomplete({ keepValue: true });
@@ -2242,7 +2233,7 @@ function renderFrGame(initialRender) {
 function renderFrFeedback(g) {
   if (!g) return '';
   if (g.outcome === 'invalid') {
-    const seasonCopy = usesSplitSeasonInput() ? 'a season like 24 - 25' : 'a 4-digit year';
+    const seasonCopy = usesSplitSeasonInput() ? 'the full starting year, like 2020' : 'a 4-digit year';
     return `<span class="bad">Enter both a team and ${seasonCopy}.</span>`;
   }
   if (g.outcome === 'hit') {
@@ -2345,7 +2336,7 @@ function rulesForMode() {
   const markRule = `<p><strong>Team marks:</strong> every team-season used in a valid link receives a mark. At three marks, that team is ${outVerb} and cannot be used again. This is a hard stop: if your guessed player shares any team already marked as ${outTerm} with the top player, that guess is illegal even when another shared team is still open.</p>`;
   const allRules = `
     <h3>Manager Mode</h3><p>Solo endless lineup. Start from the daily ${starterTerm}, then name teammates before the 20-second timer expires. Correct answers reset the timer. Invalid guesses only cost time. Score the longest lineup you can, including the starter.</p>${linkIntro}${markRule}
-    <h3>Film Review</h3><p>Daily puzzle mode. Identify the team and year connecting each visible pair. A fully correct answer reveals the next player. One correct field is a partial answer; the first partial answer in a streak is safe, then every additional partial answer in that same streak counts against you. Three misses means Benched. Solving the full lineup is Fully Scouted.</p>
+    <h3>Film Review</h3><p>Daily puzzle mode. Identify the team and season connecting each visible pair. A fully correct answer reveals the next player. One correct field is a partial answer; the first partial answer in a streak is safe, then every additional partial answer in that same streak counts against you. Three misses means Benched. Solving the full lineup is Fully Scouted.</p>
     <h3>Division Rivalry</h3><p>Online head-to-head lineup battle. Players alternate turns after the countdown. On your turn, submit a teammate of the current top player before the 20-second clock expires. A correct answer passes the turn. Win when your opponent runs out of time or exits an active match.</p>${markRule}
     <h3>Playoffs</h3><p>Advanced online battle. Playoffs uses Division Rivalry's teammate-link and team-mark rules, then adds one-use powerups and a personal win condition. You can win on time, or win immediately by completing your condition first.</p>`;
   if (currentMode === 'home') {
@@ -2361,7 +2352,7 @@ function rulesForMode() {
   if (currentMode === 'fr') {
     const terms = frTerms();
     const connectionCopy = usesSplitSeasonInput()
-      ? 'the team and exact season, entered as two two-digit years such as 24 - 25'
+      ? 'the team and exact season, entered by typing the full starting year such as 2020 for 2020-21'
       : 'the team and year';
     return `<h3>Film Review</h3>
       <p>Film Review is the daily puzzle mode. You are reviewing a fixed lineup, one connection at a time. The visible pair of players has at least one shared team-season, and your job is to identify ${connectionCopy}.</p>
@@ -2663,9 +2654,7 @@ on(els.frGuessForm, 'submit', frSubmit);
 on(els.frTeamInput, 'input', onTeamInput);
 on(els.frTeamInput, 'keydown', onTeamKeydown);
 on(els.frSeasonStartInput, 'input', onSeasonStartInput);
-on(els.frSeasonEndInput, 'input', onSeasonEndInput);
 on(els.frSeasonStartInput, 'keydown', onSeasonKeydown);
-on(els.frSeasonEndInput, 'keydown', onSeasonKeydown);
 on(els.frHomeBtn, 'click', goHome);
 on(els.frOffenseBtn, 'click', () => startFr('offense'));
 on(els.frDefenseBtn, 'click', () => startFr('defense'));
