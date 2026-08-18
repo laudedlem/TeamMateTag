@@ -129,6 +129,9 @@ const els = {
   frTeamInput: document.getElementById('fr-team-input'),
   frTeamAutocompleteList: document.getElementById('fr-team-autocomplete-list'),
   frYearInput: document.getElementById('fr-year-input'),
+  frSeasonInputs: document.getElementById('fr-season-inputs'),
+  frSeasonStartInput: document.getElementById('fr-season-start-input'),
+  frSeasonEndInput: document.getElementById('fr-season-end-input'),
   frGuessForm: document.getElementById('fr-guess-form'),
   frFeedback: document.getElementById('fr-feedback'),
   frCardStack: document.getElementById('fr-card-stack'),
@@ -320,6 +323,59 @@ function configureLocalPlayoffPicker() {
 
 function onlineModeName(mode = currentMode) {
   return mode === 'po' ? 'Playoffs' : 'Division Rivalry';
+}
+
+function usesSplitSeasonInput() {
+  return ['basketball', 'football', 'hockey'].includes(CURRENT_SPORT);
+}
+
+function configureFrSeasonInputs() {
+  const split = usesSplitSeasonInput();
+  if (els.frYearInput) {
+    els.frYearInput.hidden = split;
+    els.frYearInput.disabled = split || frGame?.finished;
+  }
+  if (els.frSeasonInputs) els.frSeasonInputs.hidden = !split;
+  if (els.frSeasonStartInput) els.frSeasonStartInput.disabled = !split || frGame?.finished;
+  if (els.frSeasonEndInput) els.frSeasonEndInput.disabled = !split || frGame?.finished;
+}
+
+function setFrSeasonInputsDisabled(disabled) {
+  if (els.frYearInput) els.frYearInput.disabled = disabled || usesSplitSeasonInput();
+  if (els.frSeasonStartInput) els.frSeasonStartInput.disabled = disabled || !usesSplitSeasonInput();
+  if (els.frSeasonEndInput) els.frSeasonEndInput.disabled = disabled || !usesSplitSeasonInput();
+}
+
+function clearFrSeasonInputs() {
+  if (els.frYearInput) els.frYearInput.value = '';
+  if (els.frSeasonStartInput) els.frSeasonStartInput.value = '';
+  if (els.frSeasonEndInput) els.frSeasonEndInput.value = '';
+}
+
+function focusFrSeasonInput() {
+  if (usesSplitSeasonInput()) els.frSeasonStartInput?.focus();
+  else els.frYearInput?.focus();
+}
+
+function frSeasonGuessValue() {
+  if (!usesSplitSeasonInput()) return els.frYearInput.value.trim();
+  const start = (els.frSeasonStartInput.value || '').trim();
+  const end = (els.frSeasonEndInput.value || '').trim();
+  return start && end ? `${start}-${end}` : '';
+}
+
+function frSplitSeasonIsValid() {
+  if (!usesSplitSeasonInput()) return true;
+  const startText = (els.frSeasonStartInput.value || '').trim();
+  const endText = (els.frSeasonEndInput.value || '').trim();
+  if (!/^\d{2}$/.test(startText) || !/^\d{2}$/.test(endText)) return false;
+  const start = Number(startText);
+  const expectedEnd = (start + 1) % 100;
+  return Number(endText) === expectedEnd;
+}
+
+function digitsOnly(value, maxLen = 2) {
+  return String(value || '').replace(/\D/g, '').slice(0, maxLen);
 }
 
 async function api(path, body) {
@@ -1129,7 +1185,8 @@ async function startFr(unit = null, options = {}) {
   hideFrSummaryBanner();
   closeTeamAutocomplete();
   els.frTeamInput.value = '';
-  els.frYearInput.value = '';
+  clearFrSeasonInputs();
+  configureFrSeasonInputs();
   showScreen('fr-game');
   renderLoadingFilmReview();
   frGame = await api(filmReviewPath('new'),
@@ -1168,7 +1225,7 @@ function renderLoadingFilmReview() {
   els.frCardStack.innerHTML = '';
   els.frLineupBoard.innerHTML = '';
   els.frTeamInput.disabled = true;
-  els.frYearInput.disabled = true;
+  setFrSeasonInputsDisabled(true);
 }
 
 async function rematch() {
@@ -1578,7 +1635,7 @@ function onTeamKeydown(e) {
       els.frTeamInput.value = teamAcItems[teamAcHighlight];
       closeTeamAutocomplete({ keepValue: true });
     }
-    els.frYearInput.focus();
+    focusFrSeasonInput();
     return;
   }
 
@@ -1613,7 +1670,7 @@ function renderTeamAutocomplete() {
       const i = parseInt(li.dataset.i, 10);
       els.frTeamInput.value = teamAcItems[i];
       closeTeamAutocomplete({ keepValue: true });
-      els.frYearInput.focus();
+      focusFrSeasonInput();
     });
   });
 }
@@ -1624,6 +1681,33 @@ function closeTeamAutocomplete(opts = {}) {
   teamAcItems = [];
   teamAcHighlight = -1;
   if (!opts.keepValue) userTypedTeamQuery = '';
+}
+
+function onSeasonStartInput(e) {
+  const value = digitsOnly(e.target.value, 2);
+  e.target.value = value;
+  if (value.length === 2) {
+    const start = Number(value);
+    if (Number.isFinite(start)) {
+      const next = String((start + 1) % 100).padStart(2, '0');
+      if (!els.frSeasonEndInput.value) els.frSeasonEndInput.value = next[0];
+    }
+    els.frSeasonEndInput.focus();
+    els.frSeasonEndInput.setSelectionRange(els.frSeasonEndInput.value.length, els.frSeasonEndInput.value.length);
+  }
+}
+
+function onSeasonEndInput(e) {
+  e.target.value = digitsOnly(e.target.value, 2);
+}
+
+function onSeasonKeydown(e) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    els.frGuessForm.requestSubmit();
+  } else if (e.key === 'Backspace' && e.target === els.frSeasonEndInput && !els.frSeasonEndInput.value) {
+    els.frSeasonStartInput.focus();
+  }
 }
 
 function powerupClass(key) {
@@ -2071,8 +2155,12 @@ async function frSubmit(e) {
     els.frTeamInput.value = teamAcItems[teamAcHighlight];
   }
   const team = els.frTeamInput.value.trim();
-  const year = els.frYearInput.value.trim();
+  const year = frSeasonGuessValue();
   if (!team || !year) return;
+  if (!frSplitSeasonIsValid()) {
+    els.frFeedback.innerHTML = `<span class="bad">Enter the season as oldest year first, like 24 - 25.</span>`;
+    return;
+  }
   closeTeamAutocomplete({ keepValue: true });
   frGame = await api(filmReviewPath('guess'), {
     game_id: frGame.game_id,
@@ -2080,7 +2168,7 @@ async function frSubmit(e) {
     year,
   });
   els.frTeamInput.value = '';
-  els.frYearInput.value = '';
+  clearFrSeasonInputs();
   closeTeamAutocomplete();
   renderFrGame(false);
   if (frGame.finished) {
@@ -2148,13 +2236,14 @@ function renderFrGame(initialRender) {
   });
 
   els.frTeamInput.disabled = frGame.finished;
-  els.frYearInput.disabled = frGame.finished;
+  configureFrSeasonInputs();
 }
 
 function renderFrFeedback(g) {
   if (!g) return '';
   if (g.outcome === 'invalid') {
-    return '<span class="bad">Enter both a team and a 4-digit year.</span>';
+    const seasonCopy = usesSplitSeasonInput() ? 'a season like 24 - 25' : 'a 4-digit year';
+    return `<span class="bad">Enter both a team and ${seasonCopy}.</span>`;
   }
   if (g.outcome === 'hit') {
     const m = g.matched && g.matched[0];
@@ -2271,10 +2360,13 @@ function rulesForMode() {
   }
   if (currentMode === 'fr') {
     const terms = frTerms();
+    const connectionCopy = usesSplitSeasonInput()
+      ? 'the team and exact season, entered as two two-digit years such as 24 - 25'
+      : 'the team and year';
     return `<h3>Film Review</h3>
-      <p>Film Review is the daily puzzle mode. You are reviewing a fixed lineup, one connection at a time. The visible pair of players has at least one shared team-season, and your job is to identify the team and year.</p>
-      <p><strong>Your action:</strong> enter a team and a season, then submit. Use the team autocomplete so franchise names match the game's current naming rules. The next player is only added to the lineup board after the current link is correct.</p>
-      <p><strong>Feedback:</strong> a correct team and year is a ${terms.hit}. If only the team or only the year is correct, that is a ${terms.foul}. The first ${terms.foul} in a streak is safe, then every additional ${terms.foul} in that same streak becomes a ${terms.strike}. A completely wrong answer is also a ${terms.strike}.</p>
+      <p>Film Review is the daily puzzle mode. You are reviewing a fixed lineup, one connection at a time. The visible pair of players has at least one shared team-season, and your job is to identify ${connectionCopy}.</p>
+      <p><strong>Your action:</strong> enter the connection, then submit. Use the team autocomplete so franchise names match the game's current naming rules. The next player is only added to the lineup board after the current link is correct.</p>
+      <p><strong>Feedback:</strong> a correct team and season is a ${terms.hit}. If only the team or only the season is correct, that is a ${terms.foul}. The first ${terms.foul} in a streak is safe, then every additional ${terms.foul} in that same streak becomes a ${terms.strike}. A completely wrong answer is also a ${terms.strike}.</p>
       <p><strong>Goal:</strong> three ${terms.strikePlural} means Benched. Solve every connection to become Fully Scouted. Today's first attempt controls your streak; archived tapes can be continued, reviewed, or retried without changing the daily streak.</p>`;
   }
   if (currentMode === 'mp') {
@@ -2570,6 +2662,10 @@ on(els.toggleOut, 'change', applyToggles);
 on(els.frGuessForm, 'submit', frSubmit);
 on(els.frTeamInput, 'input', onTeamInput);
 on(els.frTeamInput, 'keydown', onTeamKeydown);
+on(els.frSeasonStartInput, 'input', onSeasonStartInput);
+on(els.frSeasonEndInput, 'input', onSeasonEndInput);
+on(els.frSeasonStartInput, 'keydown', onSeasonKeydown);
+on(els.frSeasonEndInput, 'keydown', onSeasonKeydown);
 on(els.frHomeBtn, 'click', goHome);
 on(els.frOffenseBtn, 'click', () => startFr('offense'));
 on(els.frDefenseBtn, 'click', () => startFr('defense'));

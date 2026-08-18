@@ -424,7 +424,7 @@
             <span id="fr-stats" class="fr-stats"></span>
           </div>
           <div class="turn-prompt">
-            <span class="muted">Guess the team and year linking</span>
+            <span class="muted">Guess the team and season linking</span>
             <div id="fr-pair-names"></div>
           </div>
           <form id="fr-guess-form" autocomplete="off" class="guess-form fr-guess-form">
@@ -436,6 +436,15 @@
             <input id="fr-year-input" type="text" autocomplete="off" spellcheck="false"
                    inputmode="numeric" pattern="\d{4}" maxlength="4"
                    placeholder="Year" />
+            <div id="fr-season-inputs" class="fr-season-inputs" hidden>
+              <input id="fr-season-start-input" type="text" autocomplete="off" spellcheck="false"
+                     inputmode="numeric" pattern="\d{2}" maxlength="2"
+                     aria-label="Season start year" placeholder="YY" />
+              <span class="fr-season-dash">-</span>
+              <input id="fr-season-end-input" type="text" autocomplete="off" spellcheck="false"
+                     inputmode="numeric" pattern="\d{2}" maxlength="2"
+                     aria-label="Season end year" placeholder="YY" />
+            </div>
             <button type="submit" class="primary">Guess</button>
           </form>
           <div id="fr-feedback" class="feedback"></div>

@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import os
 import random
+import re
 import secrets
 import sqlite3
 import sys
@@ -73,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.2.19"
+APP_VERSION = "0.2.20"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -3371,8 +3372,7 @@ def _local_sport_cards(conn: sqlite3.Connection, sport: str, player_ids: list[st
         teams = []
         for team, ranges in spans_by_team.items():
             years = ", ".join(
-                _sport_season_label(sport, start) if start == end
-                else f"{_sport_season_label(sport, start)} to {_sport_season_label(sport, end)}"
+                _sport_team_span_label(sport, start, end)
                 for start, end in ranges
             )
             teams.append(f"{team} {years}")
@@ -3457,10 +3457,42 @@ def _sport_season_label(sport: str, season: int | str | None) -> str:
     return str(year)
 
 
-def _sport_fr_year_matches(sport: str, season: int, guessed_year: int | None) -> bool:
-    if guessed_year is None:
+def _sport_team_span_label(sport: str, start: int, end: int) -> str:
+    if start == end:
+        return _sport_season_label(sport, start)
+    if _cross_year_season_sports(sport):
+        return f"{start}-{end + 1}"
+    return f"{start}-{end}"
+
+
+def _parse_cross_year_season_guess(year_text: str) -> tuple[int | None, int | None]:
+    raw = (year_text or "").strip()
+    parts = re.findall(r"\d{1,4}", raw)
+    if len(parts) != 2:
+        return None, None
+    try:
+        start_raw, end_raw = int(parts[0]), int(parts[1])
+    except ValueError:
+        return None, None
+    start = start_raw if start_raw >= 100 else (2000 + start_raw if start_raw <= 69 else 1900 + start_raw)
+    end = end_raw if end_raw >= 100 else (2000 + end_raw if end_raw <= 69 else 1900 + end_raw)
+    if end < start:
+        end += 100
+    if end != start + 1:
+        return None, None
+    return start, end
+
+
+def _sport_fr_year_matches(sport: str, season: int, year_text: str | int | None) -> bool:
+    if year_text is None:
         return False
-    return guessed_year == season or (_cross_year_season_sports(sport) and guessed_year == season + 1)
+    if _cross_year_season_sports(sport):
+        start, end = _parse_cross_year_season_guess(str(year_text))
+        return start == season and end == season + 1
+    try:
+        return int(str(year_text).strip()) == season
+    except (TypeError, ValueError):
+        return False
 
 
 def _sport_link_allowed(conn, sport: str, first: str, second: str, team_id: str, season: int) -> bool:
@@ -3562,8 +3594,7 @@ def _sport_cards(conn, sport: str, player_ids: list[str]) -> dict[str, dict]:
         teams = []
         for team, ranges in teams_by_player.get(player_id, {}).items():
             years = ", ".join(
-                _sport_season_label(sport, a) if a == b
-                else f"{_sport_season_label(sport, a)} to {_sport_season_label(sport, b)}"
+                _sport_team_span_label(sport, a, b)
                 for a, b in ranges
             )
             teams.append(f"{team} {years}")
@@ -3735,10 +3766,6 @@ def _local_fr_shared(conn: sqlite3.Connection, sport: str, first: str, second: s
 
 
 def _classify_local_fr_guess(team_text: str, year_text: str, shared: list[list], sport: str = "") -> tuple[str, list]:
-    try:
-        year = int(year_text)
-    except (TypeError, ValueError):
-        year = None
     query = normalize(team_text)
     team_matches, year_match = [], False
     for team_id, season, team_name, *_rest in shared:
@@ -3746,9 +3773,9 @@ def _classify_local_fr_guess(team_text: str, year_text: str, shared: list[list],
         team_hit = bool(query) and any(query == alias or query in alias or alias in query for alias in aliases)
         if team_hit:
             team_matches.append([team_id, season, team_name])
-        if _sport_fr_year_matches(sport, season, year):
+        if _sport_fr_year_matches(sport, season, year_text):
             year_match = True
-    hits = [row for row in team_matches if _sport_fr_year_matches(sport, row[1], year)]
+    hits = [row for row in team_matches if _sport_fr_year_matches(sport, row[1], year_text)]
     return ("hit", hits) if hits else (("foul", []) if team_matches or year_match else ("strike", []))
 
 
@@ -3808,7 +3835,7 @@ def local_fr_guess(sport: str):
         blob = game["blob"]
         if blob["finished"]:
             return jsonify(_local_fr_state(game_id, game))
-        if not team_text or not year_text:
+        if not team_text or not year_text or (_cross_year_season_sports(sport) and _parse_cross_year_season_guess(year_text) == (None, None)):
             blob["last_guess"] = {"outcome": "invalid", "team": team_text, "year": year_text}
             return jsonify(_local_fr_state(game_id, game))
         outcome, matched = _classify_local_fr_guess(team_text, year_text, blob["shared_per_pair"][blob["pair_index"]], sport)
@@ -7839,7 +7866,7 @@ def sport_fr_guess(sport: str):
         blob, finished = row
         blob["finished"] = finished
         if not finished:
-            if not team or not year:
+            if not team or not year or (_cross_year_season_sports(sport) and _parse_cross_year_season_guess(year) == (None, None)):
                 blob["last_guess"] = {"outcome": "invalid", "team": team, "year": year}
             else:
                 outcome, matched = _classify_local_fr_guess(team, year, blob["shared_per_pair"][blob["pair_index"]], sport)

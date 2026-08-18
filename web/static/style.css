@@ -1321,6 +1321,27 @@ button.secondary:hover { border-color: var(--accent); color: var(--accent); }
 
 .fr-guess-form input { flex: 1; }
 .fr-guess-form #fr-year-input { max-width: 90px; flex: 0 0 auto; }
+.fr-season-inputs {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 0 0 auto;
+}
+
+.fr-season-inputs[hidden] {
+  display: none;
+}
+
+.fr-season-inputs input {
+  width: 3.4rem;
+  flex: 0 0 auto;
+  text-align: center;
+}
+
+.fr-season-dash {
+  color: var(--text-muted);
+  font-weight: 700;
+}
 
 
 .team-autocomplete-wrap {
