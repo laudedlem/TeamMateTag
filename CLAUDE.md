@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.2.17`
+- Current display version: `0.2.18`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -1654,3 +1654,21 @@ Update, 2026-08-17 (0.2.17): playtest bug pass for baseball search and Film Revi
   The endpoint is idempotent; the two schedules cover midnight Central across
   daylight/standard time. Manual test generated all five daily puzzle units for
   2026-08-17.
+
+Update, 2026-08-17 (0.2.18): Film Review hub storage/performance pass.
+- Bumped visible app version to `0.2.18`.
+- Film Review daily puzzle rows now store `preview_cards` directly inside the
+  immutable puzzle JSON. This makes `/film` read the day's starter preview from
+  the stored daily tape instead of hydrating player cards repeatedly on every
+  hub load.
+- Existing daily puzzle rows are enriched lazily the next time they are read,
+  and newly generated rows are stored with preview data immediately.
+- `/api/film/archive_summary` now reads all user Film Review attempts in one
+  query and computes archive rows/streaks in memory, instead of running
+  repeated sport/unit queries.
+- `/api/film/archive_summary` and `/api/film/previews` load all current-day
+  puzzle previews in one query through `_film_preview_map_for_day`.
+- Local endpoint timing after cached previews: first cold test request about
+  6.6 seconds in the local shell, repeated warm requests about 0.9 seconds.
+  The midnight Vercel cron remains important because it ensures the daily tape
+  and preview payload are present before users open `/film`.

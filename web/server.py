@@ -73,7 +73,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.2.17"
+APP_VERSION = "0.2.18"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -5318,6 +5318,21 @@ def _film_archive_days(conn, guest_id: str, sport: str) -> list[dict]:
     return days
 
 
+def _film_archive_days_from_rows(rows: dict, sport: str, today: date) -> list[dict]:
+    days = []
+    units = ["offense", "defense"] if sport == "football" else [""]
+    for offset in range(min(60, max(1, (today - FILM_REVIEW_EPOCH).days + 1))):
+        puzzle_day = today - timedelta(days=offset)
+        if puzzle_day < FILM_REVIEW_EPOCH:
+            break
+        for unit in units:
+            status, game_id = rows.get((sport, puzzle_day, unit), ("unseen", None))
+            days.append({"date": puzzle_day.isoformat(), "number": _film_review_number(puzzle_day),
+                         "status": status, "game_id": game_id, "is_today": puzzle_day == today,
+                         "unit": unit})
+    return days
+
+
 def _film_streak(conn, guest_id: str, sport: str, unit: str = "") -> int:
     won_days = {
         row[0] for row in conn.execute(
@@ -5328,6 +5343,17 @@ def _film_streak(conn, guest_id: str, sport: str, unit: str = "") -> int:
         ).fetchall()
     }
     cursor = datetime.now(CENTRAL_TIME).date()
+    if cursor not in won_days:
+        cursor -= timedelta(days=1)
+    streak = 0
+    while cursor in won_days:
+        streak += 1
+        cursor -= timedelta(days=1)
+    return streak
+
+
+def _film_streak_from_won_days(won_days: set[date], today: date) -> int:
+    cursor = today
     if cursor not in won_days:
         cursor -= timedelta(days=1)
     streak = 0
@@ -5365,16 +5391,8 @@ def _film_success_rate(conn, sport: str, puzzle_day: date, unit: str = "") -> di
     return {"wins": int(wins), "finished": int(finished), "percent": pct}
 
 
-def _film_preview_cards(conn, sport: str, puzzle_day: date, unit: str = "") -> list[dict]:
-    row = conn.execute(
-        """SELECT puzzle FROM film_review_daily_puzzles
-             WHERE sport_id=%s AND puzzle_date=%s AND unit=%s""",
-        (sport, puzzle_day, unit or ""),
-    ).fetchone()
-    if not row:
-        return []
-    puzzle = dict(row[0])
-    deck = list(puzzle.get("deck") or [])
+def _build_film_preview_cards(conn, sport: str, deck: list[str]) -> list[dict]:
+    deck = list(deck or [])
     if len(deck) < 2:
         return []
     cards = _hydrate_player_cards(conn, deck[:2]) if sport == "baseball" else _sport_cards(conn, sport, deck[:2])
@@ -5386,6 +5404,54 @@ def _film_preview_cards(conn, sport: str, puzzle_day: date, unit: str = "") -> l
     return preview
 
 
+def _film_puzzle_with_preview(conn, sport: str, puzzle_day: date, unit: str | None, puzzle: dict) -> dict:
+    preview = puzzle.get("preview_cards")
+    if isinstance(preview, list) and len(preview) >= 2:
+        return puzzle
+    deck = list(puzzle.get("deck") or [])
+    if len(deck) < 2:
+        return puzzle
+    enriched = dict(puzzle)
+    enriched["preview_cards"] = _build_film_preview_cards(conn, sport, deck)
+    conn.execute(
+        """UPDATE film_review_daily_puzzles
+              SET puzzle=%s
+            WHERE sport_id=%s AND puzzle_date=%s AND unit=%s""",
+        (Jsonb(enriched), sport, puzzle_day, unit or ""),
+    )
+    return enriched
+
+
+def _film_preview_cards(conn, sport: str, puzzle_day: date, unit: str = "") -> list[dict]:
+    row = conn.execute(
+        """SELECT puzzle FROM film_review_daily_puzzles
+             WHERE sport_id=%s AND puzzle_date=%s AND unit=%s""",
+        (sport, puzzle_day, unit or ""),
+    ).fetchone()
+    if not row:
+        return []
+    puzzle = _film_puzzle_with_preview(conn, sport, puzzle_day, unit or None, dict(row[0]))
+    return list(puzzle.get("preview_cards") or [])
+
+
+def _film_preview_map_for_day(conn, puzzle_day: date) -> dict[tuple[str, str], list[dict]]:
+    rows = conn.execute(
+        """SELECT sport_id, unit, puzzle
+             FROM film_review_daily_puzzles
+            WHERE puzzle_date=%s""",
+        (puzzle_day,),
+    ).fetchall()
+    previews: dict[tuple[str, str], list[dict]] = {}
+    for sport, unit, puzzle_blob in rows:
+        puzzle = dict(puzzle_blob)
+        preview = puzzle.get("preview_cards")
+        if not isinstance(preview, list) or len(preview) < 2:
+            puzzle = _film_puzzle_with_preview(conn, sport, puzzle_day, unit or None, puzzle)
+            preview = puzzle.get("preview_cards")
+        previews[(sport, unit or "")] = list(preview or [])
+    return previews
+
+
 def _ensure_daily_film_puzzles(conn, puzzle_day: date | None = None) -> dict[str, list[str]]:
     puzzle_day = puzzle_day or datetime.now(CENTRAL_TIME).date()
     generated: dict[str, list[str]] = {}
@@ -5393,13 +5459,14 @@ def _ensure_daily_film_puzzles(conn, puzzle_day: date | None = None) -> dict[str
         units = ("offense", "defense") if sport == "football" else ("",)
         for unit in units:
             unit_key = unit or "default"
-            exists = conn.execute(
-                """SELECT 1 FROM film_review_daily_puzzles
+            existing = conn.execute(
+                """SELECT puzzle FROM film_review_daily_puzzles
                     WHERE sport_id=%s AND puzzle_date=%s AND unit=%s
                     LIMIT 1""",
                 (sport, puzzle_day, unit or ""),
             ).fetchone()
-            if exists:
+            if existing:
+                _film_puzzle_with_preview(conn, sport, puzzle_day, unit or None, dict(existing[0]))
                 generated.setdefault(sport, []).append(unit_key)
                 continue
             try:
@@ -5433,18 +5500,36 @@ def film_archive_summary():
     today = datetime.now(CENTRAL_TIME).date()
     with db() as conn:
         _ensure_daily_film_puzzles(conn, today)
+        preview_map = _film_preview_map_for_day(conn, today)
+        attempt_rows = {
+            (sport_id, puzzle_date, unit or ""): (status, game_id)
+            for sport_id, puzzle_date, unit, status, game_id in conn.execute(
+                """SELECT sport_id, puzzle_date, unit, status, game_id::text
+                     FROM film_review_daily_attempts
+                    WHERE owner_guest_id=%s""",
+                (guest_id,),
+            ).fetchall()
+        }
+        won_rows: dict[tuple[str, str], set[date]] = {}
+        for sport_id, unit, puzzle_date in conn.execute(
+            """SELECT sport_id, unit, puzzle_date
+                 FROM film_review_daily_attempts
+                WHERE owner_guest_id=%s AND status='won' AND official""",
+            (guest_id,),
+        ).fetchall():
+            won_rows.setdefault((sport_id, unit or ""), set()).add(puzzle_date)
         payload = {}
         for sport in sports:
             units = ["offense", "defense"] if sport == "football" else [""]
             unit_payload = {
                 unit or "default": {
-                    "preview": _film_preview_cards(conn, sport, today, unit),
-                    "streak": _film_streak(conn, guest_id, sport, unit),
+                    "preview": preview_map.get((sport, unit), []),
+                    "streak": _film_streak_from_won_days(won_rows.get((sport, unit), set()), today),
                 }
                 for unit in units
             }
             payload[sport] = {
-                "days": _film_archive_days(conn, guest_id, sport),
+                "days": _film_archive_days_from_rows(attempt_rows, sport, today),
                 "streak": max((entry["streak"] for entry in unit_payload.values()), default=0),
                 "today": unit_payload,
             }
@@ -5457,10 +5542,11 @@ def film_previews():
     today = datetime.now(CENTRAL_TIME).date()
     with db() as conn:
         _ensure_daily_film_puzzles(conn, today)
+        preview_map = _film_preview_map_for_day(conn, today)
         payload = {}
         for sport in ("baseball", "basketball", "hockey", "football"):
             units = ("offense", "defense") if sport == "football" else ("",)
-            payload[sport] = {unit or "default": _film_preview_cards(conn, sport, today, unit) for unit in units}
+            payload[sport] = {unit or "default": preview_map.get((sport, unit), []) for unit in units}
     return jsonify({"previews": payload})
 
 
@@ -7547,6 +7633,7 @@ def _daily_film_review_puzzle(conn, sport: str, puzzle_day: date, unit: str | No
     if row:
         puzzle = dict(row[0])
         if _valid_daily_film_puzzle(conn, puzzle, sport, puzzle_day, unit):
+            puzzle = _film_puzzle_with_preview(conn, sport, puzzle_day, unit, puzzle)
             deck = list(puzzle.get("deck") or [])
             if sport == "baseball":
                 still_resolves = all(_fr_compute_shared(conn, deck)[i] for i in range(len(deck) - 1))
@@ -7561,6 +7648,7 @@ def _daily_film_review_puzzle(conn, sport: str, puzzle_day: date, unit: str | No
             (sport, puzzle_day, unit_key),
         )
     puzzle = builder()
+    puzzle = _film_puzzle_with_preview(conn, sport, puzzle_day, unit, dict(puzzle))
     conn.execute(
         """INSERT INTO film_review_daily_puzzles (sport_id, puzzle_date, unit, puzzle)
              VALUES (%s,%s,%s,%s) ON CONFLICT (sport_id, puzzle_date, unit) DO NOTHING""",
@@ -7575,6 +7663,7 @@ def _daily_film_review_puzzle(conn, sport: str, puzzle_day: date, unit: str | No
 
 
 def _store_daily_film_review_puzzle(conn, sport: str, puzzle_day: date, unit: str | None, puzzle: dict) -> None:
+    puzzle = _film_puzzle_with_preview(conn, sport, puzzle_day, unit, dict(puzzle))
     conn.execute(
         """INSERT INTO film_review_daily_puzzles (sport_id, puzzle_date, unit, puzzle)
              VALUES (%s,%s,%s,%s) ON CONFLICT (sport_id, puzzle_date, unit) DO NOTHING""",
