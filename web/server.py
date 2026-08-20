@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.2.21"
+APP_VERSION = "0.2.22"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -5518,27 +5518,17 @@ def _ensure_daily_film_puzzles(conn, puzzle_day: date | None = None) -> dict[str
         units = ("offense", "defense") if sport == "football" else ("",)
         for unit in units:
             unit_key = unit or "default"
-            existing = conn.execute(
-                """SELECT puzzle FROM film_review_daily_puzzles
-                    WHERE sport_id=%s AND puzzle_date=%s AND unit=%s
-                    LIMIT 1""",
-                (sport, puzzle_day, unit or ""),
-            ).fetchone()
-            if existing:
-                _film_puzzle_with_preview(conn, sport, puzzle_day, unit or None, dict(existing[0]))
-                generated.setdefault(sport, []).append(unit_key)
-                continue
             try:
                 if sport == "baseball":
                     _daily_film_review_puzzle(
                         conn, sport, puzzle_day, None,
-                        lambda puzzle_day=puzzle_day: generate_baseball_film_review(conn, puzzle_day),
+                        lambda puzzle_day=puzzle_day: _build_film_review_puzzle_with_history(conn, "baseball", puzzle_day, None),
                     )
                 else:
                     _daily_film_review_puzzle(
                         conn, sport, puzzle_day, unit or None,
                         lambda sport=sport, unit=unit, puzzle_day=puzzle_day:
-                            _local_film_review_puzzle_dict(conn, sport, unit or None, puzzle_day),
+                            _build_film_review_puzzle_with_history(conn, sport, puzzle_day, unit or None),
                     )
                 generated.setdefault(sport, []).append(unit_key)
             except Exception as error:
@@ -7133,7 +7123,46 @@ def _fr_compute_shared(conn, deck: list[str]) -> list[list[tuple[str, int, str]]
     return out
 
 
-def generate_baseball_film_review(conn, puzzle_day: date) -> dict:
+def _film_pair_key(first: str, second: str) -> tuple[str, str]:
+    return tuple(sorted((first, second)))
+
+
+def _film_history_constraints(conn, sport: str, puzzle_day: date) -> tuple[set[str], set[tuple[str, str]]]:
+    """Return prior Film Review openings and adjacent pairs for this sport.
+
+    The archive is intentionally stable, so future daily puzzles should avoid
+    reusing the same opening players or exact teammate pairings from earlier
+    stored tapes.
+    """
+    rows = conn.execute(
+        """SELECT puzzle FROM film_review_daily_puzzles
+            WHERE sport_id=%s AND puzzle_date < %s""",
+        (sport, puzzle_day),
+    ).fetchall()
+    opening_players: set[str] = set()
+    adjacent_pairs: set[tuple[str, str]] = set()
+    for (puzzle,) in rows:
+        deck = list((puzzle or {}).get("deck") or [])
+        if len(deck) >= 2:
+            opening_players.update(deck[:2])
+        for index in range(len(deck) - 1):
+            adjacent_pairs.add(_film_pair_key(deck[index], deck[index + 1]))
+    return opening_players, adjacent_pairs
+
+
+def _film_puzzle_repeats_history(conn, sport: str, puzzle_day: date, puzzle: dict) -> bool:
+    deck = list(puzzle.get("deck") or [])
+    if len(deck) < 2:
+        return True
+    opening_players, adjacent_pairs = _film_history_constraints(conn, sport, puzzle_day)
+    if any(player_id in opening_players for player_id in deck[:2]):
+        return True
+    return any(_film_pair_key(deck[index], deck[index + 1]) in adjacent_pairs for index in range(len(deck) - 1))
+
+
+def generate_baseball_film_review(conn, puzzle_day: date, seed_suffix: str = "",
+                                  banned_opening_players: set[str] | None = None,
+                                  banned_adjacent_pairs: set[tuple[str, str]] | None = None) -> dict:
     """Build one stable, role-aware baseball lineup for a calendar day.
 
     The date is the sole seed, so every player sees the same puzzle without a
@@ -7205,14 +7234,26 @@ def generate_baseball_film_review(conn, puzzle_day: date) -> dict:
             reverse=True,
         )
 
-    rng = random.Random(f"baseball:{puzzle_day.isoformat()}")
+    banned_opening_players = banned_opening_players or set()
+    banned_adjacent_pairs = banned_adjacent_pairs or set()
+    rng = random.Random(f"baseball:{puzzle_day.isoformat()}:{seed_suffix}")
     for _ in range(500):
-        first = sorted(pools[BASEBALL_FR_SLOTS[0]], key=pools[BASEBALL_FR_SLOTS[0]].get, reverse=True)
+        first = [
+            player_id
+            for player_id in sorted(pools[BASEBALL_FR_SLOTS[0]], key=pools[BASEBALL_FR_SLOTS[0]].get, reverse=True)
+            if player_id not in banned_opening_players
+        ]
+        if not first:
+            first = sorted(pools[BASEBALL_FR_SLOTS[0]], key=pools[BASEBALL_FR_SLOTS[0]].get, reverse=True)
         deck = [rng.choice(first[:min(5, len(first))])]
         used_players, used_links = {deck[0]}, set()
         failed = False
         for slot_index, slot in enumerate(BASEBALL_FR_SLOTS[1:], 1):
-            choices = candidates(deck[-1], pools[slot], used_players, used_links)
+            choices = [
+                item for item in candidates(deck[-1], pools[slot], used_players, used_links)
+                if _film_pair_key(deck[-1], item[0]) not in banned_adjacent_pairs
+                   and not (slot_index == 1 and item[0] in banned_opening_players)
+            ]
             if not choices:
                 failed = True
                 break
@@ -7260,7 +7301,7 @@ def fr_state_dict(gid: str, blob: dict, conn=None) -> dict:
         with db() as _conn:
             cards = _film_card_map(_conn, "baseball", list(deck))
     current_streak = 0
-    if conn and blob.get("puzzle_date"):
+    if conn and blob.get("puzzle_date") and blob.get("finished"):
         try:
             if not blob.get("archive"):
                 current_streak = _film_current_streak(conn, blob.get("owner_guest_id"), "baseball", "")
@@ -7406,7 +7447,7 @@ def fr_new():
         try:
             puz = _daily_film_review_puzzle(
                 conn, "baseball", puzzle_day, None,
-                lambda: generate_baseball_film_review(conn, puzzle_day),
+                lambda: _build_film_review_puzzle_with_history(conn, "baseball", puzzle_day, None),
             )
         except RuntimeError as error:
             return jsonify({"error": str(error)}), 500
@@ -7600,7 +7641,7 @@ def _sport_fr_state_dict(gid: str, blob: dict, conn) -> dict:
     if not cards:
         cards = _film_card_map(conn, sport, deck)
     current_streak = 0
-    if blob.get("puzzle_date"):
+    if blob.get("puzzle_date") and blob.get("finished"):
         try:
             if not blob.get("archive"):
                 current_streak = _film_current_streak(conn, blob.get("owner_guest_id"), sport, blob.get("unit") or "")
@@ -7680,7 +7721,49 @@ def _valid_daily_film_puzzle(conn, puzzle: dict, sport: str, puzzle_day: date, u
         return False
     if not _film_deck_has_verified_headshots(conn, sport, deck):
         return False
+    if _film_puzzle_repeats_history(conn, sport, puzzle_day, puzzle):
+        return False
     return True
+
+
+def _build_film_review_puzzle_with_history(conn, sport: str, puzzle_day: date, unit: str | None) -> dict:
+    banned_opening_players, banned_adjacent_pairs = _film_history_constraints(conn, sport, puzzle_day)
+    last_error: Exception | None = None
+    for salt in range(80):
+        seed_suffix = "" if salt == 0 else f"alt{salt}"
+        try:
+            if sport == "baseball":
+                puzzle = generate_baseball_film_review(
+                    conn,
+                    puzzle_day,
+                    seed_suffix=seed_suffix,
+                    banned_opening_players=banned_opening_players,
+                    banned_adjacent_pairs=banned_adjacent_pairs,
+                )
+            else:
+                generated = generate_local_film_review(
+                    PgEngineConn(conn),
+                    sport,
+                    unit=unit,
+                    puzzle_day=puzzle_day,
+                    seed_suffix=seed_suffix,
+                    banned_opening_players=banned_opening_players,
+                    banned_adjacent_pairs=banned_adjacent_pairs,
+                )
+                puzzle = {
+                    "id": f"{sport}_{generated.puzzle_date}_{generated.unit or 'full'}",
+                    "puzzle_date": generated.puzzle_date,
+                    "slots": list(generated.slots),
+                    "deck": list(generated.deck),
+                    "unit": generated.unit,
+                }
+            if not _film_puzzle_repeats_history(conn, sport, puzzle_day, puzzle):
+                return puzzle
+        except Exception as error:
+            last_error = error
+    if last_error:
+        raise RuntimeError(f"could not build a non-repeating {sport} Film Review puzzle: {last_error}")
+    raise RuntimeError(f"could not build a non-repeating {sport} Film Review puzzle")
 
 
 def _daily_film_review_puzzle(conn, sport: str, puzzle_day: date, unit: str | None, builder) -> dict:
@@ -7815,7 +7898,7 @@ def sport_fr_new(sport: str):
         try:
             saved_puzzle = _daily_film_review_puzzle(
                 conn, sport, puzzle_day, unit,
-                lambda: _local_film_review_puzzle_dict(conn, sport, unit, puzzle_day),
+                lambda: _build_film_review_puzzle_with_history(conn, sport, puzzle_day, unit),
             )
         except (RuntimeError, ValueError) as error:
             return jsonify({"error": f"could not build Film Review: {error}"}), 500

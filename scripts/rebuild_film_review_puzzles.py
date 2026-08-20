@@ -63,11 +63,10 @@ def reset_existing(conn, sports: list[str], start: date, end: date) -> None:
 
 
 def build_puzzle(conn, sport: str, puzzle_day: date, unit: str | None) -> dict:
+    puzzle = server._build_film_review_puzzle_with_history(conn, sport, puzzle_day, unit)
     if sport == "baseball":
-        puzzle = server.generate_baseball_film_review(conn, puzzle_day)
         shared = server._fr_compute_shared(conn, list(puzzle["deck"]))
     else:
-        puzzle = server._local_film_review_puzzle_dict(conn, sport, unit, puzzle_day)
         deck = list(puzzle["deck"])
         shared = [server._sport_fr_shared(conn, sport, deck[index], deck[index + 1])
                   for index in range(len(deck) - 1)]

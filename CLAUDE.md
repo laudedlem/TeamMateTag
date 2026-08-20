@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.2.21`
+- Current display version: `0.2.22`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -36,7 +36,7 @@ changes. It is the concise source of truth for another coding assistant.
 - **Batting Practice**: solo endless lineup, 20-second server-authoritative
   turn timer, 3-second opening countdown, Rule B team strikes, daily top-nine
   longest-lineup leaderboard.
-- **Film Review**: nine-player / eight-connection puzzle. Guess team and year.
+- **Film Review**: nine-player / eight-connection puzzle. Guess team and season.
   A correct answer advances; one correct field is a foul. The first foul in a
   streak is safe; each additional consecutive foul is a strike. Three strikes
   ends the puzzle and shows the completed lineup.
@@ -1714,3 +1714,19 @@ Update, 2026-08-18 (0.2.21): Film Review season input simplification.
   of accepting either calendar year.
 - Updated Film Review page and rules copy from "team and year" to
   "team and season" where appropriate.
+
+Update, 2026-08-20 (0.2.22): Film Review no-repeat opening and faster guess response.
+- Bumped visible app version to `0.2.22`.
+- Film Review generation now reads prior stored daily puzzles and avoids:
+  - any prior first-two opening player appearing in the first two slots again;
+  - any prior adjacent teammate pair appearing again anywhere in the lineup.
+- The no-repeat rule is enforced by daily generation, cron prebuild, and
+  `scripts/rebuild_film_review_puzzles.py`. Existing rows that violate the
+  rule are considered invalid and rebuilt when read.
+- Added seed-suffix retries so deterministic daily puzzles can find an
+  alternate lineup without changing the public puzzle date/number.
+- Film Review state responses no longer calculate daily streak on every active
+  guess. Streak is now computed only when the puzzle is finished, reducing
+  unnecessary DB work before showing Hit/Foul/Strike feedback.
+- Dry run against production data showed baseball 2026-08-20 would rebuild away
+  from the repeated Cano/Overbay opening to Edwin Encarnacion/Jeff Conine.

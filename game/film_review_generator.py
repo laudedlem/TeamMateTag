@@ -230,8 +230,14 @@ def _candidate_links(conn: sqlite3.Connection, sport: str, player_id: str,
     )
 
 
+def _pair_key(first: str, second: str) -> tuple[str, str]:
+    return tuple(sorted((first, second)))
+
+
 def generate(conn: sqlite3.Connection, sport: str, puzzle_day: date | None = None,
-             attempts: int = 300, unit: str | None = None) -> GeneratedPuzzle:
+             attempts: int = 300, unit: str | None = None, seed_suffix: str = "",
+             banned_opening_players: set[str] | None = None,
+             banned_adjacent_pairs: set[tuple[str, str]] | None = None) -> GeneratedPuzzle:
     if sport not in LINEUP_SLOTS:
         raise ValueError(f"unsupported sport {sport!r}")
     puzzle_day = puzzle_day or date.today()
@@ -240,16 +246,28 @@ def generate(conn: sqlite3.Connection, sport: str, puzzle_day: date | None = Non
     missing = [slot for slot in set(slots) if not pools[slot]]
     if missing:
         raise ValueError(f"{sport} is missing exact position data for: {', '.join(sorted(missing))}")
-    rng = random.Random(f"{sport}:{puzzle_day.isoformat()}")
+    rng = random.Random(f"{sport}:{puzzle_day.isoformat()}:{unit or ''}:{seed_suffix}")
+    banned_opening_players = banned_opening_players or set()
+    banned_adjacent_pairs = banned_adjacent_pairs or set()
 
     for _ in range(attempts):
-        starters = sorted(pools[slots[0]], key=pools[slots[0]].get, reverse=True)
+        starters = [
+            player_id
+            for player_id in sorted(pools[slots[0]], key=pools[slots[0]].get, reverse=True)
+            if player_id not in banned_opening_players
+        ]
+        if not starters:
+            starters = sorted(pools[slots[0]], key=pools[slots[0]].get, reverse=True)
         deck = [rng.choice(starters[:min(5, len(starters))])]
         links: list[tuple[str, int]] = []
         used_players, used_links = {deck[0]}, set()
         failed = False
         for slot_index, slot in enumerate(slots[1:], 1):
-            choices = _candidate_links(conn, sport, deck[-1], pools[slot], used_players, used_links)
+            choices = [
+                item for item in _candidate_links(conn, sport, deck[-1], pools[slot], used_players, used_links)
+                if _pair_key(deck[-1], item[0]) not in banned_adjacent_pairs
+                   and not (slot_index == 1 and item[0] in banned_opening_players)
+            ]
             if not choices:
                 failed = True
                 break
