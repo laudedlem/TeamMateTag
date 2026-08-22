@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.3.17`
+- Current display version: `0.3.18`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -2018,3 +2018,9 @@ Update, 2026-08-22 (0.3.17): foam-finger icon retry from user reference.
   both homepage/sport-page Division Rivalry SVGs with a simpler foam prop
   silhouette: tall raised index finger on the left, rounded finger bumps to the
   right, chunky palm outline, and minimal `#1` interior marks.
+
+Update, 2026-08-22 (0.3.18): foam-finger interior cleanup.
+- Bumped visible app version to `0.3.18`.
+- Kept the Division Rivalry foam-finger outline but removed the interior finger
+  detail lines the user disliked. Replaced them with a path-drawn `#1` so the
+  hashtag renders as actual crossing strokes instead of broken text.
