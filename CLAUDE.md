@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.3.16`
+- Current display version: `0.3.17`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -2011,3 +2011,10 @@ Update, 2026-08-22 (0.3.16): glossary and foam-finger correction.
   and no anatomical finger-detail clutter.
 - Cleaned more visible rules/button copy to better preserve the capitalization
   style from the copy worksheet.
+
+Update, 2026-08-22 (0.3.17): foam-finger icon retry from user reference.
+- Bumped visible app version to `0.3.17`.
+- User provided a reference image for the Division Rivalry foam finger. Replaced
+  both homepage/sport-page Division Rivalry SVGs with a simpler foam prop
+  silhouette: tall raised index finger on the left, rounded finger bumps to the
+  right, chunky palm outline, and minimal `#1` interior marks.
