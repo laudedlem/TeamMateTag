@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.3.12`
+- Current display version: `0.3.13`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -1958,3 +1958,16 @@ Update, 2026-08-22 (0.3.12): context-specific rules and Playoffs label cleanup.
   3 Japanese Players`.
 - Fixed Baseball Ring Chaser reference text to match the server rule: 15
   combined World Series rings.
+
+Update, 2026-08-22 (0.3.13): background and modal color correction.
+- Bumped visible app version to `0.3.13`.
+- User disliked the colored stripe background and also dislikes repeated
+  top-left corner color blooms. Replaced the global background with a broader
+  multi-color smoky field using red, orange, yellow, green, blue, and violet
+  areas distributed around the viewport.
+- Removed the repeated corner-fade treatment from `?` and `Ref` content:
+  rules cards, Vocabulary cards, modal panels, and Ref tables now use readable
+  horizontal color bands, colored borders, and text labels instead of diagonal
+  corner blooms.
+- Accessibility direction: do not rely on color alone. Keep labels, headings,
+  borders, and icons/powerup names visible for colorblind users.

@@ -4013,14 +4013,16 @@ body.dark::before {
   }
 }
 
-/* 0.3.12 smoky color field. */
+/* 0.3.13 smoky multi-color field. */
 body.dark {
   background:
-    radial-gradient(circle at 12% 16%, rgba(242, 85, 85, 0.28), transparent 34%),
-    radial-gradient(circle at 78% 10%, rgba(103, 215, 255, 0.18), transparent 31%),
-    radial-gradient(circle at 70% 82%, rgba(80, 211, 107, 0.15), transparent 32%),
-    radial-gradient(circle at 24% 74%, rgba(255, 138, 61, 0.17), transparent 35%),
-    linear-gradient(180deg, #151a24 0%, #0d121b 48%, #080c13 100%);
+    radial-gradient(ellipse at 18% 24%, rgba(242, 85, 85, 0.24), transparent 31%),
+    radial-gradient(ellipse at 82% 21%, rgba(255, 138, 61, 0.2), transparent 32%),
+    radial-gradient(ellipse at 53% 8%, rgba(255, 216, 79, 0.11), transparent 28%),
+    radial-gradient(ellipse at 22% 82%, rgba(80, 211, 107, 0.16), transparent 34%),
+    radial-gradient(ellipse at 78% 73%, rgba(103, 215, 255, 0.2), transparent 34%),
+    radial-gradient(ellipse at 50% 55%, rgba(192, 132, 252, 0.14), transparent 42%),
+    linear-gradient(180deg, #171b25 0%, #10151f 45%, #090d14 100%);
 }
 
 body.dark::before {
@@ -4038,9 +4040,7 @@ body.dark::before {
 
 body.dark .modal-content {
   background:
-    radial-gradient(circle at 12% 0%, rgba(242, 85, 85, 0.12), transparent 34%),
-    radial-gradient(circle at 92% 10%, rgba(103, 215, 255, 0.1), transparent 32%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.065), rgba(255, 255, 255, 0.028)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.03)),
     #141b28;
   border-color: rgba(255, 255, 255, 0.16);
   box-shadow: 0 26px 70px rgba(0, 0, 0, 0.58);
@@ -4052,9 +4052,10 @@ body.dark .modal-content {
 
 .rules-mode-card {
   background:
-    linear-gradient(135deg, color-mix(in srgb, var(--rules-color, var(--accent)) 34%, transparent), transparent 62%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.025)),
+    linear-gradient(90deg, color-mix(in srgb, var(--rules-color, var(--accent)) 18%, transparent), rgba(255, 255, 255, 0.035) 42%, rgba(255, 255, 255, 0.018)),
     rgba(13, 18, 28, 0.78);
+  border-left: 5px solid var(--rules-color);
+  border-top: 1px solid color-mix(in srgb, var(--rules-color, var(--accent)) 42%, rgba(255, 255, 255, 0.12));
 }
 
 .rules-term-grid {
@@ -4065,8 +4066,9 @@ body.dark .modal-content {
   --term-color: var(--accent);
   border-color: color-mix(in srgb, var(--term-color) 34%, rgba(255, 255, 255, 0.12));
   background:
-    linear-gradient(135deg, color-mix(in srgb, var(--term-color) 22%, transparent), transparent 64%),
+    linear-gradient(90deg, color-mix(in srgb, var(--term-color) 16%, transparent), rgba(255, 255, 255, 0.028) 48%, rgba(255, 255, 255, 0.014)),
     rgba(13, 18, 28, 0.76);
+  box-shadow: inset 0 3px 0 color-mix(in srgb, var(--term-color) 58%, transparent);
 }
 
 .rules-term-card:nth-child(1) { --term-color: var(--sport-baseball); }
@@ -4085,13 +4087,13 @@ body.dark .modal-content {
   overflow: hidden;
   border-color: rgba(255, 255, 255, 0.16);
   background:
-    linear-gradient(135deg, rgba(255, 180, 84, 0.13), transparent 46%),
+    linear-gradient(90deg, rgba(242, 85, 85, 0.08), rgba(255, 138, 61, 0.07) 24%, rgba(255, 216, 79, 0.065) 42%, rgba(80, 211, 107, 0.06) 60%, rgba(103, 215, 255, 0.07) 78%, rgba(192, 132, 252, 0.075)),
     rgba(13, 18, 28, 0.76);
 }
 
 .reference-table th {
   background:
-    linear-gradient(90deg, rgba(255, 180, 84, 0.24), rgba(192, 132, 252, 0.16));
+    linear-gradient(90deg, rgba(242, 85, 85, 0.2), rgba(255, 138, 61, 0.18) 24%, rgba(255, 216, 79, 0.14) 42%, rgba(80, 211, 107, 0.14) 60%, rgba(103, 215, 255, 0.17) 78%, rgba(192, 132, 252, 0.18));
   color: #f8fafc;
 }
 
@@ -4105,6 +4107,6 @@ body.dark .modal-content {
 
 .reference-row {
   background:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.02)),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.026)),
     rgba(13, 18, 28, 0.72);
 }
