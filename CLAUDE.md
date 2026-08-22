@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.3.19`
+- Current display version: `0.3.20`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -2029,3 +2029,8 @@ Update, 2026-08-22 (0.3.19): foam-finger #1 placement.
 - Bumped visible app version to `0.3.19`.
 - Kept the Division Rivalry foam-finger outline unchanged. Moved the path-drawn
   `#1` upward and made it slightly larger so it fills the palm better.
+
+Update, 2026-08-22 (0.3.20): stronger foam-finger #1 adjustment.
+- Bumped visible app version to `0.3.20`.
+- User still saw too much empty palm space above the `#1`; moved the `#1`
+  higher again and enlarged it more noticeably while keeping the outline fixed.
