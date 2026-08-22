@@ -4234,6 +4234,11 @@ body[data-mode-hub] .sport-tile .home-tile-icon svg {
   max-width: 34rem;
 }
 
+body[data-sport] .mode-tile-manager { --mode-color: #9aa6b2; }
+body[data-sport] .mode-tile-film { --mode-color: #9b7bff; }
+body[data-sport] .mode-tile-division { --mode-color: #ff65ad; }
+body[data-sport] .mode-tile-playoffs { --mode-color: #ffd84f; }
+
 @media (max-width: 640px) {
   .rules-term-card {
     grid-template-columns: 1fr;
