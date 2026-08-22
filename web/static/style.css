@@ -4067,16 +4067,21 @@ body[data-sport] .modal-content {
 }
 
 .rules-term-grid {
-  counter-reset: rules-vocab;
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
 }
 
 .rules-term-card {
   --term-color: var(--accent);
+  display: grid;
+  grid-template-columns: minmax(8.5rem, 0.32fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 0.75rem;
   border-color: color-mix(in srgb, var(--term-color) 34%, rgba(255, 255, 255, 0.12));
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.022)),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.018)),
     rgba(13, 18, 28, 0.76);
-  box-shadow: inset 0 3px 0 color-mix(in srgb, var(--term-color) 58%, transparent);
+  box-shadow: inset 5px 0 0 color-mix(in srgb, var(--term-color) 72%, transparent);
 }
 
 .rules-term-card:nth-child(1) { --term-color: var(--sport-baseball); }
@@ -4089,6 +4094,113 @@ body[data-sport] .modal-content {
 
 .rules-term-card strong {
   color: color-mix(in srgb, var(--term-color) 70%, #ffffff);
+  display: inline-flex;
+  width: fit-content;
+  border: 1px solid color-mix(in srgb, var(--term-color) 44%, rgba(255, 255, 255, 0.16));
+  border-radius: 999px;
+  padding: 0.18rem 0.48rem;
+  background: color-mix(in srgb, var(--term-color) 12%, rgba(255, 255, 255, 0.035));
+}
+
+body[data-mode-hub] .sport-tile {
+  min-height: 118px;
+  padding: 1.05rem 5.3rem 1.05rem 1.1rem;
+}
+
+body[data-mode-hub] .sport-tile::after {
+  content: none;
+}
+
+body[data-mode-hub] .sport-tile-league {
+  display: none;
+}
+
+body[data-mode-hub] .sport-tile-name {
+  font-size: clamp(1.85rem, 5vw, 2.6rem);
+  line-height: 0.95;
+}
+
+body[data-mode-hub] .sport-tile-status {
+  max-width: 14rem;
+  font-size: 0.98rem;
+}
+
+body[data-mode-hub] .sport-tile .home-tile-icon {
+  position: absolute;
+  right: 1rem;
+  bottom: 0.78rem;
+  width: 4rem;
+  height: 4rem;
+  color: color-mix(in srgb, var(--sport-accent) 74%, #ffffff);
+  opacity: 0.68;
+  z-index: 1;
+}
+
+body[data-mode-hub] .sport-tile .home-tile-icon svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.mode-tile {
+  position: relative;
+  padding-right: 5.9rem;
+  min-height: 150px;
+  overflow: hidden;
+}
+
+.mode-tile::after {
+  content: none;
+}
+
+.mode-tile-icon {
+  position: absolute;
+  right: 1rem;
+  bottom: 0.85rem;
+  width: 4.3rem;
+  height: 4.3rem;
+  display: grid;
+  place-items: center;
+  color: color-mix(in srgb, var(--mode-color, var(--accent)) 76%, #ffffff);
+  opacity: 0.72;
+}
+
+.mode-tile-icon svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.55;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.mode-tile .mode-tile-name {
+  font-size: clamp(1.35rem, 2.5vw, 1.75rem);
+}
+
+.mode-tile .mode-tile-desc {
+  max-width: 34rem;
+}
+
+@media (max-width: 640px) {
+  .rules-term-card {
+    grid-template-columns: 1fr;
+  }
+
+  .mode-tile {
+    min-height: 138px;
+    padding-right: 4.8rem;
+  }
+
+  .mode-tile-icon {
+    width: 3.55rem;
+    height: 3.55rem;
+  }
 }
 
 .reference-table {

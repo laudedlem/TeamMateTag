@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.3.14`
+- Current display version: `0.3.15`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -1984,3 +1984,17 @@ Update, 2026-08-22 (0.3.14): fixed missed background cascade.
   neutral readable surfaces with a restrained blue header and clear text labels.
 - Continued visual direction: no striped backgrounds, no rainbow tables, no
   repeated corner-bloom treatment inside cards/modals/tables.
+
+Update, 2026-08-22 (0.3.15): tile/icon and rules vocabulary distinction.
+- Bumped visible app version to `0.3.15`.
+- Made the `?` Vocabulary section visually distinct from Game Modes: it now
+  reads as compact definition rows with pill labels and left color bars instead
+  of another grid of similar feature cards.
+- Added the homepage mode icons to sport-page mode buttons and removed their
+  generic colored circle pseudo-icon.
+- Rebuilt the Division Rivalry icon from scratch so the raised finger is on the
+  edge and reads more clearly as a `#1` hand/foam-finger concept instead of a
+  middle-finger shape.
+- Cleaned gamemode hub sport buttons: removed the giant league ghost text on
+  those pages, hid repeated league text, increased sport-name scale, and added
+  sport icons in the lower-right so labels do not overlap.
