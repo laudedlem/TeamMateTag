@@ -2960,9 +2960,7 @@ body {
 
 body {
   --sport-accent: var(--accent);
-  background:
-    linear-gradient(115deg, rgba(245, 74, 103, 0.1) 0 13%, transparent 13% 38%, rgba(34, 211, 238, 0.09) 38% 50%, transparent 50%),
-    linear-gradient(180deg, #090d14 0%, #07090d 100%);
+  background: var(--bg);
 }
 
 body[data-sport="baseball"],
@@ -3162,8 +3160,7 @@ select:focus {
   inset: auto 0 0 0;
   height: 42%;
   background:
-    linear-gradient(132deg, transparent 0 18%, color-mix(in srgb, var(--sport-accent) 22%, transparent) 18% 40%, transparent 40% 58%, color-mix(in srgb, var(--sport-accent) 16%, transparent) 58% 76%, transparent 76%),
-    linear-gradient(180deg, transparent, color-mix(in srgb, var(--sport-accent) 20%, transparent));
+    radial-gradient(ellipse at center bottom, color-mix(in srgb, var(--sport-accent) 30%, transparent), transparent 68%);
   opacity: 0.85;
   z-index: -1;
 }
@@ -4013,8 +4010,12 @@ body.dark::before {
   }
 }
 
-/* 0.3.13 smoky multi-color field. */
-body.dark {
+/* 0.3.14 smoky multi-color field, applied to every page shell. */
+html,
+body,
+body.dark,
+body[data-mode-hub],
+body[data-sport] {
   background:
     radial-gradient(ellipse at 18% 24%, rgba(242, 85, 85, 0.24), transparent 31%),
     radial-gradient(ellipse at 82% 21%, rgba(255, 138, 61, 0.2), transparent 32%),
@@ -4023,9 +4024,13 @@ body.dark {
     radial-gradient(ellipse at 78% 73%, rgba(103, 215, 255, 0.2), transparent 34%),
     radial-gradient(ellipse at 50% 55%, rgba(192, 132, 252, 0.14), transparent 42%),
     linear-gradient(180deg, #171b25 0%, #10151f 45%, #090d14 100%);
+  background-attachment: fixed;
 }
 
-body.dark::before {
+body::before,
+body.dark::before,
+body[data-mode-hub]::before,
+body[data-sport]::before {
   content: "";
   position: fixed;
   inset: 0;
@@ -4038,7 +4043,10 @@ body.dark::before {
   opacity: 0.54;
 }
 
-body.dark .modal-content {
+.modal-content,
+body.dark .modal-content,
+body[data-mode-hub] .modal-content,
+body[data-sport] .modal-content {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.03)),
     #141b28;
@@ -4052,7 +4060,7 @@ body.dark .modal-content {
 
 .rules-mode-card {
   background:
-    linear-gradient(90deg, color-mix(in srgb, var(--rules-color, var(--accent)) 18%, transparent), rgba(255, 255, 255, 0.035) 42%, rgba(255, 255, 255, 0.018)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.065), rgba(255, 255, 255, 0.025)),
     rgba(13, 18, 28, 0.78);
   border-left: 5px solid var(--rules-color);
   border-top: 1px solid color-mix(in srgb, var(--rules-color, var(--accent)) 42%, rgba(255, 255, 255, 0.12));
@@ -4066,7 +4074,7 @@ body.dark .modal-content {
   --term-color: var(--accent);
   border-color: color-mix(in srgb, var(--term-color) 34%, rgba(255, 255, 255, 0.12));
   background:
-    linear-gradient(90deg, color-mix(in srgb, var(--term-color) 16%, transparent), rgba(255, 255, 255, 0.028) 48%, rgba(255, 255, 255, 0.014)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.022)),
     rgba(13, 18, 28, 0.76);
   box-shadow: inset 0 3px 0 color-mix(in srgb, var(--term-color) 58%, transparent);
 }
@@ -4087,13 +4095,12 @@ body.dark .modal-content {
   overflow: hidden;
   border-color: rgba(255, 255, 255, 0.16);
   background:
-    linear-gradient(90deg, rgba(242, 85, 85, 0.08), rgba(255, 138, 61, 0.07) 24%, rgba(255, 216, 79, 0.065) 42%, rgba(80, 211, 107, 0.06) 60%, rgba(103, 215, 255, 0.07) 78%, rgba(192, 132, 252, 0.075)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.02)),
     rgba(13, 18, 28, 0.76);
 }
 
 .reference-table th {
-  background:
-    linear-gradient(90deg, rgba(242, 85, 85, 0.2), rgba(255, 138, 61, 0.18) 24%, rgba(255, 216, 79, 0.14) 42%, rgba(80, 211, 107, 0.14) 60%, rgba(103, 215, 255, 0.17) 78%, rgba(192, 132, 252, 0.18));
+  background: rgba(87, 166, 255, 0.16);
   color: #f8fafc;
 }
 
@@ -4107,6 +4114,12 @@ body.dark .modal-content {
 
 .reference-row {
   background:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.026)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.024)),
     rgba(13, 18, 28, 0.72);
+}
+
+body[data-mode-hub] .sport-tile::before,
+body[data-sport] .sport-tile::before {
+  background:
+    radial-gradient(ellipse at center bottom, color-mix(in srgb, var(--sport-accent) 32%, transparent), transparent 68%);
 }

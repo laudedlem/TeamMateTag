@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.3.13`
+- Current display version: `0.3.14`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -1971,3 +1971,16 @@ Update, 2026-08-22 (0.3.13): background and modal color correction.
   corner blooms.
 - Accessibility direction: do not rely on color alone. Keep labels, headings,
   borders, and icons/powerup names visible for colorblind users.
+
+Update, 2026-08-22 (0.3.14): fixed missed background cascade.
+- Bumped visible app version to `0.3.14`.
+- Corrected a miss from `0.3.13`: the smoky background was scoped mainly to
+  `body.dark`, but gamemode hub pages such as `/playoffs` use
+  `body[data-mode-hub]` without the `dark` class. The global smoky background
+  now applies to `html`, `body`, sport pages, and gamemode hub pages.
+- Removed the old body stripe source and replaced sport-tile stripe overlays
+  with a subtler bottom color glow.
+- Removed the rainbow Win Conditions / Ref table treatment. Ref tables now use
+  neutral readable surfaces with a restrained blue header and clear text labels.
+- Continued visual direction: no striped backgrounds, no rainbow tables, no
+  repeated corner-bloom treatment inside cards/modals/tables.
