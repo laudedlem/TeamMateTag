@@ -33,6 +33,8 @@ base2nerdle.zip
 .vscode/
 .idea/
 *.swp
+~$*.docx
+~WRL*.tmp
 .DS_Store
 
 # OS
