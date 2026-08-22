@@ -4013,11 +4013,14 @@ body.dark::before {
   }
 }
 
-/* 0.3.11 colored matte site texture. */
+/* 0.3.12 smoky color field. */
 body.dark {
   background:
-    linear-gradient(128deg, rgba(242, 85, 85, 0.2) 0 13%, transparent 13% 36%, rgba(255, 138, 61, 0.13) 36% 48%, transparent 48% 66%, rgba(103, 215, 255, 0.16) 66% 82%, rgba(80, 211, 107, 0.11) 82% 100%),
-    linear-gradient(180deg, #111827 0%, #0c111a 45%, #090d14 100%);
+    radial-gradient(circle at 12% 16%, rgba(242, 85, 85, 0.28), transparent 34%),
+    radial-gradient(circle at 78% 10%, rgba(103, 215, 255, 0.18), transparent 31%),
+    radial-gradient(circle at 70% 82%, rgba(80, 211, 107, 0.15), transparent 32%),
+    radial-gradient(circle at 24% 74%, rgba(255, 138, 61, 0.17), transparent 35%),
+    linear-gradient(180deg, #151a24 0%, #0d121b 48%, #080c13 100%);
 }
 
 body.dark::before {
@@ -4027,17 +4030,81 @@ body.dark::before {
   pointer-events: none;
   z-index: -1;
   background-image:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='.24'/%3E%3C/svg%3E"),
-    linear-gradient(155deg, transparent 0 18%, rgba(255, 255, 255, 0.035) 18% 19%, transparent 19% 38%, rgba(255, 255, 255, 0.026) 38% 39%, transparent 39%);
-  background-size: 120px 120px, 100% 100%;
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.72' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='.22'/%3E%3C/svg%3E");
+  background-size: 120px 120px;
   mix-blend-mode: soft-light;
-  opacity: 0.5;
+  opacity: 0.54;
 }
 
 body.dark .modal-content {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.025)),
+    radial-gradient(circle at 12% 0%, rgba(242, 85, 85, 0.12), transparent 34%),
+    radial-gradient(circle at 92% 10%, rgba(103, 215, 255, 0.1), transparent 32%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.065), rgba(255, 255, 255, 0.028)),
     #141b28;
   border-color: rgba(255, 255, 255, 0.16);
   box-shadow: 0 26px 70px rgba(0, 0, 0, 0.58);
+}
+
+.rules-mode-grid-single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.rules-mode-card {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--rules-color, var(--accent)) 34%, transparent), transparent 62%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.025)),
+    rgba(13, 18, 28, 0.78);
+}
+
+.rules-term-grid {
+  counter-reset: rules-vocab;
+}
+
+.rules-term-card {
+  --term-color: var(--accent);
+  border-color: color-mix(in srgb, var(--term-color) 34%, rgba(255, 255, 255, 0.12));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--term-color) 22%, transparent), transparent 64%),
+    rgba(13, 18, 28, 0.76);
+}
+
+.rules-term-card:nth-child(1) { --term-color: var(--sport-baseball); }
+.rules-term-card:nth-child(2) { --term-color: var(--sport-basketball); }
+.rules-term-card:nth-child(3) { --term-color: var(--sport-hockey); }
+.rules-term-card:nth-child(4) { --term-color: var(--sport-football); }
+.rules-term-card:nth-child(5) { --term-color: var(--mode-film); }
+.rules-term-card:nth-child(6) { --term-color: var(--mode-playoffs); }
+.rules-term-card:nth-child(7) { --term-color: var(--mode-division); }
+
+.rules-term-card strong {
+  color: color-mix(in srgb, var(--term-color) 70%, #ffffff);
+}
+
+.reference-table {
+  overflow: hidden;
+  border-color: rgba(255, 255, 255, 0.16);
+  background:
+    linear-gradient(135deg, rgba(255, 180, 84, 0.13), transparent 46%),
+    rgba(13, 18, 28, 0.76);
+}
+
+.reference-table th {
+  background:
+    linear-gradient(90deg, rgba(255, 180, 84, 0.24), rgba(192, 132, 252, 0.16));
+  color: #f8fafc;
+}
+
+.reference-table td {
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.reference-condition-name {
+  color: #ffd978;
+}
+
+.reference-row {
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.02)),
+    rgba(13, 18, 28, 0.72);
 }

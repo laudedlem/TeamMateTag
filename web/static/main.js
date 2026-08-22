@@ -304,6 +304,19 @@ function onlineApiBase(mode = currentMode) {
 }
 
 const LOCAL_PLAYOFF_OPTIONS = {
+  baseball: [
+    ['random', 'Random'], ['sunset_kingdom', 'Sunset Kingdom: 3 Japanese Players'],
+    ['havana_heat', 'Havana Heat: 3 Cuban Players'],
+    ['maple_corridor', 'Maple Corridor: 4 Canadian Players'],
+    ['mvp_circle', 'MVP Circle: 2 MVP Winners'],
+    ['young_buck', 'Young Buck: 2 Rookie of the Year Winners'],
+    ['gonna_be_golden', 'Gonna Be Golden: 2 Gold Glove Winners'],
+    ['secretariat', 'Secretariat: 1 Triple Crown Winner'],
+    ['hound_dog', 'Hound-dog: 2 One-Franchise Players'],
+    ['great_bambinos', 'Great Bambinos: 1 500-Home-Run Player'],
+    ['ring_chaser', 'Ring Chaser: 15 Combined World Series Rings'],
+    ['journeyman', 'Journeyman: 2 Seven-Team Players'],
+  ],
   basketball: [
     ['random', 'Random'], ['bucket_getter', 'Bucket Getter: 2 players with 25,000 career points'],
     ['season_scorer', 'Scoring Run: 2 players with a 2,000-point season'],
@@ -346,6 +359,15 @@ function configureLocalPlayoffPicker() {
   els.playoffConditionSelect.innerHTML = options.map(([value, label]) =>
     `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`).join('');
   els.playoffConditionSelect.value = options.some(([value]) => value === saved) ? saved : 'random';
+}
+
+function enforceDetailedPlayoffPicker() {
+  const options = LOCAL_PLAYOFF_OPTIONS[CURRENT_SPORT];
+  if (!options || !els.playoffConditionSelect) return;
+  const selected = els.playoffConditionSelect.value || window.localStorage.getItem('tt_local_playoff_condition_' + CURRENT_SPORT) || 'random';
+  els.playoffConditionSelect.innerHTML = options.map(([value, label]) =>
+    `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`).join('');
+  els.playoffConditionSelect.value = options.some(([value]) => value === selected) ? selected : 'random';
 }
 
 function onlineModeName(mode = currentMode) {
@@ -1023,7 +1045,11 @@ function pickMode(mode) {
     els.playoffConditionPicker.hidden = mode !== 'po';
     if (mode === 'po') {
       if (isCrossSport()) configureLocalPlayoffPicker();
-      else els.playoffConditionSelect.value = profile?.playoff_win_condition_preference || 'random';
+      else {
+        enforceDetailedPlayoffPicker();
+        els.playoffConditionSelect.value = profile?.playoff_win_condition_preference || 'random';
+        enforceDetailedPlayoffPicker();
+      }
     }
     return;
   }
@@ -2362,20 +2388,76 @@ function applyToggles() {
 }
 
 function rulesForMode() {
-  return CURRENT_SPORT ? sportRulesHtml(CURRENT_SPORT) : sharedRulesHtml();
+  return CURRENT_SPORT ? sportRulesHtml(CURRENT_SPORT, currentMode) : sharedRulesHtml();
 }
 
 function sportTermsForRules(sport = CURRENT_SPORT || 'baseball') {
   return ({
-    baseball: { starter: 'Leadoff', out: 'Struck Out', hit: 'Hit', foul: 'Foul', strike: 'Strike', strikes: 'Strikes' },
-    basketball: { starter: 'Tipoff', out: 'Fouled Out', hit: 'Bucket', foul: 'Rim Out', strike: 'Foul', strikes: 'Fouls' },
-    football: { starter: 'Snapper', out: 'Punted', hit: 'Completion', foul: 'Tipped Pass', strike: 'Turnover', strikes: 'Turnovers' },
-    hockey: { starter: 'Faceoff', out: 'Game Misconduct', hit: 'Goal', foul: 'Offside', strike: 'Penalty', strikes: 'Penalties' },
+    baseball: { starter: 'Leadoff', out: 'Struck Out', hit: 'Hit', foul: 'Foul', strike: 'Strike', strikes: 'Strikes', partial: 'Foul' },
+    basketball: { starter: 'Tipoff', out: 'Fouled Out', hit: 'Bucket', foul: 'Rim Out', strike: 'Foul', strikes: 'Fouls', partial: 'Rim Out' },
+    football: { starter: 'Snapper', out: 'Punted', hit: 'Completion', foul: 'Tipped Pass', strike: 'Turnover', strikes: 'Turnovers', partial: 'Tipped Pass' },
+    hockey: { starter: 'Faceoff', out: 'Game Misconduct', hit: 'Goal', foul: 'Offside', strike: 'Penalty', strikes: 'Penalties', partial: 'Offside' },
   })[sport] || sportTermsForRules('baseball');
 }
 
-function sportRulesHtml(sport = CURRENT_SPORT || 'baseball') {
+function sportRulesHtml(sport = CURRENT_SPORT || 'baseball', mode = currentMode) {
   const terms = sportTermsForRules(sport);
+  const allRules = {
+    bp: {
+      className: 'mode-manager',
+      title: 'Manager Mode',
+      body: [
+        `Starting with the ${terms.starter} Player, name TeamMates of the Top Player before the clock runs out.`,
+        `Each correct answer becomes the new Top Player. The same Team-Season Link used 3 times results in a ${terms.out} Team-Season.`,
+        '<strong>Goal:</strong> set your longest Lineup.',
+        '<strong>Lose:</strong> run out of time.',
+      ],
+    },
+    fr: {
+      className: 'mode-film',
+      title: 'Film Review',
+      body: [
+        'Build the daily Lineup by naming the team and season two TeamMates played together.',
+        `A correct Link is a ${terms.hit}. One correct field is a ${terms.partial}. Two ${terms.partial}s in a row count as a ${terms.strike}.`,
+        '<strong>Goal:</strong> complete every TeamMate Link in the Lineup.',
+        `<strong>Lose:</strong> get 3 ${terms.strikes}.`,
+      ],
+    },
+    mp: {
+      className: 'mode-division',
+      title: 'Division Rivalry',
+      body: [
+        'Two Players take turns adding TeamMates to one shared Lineup.',
+        `Avoid ${terms.out} Team-Seasons. You cannot play a Player who only connects through a Team-Season that is already out.`,
+        '<strong>Goal:</strong> outlast your opponent.',
+        '<strong>Win:</strong> your opponent runs out of time.',
+      ],
+    },
+    po: {
+      className: 'mode-playoffs',
+      title: 'Playoffs',
+      body: [
+        'Play a Head-to-Head Lineup with Powerups and a selected Win Condition.',
+        'Each Player gets 1 use of every Powerup. Powerups can add time, pressure the opponent, or open special same-franchise links.',
+        '<strong>Goal:</strong> complete your Win Condition first, or outlast your opponent.',
+        '<strong>Win:</strong> your opponent runs out of time or you finish your Win Condition.',
+      ],
+    },
+  };
+  const activeRule = allRules[mode];
+  if (activeRule) {
+    return `<div class="rules-sheet">
+      <section class="rules-section">
+        <h3>How to Play ${escapeHtml(activeRule.title)}</h3>
+        <div class="rules-mode-grid rules-mode-grid-single">
+          <article class="rules-mode-card ${escapeHtml(activeRule.className)}">
+            <h4>${escapeHtml(activeRule.title)}</h4>
+            ${activeRule.body.map((line) => `<p>${line}</p>`).join('')}
+          </article>
+        </div>
+      </section>
+    </div>`;
+  }
   return `
     <div class="rules-sheet">
       <section class="rules-section">
@@ -2666,7 +2748,7 @@ function renderPowerupReferenceHtml() {
       ['Maple Corridor', 'Name 4 Canadian players.'], ['MVP Circle', 'Name 2 MVP winners.'],
       ['Young Buck', 'Name 2 Rookie of the Year winners.'], ['Gonna Be Golden', 'Name 2 Gold Glove winners.'],
       ['Secretariat', 'Name 1 Triple Crown winner.'], ['Hound-dog', 'Name 2 players who spent at least 10 seasons with one franchise only.'],
-      ['Great Bambinos', 'Name 1 player with 500 career home runs.'], ['Ring Chaser', 'Name players with 8 combined World Series rings.'],
+      ['Great Bambinos', 'Name 1 player with 500 career home runs.'], ['Ring Chaser', 'Name players with 15 combined World Series rings.'],
       ['Journeyman', 'Name 2 players who played for at least 7 teams.'],
     ],
     basketball: LOCAL_PLAYOFF_OPTIONS.basketball.map(([, label]) => label.split(': ')),

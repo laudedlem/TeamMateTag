@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.3.11`
+- Current display version: `0.3.12`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -1939,3 +1939,22 @@ Update, 2026-08-22 (0.3.11): sport-specific rules/reference cleanup.
   readable dark panel with color reserved for cards/tables.
 - Refreshed `scripts/create_copy_edit_worksheet.py` so future copy worksheets
   start from the current terms and Ref intro instead of stale 0.3.10 wording.
+
+Update, 2026-08-22 (0.3.12): context-specific rules and Playoffs label cleanup.
+- Bumped visible app version to `0.3.12`.
+- Replaced the visible diagonal line background with a smoky multi-color dark
+  background. User disliked the colored stripe/line treatment and prefers color
+  blended into the page more naturally.
+- Added more color structure to rules Vocabulary cards and Ref tables so the
+  modal content is not plain dark/gray, while keeping text readable.
+- Changed gamemode hub `?` modals (`/manager`, `/film`, `/division`,
+  `/playoffs`) to show only the selected mode's rules, with no Vocabulary or
+  Sport Terms sections.
+- Changed in-game sport-page `?` modals so active games show only that specific
+  mode's rules using that sport's terminology. Sport home screens still show
+  the condensed all-mode game-mode section.
+- Updated Playoffs win-condition dropdown labels on the multisport hub and
+  sport pages to include the required amount/threshold, e.g. `Sunset Kingdom:
+  3 Japanese Players`.
+- Fixed Baseball Ring Chaser reference text to match the server rule: 15
+  combined World Series rings.

@@ -6,30 +6,94 @@ let activeQueueSports = [];
 
 const PLAYOFF_OPTIONS = {
   baseball: [
-    ['random', 'Random'], ['sunset_kingdom', 'Sunset Kingdom'], ['havana_heat', 'Havana Heat'],
-    ['maple_corridor', 'Maple Corridor'], ['mvp_circle', 'MVP Circle'], ['young_buck', 'Young Buck'],
-    ['gonna_be_golden', 'Gonna Be Golden'], ['secretariat', 'Secretariat'], ['hound_dog', 'Hound-dog'],
-    ['great_bambinos', 'Great Bambinos'], ['ring_chaser', 'Ring Chaser'], ['journeyman', 'Journeyman'],
+    ['random', 'Random'], ['sunset_kingdom', 'Sunset Kingdom: 3 Japanese Players'], ['havana_heat', 'Havana Heat: 3 Cuban Players'],
+    ['maple_corridor', 'Maple Corridor: 4 Canadian Players'], ['mvp_circle', 'MVP Circle: 2 MVP Winners'], ['young_buck', 'Young Buck: 2 Rookie of the Year Winners'],
+    ['gonna_be_golden', 'Gonna Be Golden: 2 Gold Glove Winners'], ['secretariat', 'Secretariat: 1 Triple Crown Winner'], ['hound_dog', 'Hound-dog: 2 One-Franchise Players'],
+    ['great_bambinos', 'Great Bambinos: 1 500-Home-Run Player'], ['ring_chaser', 'Ring Chaser: 15 Combined World Series Rings'], ['journeyman', 'Journeyman: 2 Seven-Team Players'],
   ],
   basketball: [
-    ['random', 'Random'], ['bucket_getter', 'Bucket Getter'], ['season_scorer', 'Scoring Run'],
-    ['playmaker', 'Table Setter'], ['three_point_club', 'Deep Range'], ['ironhorse', 'Ironhorse'],
-    ['one_team', 'Home Court'], ['journeyman', 'Frequent Flyer'], ['mvp_circle', 'MVP Circle'],
-    ['all_star_marathon', 'All-Star Marathon'], ['ring_chaser', 'Ring Chaser'], ['young_guns', 'Young Guns'],
+    ['random', 'Random'], ['bucket_getter', 'Bucket Getter: 2 Players with 25,000 Career Points'],
+    ['season_scorer', 'Scoring Run: 2 Players with a 2,000-Point Season'],
+    ['playmaker', 'Table Setter: 2 Players with 7,000 Career Assists'],
+    ['three_point_club', 'Deep Range: 2 Players with 2,000 Career Three-Pointers'],
+    ['ironhorse', 'Ironhorse: 2 Players with 1,000 Career Games'],
+    ['one_team', 'Home Court: 2 Players with 8 Seasons for One Franchise'],
+    ['journeyman', 'Frequent Flyer: 2 Players Who Played for 5 Teams'],
+    ['mvp_circle', 'MVP Circle: 2 MVP Winners'],
+    ['all_star_marathon', 'All-Star Marathon: 12 Combined All-Star Selections'],
+    ['ring_chaser', 'Ring Chaser: 6 Combined Championships'],
+    ['young_guns', 'Young Guns: 2 Rookie of the Year Winners'],
   ],
   football: [
-    ['random', 'Random'], ['touchdown_club', 'End Zone'], ['season_scorer', 'Season Scorer'],
-    ['air_raid', 'Air Raid'], ['single_season_passer', 'Sunday Slingers'], ['sack_master', 'Sack Master'],
-    ['ballhawk', 'Ballhawk'], ['one_team', 'One Club'], ['journeyman', 'Journeyman'],
-    ['mvp_circle', 'MVP Circle'], ['pro_bowl_marathon', 'Pro Bowl Marathon'], ['ring_chaser', 'Ring Chaser'],
-    ['young_guns', 'Fresh Faces'],
+    ['random', 'Random'], ['touchdown_club', 'End Zone: 2 Players with 100 Career Touchdowns'],
+    ['season_scorer', 'Season Scorer: 2 Players with a 15-Touchdown Season'],
+    ['air_raid', 'Air Raid: 2 Players with 300 Career Passing Touchdowns'],
+    ['single_season_passer', 'Sunday Slingers: 2 Players with a 35-Passing-Touchdown Season'],
+    ['sack_master', 'Sack Master: 2 Players with 100 Career Sacks'],
+    ['ballhawk', 'Ballhawk: 2 Players with 30 Career Interceptions'],
+    ['one_team', 'One Club: 2 Players with 10 Seasons for One Franchise'],
+    ['journeyman', 'Journeyman: 2 Players Who Played for 5 Teams'],
+    ['mvp_circle', 'MVP Circle: 2 MVP Winners'],
+    ['pro_bowl_marathon', 'Pro Bowl Marathon: 12 Combined Pro Bowl Selections'],
+    ['ring_chaser', 'Ring Chaser: 5 Combined Championships'],
+    ['young_guns', 'Fresh Faces: 2 Rookie of the Year Winners'],
   ],
   hockey: [
-    ['random', 'Random'], ['sniper', 'Sniper'], ['single_season_sniper', 'Rocket Season'],
-    ['playmaker', 'Playmaker'], ['point_streak', 'Point Machine'], ['one_team', 'Lifer'],
-    ['journeyman', 'Journeyman'], ['mvp_circle', 'Hart Club'], ['all_star_marathon', 'All-Star Marathon'],
-    ['ironhorse', 'Ironhorse'], ['ring_chaser', 'Cup Chasers'], ['young_guns', 'Fresh Ice'],
+    ['random', 'Random'], ['sniper', 'Sniper: 2 Players with 500 Career Goals'],
+    ['single_season_sniper', 'Rocket Season: 1 Player with a 60-Goal Season'],
+    ['playmaker', 'Playmaker: 2 Players with 1,000 Career Assists'],
+    ['point_streak', 'Point Machine: 1 Player with a 120-Point Season'],
+    ['one_team', 'Lifer: 2 Players with 10 Seasons for One Franchise'],
+    ['journeyman', 'Journeyman: 2 Players Who Played for 5 Teams'],
+    ['mvp_circle', 'Hart Club: 2 Hart Trophy Winners'],
+    ['all_star_marathon', 'All-Star Marathon: 12 Combined All-Star Selections'],
+    ['ironhorse', 'Ironhorse: 2 Players with 1,200 Career Games'],
+    ['ring_chaser', 'Cup Chasers: 7 Combined Stanley Cup Credits'],
+    ['young_guns', 'Fresh Ice: 2 Calder Trophy Winners'],
   ],
+};
+
+const MODE_RULES = {
+  manager: {
+    className: 'mode-manager',
+    title: 'Manager Mode',
+    body: [
+      'Start with the daily starter and name a TeamMate before the clock runs out.',
+      'Every correct answer becomes the new Top Player. Team-Seasons collect Strikes as the Lineup grows.',
+      '<strong>Goal:</strong> build your longest Lineup.',
+      '<strong>Lose:</strong> run out of time.',
+    ],
+  },
+  film: {
+    className: 'mode-film',
+    title: 'Film Review',
+    body: [
+      'Solve the daily Lineup by naming the team and season that connect each pair of Players.',
+      'A correct team and season advances the Lineup. One correct field is a partial miss. Two partial misses in a row count as a miss.',
+      '<strong>Goal:</strong> complete every TeamMate Link.',
+      '<strong>Lose:</strong> miss 3 Links.',
+    ],
+  },
+  division: {
+    className: 'mode-division',
+    title: 'Division Rivalry',
+    body: [
+      'Two Players take turns adding TeamMates to one shared Lineup.',
+      'A Team-Season with 3 Strikes is out. You cannot use a Player who only connects through an out Team-Season.',
+      '<strong>Goal:</strong> outlast your opponent.',
+      '<strong>Win:</strong> your opponent runs out of time.',
+    ],
+  },
+  playoffs: {
+    className: 'mode-playoffs',
+    title: 'Playoffs',
+    body: [
+      'Play a Head-to-Head Lineup with Powerups and a selected Win Condition.',
+      'Each Player gets 1 use of every Powerup. Powerups can extend the clock, pressure the opponent, or open special same-franchise links.',
+      '<strong>Goal:</strong> complete your Win Condition first, or outlast your opponent.',
+      '<strong>Win:</strong> your opponent runs out of time or you finish your Win Condition.',
+    ],
+  },
 };
 
 const SHARED_RULES_HTML = `
@@ -500,7 +564,19 @@ function closeHubModal() {
 }
 
 function allModeRulesHtml() {
-  return SHARED_RULES_HTML;
+  const rule = MODE_RULES[hub];
+  if (!rule) return SHARED_RULES_HTML;
+  return `<div class="rules-sheet">
+    <section class="rules-section">
+      <h3>How to Play ${escapeHtml(rule.title)}</h3>
+      <div class="rules-mode-grid rules-mode-grid-single">
+        <article class="rules-mode-card ${escapeHtml(rule.className)}">
+          <h4>${escapeHtml(rule.title)}</h4>
+          ${rule.body.map((line) => `<p>${line}</p>`).join('')}
+        </article>
+      </div>
+    </section>
+  </div>`;
 }
 
 function conditionsHtml(sport = null) {
@@ -510,8 +586,10 @@ function conditionsHtml(sport = null) {
     return `<h3>${escapeHtml(sportKey[0].toUpperCase() + sportKey.slice(1))}</h3>
       <table class="reference-table">
         <thead><tr><th>Condition</th><th>Need</th></tr></thead>
-        <tbody>${rows.map(([key, label]) =>
-          `<tr><td class="reference-condition-name">${escapeHtml(label)}</td><td class="reference-condition-need">${escapeHtml(CONDITION_REQUIREMENTS[key] || 'Complete the listed stat goal before your opponent.')}</td></tr>`
+        <tbody>${rows.filter(([key]) => key !== 'random').map(([key, label]) => {
+          const [name, need] = label.split(': ');
+          return `<tr><td class="reference-condition-name">${escapeHtml(name)}</td><td class="reference-condition-need">${escapeHtml(need || CONDITION_REQUIREMENTS[key] || 'Complete the listed stat goal before your opponent.')}</td></tr>`;
+        }
         ).join('')}</tbody>
       </table>`;
   }).join('');

@@ -143,7 +143,7 @@ powerups = {
 }
 
 condition_options = {
-    "Baseball": ["Random", "Sunset Kingdom", "Havana Heat", "Maple Corridor", "MVP Circle", "Young Buck", "Gonna Be Golden", "Secretariat", "Hound-dog", "Great Bambinos", "Ring Chaser", "Journeyman"],
+    "Baseball": ["Random", "Sunset Kingdom: 3 Japanese Players", "Havana Heat: 3 Cuban Players", "Maple Corridor: 4 Canadian Players", "MVP Circle: 2 MVP Winners", "Young Buck: 2 Rookie of the Year Winners", "Gonna Be Golden: 2 Gold Glove Winners", "Secretariat: 1 Triple Crown Winner", "Hound-dog: 2 One-Franchise Players", "Great Bambinos: 1 500-Home-Run Player", "Ring Chaser: 15 Combined World Series Rings", "Journeyman: 2 Seven-Team Players"],
     "Basketball": ["Random", "Bucket Getter", "Scoring Run", "Table Setter", "Deep Range", "Ironhorse", "Home Court", "Frequent Flyer", "MVP Circle", "All-Star Marathon", "Ring Chaser", "Young Guns"],
     "Football": ["Random", "End Zone", "Season Scorer", "Air Raid", "Sunday Slingers", "Sack Master", "Ballhawk", "One Club", "Journeyman", "MVP Circle", "Pro Bowl Marathon", "Ring Chaser", "Fresh Faces"],
     "Hockey": ["Random", "Sniper", "Rocket Season", "Playmaker", "Point Machine", "Lifer", "Journeyman", "Hart Club", "All-Star Marathon", "Ironhorse", "Cup Chasers", "Fresh Ice"],
