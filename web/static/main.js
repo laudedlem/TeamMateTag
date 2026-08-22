@@ -2407,30 +2407,30 @@ function sportRulesHtml(sport = CURRENT_SPORT || 'baseball', mode = currentMode)
       className: 'mode-manager',
       title: 'Manager Mode',
       body: [
-        `Starting with the ${terms.starter} Player, name TeamMates of the Top Player before the clock runs out.`,
+        `Starting with the ${terms.starter} Player, Name TeamMates of the Top Player before the Clock Runs Out.`,
         `Each correct answer becomes the new Top Player. The same Team-Season Link used 3 times results in a ${terms.out} Team-Season.`,
-        '<strong>Goal:</strong> set your longest Lineup.',
-        '<strong>Lose:</strong> run out of time.',
+        '<strong>Goal:</strong> Set Your Longest Lineup.',
+        '<strong>Lose:</strong> Run Out of Time.',
       ],
     },
     fr: {
       className: 'mode-film',
       title: 'Film Review',
       body: [
-        'Build the daily Lineup by naming the team and season two TeamMates played together.',
+        'Build Your Daily Lineup by Naming the Team and Season Two TeamMates Played Together.',
         `A correct Link is a ${terms.hit}. One correct field is a ${terms.partial}. Two ${terms.partial}s in a row count as a ${terms.strike}.`,
-        '<strong>Goal:</strong> complete every TeamMate Link in the Lineup.',
-        `<strong>Lose:</strong> get 3 ${terms.strikes}.`,
+        '<strong>Goal:</strong> Complete Every TeamMate Link in the Lineup.',
+        `<strong>Lose:</strong> Get 3 ${terms.strikes}.`,
       ],
     },
     mp: {
       className: 'mode-division',
       title: 'Division Rivalry',
       body: [
-        'Two Players take turns adding TeamMates to one shared Lineup.',
+        'Two Players Take Turns Adding TeamMates to One Shared Lineup.',
         `Avoid ${terms.out} Team-Seasons. You cannot play a Player who only connects through a Team-Season that is already out.`,
-        '<strong>Goal:</strong> outlast your opponent.',
-        '<strong>Win:</strong> your opponent runs out of time.',
+        '<strong>Goal:</strong> Outlast Your Opponent.',
+        '<strong>Win:</strong> Your Opponent Runs Out of Time.',
       ],
     },
     po: {
@@ -2438,9 +2438,9 @@ function sportRulesHtml(sport = CURRENT_SPORT || 'baseball', mode = currentMode)
       title: 'Playoffs',
       body: [
         'Play a Head-to-Head Lineup with Powerups and a selected Win Condition.',
-        'Each Player gets 1 use of every Powerup. Powerups can add time, pressure the opponent, or open special same-franchise links.',
-        '<strong>Goal:</strong> complete your Win Condition first, or outlast your opponent.',
-        '<strong>Win:</strong> your opponent runs out of time or you finish your Win Condition.',
+        'Each Player Gets 1 Use of Every Powerup. Powerups can Add Time, Pressure the Opponent, or Open Special Same-Franchise Links.',
+        '<strong>Goal:</strong> Complete Your Win Condition First, or Outlast Your Opponent.',
+        '<strong>Win:</strong> Your Opponent Runs Out of Time or You Finish Your Win Condition.',
       ],
     },
   };
@@ -2467,26 +2467,26 @@ function sportRulesHtml(sport = CURRENT_SPORT || 'baseball', mode = currentMode)
             <h4>Manager Mode</h4>
             <p>Starting with the ${terms.starter} Player, name TeamMates of the Top Player until time runs out.</p>
             <p>The same Team-Season Link used 3 times in a Lineup results in a ${terms.out} Team-Season.</p>
-            <p><strong>Goal:</strong> set your longest lineup.</p>
-            <p><strong>Lose:</strong> run out of time.</p>
+            <p><strong>Goal:</strong> Set Your Longest Lineup.</p>
+            <p><strong>Lose:</strong> Run Out of Time.</p>
           </article>
           <article class="rules-mode-card mode-film">
             <h4>Film Review</h4>
             <p>Build your daily Lineup by naming the team and season two TeamMates played together.</p>
-            <p><strong>Goal:</strong> complete every TeamMate Link in the Lineup. Maintain your daily streak or try any you missed in the Archives.</p>
-            <p><strong>Lose:</strong> get 3 ${terms.strikes}. Consecutive ${terms.foul}s yield a ${terms.strike}.</p>
+            <p><strong>Goal:</strong> Complete Every TeamMate Link in the Lineup. Maintain Your Daily Streak or Try any You Missed in the Archives.</p>
+            <p><strong>Lose:</strong> Get 3 ${terms.strikes}. Consecutive ${terms.foul}s Yield a ${terms.strike}.</p>
           </article>
           <article class="rules-mode-card mode-division">
             <h4>Division Rivalry</h4>
             <p>Head-to-head, back-and-forth naming TeamMates of the Top Player and avoiding ${terms.out} Team-Seasons.</p>
-            <p><strong>Goal:</strong> outlast your opponent.</p>
-            <p><strong>Lose:</strong> run out of eligible TeamMates to name.</p>
+            <p><strong>Goal:</strong> Outlast Your Opponent.</p>
+            <p><strong>Lose:</strong> Run Out of Eligible TeamMates to Name.</p>
           </article>
           <article class="rules-mode-card mode-playoffs">
             <h4>Playoffs</h4>
             <p>Division Rivalry with Powerups and Win Conditions.</p>
-            <p><strong>Goal:</strong> complete your Win Condition before your opponent, or outlast them.</p>
-            <p><strong>Lose:</strong> allow your opponent to play their Win Condition, or run out of time.</p>
+            <p><strong>Goal:</strong> Complete Your Win Condition Before Your Opponent, or Outlast Them.</p>
+            <p><strong>Lose:</strong> Allow Your Opponent to Play Their Win Condition, or Run Out of Time.</p>
           </article>
         </div>
       </section>
@@ -2503,40 +2503,40 @@ function sharedRulesHtml() {
           <h4>Manager Mode</h4>
           <p>Starting with the Leadoff Player, name TeamMates of the Top Player until time runs out.</p>
           <p>The same Team-Season Link used 3 times in a Lineup results in a Strike Out.</p>
-          <p><strong>Goal:</strong> set your longest lineup.</p>
-          <p><strong>Lose:</strong> run out of time.</p>
+          <p><strong>Goal:</strong> Set Your Longest Lineup.</p>
+          <p><strong>Lose:</strong> Run Out of Time.</p>
         </article>
         <article class="rules-mode-card mode-film">
           <h4>Film Review</h4>
           <p>Build your daily Lineup by naming the team and season two TeamMates played together.</p>
-          <p><strong>Goal:</strong> complete every TeamMate Link in the Lineup. Maintain your daily streak or try any you missed in the Archives.</p>
-          <p><strong>Lose:</strong> get 3 Strikes. Consecutive Fouls yield a Strike.</p>
+          <p><strong>Goal:</strong> Complete Every TeamMate Link in the Lineup. Maintain Your Daily Streak or Try any You Missed in the Archives.</p>
+          <p><strong>Lose:</strong> Get 3 Strikes. Consecutive Fouls Yield a Strike.</p>
         </article>
         <article class="rules-mode-card mode-division">
           <h4>Division Rivalry</h4>
           <p>Head-to-head, back-and-forth naming TeamMates of the Top Player and avoiding Struck Out Team-Seasons.</p>
-          <p><strong>Goal:</strong> outlast your opponent.</p>
-          <p><strong>Lose:</strong> run out of eligible TeamMates to name.</p>
+          <p><strong>Goal:</strong> Outlast Your Opponent.</p>
+          <p><strong>Lose:</strong> Run Out of Eligible TeamMates to Name.</p>
         </article>
         <article class="rules-mode-card mode-playoffs">
           <h4>Playoffs</h4>
           <p>Division Rivalry with Powerups and Win Conditions.</p>
-          <p><strong>Goal:</strong> complete your Win Condition before your opponent, or outlast them.</p>
-          <p><strong>Lose:</strong> allow your opponent to play their Win Condition, or run out of time.</p>
+          <p><strong>Goal:</strong> Complete Your Win Condition Before Your Opponent, or Outlast Them.</p>
+          <p><strong>Lose:</strong> Allow Your Opponent to Play Their Win Condition, or Run Out of Time.</p>
         </article>
         </div>
       </section>
 
-      <section class="rules-section">
+      <section class="rules-section rules-vocab-section">
         <h3>Vocabulary</h3>
-        <div class="rules-term-grid">
-        <div class="rules-term-card"><strong>Lineup</strong><span>The Player Chain. Ex: Anthony Rizzo -> Kris Bryant -> Javier Baez -> Aroldis Chapman. 2016 Cubs Struck Out.</span></div>
-        <div class="rules-term-card"><strong>TeamMate Link</strong><span>Two Players connect if they ever played together. Example: Rizzo and Bryant Link for Cubs 2015-2021.</span></div>
-        <div class="rules-term-card"><strong>Team-Season</strong><span>One season for one team. Example: 2016 Cubs or 2019-20 Lakers.</span></div>
-        <div class="rules-term-card"><strong>Team Strikes</strong><span>When TeamMates are Linked, Team-Seasons get a strike. 3 Strikes and TeamMates from that Team-Season can no longer be played.</span></div>
-        <div class="rules-term-card"><strong>Blocked Guess</strong><span>If a Player Links to a TeamMate on a Struck Out Team, then they must enter a new eligible TeamMate.</span></div>
-        <div class="rules-term-card"><strong>Powerup</strong><span>Only in Playoffs. Can get you out of tricky Links or apply pressure to your opponent. Visit the Ref button for details.</span></div>
-        <div class="rules-term-card"><strong>Win Condition</strong><span>Only in Playoffs. Name enough Players that qualify for your Win Condition thresholds: awards, stats, or teams. Visit the Ref button for details.</span></div>
+        <div class="rules-vocab-list">
+          <div class="rules-vocab-row core"><strong>Lineup</strong><span>The Player Chain. Ex: Anthony Rizzo -> Kris Bryant -> Javier Baez -> Aroldis Chapman. 2016 Cubs Struck Out.</span></div>
+          <div class="rules-vocab-row core"><strong>TeamMate Link</strong><span>Two Players Connect if they Ever Played Together. Example: Rizzo and Bryant Link for Cubs 2015-2021.</span></div>
+          <div class="rules-vocab-row core"><strong>Team-Season</strong><span>One Season for One Team. Example: 2016 Cubs or 2019-20 Lakers.</span></div>
+          <div class="rules-vocab-row limits"><strong>Team Strikes</strong><span>When TeamMates are Linked, Team-Seasons get a Strike. 3 Strikes and TeamMates from that Team-Season can No Longer be Played.</span></div>
+          <div class="rules-vocab-row limits"><strong>Blocked Guess</strong><span>If a Player Links to a TeamMate on a Struck Out Team, then they must Enter a New Eligible TeamMate.</span></div>
+          <div class="rules-vocab-row playoffs"><strong>Powerup</strong><span>Only in Playoffs. Can get you Out of Tricky Links or Apply Pressure to your Opponent. Visit the Ref Button for Details.</span></div>
+          <div class="rules-vocab-row playoffs"><strong>Win Condition</strong><span>Only in Playoffs. Name Enough Players that Qualify for your Win Condition Thresholds: Awards, Stats, or Teams. Visit the Ref Button for Details.</span></div>
         </div>
       </section>
 
