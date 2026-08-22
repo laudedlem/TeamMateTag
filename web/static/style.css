@@ -1629,13 +1629,27 @@ button.secondary:hover { border-color: var(--accent); color: var(--accent); }
   border-radius: var(--radius);
 }
 
-.fr-board-title {
+.fr-board-toggle {
+  align-items: center;
+  background: transparent;
+  border: 0;
   color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
   font-size: 0.76rem;
   font-weight: 700;
+  justify-content: space-between;
   letter-spacing: 0.06em;
-  margin-bottom: 0.7rem;
+  margin: 0 0 0.7rem;
+  padding: 0;
+  text-align: left;
   text-transform: uppercase;
+  width: 100%;
+}
+
+.fr-board-toggle span:last-child {
+  color: var(--accent);
+  font-size: 0.7rem;
 }
 
 .fr-board-grid {
@@ -1655,6 +1669,15 @@ button.secondary:hover { border-color: var(--accent); color: var(--accent); }
   overflow: hidden;
   padding: 0.25rem;
   text-align: center;
+}
+
+.fr-board-headshot {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: top;
+  margin-bottom: 0.12rem;
 }
 
 .fr-board-slot.filled {
@@ -1977,9 +2000,13 @@ button.secondary:hover { border-color: var(--accent); color: var(--accent); }
   font-size: 0.88rem;
   max-height: 400px;
   overflow-y: auto;
+  list-style-position: outside;
 }
 
-.lineup-list li { padding: 1px 0; }
+.lineup-list li {
+  padding: 1px 0 1px 0.2rem;
+  font-variant-numeric: tabular-nums;
+}
 
 .lineup-list li.last {
   font-weight: 700;
@@ -3611,6 +3638,27 @@ select:focus {
 
   .side-panel {
     position: static;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
+  }
+
+  .side-section {
+    max-height: 34vh;
+    overflow: auto;
+    padding: 0.65rem;
+  }
+
+  .side-section h3 {
+    position: sticky;
+    top: 0;
+    background: var(--bg-elevated);
+    z-index: 1;
+  }
+
+  .lineup-list {
+    max-height: 26vh;
+    padding-left: 1.45rem;
   }
 
   .guess-form,
@@ -3626,6 +3674,10 @@ select:focus {
   .fr-season-inputs,
   .fr-guess-form #fr-year-input {
     grid-column: 1;
+  }
+
+  .fr-lineup-board.collapsed {
+    padding-bottom: 0.45rem;
   }
 
   .banner-buttons,

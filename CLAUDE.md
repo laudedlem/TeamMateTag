@@ -2042,3 +2042,29 @@ Update, 2026-08-22 (0.3.21): sport-page gamemode color alignment.
 - Added sport-page-specific CSS overrides so gamemode buttons match homepage
   gamemode colors: Manager Mode gray, Film Review violet, Division Rivalry
   pink, Playoffs yellow.
+Update, 2026-08-22 (0.3.22): playtest bug pass after mobile/Film Review feedback.
+
+- Film Review now sends the current pair's exact valid team-season answers in
+  game state. The browser uses those answers for the autocomplete list, so the
+  input is now one combined field such as `Chicago Bears 2020-21` instead of
+  separate team and year boxes.
+- The Film Review answer suggestions are deduped by displayed team plus season,
+  which prevents duplicate source IDs from showing the same visible answer
+  twice, such as two `Vegas Golden Knights 2017-18` rows.
+- Film Review lineup boards now render as collapsible boards and include small
+  headshots for filled slots. On narrow mobile screens the board defaults
+  collapsed so the two visible players and answer box stay closer together.
+- Film Review generation now uses a tighter early-choice window and early-score
+  floor. Early links should skew more recent and recognizable while still
+  allowing deeper players later in the lineup if needed.
+- Added a football Film Review/gameplay guard against suspicious recent-season
+  rows where a long-retired player reappears after a multi-year gap. This was
+  triggered by a bad `Philip Rivers 2025 Colts` row and now rejects that class
+  of link in Film Review generation, Film Review validation, and the shared
+  game engine.
+- Added football display-name overrides for `Dak Prescott` and `Nyheim Hines`
+  so cards, prompts, and autocomplete use the expected public names even if a
+  source table contains legal/given-name variants.
+- Mobile Lineup/Out panels were compacted into a two-column layout with
+  scrollable sections. The ordered Lineup list now uses tabular numbers so
+  double-digit entries do not jump or wrap awkwardly.

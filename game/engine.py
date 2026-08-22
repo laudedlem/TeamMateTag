@@ -167,6 +167,32 @@ def get_shared_seasons(
                    ON b.sport_id = a.sport_id AND b.team_id = a.team_id AND b.season = a.season
                 WHERE a.sport_id = ? AND a.player_id = ? AND b.player_id = ?
                   AND a.season >= ?
+                  AND NOT (
+                      a.sport_id = 'football' AND a.season >= 2025
+                      AND EXISTS (
+                          SELECT 1 FROM sport_players pa
+                           WHERE pa.sport_id = a.sport_id AND pa.player_id = a.player_id
+                             AND pa.debut_year <= a.season - 4
+                      )
+                      AND NOT EXISTS (
+                          SELECT 1 FROM sport_appearances prior_a
+                           WHERE prior_a.sport_id = a.sport_id AND prior_a.player_id = a.player_id
+                             AND prior_a.season BETWEEN a.season - 2 AND a.season - 1
+                      )
+                  )
+                  AND NOT (
+                      b.sport_id = 'football' AND b.season >= 2025
+                      AND EXISTS (
+                          SELECT 1 FROM sport_players pb
+                           WHERE pb.sport_id = b.sport_id AND pb.player_id = b.player_id
+                             AND pb.debut_year <= b.season - 4
+                      )
+                      AND NOT EXISTS (
+                          SELECT 1 FROM sport_appearances prior_b
+                           WHERE prior_b.sport_id = b.sport_id AND prior_b.player_id = b.player_id
+                             AND prior_b.season BETWEEN b.season - 2 AND b.season - 1
+                      )
+                  )
                   AND NOT EXISTS (
                       SELECT 1 FROM sport_teammate_exclusions e
                        WHERE e.sport_id = a.sport_id

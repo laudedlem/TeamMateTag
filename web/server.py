@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.3.21"
+APP_VERSION = "0.3.22"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -3392,6 +3392,7 @@ def _local_sport_cards(conn: sqlite3.Connection, sport: str, player_ids: list[st
             "mlbam_id": None, "headshot_url": headshot,
             "debut_year": max(row[1] or 2000, 2000) if row else None, "final_year": row[2] if row else None,
             "name_first": row[3] if row else None, "name_last": row[4] if row else None,
+            "display_name": _sport_display_name(sport, player_id, row[3] if row else None, row[4] if row else None),
             "primary_pos": ({"R": "RW", "L": "LW", "D": "D"}.get(row[5], row[5]) if row else None), "teams": teams,
         }
     return out
@@ -3455,6 +3456,20 @@ def _sport_season_label(sport: str, season: int | str | None) -> str:
     if _cross_year_season_sports(sport):
         return f"{year}-{str(year + 1)[-2:]}"
     return str(year)
+
+
+SPORT_DISPLAY_NAME_OVERRIDES = {
+    ("football", "nfl:00-0033077"): "Dak Prescott",
+    ("football", "nfl:00-0034367"): "Nyheim Hines",
+}
+
+
+def _sport_display_name(sport: str, player_id: str | None, first: str | None = None,
+                        last: str | None = None, fallback: str | None = None) -> str:
+    if (sport, player_id or "") in SPORT_DISPLAY_NAME_OVERRIDES:
+        return SPORT_DISPLAY_NAME_OVERRIDES[(sport, player_id or "")]
+    name = " ".join(part for part in (first, last) if part).strip()
+    return name or fallback or (player_id or "")
 
 
 def _sport_team_span_label(sport: str, start: int, end: int) -> str:
@@ -3611,6 +3626,7 @@ def _sport_cards(conn, sport: str, player_ids: list[str]) -> dict[str, dict]:
             "final_year": final,
             "name_first": first,
             "name_last": last,
+            "display_name": _sport_display_name(sport, player_id, first, last),
             "primary_pos": primary_pos,
             "teams": teams,
         }
@@ -3626,8 +3642,9 @@ def _sport_chain_dict(conn, sport: str, state: GameState) -> list[dict]:
     chain = []
     for index, (player_id, name) in enumerate(zip(state.chain, state.chain_names)):
         card = cards.get(player_id, {})
+        display_name = _sport_display_name(sport, player_id, card.get("name_first"), card.get("name_last"), name)
         chain.append({
-            "id": player_id, "name": name, **card,
+            "id": player_id, "name": display_name, **card,
             "shared_with_prev": [
                 {"team_id": team, "season": season,
                  "team_name": _sport_team_name(conn, sport, team, season),
@@ -3677,7 +3694,8 @@ def _local_bp_state(game_id: str, game: dict) -> dict:
     chain = []
     for index, (player_id, name) in enumerate(zip(state.chain, state.chain_names)):
         card = cards[player_id]
-        chain.append({"id": player_id, "name": name, **card, "shared_with_prev": [
+        display_name = card.get("display_name") or _sport_display_name(sport, player_id, card.get("name_first"), card.get("name_last"), name)
+        chain.append({"id": player_id, "name": display_name, **card, "shared_with_prev": [
             {"team_id": team, "season": season, "team_name": team_names.get((team, season), team),
              "season_label": _sport_season_label(sport, season)}
             for team, season in state.chain_shared_with_prev[index]
@@ -3688,7 +3706,7 @@ def _local_bp_state(game_id: str, game: dict) -> dict:
             item["team_name"] = team_names.get((item["team_id"], item["season"]), item["team_id"])
             item["season_label"] = _sport_season_label(sport, item["season"])
     return {"game_id": game_id, "mode": "bp", "sport": sport, "mode_name": LOCAL_SPORT_MODE_NAMES[sport],
-            "current_player": {"id": state.current_player_id, "name": state.current_player_name},
+            "current_player": {"id": state.current_player_id, "name": _sport_display_name(game["sport"], state.current_player_id, fallback=state.current_player_name)},
             "chain": chain, "strikes": [{"team_id": team, "season": season, "count": count,
             "team_name": team_names.get((team, season), team),
             "season_label": _sport_season_label(sport, season)} for (team, season), count in state.strikes.items()],
@@ -3706,10 +3724,10 @@ def _local_team_name(sport: str, team_id: str, season: int, conn: sqlite3.Connec
     return NHL_TEAM_NAMES.get(name, NHL_TEAM_NAMES.get(team_id, name)) if sport == "hockey" else name
 
 
-def _local_fr_card(player_id: str, card: dict) -> dict:
+def _local_fr_card(sport: str, player_id: str, card: dict) -> dict:
     return {
         "id": player_id,
-        "name": f"{card.get('name_first') or ''} {card.get('name_last') or ''}".strip(),
+        "name": card.get("display_name") or _sport_display_name(sport, player_id, card.get("name_first"), card.get("name_last")),
         "mlbam_id": None,
         "headshot_url": card.get("headshot_url"),
         "debut_year": card.get("debut_year"),
@@ -3724,7 +3742,7 @@ def _local_fr_state(game_id: str, game: dict) -> dict:
     deck, pair_index = blob["deck"], blob["pair_index"]
     with _local_sport_conn() as conn:
         cards = _local_sport_cards(conn, sport, deck)
-    card_dicts = {player_id: _local_fr_card(player_id, card) for player_id, card in cards.items()}
+    card_dicts = {player_id: _local_fr_card(sport, player_id, card) for player_id, card in cards.items()}
     return {
         "game_id": game_id,
         "mode": "fr",
@@ -3739,6 +3757,11 @@ def _local_fr_state(game_id: str, game: dict) -> dict:
         "pair_names": [
             card_dicts[deck[pair_index]]["name"] if pair_index < len(deck) else None,
             card_dicts[deck[pair_index + 1]]["name"] if pair_index + 1 < len(deck) else None,
+        ],
+        "current_answers": [
+            {"team_id": row[0], "season": row[1], "team_name": row[2],
+             "season_label": row[3] if len(row) > 3 else _sport_season_label(sport, row[1])}
+            for row in (blob["shared_per_pair"][pair_index] if pair_index < len(blob["shared_per_pair"]) else [])
         ],
         "solved_links": blob["solved_links"][:max(0, blob["revealed_count"] - 1)],
         "stats": {
@@ -3756,13 +3779,48 @@ def _local_fr_shared(conn: sqlite3.Connection, sport: str, first: str, second: s
         JOIN sport_appearances b
           ON b.sport_id=a.sport_id AND b.team_id=a.team_id AND b.season=a.season
         WHERE a.sport_id=? AND a.player_id=? AND b.player_id=?
+          AND NOT (
+              a.sport_id='football' AND a.season>=2025
+              AND EXISTS (
+                  SELECT 1 FROM sport_players pa
+                   WHERE pa.sport_id=a.sport_id AND pa.player_id=a.player_id
+                     AND pa.debut_year <= a.season - 4
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM sport_appearances prior_a
+                   WHERE prior_a.sport_id=a.sport_id AND prior_a.player_id=a.player_id
+                     AND prior_a.season BETWEEN a.season - 2 AND a.season - 1
+              )
+          )
+          AND NOT (
+              b.sport_id='football' AND b.season>=2025
+              AND EXISTS (
+                  SELECT 1 FROM sport_players pb
+                   WHERE pb.sport_id=b.sport_id AND pb.player_id=b.player_id
+                     AND pb.debut_year <= b.season - 4
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM sport_appearances prior_b
+                   WHERE prior_b.sport_id=b.sport_id AND prior_b.player_id=b.player_id
+                     AND prior_b.season BETWEEN b.season - 2 AND b.season - 1
+              )
+          )
         ORDER BY a.season, a.team_id
     """, (sport, first, second)).fetchall()
-    return [
+    out = [
         [team_id, season, _canonical_sport_team_name(sport, team_id, _local_team_name(sport, team_id, season, conn)),
          _sport_season_label(sport, season)]
         for team_id, season in rows
     ]
+    seen = set()
+    deduped = []
+    for row in out:
+        key = (normalize(row[2]), row[3])
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(row)
+    return deduped
 
 
 def _classify_local_fr_guess(team_text: str, year_text: str, shared: list[list], sport: str = "") -> tuple[str, list]:
@@ -3919,7 +3977,7 @@ def local_sport_autocomplete(sport: str):
                 ORDER BY career_games DESC LIMIT 4""",
             (sport, normalized + "%", normalized + "%", sport, normalized + "%"),
         ).fetchall()
-    return jsonify([{"player_id": pid, "display_name": name, "debut_year": debut, "final_year": final,
+    return jsonify([{"player_id": pid, "display_name": _sport_display_name(sport, pid, fallback=name), "debut_year": debut, "final_year": final,
                      "career_games": games} for pid, name, debut, final, games in rows])
 
 
@@ -4013,10 +4071,12 @@ def _local_dr_chain(state: GameState, sport: str) -> tuple[list[dict], list[dict
         }
     chain = []
     for index, (player_id, name) in enumerate(zip(state.chain, state.chain_names)):
+        card = cards[player_id]
+        display_name = card.get("display_name") or _sport_display_name(sport, player_id, card.get("name_first"), card.get("name_last"), name)
         chain.append({
             "id": player_id,
-            "name": name,
-            **cards[player_id],
+            "name": display_name,
+            **card,
             "shared_with_prev": [
                 {"team_id": team, "season": season, "team_name": team_names.get((team, season), team),
                  "season_label": _sport_season_label(sport, season)}
@@ -4052,7 +4112,7 @@ def _local_dr_state(game_id: str, game: dict, viewer_guest_id: str) -> dict:
         "game_id": game_id,
         "mode": "mp",
         "sport": game["sport"],
-        "current_player": {"id": state.current_player_id, "name": state.current_player_name},
+        "current_player": {"id": state.current_player_id, "name": _sport_display_name(game["sport"], state.current_player_id, fallback=state.current_player_name)},
         "current_label": game["p1"] if game["turn_index"] == 0 else game["p2"],
         "p1": game["p1"], "p2": game["p2"],
         "p1_guest_id": game["p1_guest_id"], "p2_guest_id": game["p2_guest_id"],
@@ -4389,12 +4449,13 @@ def _local_po_powerup_state(game: dict, viewer_guest_id: str) -> dict:
 
 
 def _local_po_state(game_id: str, game: dict, viewer_guest_id: str) -> dict:
+    sport = game["sport"]
     _local_dr_expire(game)
     elapsed = (now_utc() - game["turn_started_at"]).total_seconds()
     countdown_left = max(0.0, game["countdown_seconds"] - elapsed) if not game["finished"] else 0.0
     remaining = max(0.0, game["turn_seconds"] - max(0.0, elapsed - game["countdown_seconds"])) if not game["finished"] else 0.0
     state = game["state"]
-    chain, strikes = _local_dr_chain(state, game["sport"])
+    chain, strikes = _local_dr_chain(state, sport)
     link_meta = game.get("chain_link_meta") or [None] * len(chain)
     hits = game.get("chain_win_condition_hits") or [False] * len(chain)
     for index, player in enumerate(chain):
@@ -4402,7 +4463,7 @@ def _local_po_state(game_id: str, game: dict, viewer_guest_id: str) -> dict:
         player["win_condition_hit"] = bool(hits[index]) if index < len(hits) else False
     your_side = "p1" if viewer_guest_id == game["p1_guest_id"] else "p2"
     other_side = "p2" if your_side == "p1" else "p1"
-    conditions = LOCAL_PLAYOFF_CONFIG[game["sport"]]["conditions"]
+    conditions = LOCAL_PLAYOFF_CONFIG[sport]["conditions"]
     def condition_payload(side: str) -> dict:
         key = game[f"{side}_win_condition_key"]
         condition = conditions[key]
@@ -4414,10 +4475,10 @@ def _local_po_state(game_id: str, game: dict, viewer_guest_id: str) -> dict:
         with _local_sport_conn() as conn:
             for field in ("shared_seasons", "burned_seasons"):
                 for item in last_move.get(field, []):
-                    item["team_name"] = _local_team_name(game["sport"], item["team_id"], item["season"], conn)
+                    item["team_name"] = _local_team_name(sport, item["team_id"], item["season"], conn)
     return {
-        "game_id": game_id, "mode": "po", "sport": game["sport"],
-        "current_player": {"id": state.current_player_id, "name": state.current_player_name},
+        "game_id": game_id, "mode": "po", "sport": sport,
+        "current_player": {"id": state.current_player_id, "name": _sport_display_name(sport, state.current_player_id, fallback=state.current_player_name)},
         "current_label": game["p1"] if game["turn_index"] == 0 else game["p2"],
         "p1": game["p1"], "p2": game["p2"],
         "p1_guest_id": game["p1_guest_id"], "p2_guest_id": game["p2_guest_id"],
@@ -5434,7 +5495,7 @@ def _build_film_preview_cards(conn, sport: str, deck: list[str]) -> list[dict]:
     preview = []
     for player_id in deck[:2]:
         card = cards.get(player_id, {})
-        name = " ".join(part for part in [card.get("name_first"), card.get("name_last")] if part).strip() or player_id
+        name = card.get("display_name") or _sport_display_name(sport, player_id, card.get("name_first"), card.get("name_last"))
         preview.append({"player_id": player_id, "name": name, "headshot_url": card.get("headshot_url")})
     return preview
 
@@ -5443,7 +5504,7 @@ def _film_card_map(conn, sport: str, deck: list[str]) -> dict[str, dict]:
     if sport == "baseball":
         cards = _hydrate_player_cards(conn, deck)
         return {pid: fr_card_dict_from_card(pid, cards.get(pid) or player_card(pid)) for pid in deck}
-    return {pid: _sport_fr_card(pid, card) for pid, card in _sport_cards(conn, sport, deck).items()}
+    return {pid: _sport_fr_card(sport, pid, card) for pid, card in _sport_cards(conn, sport, deck).items()}
 
 
 def _film_shared_for_deck(conn, sport: str, deck: list[str]) -> list[list]:
@@ -5515,6 +5576,10 @@ def _film_preview_map_for_day(conn, puzzle_day: date) -> dict[tuple[str, str], l
         if not isinstance(preview, list) or len(preview) < 2:
             puzzle = _film_puzzle_with_preview(conn, sport, puzzle_day, unit or None, puzzle)
             preview = puzzle.get("preview_cards")
+        for card in preview or []:
+            player_id = card.get("player_id")
+            if player_id:
+                card["name"] = _sport_display_name(sport, player_id, fallback=card.get("name"))
         previews[(sport, unit or "")] = list(preview or [])
     return previews
 
@@ -6950,7 +7015,7 @@ def _sport_bp_state_dict(gid: str, blob: dict, state: GameState, conn) -> dict:
     return {
         "game_id": gid, "mode": "bp", "sport": sport,
         "mode_name": LOCAL_SPORT_MODE_NAMES[sport],
-        "current_player": {"id": state.current_player_id, "name": state.current_player_name},
+        "current_player": {"id": state.current_player_id, "name": _sport_display_name(sport, state.current_player_id, fallback=state.current_player_name)},
         "chain": _sport_chain_dict(conn, sport, state),
         "strikes": _sport_strikes_dict(conn, sport, state),
         "chain_length": len(state.chain), "longest_chain": blob["longest_chain"],
@@ -7001,7 +7066,7 @@ def sport_autocomplete(sport: str):
                 ORDER BY career_games DESC LIMIT 4""",
             (sport, q + "%", q + "%", sport, q + "%"),
         ).fetchall()
-    return jsonify([{"player_id": pid, "display_name": name, "debut_year": debut,
+    return jsonify([{"player_id": pid, "display_name": _sport_display_name(sport, pid, fallback=name), "debut_year": debut,
                      "final_year": final, "career_games": games}
                     for pid, name, debut, final, games in rows])
 
@@ -7096,13 +7161,21 @@ FR_FALLBACK_HEADSHOT_PROVIDERS = {
 
 
 def _fr_choice_window(slot_index: int, total_slots: int, choices_len: int) -> int:
+    if slot_index == 1:
+        return min(3, choices_len)
     if slot_index <= 2:
-        return min(8, choices_len)
+        return min(5, choices_len)
     if slot_index <= max(4, total_slots // 2):
-        return min(28, choices_len)
+        return min(18, choices_len)
     if slot_index <= total_slots - 3:
         return min(60, choices_len)
     return min(140, choices_len)
+
+
+def _fr_early_choice_floor(sport: str, slot_index: int) -> int:
+    if slot_index > 3:
+        return 0
+    return {"baseball": 1350, "basketball": 1350, "hockey": 1550, "football": 1300}.get(sport, 0)
 
 
 def _fr_photo_score(sport: str, provider: str | None) -> int:
@@ -7262,6 +7335,11 @@ def generate_baseball_film_review(conn, puzzle_day: date, seed_suffix: str = "",
                 if _film_pair_key(deck[-1], item[0]) not in banned_adjacent_pairs
                    and not (slot_index == 1 and item[0] in banned_opening_players)
             ]
+            preferred_floor = _fr_early_choice_floor("baseball", slot_index)
+            if preferred_floor:
+                preferred = [item for item in choices if pools[slot][item[0]] >= preferred_floor]
+                if preferred:
+                    choices = preferred
             if not choices:
                 failed = True
                 break
@@ -7336,6 +7414,11 @@ def fr_state_dict(gid: str, blob: dict, conn=None) -> dict:
              if pair_index < len(deck) else None),
             ((cards.get(deck[pair_index + 1]) or fr_card_dict(deck[pair_index + 1]))["name"]
              if pair_index + 1 < len(deck) else None),
+        ],
+        "current_answers": [
+            {"team_id": row[0], "season": row[1], "team_name": row[2],
+             "season_label": row[3] if len(row) > 3 else _sport_season_label("baseball", row[1])}
+            for row in (blob["shared_per_pair"][pair_index] if pair_index < len(blob["shared_per_pair"]) else [])
         ],
         "solved_links": blob["solved_links"][: max(0, blob["revealed_count"] - 1)],
         "stats": {
@@ -7633,10 +7716,10 @@ def fr_reveal_answer():
     })
 
 
-def _sport_fr_card(player_id: str, card: dict) -> dict:
+def _sport_fr_card(sport: str, player_id: str, card: dict) -> dict:
     return {
         "id": player_id,
-        "name": f"{card.get('name_first') or ''} {card.get('name_last') or ''}".strip(),
+        "name": card.get("display_name") or _sport_display_name(sport, player_id, card.get("name_first"), card.get("name_last")),
         "mlbam_id": None, "headshot_url": card.get("headshot_url"),
         "debut_year": card.get("debut_year"), "final_year": card.get("final_year"),
         "primary_pos": card.get("primary_pos"), "teams": [],
@@ -7648,6 +7731,10 @@ def _sport_fr_state_dict(gid: str, blob: dict, conn) -> dict:
     cards = blob.get("card_map") if isinstance(blob.get("card_map"), dict) else None
     if not cards:
         cards = _film_card_map(conn, sport, deck)
+    else:
+        for pid in deck:
+            if pid in cards:
+                cards[pid]["name"] = _sport_display_name(sport, pid, fallback=cards[pid].get("name"))
     current_streak = 0
     if blob.get("puzzle_date") and blob.get("finished"):
         try:
@@ -7664,6 +7751,11 @@ def _sport_fr_state_dict(gid: str, blob: dict, conn) -> dict:
         "pair_index": pair_index,
         "pair_names": [cards[deck[pair_index]]["name"] if pair_index < len(deck) else None,
                        cards[deck[pair_index + 1]]["name"] if pair_index + 1 < len(deck) else None],
+        "current_answers": [
+            {"team_id": row[0], "season": row[1], "team_name": row[2],
+             "season_label": row[3] if len(row) > 3 else _sport_season_label(sport, row[1])}
+            for row in (blob["shared_per_pair"][pair_index] if pair_index < len(blob["shared_per_pair"]) else [])
+        ],
         "solved_links": blob["solved_links"][:max(0, blob["revealed_count"] - 1)],
         "stats": {"hits": blob["hits"], "fouls": blob["fouls"], "strikes": blob["strikes"],
                   "max_strikes": FR_MAX_STRIKES, "consec_fouls": blob["consec_fouls"],
@@ -7679,15 +7771,50 @@ def _sport_fr_shared(conn, sport: str, first: str, second: str) -> list[list]:
              FROM sport_appearances a
              JOIN sport_appearances b ON b.sport_id=a.sport_id
                AND b.team_id=a.team_id AND b.season=a.season
-             JOIN sport_teams t ON t.sport_id=a.sport_id AND t.team_id=a.team_id AND t.season=a.season
+            JOIN sport_teams t ON t.sport_id=a.sport_id AND t.team_id=a.team_id AND t.season=a.season
             WHERE a.sport_id=%s AND a.player_id=%s AND b.player_id=%s
+              AND NOT (
+                  a.sport_id='football' AND a.season>=2025
+                  AND EXISTS (
+                      SELECT 1 FROM sport_players pa
+                       WHERE pa.sport_id=a.sport_id AND pa.player_id=a.player_id
+                         AND pa.debut_year <= a.season - 4
+                  )
+                  AND NOT EXISTS (
+                      SELECT 1 FROM sport_appearances prior_a
+                       WHERE prior_a.sport_id=a.sport_id AND prior_a.player_id=a.player_id
+                         AND prior_a.season BETWEEN a.season - 2 AND a.season - 1
+                  )
+              )
+              AND NOT (
+                  b.sport_id='football' AND b.season>=2025
+                  AND EXISTS (
+                      SELECT 1 FROM sport_players pb
+                       WHERE pb.sport_id=b.sport_id AND pb.player_id=b.player_id
+                         AND pb.debut_year <= b.season - 4
+                  )
+                  AND NOT EXISTS (
+                      SELECT 1 FROM sport_appearances prior_b
+                       WHERE prior_b.sport_id=b.sport_id AND prior_b.player_id=b.player_id
+                         AND prior_b.season BETWEEN b.season - 2 AND b.season - 1
+                  )
+              )
             ORDER BY a.season, a.team_id""", (sport, first, second),
     ).fetchall()
-    return [
+    out = [
         [team_id, season, _canonical_sport_team_name(sport, team_id, name), _sport_season_label(sport, season)]
         for team_id, season, name in rows
         if _sport_link_allowed(conn, sport, first, second, team_id, season)
     ]
+    seen = set()
+    deduped = []
+    for row in out:
+        key = (normalize(row[2]), row[3])
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(row)
+    return deduped
 
 
 def _film_review_day(value: str | None = None) -> date:
@@ -8042,7 +8169,7 @@ def sport_fr_reveal_answer(sport: str):
         if not finished:
             return jsonify({"error": "game not finished"}), 400
         cards = _sport_cards(conn, sport, blob["deck"])
-        return jsonify({"full_cards": [_sport_fr_card(pid, cards[pid]) for pid in blob["deck"]],
+        return jsonify({"full_cards": [_sport_fr_card(sport, pid, cards[pid]) for pid in blob["deck"]],
                         "canonical_links": [[{"team_id": row[0], "season": row[1], "team_name": row[2],
                                               "season_label": row[3] if len(row) > 3 else _sport_season_label(sport, row[1])}
                                              for row in pair]
@@ -8145,7 +8272,7 @@ def _sport_online_state(conn, game_id: str, blob: dict, state: GameState, viewer
         # database route/table mode; leaking it here disabled the shared
         # multiplayer timer and polling client logic.
         "game_id": game_id, "mode": "mp" if blob["mode"] == "dr" else "po", "sport": sport,
-        "current_player": {"id": state.current_player_id, "name": state.current_player_name},
+        "current_player": {"id": state.current_player_id, "name": _sport_display_name(sport, state.current_player_id, fallback=state.current_player_name)},
         "current_label": blob["p1"] if blob["turn_index"] == 0 else blob["p2"],
         "p1": blob["p1"], "p2": blob["p2"], "p1_guest_id": blob["p1_guest_id"], "p2_guest_id": blob["p2_guest_id"],
         "viewer_guest_id": viewer, "your_side": side, "your_name": blob[side], "opponent_name": blob[other],

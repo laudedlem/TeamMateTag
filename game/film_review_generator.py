@@ -100,13 +100,26 @@ def _recency_score_sql() -> str:
 
 
 def _choice_window(slot_index: int, total_slots: int, choices_len: int) -> int:
+    if slot_index == 1:
+        return min(3, choices_len)
     if slot_index <= 2:
-        return min(8, choices_len)
+        return min(5, choices_len)
     if slot_index <= max(4, total_slots // 2):
-        return min(28, choices_len)
+        return min(18, choices_len)
     if slot_index <= total_slots - 3:
         return min(60, choices_len)
     return min(140, choices_len)
+
+
+def _early_choice_floor(sport: str, slot_index: int) -> int:
+    if slot_index > 3:
+        return 0
+    return {
+        "baseball": 1350,
+        "basketball": 1350,
+        "hockey": 1550,
+        "football": 1300,
+    }.get(sport, 0)
 
 
 def lineup_slots(sport: str, unit: str | None = None) -> tuple[str, ...]:
@@ -188,6 +201,28 @@ def _candidate_links(conn: sqlite3.Connection, sport: str, player_id: str,
           ON b.sport_id=a.sport_id AND b.team_id=a.team_id AND b.season=a.season
         JOIN sport_players b_player ON b_player.sport_id=b.sport_id AND b_player.player_id=b.player_id
         WHERE a.sport_id=? AND a.player_id=? AND b.player_id<>? AND a.season>=?
+          AND NOT (
+              a.sport_id='football' AND a.season>=2025
+              AND EXISTS (
+                  SELECT 1 FROM sport_players pa
+                   WHERE pa.sport_id=a.sport_id AND pa.player_id=a.player_id
+                     AND pa.debut_year <= a.season - 4
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM sport_appearances prior_a
+                   WHERE prior_a.sport_id=a.sport_id AND prior_a.player_id=a.player_id
+                     AND prior_a.season BETWEEN a.season - 2 AND a.season - 1
+              )
+          )
+          AND NOT (
+              b.sport_id='football' AND b.season>=2025
+              AND b_player.debut_year <= b.season - 4
+              AND NOT EXISTS (
+                  SELECT 1 FROM sport_appearances prior_b
+                   WHERE prior_b.sport_id=b.sport_id AND prior_b.player_id=b.player_id
+                     AND prior_b.season BETWEEN b.season - 2 AND b.season - 1
+              )
+          )
         {exclusion_clause}
           AND (
               NOT EXISTS (
@@ -268,6 +303,11 @@ def generate(conn: sqlite3.Connection, sport: str, puzzle_day: date | None = Non
                 if _pair_key(deck[-1], item[0]) not in banned_adjacent_pairs
                    and not (slot_index == 1 and item[0] in banned_opening_players)
             ]
+            preferred_floor = _early_choice_floor(sport, slot_index)
+            if preferred_floor:
+                preferred = [item for item in choices if pools[slot][item[0]] >= preferred_floor]
+                if preferred:
+                    choices = preferred
             if not choices:
                 failed = True
                 break

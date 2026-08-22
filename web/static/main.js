@@ -163,6 +163,7 @@ function hasProfileUi() {
 let currentMode = 'home';
 let game = null;
 let frGame = null;
+let frBoardCollapsed = null;
 let profile = null;
 let timerInterval = null;
 let countdownInterval = null;
@@ -378,7 +379,20 @@ function usesSplitSeasonInput() {
   return ['basketball', 'football', 'hockey'].includes(CURRENT_SPORT);
 }
 
+function usesConsolidatedFrAnswerInput() {
+  return true;
+}
+
 function configureFrSeasonInputs() {
+  if (usesConsolidatedFrAnswerInput()) {
+    if (els.frYearInput) {
+      els.frYearInput.hidden = true;
+      els.frYearInput.disabled = true;
+    }
+    if (els.frSeasonInputs) els.frSeasonInputs.hidden = true;
+    if (els.frSeasonStartInput) els.frSeasonStartInput.disabled = true;
+    return;
+  }
   const split = usesSplitSeasonInput();
   if (els.frYearInput) {
     els.frYearInput.hidden = split;
@@ -390,6 +404,11 @@ function configureFrSeasonInputs() {
 }
 
 function setFrSeasonInputsDisabled(disabled) {
+  if (usesConsolidatedFrAnswerInput()) {
+    if (els.frYearInput) els.frYearInput.disabled = true;
+    if (els.frSeasonStartInput) els.frSeasonStartInput.disabled = true;
+    return;
+  }
   if (els.frYearInput) els.frYearInput.disabled = disabled || usesSplitSeasonInput();
   if (els.frSeasonStartInput) els.frSeasonStartInput.disabled = disabled || !usesSplitSeasonInput();
 }
@@ -401,11 +420,16 @@ function clearFrSeasonInputs() {
 }
 
 function focusFrSeasonInput() {
+  if (usesConsolidatedFrAnswerInput()) {
+    els.frGuessForm?.requestSubmit();
+    return;
+  }
   if (usesSplitSeasonInput()) els.frSeasonStartInput?.focus();
   else els.frYearInput?.focus();
 }
 
 function frSeasonGuessValue() {
+  if (usesConsolidatedFrAnswerInput()) return parseFrTeamSeasonInput(els.frTeamInput?.value || '').year;
   if (!usesSplitSeasonInput()) return els.frYearInput.value.trim();
   const start = (els.frSeasonStartInput.value || '').trim();
   if (!/^\d{4}$/.test(start)) return '';
@@ -413,6 +437,7 @@ function frSeasonGuessValue() {
 }
 
 function frSplitSeasonIsValid() {
+  if (usesConsolidatedFrAnswerInput()) return !!parseFrTeamSeasonInput(els.frTeamInput?.value || '').year;
   if (!usesSplitSeasonInput()) return true;
   const startText = (els.frSeasonStartInput.value || '').trim();
   return /^\d{4}$/.test(startText);
@@ -430,6 +455,36 @@ function updateFrSeasonSuffix() {
 
 function digitsOnly(value, maxLen = 4) {
   return String(value || '').replace(/\D/g, '').slice(0, maxLen);
+}
+
+function currentFrAnswerOptions() {
+  const rows = Array.isArray(frGame?.current_answers) ? frGame.current_answers : [];
+  const seen = new Set();
+  return rows.map((row) => {
+    const seasonLabel = seasonText(row);
+    const label = `${row.team_name} ${seasonLabel}`.trim();
+    return { ...row, label };
+  }).filter((row) => {
+    const key = normalize(row.label);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function parseFrTeamSeasonInput(value) {
+  const raw = String(value || '').trim();
+  const options = currentFrAnswerOptions();
+  const exact = options.find((item) => normalize(item.label) === normalize(raw));
+  if (exact) return { team: exact.team_name, year: seasonText(exact), matchedOption: exact };
+
+  const seasonMatch = raw.match(/(?:^|\s)(\d{4})(?:\s*-\s*(\d{2}|\d{4}))?\s*$/);
+  if (!seasonMatch) return { team: raw, year: '' };
+  const year = usesSplitSeasonInput()
+    ? `${seasonMatch[1]}-${String((Number(seasonMatch[1]) + 1) % 100).padStart(2, '0')}`
+    : seasonMatch[1];
+  const team = raw.slice(0, seasonMatch.index).trim();
+  return { team, year };
 }
 
 async function api(path, body) {
@@ -924,6 +979,17 @@ async function getAutocomplete(q) {
 }
 
 async function getTeamAutocomplete(q) {
+  if (frGame && usesConsolidatedFrAnswerInput()) {
+    const query = normalize(q);
+    if (!query) return [];
+    const options = currentFrAnswerOptions();
+    const prefix = options.filter((item) => normalize(item.label).startsWith(query));
+    const contains = options.filter((item) => {
+      const key = normalize(item.label);
+      return key.includes(query) && !key.startsWith(query);
+    });
+    return [...prefix, ...contains].slice(0, 8);
+  }
   const endpoint = filmReviewPath('team_autocomplete');
   const r = await fetch(endpoint + '?q=' + encodeURIComponent(q));
   return r.json();
@@ -1245,6 +1311,7 @@ async function startFr(unit = null, options = {}) {
   closeTeamAutocomplete();
   els.frTeamInput.value = '';
   clearFrSeasonInputs();
+  frBoardCollapsed = null;
   configureFrSeasonInputs();
   showScreen('fr-game');
   renderLoadingFilmReview();
@@ -1679,7 +1746,7 @@ async function onTeamInput() {
 
 function applyTeamHighlightToInput() {
   if (teamAcHighlight >= 0 && teamAcHighlight < teamAcItems.length) {
-    els.frTeamInput.value = teamAcItems[teamAcHighlight];
+    els.frTeamInput.value = teamAcItems[teamAcHighlight].label || teamAcItems[teamAcHighlight];
   } else {
     els.frTeamInput.value = userTypedTeamQuery;
   }
@@ -1691,7 +1758,7 @@ function onTeamKeydown(e) {
   if (e.key === 'Enter') {
     e.preventDefault();
     if (teamAcHighlight >= 0 && teamAcHighlight < teamAcItems.length) {
-      els.frTeamInput.value = teamAcItems[teamAcHighlight];
+      els.frTeamInput.value = teamAcItems[teamAcHighlight].label || teamAcItems[teamAcHighlight];
       closeTeamAutocomplete({ keepValue: true });
     }
     focusFrSeasonInput();
@@ -1718,16 +1785,17 @@ function onTeamKeydown(e) {
 }
 
 function renderTeamAutocomplete() {
-  els.frTeamAutocompleteList.innerHTML = teamAcItems.map((name, i) => {
+  els.frTeamAutocompleteList.innerHTML = teamAcItems.map((item, i) => {
+    const label = item.label || item;
     return `<li data-i="${i}" class="${i === teamAcHighlight ? 'active' : ''}">
-              <span class="ac-name">${escapeHtml(name)}</span>
+              <span class="ac-name">${escapeHtml(label)}</span>
             </li>`;
   }).join('');
   els.frTeamAutocompleteList.hidden = false;
   els.frTeamAutocompleteList.querySelectorAll('li').forEach((li) => {
     li.addEventListener('click', () => {
       const i = parseInt(li.dataset.i, 10);
-      els.frTeamInput.value = teamAcItems[i];
+      els.frTeamInput.value = teamAcItems[i].label || teamAcItems[i];
       closeTeamAutocomplete({ keepValue: true });
       focusFrSeasonInput();
     });
@@ -2203,11 +2271,16 @@ async function frSubmit(e) {
   e.preventDefault();
   if (!frGame || frGame.finished) return;
   if (teamAcHighlight >= 0 && teamAcHighlight < teamAcItems.length) {
-    els.frTeamInput.value = teamAcItems[teamAcHighlight];
+    els.frTeamInput.value = teamAcItems[teamAcHighlight].label || teamAcItems[teamAcHighlight];
   }
-  const team = els.frTeamInput.value.trim();
-  const year = frSeasonGuessValue();
-  if (!team || !year) return;
+  const parsed = parseFrTeamSeasonInput(els.frTeamInput.value);
+  const team = usesConsolidatedFrAnswerInput() ? parsed.team.trim() : els.frTeamInput.value.trim();
+  const year = usesConsolidatedFrAnswerInput() ? parsed.year : frSeasonGuessValue();
+  if (!team || !year) {
+    const hint = usesConsolidatedFrAnswerInput() ? 'Enter a team and season, like Chicago Bears 2020.' : 'Enter both a team and year.';
+    els.frFeedback.innerHTML = `<span class="bad">${escapeHtml(hint)}</span>`;
+    return;
+  }
   if (!frSplitSeasonIsValid()) {
     els.frFeedback.innerHTML = `<span class="bad">Enter the full starting year, like 2020.</span>`;
     return;
@@ -2623,6 +2696,14 @@ async function loadFrArchive() {
 }
 
 function frTeamPlaceholder() {
+  if (usesConsolidatedFrAnswerInput()) {
+    return ({
+      baseball: 'Team + year (e.g., Chicago Cubs 2016)',
+      basketball: 'Team + season (e.g., Chicago Bulls 2020-21)',
+      hockey: 'Team + season (e.g., Chicago Blackhawks 2020-21)',
+      football: 'Team + season (e.g., Chicago Bears 2020-21)',
+    })[CURRENT_SPORT] || 'Team + season';
+  }
   return ({
     baseball: 'Team (e.g., Chicago Cubs)',
     basketball: 'Team (e.g., Chicago Bulls)',
@@ -2664,21 +2745,30 @@ function renderFrLineupBoard() {
   const earnedCount = frGame.finished
     ? (frGame.won ? slots.length : Math.min(slots.length, frGame.earned_count || ((frGame.stats?.hits || 0) + 2)))
     : 0;
-  els.frLineupBoard.className = `fr-lineup-board sport-${sport} unit-${unit}`;
+  const collapsed = frBoardCollapsed ?? window.matchMedia('(max-width: 760px)').matches;
+  els.frLineupBoard.className = `fr-lineup-board sport-${sport} unit-${unit} ${collapsed ? 'collapsed' : ''}`;
   els.frLineupBoard.innerHTML = `
-    <div class="fr-board-title">${sport === 'football' ? (unit === 'defense' ? 'Defensive Formation' : 'Offensive Formation') : 'Lineup Board'}</div>
-    <div class="fr-board-grid">
+    <button type="button" class="fr-board-toggle" aria-expanded="${collapsed ? 'false' : 'true'}">
+      <span>${sport === 'football' ? (unit === 'defense' ? 'Defensive Formation' : 'Offensive Formation') : 'Lineup Board'}</span>
+      <span>${collapsed ? 'Show' : 'Hide'}</span>
+    </button>
+    <div class="fr-board-grid" ${collapsed ? 'hidden' : ''}>
       ${slots.map((slot, index) => {
         const player = revealed[index];
         const role = frBoardRole(sport, unit, slot, index);
         const resultClass = frGame.finished && player ? (index < earnedCount ? 'earned' : 'missed') : '';
         return `<div class="fr-board-slot slot-${slot.toLowerCase()} slot-index-${index} ${player ? 'filled' : ''} ${resultClass}">
+          ${player?.headshot_url ? `<img class="fr-board-headshot" src="${escapeHtml(player.headshot_url)}" alt="">` : ''}
           <span class="fr-board-role">${escapeHtml(role)}</span>
           <span class="fr-board-player">${player ? escapeHtml(player.name) : ''}</span>
         </div>`;
       }).join('')}
     </div>`;
   els.frTeamInput.placeholder = frTeamPlaceholder();
+  els.frLineupBoard.querySelector('.fr-board-toggle')?.addEventListener('click', () => {
+    frBoardCollapsed = !collapsed;
+    renderFrLineupBoard();
+  });
 }
 
 function renderPowerupReferenceHtml() {
