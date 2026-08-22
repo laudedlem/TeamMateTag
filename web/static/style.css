@@ -2942,10 +2942,10 @@ body {
   --mode-film: #57a6ff;
   --mode-division: #ffb454;
   --mode-playoffs: #c084fc;
-  --sport-baseball: #47d37b;
+  --sport-baseball: #f25555;
   --sport-basketball: #ff8a3d;
   --sport-hockey: #67d7ff;
-  --sport-football: #b6e35d;
+  --sport-football: #50d36b;
   --shadow-sm: 0 10px 24px rgba(0, 0, 0, 0.22);
   --shadow-md: 0 18px 52px rgba(0, 0, 0, 0.36);
   --radius: 8px;
@@ -4013,11 +4013,11 @@ body.dark::before {
   }
 }
 
-/* 0.3.10 matte site texture. */
+/* 0.3.11 colored matte site texture. */
 body.dark {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent 34%),
-    linear-gradient(135deg, #090d14 0%, #111722 48%, #0c1119 100%);
+    linear-gradient(128deg, rgba(242, 85, 85, 0.2) 0 13%, transparent 13% 36%, rgba(255, 138, 61, 0.13) 36% 48%, transparent 48% 66%, rgba(103, 215, 255, 0.16) 66% 82%, rgba(80, 211, 107, 0.11) 82% 100%),
+    linear-gradient(180deg, #111827 0%, #0c111a 45%, #090d14 100%);
 }
 
 body.dark::before {
@@ -4028,9 +4028,16 @@ body.dark::before {
   z-index: -1;
   background-image:
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='.24'/%3E%3C/svg%3E"),
-    linear-gradient(90deg, rgba(245, 74, 103, 0.075), transparent 22%, rgba(79, 157, 255, 0.065) 58%, transparent 84%),
-    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.026) 0 1px, transparent 1px 18px);
-  background-size: 120px 120px, 100% 100%, 180px 180px;
-  mix-blend-mode: screen;
-  opacity: 0.42;
+    linear-gradient(155deg, transparent 0 18%, rgba(255, 255, 255, 0.035) 18% 19%, transparent 19% 38%, rgba(255, 255, 255, 0.026) 38% 39%, transparent 39%);
+  background-size: 120px 120px, 100% 100%;
+  mix-blend-mode: soft-light;
+  opacity: 0.5;
+}
+
+body.dark .modal-content {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.025)),
+    #141b28;
+  border-color: rgba(255, 255, 255, 0.16);
+  box-shadow: 0 26px 70px rgba(0, 0, 0, 0.58);
 }

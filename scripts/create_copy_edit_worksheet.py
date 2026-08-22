@@ -65,10 +65,10 @@ def table(headers: list[str], rows: list[list[str]], widths: list[int]) -> str:
 
 
 rules_modes = [
-    ["RULES.MODE.MANAGER", "Manager Mode", "Start with the daily leadoff player. Name a teammate before the clock runs out, then keep building.", "Goal: set your longest lineup.", ""],
-    ["RULES.MODE.FILM", "Film Review", "Guess the team and year that connect each pair of players.", "Goal: complete every Teammate Link before three strikes.", ""],
-    ["RULES.MODE.DIVISION", "Division Rivalry", "Two players build one lineup, alternating 20-second turns.", "Win: have your opponent run out of time.", ""],
-    ["RULES.MODE.PLAYOFFS", "Playoffs", "Division Rivalry with powerups and a chosen Win Condition.", "Win: complete your Win Condition or have your opponent run out of time.", ""],
+    ["RULES.MODE.MANAGER", "Manager Mode", "Starting with the Leadoff Player, name TeamMates of the Top Player until time runs out.", "Goal: set your longest lineup.", ""],
+    ["RULES.MODE.FILM", "Film Review", "Build your daily Lineup by naming the team and season two TeamMates played together.", "Goal: complete every TeamMate Link in the Lineup.", ""],
+    ["RULES.MODE.DIVISION", "Division Rivalry", "Head-to-head, back-and-forth naming TeamMates of the Top Player and avoiding Struck Out Team-Seasons.", "Goal: outlast your opponent.", ""],
+    ["RULES.MODE.PLAYOFFS", "Playoffs", "Division Rivalry with Powerups and Win Conditions.", "Goal: complete your Win Condition before your opponent, or outlast them.", ""],
 ]
 
 rules_vocab = [
@@ -82,16 +82,16 @@ rules_vocab = [
 ]
 
 sport_terms = [
-    ["RULES.TERM.STARTER", "Leadoff", "Tipoff", "Snapper", "Faceoff", "The starting player.", ""],
-    ["RULES.TERM.OUT_TEAM", "Struck Out", "Fouled Out", "Punted", "Game Misconduct", "Three Team Strikes.", ""],
-    ["RULES.TERM.FR_HIT", "Hit", "Bucket", "Completion", "Goal", "Correct Film Review answer.", ""],
-    ["RULES.TERM.FR_FOUL", "Foul", "Rim Out", "Incompletion", "Offside", "One correct Film Review field.", ""],
-    ["RULES.TERM.FR_STRIKE", "Strike", "Turnover", "Turnover", "Penalty", "Film Review miss.", ""],
+    ["RULES.TERM.STARTER", "Leadoff", "Tipoff", "Snapper", "Faceoff", "The First Player in a Lineup.", ""],
+    ["RULES.TERM.OUT_TEAM", "Struck Out", "Fouled Out", "Punted", "Game Misconduct", "The Same Team-Season used 3 Times. TeamMates from that Team-Season can no longer be used.", ""],
+    ["RULES.TERM.FR_HIT", "Hit", "Bucket", "Completion", "Goal", "Correct Film Review Link.", ""],
+    ["RULES.TERM.FR_FOUL", "Foul", "Rim Out", "Tipped Pass", "Offside", "Correct Film Review Team OR Year. 2 in a row is a Miss.", ""],
+    ["RULES.TERM.FR_STRIKE", "Strike", "Foul", "Turnover", "Penalty", "Missed Film Review Link. 3 Misses and you're Benched.", ""],
 ]
 
 ref_general = [
     ["REF.INTRO.MODE_HUB", "Mode hub Ref intro", "Playoffs adds powerups and win conditions to the head-to-head lineup game.", ""],
-    ["REF.INTRO.SPORT_PAGE", "Sport page Ref intro", "Each Playoffs game gives both players one use of every powerup. You can activate one powerup on a turn. Choose a preferred win condition before queueing, or choose Random.", ""],
+    ["REF.INTRO.SPORT_PAGE", "Sport page Ref intro", "Each Playoffs Game gives both Players 1 use of every Powerup. You can activate Powerups on your turn.", ""],
     ["REF.INTRO.IN_GAME", "In-game Ref intro", "Each Playoffs game gives both players one use of every powerup. You can activate one powerup on a turn.", ""],
 ]
 

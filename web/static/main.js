@@ -2362,7 +2362,53 @@ function applyToggles() {
 }
 
 function rulesForMode() {
-  return sharedRulesHtml();
+  return CURRENT_SPORT ? sportRulesHtml(CURRENT_SPORT) : sharedRulesHtml();
+}
+
+function sportTermsForRules(sport = CURRENT_SPORT || 'baseball') {
+  return ({
+    baseball: { starter: 'Leadoff', out: 'Struck Out', hit: 'Hit', foul: 'Foul', strike: 'Strike', strikes: 'Strikes' },
+    basketball: { starter: 'Tipoff', out: 'Fouled Out', hit: 'Bucket', foul: 'Rim Out', strike: 'Foul', strikes: 'Fouls' },
+    football: { starter: 'Snapper', out: 'Punted', hit: 'Completion', foul: 'Tipped Pass', strike: 'Turnover', strikes: 'Turnovers' },
+    hockey: { starter: 'Faceoff', out: 'Game Misconduct', hit: 'Goal', foul: 'Offside', strike: 'Penalty', strikes: 'Penalties' },
+  })[sport] || sportTermsForRules('baseball');
+}
+
+function sportRulesHtml(sport = CURRENT_SPORT || 'baseball') {
+  const terms = sportTermsForRules(sport);
+  return `
+    <div class="rules-sheet">
+      <section class="rules-section">
+        <h3>Game Modes</h3>
+        <div class="rules-mode-grid">
+          <article class="rules-mode-card mode-manager">
+            <h4>Manager Mode</h4>
+            <p>Starting with the ${terms.starter} Player, name TeamMates of the Top Player until time runs out.</p>
+            <p>The same Team-Season Link used 3 times in a Lineup results in a ${terms.out} Team-Season.</p>
+            <p><strong>Goal:</strong> set your longest lineup.</p>
+            <p><strong>Lose:</strong> run out of time.</p>
+          </article>
+          <article class="rules-mode-card mode-film">
+            <h4>Film Review</h4>
+            <p>Build your daily Lineup by naming the team and season two TeamMates played together.</p>
+            <p><strong>Goal:</strong> complete every TeamMate Link in the Lineup. Maintain your daily streak or try any you missed in the Archives.</p>
+            <p><strong>Lose:</strong> get 3 ${terms.strikes}. Consecutive ${terms.foul}s yield a ${terms.strike}.</p>
+          </article>
+          <article class="rules-mode-card mode-division">
+            <h4>Division Rivalry</h4>
+            <p>Head-to-head, back-and-forth naming TeamMates of the Top Player and avoiding ${terms.out} Team-Seasons.</p>
+            <p><strong>Goal:</strong> outlast your opponent.</p>
+            <p><strong>Lose:</strong> run out of eligible TeamMates to name.</p>
+          </article>
+          <article class="rules-mode-card mode-playoffs">
+            <h4>Playoffs</h4>
+            <p>Division Rivalry with Powerups and Win Conditions.</p>
+            <p><strong>Goal:</strong> complete your Win Condition before your opponent, or outlast them.</p>
+            <p><strong>Lose:</strong> allow your opponent to play their Win Condition, or run out of time.</p>
+          </article>
+        </div>
+      </section>
+    </div>`;
 }
 
 function sharedRulesHtml() {
@@ -2418,11 +2464,11 @@ function sharedRulesHtml() {
         <table class="rules-term-table">
           <thead><tr><th>Baseball</th><th>Basketball</th><th>Football</th><th>Hockey</th><th>Meaning</th></tr></thead>
           <tbody>
-            <tr><td>Leadoff</td><td>Tipoff</td><td>Snapper</td><td>Faceoff</td><td>The starting player.</td></tr>
-            <tr><td>Struck Out</td><td>Fouled Out</td><td>Punted</td><td>Game Misconduct</td><td>Three Team Strikes.</td></tr>
-            <tr><td>Hit</td><td>Bucket</td><td>Completion</td><td>Goal</td><td>Correct Film Review answer.</td></tr>
-            <tr><td>Foul</td><td>Rim Out</td><td>Incompletion</td><td>Offside</td><td>One correct Film Review field.</td></tr>
-            <tr><td>Strike</td><td>Turnover</td><td>Turnover</td><td>Penalty</td><td>Film Review miss.</td></tr>
+            <tr><td>Leadoff</td><td>Tipoff</td><td>Snapper</td><td>Faceoff</td><td>The First Player in a Lineup.</td></tr>
+            <tr><td>Struck Out</td><td>Fouled Out</td><td>Punted</td><td>Game Misconduct</td><td>The Same Team-Season used 3 Times. TeamMates from that Team-Season can no longer be used.</td></tr>
+            <tr><td>Hit</td><td>Bucket</td><td>Completion</td><td>Goal</td><td>Correct Film Review Link.</td></tr>
+            <tr><td>Foul</td><td>Rim Out</td><td>Tipped Pass</td><td>Offside</td><td>Correct Film Review Team OR Year. 2 in a row is a Miss.</td></tr>
+            <tr><td>Strike</td><td>Foul</td><td>Turnover</td><td>Penalty</td><td>Missed Film Review Link. 3 Misses and you're Benched.</td></tr>
           </tbody>
         </table>
       </section>
@@ -2614,6 +2660,24 @@ function renderPowerupReferenceHtml() {
     <thead><tr><th>Type</th><th>What You Need</th></tr></thead>
     <tbody>${conditionRows.map(([name, desc]) => `<tr><td class="reference-condition-name">${escapeHtml(name)}</td><td class="reference-condition-need">${escapeHtml(desc)}</td></tr>`).join('')}</tbody>
   </table>`;
+  const SPORT_CONDITION_ROWS = {
+    baseball: [
+      ['Sunset Kingdom', 'Name 3 Japanese players.'], ['Havana Heat', 'Name 3 Cuban players.'],
+      ['Maple Corridor', 'Name 4 Canadian players.'], ['MVP Circle', 'Name 2 MVP winners.'],
+      ['Young Buck', 'Name 2 Rookie of the Year winners.'], ['Gonna Be Golden', 'Name 2 Gold Glove winners.'],
+      ['Secretariat', 'Name 1 Triple Crown winner.'], ['Hound-dog', 'Name 2 players who spent at least 10 seasons with one franchise only.'],
+      ['Great Bambinos', 'Name 1 player with 500 career home runs.'], ['Ring Chaser', 'Name players with 8 combined World Series rings.'],
+      ['Journeyman', 'Name 2 players who played for at least 7 teams.'],
+    ],
+    basketball: LOCAL_PLAYOFF_OPTIONS.basketball.map(([, label]) => label.split(': ')),
+    football: LOCAL_PLAYOFF_OPTIONS.football.map(([, label]) => label.split(': ')),
+    hockey: LOCAL_PLAYOFF_OPTIONS.hockey.map(([, label]) => label.split(': ')),
+  };
+  const sportConditionRows = (SPORT_CONDITION_ROWS[sport] || []).filter(([label]) => label !== 'Random');
+  const sportConditionTable = `<table class="reference-table">
+    <thead><tr><th>Win Condition</th><th>What You Need</th></tr></thead>
+    <tbody>${sportConditionRows.map(([name, desc]) => `<tr><td class="reference-condition-name">${escapeHtml(name)}</td><td class="reference-condition-need">${escapeHtml(desc || '')}</td></tr>`).join('')}</tbody>
+  </table>`;
   if (!CURRENT_SPORT) {
     const allSports = ['baseball', 'basketball', 'football', 'hockey'];
     return `<p class="muted">Playoffs adds Powerups and Win Conditions to the Head-to-Head Lineup Game.</p>
@@ -2633,9 +2697,9 @@ function renderPowerupReferenceHtml() {
       }).join('')}`;
   }
   return `
-    <p class="muted">Each Playoffs Game gives both Players 1 use of every Powerup. You can activate Powerups on your turn. When queueing, choose a preferred Win Condition or Random.</p>
+    <p class="muted">Each Playoffs Game gives both Players 1 use of every Powerup. You can activate Powerups on your turn.</p>
     <h3>Win Conditions</h3>
-    ${conditionTable}
+    ${sportConditionTable}
     <h3>Powerups</h3>
     <div class="reference-key">
       ${rows.map(([key, desc]) => `

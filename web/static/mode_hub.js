@@ -82,11 +82,11 @@ const SHARED_RULES_HTML = `
       <table class="rules-term-table">
         <thead><tr><th>Baseball</th><th>Basketball</th><th>Football</th><th>Hockey</th><th>Meaning</th></tr></thead>
         <tbody>
-          <tr><td>Leadoff</td><td>Tipoff</td><td>Snapper</td><td>Faceoff</td><td>The starting player.</td></tr>
-          <tr><td>Struck Out</td><td>Fouled Out</td><td>Punted</td><td>Game Misconduct</td><td>Three Team Strikes.</td></tr>
-          <tr><td>Hit</td><td>Bucket</td><td>Completion</td><td>Goal</td><td>Correct Film Review answer.</td></tr>
-          <tr><td>Foul</td><td>Rim Out</td><td>Incompletion</td><td>Offside</td><td>One correct Film Review field.</td></tr>
-          <tr><td>Strike</td><td>Turnover</td><td>Turnover</td><td>Penalty</td><td>Film Review miss.</td></tr>
+          <tr><td>Leadoff</td><td>Tipoff</td><td>Snapper</td><td>Faceoff</td><td>The First Player in a Lineup.</td></tr>
+          <tr><td>Struck Out</td><td>Fouled Out</td><td>Punted</td><td>Game Misconduct</td><td>The Same Team-Season used 3 Times. TeamMates from that Team-Season can no longer be used.</td></tr>
+          <tr><td>Hit</td><td>Bucket</td><td>Completion</td><td>Goal</td><td>Correct Film Review Link.</td></tr>
+          <tr><td>Foul</td><td>Rim Out</td><td>Tipped Pass</td><td>Offside</td><td>Correct Film Review Team OR Year. 2 in a row is a Miss.</td></tr>
+          <tr><td>Strike</td><td>Foul</td><td>Turnover</td><td>Penalty</td><td>Missed Film Review Link. 3 Misses and you're Benched.</td></tr>
         </tbody>
       </table>
     </section>

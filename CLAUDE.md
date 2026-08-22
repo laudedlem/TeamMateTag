@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.3.10`
+- Current display version: `0.3.11`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -1914,3 +1914,28 @@ Update, 2026-08-22 (0.3.10): worksheet copy applied and matte texture.
 - Reworked the global background again: no corner bloom and no flat black.
   The site now uses a restrained matte dark gradient with subtle grain,
   low-contrast color wash, and faint field/court-like texture.
+
+Update, 2026-08-22 (0.3.11): sport-specific rules/reference cleanup.
+- Bumped visible app version to `0.3.11`.
+- Fixed the missed Sport Terms worksheet edits: the Meaning column now uses the
+  user's updated definitions, including `Tipped Pass`, basketball `Foul`, and
+  `3 Misses and you're Benched`.
+- Changed sport-page `?` modals to show only the How to Play Game Modes
+  section, using that sport's terms instead of the full homepage vocabulary and
+  sport-term table. Root homepage and gamemode hub `?` modals still show the
+  broad overview, vocabulary, and Sport Terms key.
+- Changed sport-page `Ref` modals so the Win Conditions section lists the
+  actual sport-specific Win Condition names and requirements instead of broad
+  category rows. Root homepage/gamemode hub reference surfaces may still use
+  broad or all-sport overviews.
+- Cleaned the gamemode hub queue copy: `Multi-Sport Queue`, removed the helper
+  sentence about picking one or more sports, and removed redundant league text
+  from the multisport queue options.
+- Locked sport colors to the requested set: baseball red, basketball orange,
+  hockey blue, football green. This fixes Baseball and Football both reading as
+  green on gamemode queue pages.
+- Reworked the background again toward a more colorful matte app/game surface:
+  color is back in the page background, while `?` and `Ref` modals use a calmer
+  readable dark panel with color reserved for cards/tables.
+- Refreshed `scripts/create_copy_edit_worksheet.py` so future copy worksheets
+  start from the current terms and Ref intro instead of stale 0.3.10 wording.

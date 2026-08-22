@@ -103,20 +103,16 @@
         </select>
       </label>
     </section>
-    {% elif slug == 'playoffs' %}
-    <p class="muted small mode-hub-note">Choose a win condition below before queueing across multiple sports.</p>
     {% endif %}
     {% if slug == 'division' or slug == 'playoffs' %}
     <section class="shared-queue-panel" id="shared-queue-panel">
-      <h3>Multi-sport Queue</h3>
-      <p class="muted small">Pick one or more sports. You will enter whichever selected sport finds an opponent first.</p>
+      <h3>Multi-Sport Queue</h3>
       <div class="shared-sport-picker">
         {% for key, sport in sports.items() %}
         <label class="shared-sport-option sport-tile-{{ key }}">
           <input type="checkbox" value="{{ key }}" checked>
           <span>
             <strong>{{ sport.name }}</strong>
-            <small>{{ sport.league }}</small>
           </span>
           {% if slug == 'playoffs' %}
           <select class="hub-condition-select" data-condition-sport="{{ key }}" aria-label="{{ sport.name }} win condition"></select>
