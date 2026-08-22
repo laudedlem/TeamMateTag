@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.2.22`
+- Current display version: `0.3.09`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -1730,3 +1730,157 @@ Update, 2026-08-20 (0.2.22): Film Review no-repeat opening and faster guess resp
   unnecessary DB work before showing Hit/Foul/Strike feedback.
 - Dry run against production data showed baseball 2026-08-20 would rebuild away
   from the repeated Cano/Overbay opening to Edwin Encarnacion/Jeff Conine.
+
+Update, 2026-08-20 (0.3.00): UI/UX stage started.
+- Bumped visible app version to `0.3.00`; this marks the start of the stage 3
+  visual and usability pass.
+- Added a shared visual foundation in `web/static/style.css`: darker app-style
+  shell, sticky translucent header, stronger button/input styling, sport accent
+  colors, mode accent colors, improved sport/mode tiles, polished queue panels,
+  refined game surfaces, mobile layout tightening, and clearer powerup chip
+  colors.
+- Homepage mode links now use mode-specific card classes. Sport pages now apply
+  the same Manager Mode, Film Review, Division Rivalry, and Playoffs tile
+  language through the shared design system.
+- Mode hub pages (`/manager`, `/film`, `/division`, `/playoffs`) now share the
+  same hub styling, sport tile polish, and multi-sport queue treatment.
+- Powerup references on mode hubs now render with the same chip/icon/color
+  pattern used inside Playoffs, so the queue/reference/game UI teaches the same
+  visual vocabulary.
+- This pass is intentionally UI-first and avoids changing teammate matching,
+  timer, queue, archive, or gameplay logic. Next UI passes should focus on
+  screen-specific information architecture: Playoffs HUD density, mobile
+  gameplay ergonomics, profile/friends polish, and Film Review archive browsing.
+
+Update, 2026-08-20 (0.3.01): homepage redesign pass.
+- Bumped visible app version to `0.3.01`.
+- Root homepage now uses a compact collapsible account tray instead of a large
+  profile/account block. The tray shows the active display name and whether the
+  user is signed in or playing as a guest.
+- Root homepage sport and mode choices are now one equal 8-tile launch grid
+  with large color blocks and inline SVG line icons: baseball, basketball,
+  puck, football, headset, video camera, foam finger, and trophy.
+- Added a stronger display-font stack and brighter color treatment for the
+  homepage only. The sport pages keep their existing shared tile foundation for
+  now while page-by-page UI work continues.
+- Renamed the in-app `Ref` modal title to `Playoffs Reference`.
+- Playoffs reference win-condition content now renders as a table distinct from
+  powerup chips. Powerup copy was normalized across sports so same-function
+  powerups use matching phrasing and keep their shared color/icon treatment.
+
+Update, 2026-08-20 (0.3.02): homepage polish iteration.
+- Bumped visible app version to `0.3.02`.
+- Added the user-provided Panton trial webfont files under
+  `web/static/fonts/WEB/` and configured the site to use Panton first with
+  system fonts as fallback. Confirm licensing before production use beyond
+  playtesting.
+- Root homepage now separates Sports and Gamemodes into two labeled sections.
+  Tiles no longer show `Sport` or `Mode` labels.
+- Sports tile captions are now `Hit the Diamond`, `Hit the Court`, `Hit the
+  Ice`, and `Hit the Field`. Mode tile captions are now `Solo Lineup`,
+  `Daily Puzzle`, `Head-to-head`, and `Powers + Win Conditions`.
+- Root homepage copy changed to `Pick a Sport or Gamemode`.
+- Account tray no longer appends `- guest` for guest profiles.
+- Homepage icons were revised: basketball, puck, football, camera, foam finger,
+  and trophy line art were cleaned up. Icons now sit bottom-right while names
+  stay top-left and captions sit bottom-left.
+- Playoffs Reference powerup rows now match the organized two-column structure
+  of the win-condition table area, while preserving powerup chip colors.
+
+Update, 2026-08-20 (0.3.03): homepage icon/reference cleanup.
+- Bumped visible app version to `0.3.03`.
+- Forced root homepage tile icons to bottom-right with final CSS overrides
+  because older duplicated homepage rules were overriding the intended position.
+- Reworked the Division Rivalry hand/foam-finger icon and Playoffs trophy icon.
+- Changed the Playoffs homepage caption from `Powers + Win Conditions` to
+  `Powers and Win Conditions` because the trial Panton plus glyph rendered
+  poorly.
+- Replaced Playoffs Reference powerup letter placeholders with first-pass inline
+  SVG line icons across the in-app reference and mode-hub reference. Baseball
+  now has bubblegum, pine tar/bat, bat donut/bat, sunglasses, glove, strike
+  zone, and flaming-ball/quick-pitch style icons. Basketball, football, and
+  hockey use matching sport-themed first-pass line icons for review.
+- Removed duplicate powerup names from the reference copy column. The colored
+  chip carries the name/icon; the row copy now focuses on the effect.
+- Powerup reference rows now use a distinct gray table-like background separate
+  from the default dark modal background.
+
+Update, 2026-08-20 (0.3.04): Carter One font trial.
+- Bumped visible app version to `0.3.04`.
+- Added the user-provided Carter One font under
+  `web/static/fonts/carter-one/` and made it the active global site font.
+- Kept the earlier Panton files in `web/static/fonts/WEB/` as a fallback and
+  comparison option during the UI/UX pass.
+
+Update, 2026-08-20 (0.3.05): LT Karaoke Body and icon polish.
+- Bumped visible app version to `0.3.05`.
+- Added the user-provided LT Karaoke Body family under
+  `web/static/fonts/lt-karaoke-body/` and made it the active global site font.
+  Removed the earlier Carter One and Panton font files from local static assets.
+- Homepage mode captions now use `Head-to-Head` and `Powerups and Win
+  Conditions`.
+- Replaced the Division Rivalry homepage icon with a clearer raised index
+  finger/number-one hand.
+- Reworked first-pass Playoffs powerup SVGs in both `web/static/main.js` and
+  `web/static/mode_hub.js`: candy-wrapper Bubblegum, pine-tree Pine Tar,
+  clearer Bat Donut bat, mitt-shaped Backup Mitt, 3-by-3 ABS strike zone,
+  home-plate Quick Pitch, improved Heat Check flame, locker Sixth Man, circular
+  arrows Switch, overhead court Full-Court Press, brighter Trick Play sparkles,
+  X/O Package Change, clearer Breakaway puck, faceoff-dot Line Change, and
+  action-line Forecheck.
+- Added a brighter homepage atmosphere layer with multi-color radial lighting,
+  subtle grid texture, and a glassier home panel to move away from the flatter
+  dark background.
+
+Update, 2026-08-21 (0.3.06): homepage structure and rules cleanup.
+- Bumped visible app version to `0.3.06`.
+- Removed the duplicate root homepage `TeamMateTag` heading beneath the header;
+  the homepage now keeps `Pick a Sport or Gamemode` as the first-page prompt.
+- Removed the hard-edged glass panel around the root homepage launch grid so the
+  sport/mode tiles sit directly on the blended background.
+- Changed the account tray affordance from `Edit` to `Login` and added more
+  spacing between the opened tray summary and profile/login controls.
+- Replaced the Division Rivalry homepage hand icon with a foam-finger-like
+  number-one outline to avoid the middle-finger read.
+- Rewrote the `?` How to Play copy in `web/static/main.js` and
+  `web/static/mode_hub.js` for clearer, shorter mode flow explanations:
+  Manager Mode, Film Review, Division Rivalry, and Playoffs now define the
+  key flow, team-mark rules, sport-specific out terms, and Film Review feedback
+  terminology more directly.
+
+Update, 2026-08-21 (0.3.07): rules sheet restructure and icon note.
+- Bumped visible app version to `0.3.07`.
+- Simplified the Division Rivalry homepage icon again. The raised pointer is
+  now on the edge of the hand, with less interior detail, to avoid reading as a
+  middle finger.
+- Rebuilt the `?` How to Play content in both `web/static/main.js` and
+  `web/static/mode_hub.js` as a single non-redundant rules sheet: game modes
+  first, vocabulary with examples second, and a sport-term key at the bottom.
+- Added rules modal styling for colored game-mode cards, compact vocabulary
+  cards, and a responsive sport-term table.
+- TODO for the UI/UX pass: revisit the Playoffs Reference icons. Several are
+  acceptable placeholders, but the full powerup icon set still needs a more
+  deliberate second pass for clarity and consistency.
+
+Update, 2026-08-21 (0.3.08): tighter rules copy and non-bloom color.
+- Bumped visible app version to `0.3.08`.
+- Rewrote the How to Play rules sheet again to better match the user's style:
+  shorter, less repetitive, baseball terms first, with sport-specific wording
+  only in the key. Removed the `Top Player` vocabulary card and changed
+  `Team Marks` language to `Team Strikes`.
+- Kept all public vocabulary labels capitalized, including multi-word terms
+  such as `Teammate Link`, `Team-Season`, `Team Strikes`, `Blocked Guess`, and
+  `Win Condition`.
+- Replaced the corner/radial bloom page background with angled color bands and
+  subtle field/court-like texture so color is present without the repeated
+  corner-fade effect. Homepage sport tiles now use angled color bands instead
+  of radial blooms for the same reason.
+
+Update, 2026-08-21 (0.3.09): scoped modal color pass.
+- Bumped visible app version to `0.3.09`.
+- Reverted the global dark page shell back to the restrained dark background.
+  The user liked the homepage direction and clarified that additional color
+  should be focused on modal/reference screens, not the whole homepage.
+- Moved the richer angled color treatment into `.modal-content`, especially for
+  `?` How to Play and `Ref` / Playoffs Reference surfaces. Rules cards and the
+  sport-term table now carry more color while the main page stays calmer.

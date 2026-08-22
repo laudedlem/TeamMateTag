@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.2.22"
+APP_VERSION = "0.3.09"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -247,11 +247,11 @@ CENTRAL_TIME = ZoneInfo("America/Chicago")
 LOCAL_PLAYOFF_CONFIG = {
     "basketball": {
         "powerups": {
-            "heat_check": {"label": "Heat Check", "description": "A 2,000-point season scorer from a franchise shared with the top player. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "peak_points", "threshold": 2000},
-            "sixth_man": {"label": "Sixth Man", "description": "A 7,000-assist player from a franchise shared with the top player. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "career_assists", "threshold": 7000},
-            "switch": {"label": "Switch", "description": "A player in the same position group from a franchise shared with the top player. +5 seconds.", "kind": "position", "bonus_seconds": 5},
-            "mvp_badge": {"label": "MVP Badge", "description": "An MVP winner from a franchise shared with the top player. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "mvp_count", "threshold": 1},
-            "all_star_callup": {"label": "All-Star Call-Up", "description": "An All-Star from a franchise shared with the top player. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "all_star_count", "threshold": 1},
+            "heat_check": {"label": "Heat Check", "description": "A 2,000-point season scorer from a franchise shared with the current player. Adds 5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "peak_points", "threshold": 2000},
+            "sixth_man": {"label": "Sixth Man", "description": "A 7,000-assist player from a franchise shared with the current player. Adds 5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "career_assists", "threshold": 7000},
+            "switch": {"label": "Switch", "description": "A player in the same position group from a franchise shared with the current player. Adds 5 seconds.", "kind": "position", "bonus_seconds": 5},
+            "mvp_badge": {"label": "MVP Badge", "description": "An MVP winner from a franchise shared with the current player. Adds 5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "mvp_count", "threshold": 1},
+            "all_star_callup": {"label": "All-Star Call-Up", "description": "An All-Star from a franchise shared with the current player. Adds 5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "all_star_count", "threshold": 1},
             "timeout": {"label": "Timeout", "description": "+15 seconds on your turn.", "kind": "time", "bonus_seconds": 15},
             "full_court_press": {"label": "Full-Court Press", "description": "Your opponent gets 10 seconds on their next turn.", "kind": "pressure"},
         },
@@ -271,11 +271,11 @@ LOCAL_PLAYOFF_CONFIG = {
     },
     "football": {
         "powerups": {
-            "trick_play": {"label": "Trick Play", "description": "A 20-touchdown scorer from a franchise shared with the top player. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "career_touchdowns", "threshold": 20},
-            "iron_man": {"label": "Iron Man", "description": "A 100-game veteran from a franchise shared with the top player. +5 seconds.", "kind": "veteran", "bonus_seconds": 5, "career_games": 100},
-            "package_change": {"label": "Package Change", "description": "A player in the same unit from a franchise shared with the top player. +5 seconds.", "kind": "position", "bonus_seconds": 5},
-            "mvp_badge": {"label": "MVP Honor", "description": "An MVP winner from a franchise shared with the top player. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "mvp_count", "threshold": 1},
-            "pro_bowl_callup": {"label": "Pro Bowl Call-Up", "description": "A Pro Bowl player from a franchise shared with the top player. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "all_star_count", "threshold": 1},
+            "trick_play": {"label": "Trick Play", "description": "A 20-touchdown scorer from a franchise shared with the current player. Adds 5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "career_touchdowns", "threshold": 20},
+            "iron_man": {"label": "Iron Man", "description": "A 100-game veteran from a franchise shared with the current player. Adds 5 seconds.", "kind": "veteran", "bonus_seconds": 5, "career_games": 100},
+            "package_change": {"label": "Package Change", "description": "A player in the same unit from a franchise shared with the current player. Adds 5 seconds.", "kind": "position", "bonus_seconds": 5},
+            "mvp_badge": {"label": "MVP Honor", "description": "An MVP winner from a franchise shared with the current player. Adds 5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "mvp_count", "threshold": 1},
+            "pro_bowl_callup": {"label": "Pro Bowl Call-Up", "description": "A Pro Bowl player from a franchise shared with the current player. Adds 5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "all_star_count", "threshold": 1},
             "timeout": {"label": "Timeout", "description": "+15 seconds on your turn.", "kind": "time", "bonus_seconds": 15},
             "blitz": {"label": "Blitz", "description": "Your opponent gets 10 seconds on their next turn.", "kind": "pressure"},
         },
@@ -296,11 +296,11 @@ LOCAL_PLAYOFF_CONFIG = {
     },
     "hockey": {
         "powerups": {
-            "breakaway": {"label": "Breakaway", "description": "A 250-goal scorer from a franchise shared with the top player. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "career_goals", "threshold": 250},
-            "veteran_presence": {"label": "Veteran Presence", "description": "A 500-point scorer from a franchise shared with the top player. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "career_points", "threshold": 500},
-            "line_change": {"label": "Line Change", "description": "A player in the same position group from a franchise shared with the top player. +5 seconds.", "kind": "position", "bonus_seconds": 5},
-            "hart_honor": {"label": "Hart Honor", "description": "A Hart Trophy winner from a franchise shared with the top player. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "mvp_count", "threshold": 1},
-            "all_star_callup": {"label": "All-Star Call-Up", "description": "An All-Star from a franchise shared with the top player. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "all_star_count", "threshold": 1},
+            "breakaway": {"label": "Breakaway", "description": "A 250-goal scorer from a franchise shared with the current player. Adds 5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "career_goals", "threshold": 250},
+            "veteran_presence": {"label": "Veteran Presence", "description": "A 500-point scorer from a franchise shared with the current player. Adds 5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "career_points", "threshold": 500},
+            "line_change": {"label": "Line Change", "description": "A player in the same position group from a franchise shared with the current player. Adds 5 seconds.", "kind": "position", "bonus_seconds": 5},
+            "hart_honor": {"label": "Hart Honor", "description": "A Hart Trophy winner from a franchise shared with the current player. Adds 5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "mvp_count", "threshold": 1},
+            "all_star_callup": {"label": "All-Star Call-Up", "description": "An All-Star from a franchise shared with the current player. Adds 5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "all_star_count", "threshold": 1},
             "timeout": {"label": "Timeout", "description": "+15 seconds on your turn.", "kind": "time", "bonus_seconds": 15},
             "forecheck": {"label": "Forecheck", "description": "Your opponent gets 10 seconds on their next turn.", "kind": "pressure"},
         },
@@ -323,35 +323,35 @@ LOCAL_PLAYOFF_CONFIG = {
 PLAYOFF_POWERUPS = {
     "bubblegum": {
         "label": "Bubblegum",
-        "description": "Any batter from the same franchise with a 40+ home run season. +5 seconds.",
+        "description": "Any batter from the same franchise with a 40 home run season. Adds 5 seconds.",
         "kind": "skill",
         "bonus_seconds": 5.0,
         "role": "batter",
     },
     "pine_tar": {
         "label": "Pine Tar",
-        "description": "Any pitcher from the same franchise with a 200+ strikeout season. +5 seconds.",
+        "description": "Any pitcher from the same franchise with a 200 strikeout season. Adds 5 seconds.",
         "kind": "skill",
         "bonus_seconds": 5.0,
         "role": "pitcher",
     },
     "bat_donut": {
         "label": "Bat Donut",
-        "description": "Any player from the same franchise with a Silver Slugger. +5 seconds.",
+        "description": "Any player from the same franchise with a Silver Slugger. Adds 5 seconds.",
         "kind": "skill",
         "bonus_seconds": 5.0,
         "role": "any",
     },
     "sunglasses": {
         "label": "Sunglasses",
-        "description": "Any player from the same franchise with an All-Star selection. +5 seconds.",
+        "description": "Any player from the same franchise with an All-Star selection. Adds 5 seconds.",
         "kind": "skill",
         "bonus_seconds": 5.0,
         "role": "any",
     },
     "backup_mitt": {
         "label": "Backup Mitt",
-        "description": "Any player from the same franchise with a Gold Glove. +5 seconds.",
+        "description": "Any player from the same franchise with a Gold Glove. Adds 5 seconds.",
         "kind": "skill",
         "bonus_seconds": 5.0,
         "role": "any",
@@ -2504,10 +2504,10 @@ def index():
 
 
 MODE_HUBS = {
-    "manager": {"title": "Manager Mode", "mode": "bp", "description": "Build an endless solo lineup. Name a teammate of the top player before the 20-second clock expires, avoid maxed-out team-years, and chase your longest lineup."},
+    "manager": {"title": "Manager Mode", "mode": "bp", "description": "Build an endless solo lineup. Name a teammate of the current player before the 20-second clock expires, avoid blocked teams, and chase your longest lineup."},
     "film": {"title": "Film Review", "mode": "fr", "description": "Solve the daily lineup by identifying the team and season between each visible pair. Three misses end the review; archived lineups are always available."},
-    "division": {"title": "Division Rivalry", "mode": "mp", "description": "Online head-to-head. Alternate teammate links on one lineup, manage team-year marks, and win when your opponent runs out of time or exits."},
-    "playoffs": {"title": "Playoffs", "mode": "po", "description": "Online lineup battle with the same turn-by-turn teammate rules, plus one-use powerups and a personal win condition that can end the game immediately."},
+    "division": {"title": "Division Rivalry", "mode": "mp", "description": "Online head-to-head. Alternate teammate links on one lineup, watch Team Strikes, and win when your opponent runs out of time."},
+    "playoffs": {"title": "Playoffs", "mode": "po", "description": "Online lineup battle with powerups and a personal Win Condition. Complete it first or run your opponent out of time."},
 }
 
 MODE_ALIASES = {
@@ -4587,7 +4587,7 @@ def local_po_powerup(sport: str):
         elif meta["kind"] == "pressure":
             game["next_turn_seconds_override"] = QUICK_PITCH_TURN_SECONDS; game["last_move"] = {"outcome": "powerup_activated", "powerup_key": key, "powerup_label": meta["label"], "message": f"{meta['label']} activated. Opponent gets 10 seconds next turn."}
         else:
-            game["turn_seconds"] += meta["bonus_seconds"]; game["active_turn_powerup"] = key; game["last_move"] = {"outcome": "powerup_activated", "powerup_key": key, "powerup_label": meta["label"], "message": f"{meta['label']} activated. +5 seconds and an expanded link this turn."}
+            game["turn_seconds"] += meta["bonus_seconds"]; game["active_turn_powerup"] = key; game["last_move"] = {"outcome": "powerup_activated", "powerup_key": key, "powerup_label": meta["label"], "message": f"{meta['label']} activated. Adds 5 seconds and an expanded link this turn."}
         return jsonify(_local_po_state(game_id, game, guest_id))
 
 
@@ -6399,7 +6399,7 @@ def po_powerup():
                 "outcome": "powerup_activated",
                 "powerup_key": key,
                 "powerup_label": powerup["label"],
-                "message": f"{powerup['label']} activated. +5 seconds and expanded move rules this turn.",
+                "message": f"{powerup['label']} activated. Adds 5 seconds and expanded move rules this turn.",
             }
         _save_game(conn, "po_games", gid, blob)
         return jsonify(po_state_dict(gid, blob, state, conn=conn))

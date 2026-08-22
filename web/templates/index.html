@@ -18,7 +18,7 @@
     <div class="header-controls">
       <button id="exit-btn" class="icon-btn exit-btn" title="Exit to home" aria-label="Exit to home" hidden>Exit</button>
       <button id="rules-btn" class="icon-btn" title="How to play" aria-label="How to play">?</button>
-      <button id="reference-btn" class="icon-btn" title="Powerup reference" aria-label="Powerup reference">Ref</button>
+      <button id="reference-btn" class="icon-btn" title="Playoffs reference" aria-label="Playoffs reference">Ref</button>
       <div class="header-toggles" id="header-toggles" hidden>
         <label><input type="checkbox" id="toggle-lineup" checked> Lineup</label>
         <label><input type="checkbox" id="toggle-out" checked> {% if sport and sport.key == 'football' %}Punted{% elif sport and sport.key == 'basketball' %}Fouled Out{% elif sport and sport.key == 'hockey' %}Game Misconduct{% else %}Struck Out{% endif %}</label>
@@ -28,18 +28,29 @@
 
   <!-- ===================== HOME SCREEN ====================== -->
   <section id="home-screen" class="screen">
-    <div class="home">
-      {% if not sport %}<div class="profile-card" id="profile-card">
-        <div class="profile-head">
-          <div>
-            <div class="profile-label">Profile</div>
+    <div class="home{% if not sport %} home-root{% endif %}">
+      {% if not sport %}<details class="profile-card account-tray" id="profile-card">
+        <summary class="account-tray-summary">
+          <span class="account-orb" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"/><path d="M4 20a8 8 0 0 1 16 0"/></svg>
+          </span>
+          <span class="account-copy">
+            <span class="profile-label">Playing as</span>
+            <span id="profile-status" class="account-status-line">Loading guest profile...</span>
+          </span>
+          <span class="account-chevron" aria-hidden="true">Login</span>
+        </summary>
+        <div class="account-tray-body">
+          <div class="profile-head">
+            <div>
+              <div class="profile-label">Profile</div>
             <div class="profile-name-row">
               <input id="profile-name-input" type="text" maxlength="24" placeholder="Profile name" />
               <button id="profile-save-btn" class="secondary" type="button">Save</button>
               <button id="profile-open-btn" class="secondary" type="button">View Profile</button>
               <button id="friends-open-btn" class="secondary" type="button">Friends</button>
             </div>
-            <p id="profile-status" class="muted small">Loading guest profile...</p>
+            <p class="muted small">Use a guest profile for this browser, or sign in to carry stats across devices.</p>
           </div>
         </div>
         <div class="auth-card">
@@ -61,21 +72,22 @@
           </div>
           <p id="account-status" class="muted small"></p>
         </div>
-      </div>{% endif %}
+        </div>
+      </details>{% endif %}
       {% if sport and sport_ready %}
       <h2>{% if sport and sport.key == 'football' %}Hit The Gridiron{% elif sport and sport.key == 'basketball' %}Take The Court{% elif sport and sport.key == 'hockey' %}Hit The Ice{% else %}Step Into The Box{% endif %}</h2>
       <div class="mode-tiles">
-        <button class="mode-tile" data-mode="bp">
+        <button class="mode-tile mode-tile-manager" data-mode="bp">
           <div class="mode-tile-head">
           <span class="mode-tile-name">Manager Mode</span>
           <span class="mode-tile-tag">solo</span>
         </div>
           <span class="mode-tile-desc">
-            Solo and endless. Name a teammate of the top player before time
+            Solo and endless. Name a teammate of the current player before time
             expires. Correct links reset the clock. Build your longest lineup.
         </span>
         </button>
-        <button class="mode-tile" data-mode="fr">
+        <button class="mode-tile mode-tile-film" data-mode="fr">
           <div class="mode-tile-head">
             <span class="mode-tile-name">Film Review</span>
             <span class="mode-tile-tag">daily</span>
@@ -85,24 +97,24 @@
             Identify the team and season linking each pair. Three misses end the review.
           </span>
         </button>
-        <button class="mode-tile" data-mode="mp">
+        <button class="mode-tile mode-tile-division" data-mode="mp">
           <div class="mode-tile-head">
           <span class="mode-tile-name">Division Rivalry</span>
           <span class="mode-tile-tag">2 players</span>
         </div>
         <span class="mode-tile-desc">
-            Alternate teammate links on one lineup. Team-year marks can block
-            future links. Win when your opponent runs out of time or exits.
+            Alternate teammate links on one lineup. Team Strikes can block
+            future links. Win when your opponent runs out of time.
         </span>
         </button>
-        <button class="mode-tile" data-mode="po">
+        <button class="mode-tile mode-tile-playoffs" data-mode="po">
           <div class="mode-tile-head">
           <span class="mode-tile-name">Playoffs</span>
           <span class="mode-tile-tag">2 players</span>
         </div>
         <span class="mode-tile-desc">
-            Head-to-head lineup battle with one-use powerups and a personal
-            win condition. Win on time or complete your condition first.
+            Head-to-Head lineup battle with one-use powerups and a personal
+            Win Condition. Complete it first or run your opponent out of time.
         </span>
         </button>
       </div>
@@ -120,35 +132,52 @@
         <a class="secondary sport-back-link" href="/">Choose another sport</a>
       </div>
       {% else %}
-      <h2>Choose Your Sport</h2>
-      <div class="sport-tiles">
-        <a class="sport-tile sport-tile-baseball" href="/baseball">
-          <span class="sport-tile-league">MLB</span>
+      <p class="home-kicker">Pick a Sport or Gamemode</p>
+      <h3 class="home-section-title">Sports</h3>
+      <div class="home-launch-grid home-sports-grid">
+        <a class="sport-tile sport-tile-baseball home-launch-tile home-tile-red" href="/baseball">
+          <span class="home-tile-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M8.2 4.8c2.2 2.2 2.2 12.2 0 14.4"/><path d="M15.8 4.8c-2.2 2.2-2.2 12.2 0 14.4"/><path d="M7.9 8.2h.1M7.9 10.8h.1M7.9 13.2h.1M7.9 15.8h.1M16 8.2h.1M16 10.8h.1M16 13.2h.1M16 15.8h.1"/></svg></span>
           <span class="sport-tile-name">Baseball</span>
-          <span class="sport-tile-status">Play now</span>
+          <span class="sport-tile-status">Hit the Diamond</span>
         </a>
-        <a class="sport-tile sport-tile-basketball" href="/basketball">
-          <span class="sport-tile-league">NBA</span>
+        <a class="sport-tile sport-tile-basketball home-launch-tile home-tile-orange" href="/basketball">
+          <span class="home-tile-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6"/><path d="M12 3.4c-1.9 2-1.9 15.2 0 17.2"/><path d="M12 3.4c1.9 2 1.9 15.2 0 17.2"/><path d="M3.4 12h17.2"/><path d="M5.8 6.2c3 2.3 3.1 9.2 0 11.6"/><path d="M18.2 6.2c-3 2.3-3.1 9.2 0 11.6"/></svg></span>
           <span class="sport-tile-name">Basketball</span>
-          <span class="sport-tile-status">Play now</span>
+          <span class="sport-tile-status">Hit the Court</span>
         </a>
-        <a class="sport-tile sport-tile-hockey" href="/hockey">
-          <span class="sport-tile-league">NHL</span>
+        <a class="sport-tile sport-tile-hockey home-launch-tile home-tile-blue" href="/hockey">
+          <span class="home-tile-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="12.5" rx="7.8" ry="4.2"/><path d="M4.2 12.5v3.2c0 2.3 3.5 4.1 7.8 4.1s7.8-1.8 7.8-4.1v-3.2"/><path d="M6.2 14.6c1.5 1.1 3.5 1.7 5.8 1.7s4.3-.6 5.8-1.7"/></svg></span>
           <span class="sport-tile-name">Hockey</span>
-          <span class="sport-tile-status">Play now</span>
+          <span class="sport-tile-status">Hit the Ice</span>
         </a>
-        <a class="sport-tile sport-tile-football" href="/football">
-          <span class="sport-tile-league">NFL</span>
+        <a class="sport-tile sport-tile-football home-launch-tile home-tile-green" href="/football">
+          <span class="home-tile-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4.2 14.4C5.6 8 10.6 4.3 17.1 4.7c1.2.1 2.1.4 2.7 1 .4 6.5-3.7 11.2-10.2 12.1-2.3.3-4.4-.7-5.4-3.4Z"/><path d="M7.2 16.8 18.7 5.3"/><path d="m10.5 12.4 2.4 2.4M12.6 10.3l2.4 2.4M14.7 8.2l2.4 2.4"/></svg></span>
           <span class="sport-tile-name">Football</span>
-          <span class="sport-tile-status">Play now</span>
+          <span class="sport-tile-status">Hit the Field</span>
         </a>
       </div>
-      <h2 class="mode-home-heading">Or Choose A Mode</h2>
-      <div class="mode-preview-grid mode-hub-links">
-        <a href="/manager">Manager Mode</a>
-        <a href="/film">Film Review</a>
-        <a href="/division">Division Rivalry</a>
-        <a href="/playoffs">Playoffs</a>
+      <h3 class="home-section-title">Gamemodes</h3>
+      <div class="home-launch-grid home-modes-grid">
+        <a class="mode-hub-card mode-hub-card-manager home-launch-tile home-tile-gray" href="/manager">
+          <span class="home-tile-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 12a6 6 0 0 1 12 0"/><path d="M5 12h3v5H5zM16 12h3v5h-3z"/><path d="M18 17c0 2-1.5 3-4.2 3H12"/><path d="M11 20h2"/></svg></span>
+          <span class="sport-tile-name">Manager Mode</span>
+          <span class="sport-tile-status">Solo Lineup</span>
+        </a>
+        <a class="mode-hub-card mode-hub-card-film home-launch-tile home-tile-violet" href="/film">
+          <span class="home-tile-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4.5 7h10.5a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4.5z"/><path d="m17 10 4-2.5v9L17 14"/></svg></span>
+          <span class="sport-tile-name">Film Review</span>
+          <span class="sport-tile-status">Daily Puzzle</span>
+        </a>
+        <a class="mode-hub-card mode-hub-card-division home-launch-tile home-tile-pink" href="/division">
+          <span class="home-tile-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7.2 20.5h9.2c1.7 0 3-1.3 3-3V9.8c0-1-.8-1.8-1.8-1.8h-3.8V4.5c0-1.2-1-2.2-2.2-2.2s-2.2 1-2.2 2.2v9"/><path d="M13.8 8v6.2"/><path d="M9.4 11.6H7.2c-1.4 0-2.5 1.1-2.5 2.5v3.5c0 1.6 1.3 2.9 2.9 2.9"/><path d="M11.6 4.7v12.1"/><path d="M7.8 14v3.1"/></svg></span>
+          <span class="sport-tile-name">Division Rivalry</span>
+          <span class="sport-tile-status">Head-to-Head</span>
+        </a>
+        <a class="mode-hub-card mode-hub-card-playoffs home-launch-tile home-tile-yellow" href="/playoffs">
+          <span class="home-tile-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 4h8v3a4 4 0 0 1-8 0z"/><path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4"/><path d="M12 11v5"/><path d="M9.2 16h5.6v2.2H9.2z"/><path d="M7.5 20h9"/></svg></span>
+          <span class="sport-tile-name">Playoffs</span>
+          <span class="sport-tile-status">Powerups and Win Conditions</span>
+        </a>
       </div>
       {% endif %}
     </div>

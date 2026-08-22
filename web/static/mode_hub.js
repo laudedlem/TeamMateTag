@@ -32,35 +32,126 @@ const PLAYOFF_OPTIONS = {
   ],
 };
 
-const MODE_RULES = {
-  manager: `<h3>Manager Mode</h3>
-    <p>Manager Mode is the solo endless lineup mode. You start with the daily starter already on the board. After a short countdown, the 20-second clock begins.</p>
-    <p><strong>Your action:</strong> type a player name, use autocomplete when it helps, then submit a player who was teammates with the current top player. A teammate link means both players appeared for the same franchise in the same season.</p>
-    <p><strong>Team marks:</strong> every team-season used as a link receives a mark. At three marks, that team is maxed out and cannot be used as a link again. If your guessed player shares any maxed-out team with the top player, the guess is blocked, even if they also share another open team.</p>
-    <p><strong>Ending:</strong> invalid guesses do not end the run, but the clock keeps moving. Each valid teammate adds to the lineup and resets the clock. When time expires, your score is the full lineup length, including the starter.</p>`,
-  film: `<h3>Film Review</h3>
-    <p>Film Review is the daily puzzle mode. You are given a fixed lineup and must identify the team and season connecting each pair of players. Each daily tape is preserved in the archive forever, so Film Review #1 will always be the same puzzle.</p>
-    <p><strong>Your action:</strong> enter the team and the season for the visible pair. The next player is only added to the lineup board after the connection is correct. Football has separate Offense and Defense tapes.</p>
-    <p><strong>Feedback:</strong> a fully correct team and season advances the tape. If only one field is correct, that is a partial answer. The first partial answer in a streak is safe, then every additional partial answer in that same streak counts against you. A completely wrong answer also counts against you.</p>
-    <p><strong>Ending:</strong> three misses benches the review. Solving every connection is Fully Scouted. Today's first attempt controls your streak; archived attempts let you continue, review, or retry old tapes without changing the daily streak.</p>`,
-  division: `<h3>Division Rivalry</h3>
-    <p>Division Rivalry is the basic online head-to-head lineup battle. Queue for one sport, or use the multi-sport queue to enter whichever selected sport finds an opponent first.</p>
-    <p><strong>Game flow:</strong> one player is randomly chosen to go first. After the countdown, players alternate turns. On your turn, you have 20 seconds to name a teammate of the current top player. A valid answer adds that player to the shared lineup, passes the turn, and resets the clock.</p>
-    <p><strong>Team marks:</strong> the same maxed-team rule from Manager Mode applies. Baseball teams get Struck Out, Basketball teams Fouled Out, Football teams Punted, and Hockey teams receive Game Misconducts. Once a team is maxed out, it cannot be used to link future players.</p>
-    <p><strong>Winning:</strong> win by making your opponent run out of time, or when your opponent exits an active match. After a completed game, both players can request a rematch or find a new match.</p>`,
-  playoffs: `<h3>Playoffs</h3>
-    <p>Playoffs is the advanced online head-to-head mode. It uses the same teammate-link, turn timer, and maxed-team rules as Division Rivalry, then adds powerups and personal win conditions.</p>
-    <p><strong>Before queueing:</strong> choose a preferred win condition for each sport, or choose Random. Your selected condition becomes your default for the next queue.</p>
-    <p><strong>Powerups:</strong> each player gets one use of every powerup. Some powerups let you play a same-franchise player who is not a direct teammate, as long as that player qualifies for the powerup. Team marks still apply to powerup links. Other powerups add time to your turn or reduce the opponent's next turn.</p>
-    <p><strong>Winning:</strong> win on the clock like Division Rivalry, or immediately win by completing your win condition first. Progress pips show how close each player is, and qualifying players are highlighted on the lineup.</p>`,
-};
+const SHARED_RULES_HTML = `
+  <div class="rules-sheet">
+    <section class="rules-section">
+      <h3>Game Modes</h3>
+      <div class="rules-mode-grid">
+        <article class="rules-mode-card mode-manager">
+          <h4>Manager Mode</h4>
+          <p>Start with the daily leadoff player. Name a teammate before the clock runs out, then keep building.</p>
+          <p><strong>Goal:</strong> set your longest lineup.</p>
+        </article>
+        <article class="rules-mode-card mode-film">
+          <h4>Film Review</h4>
+          <p>Guess the team and year that connect each pair of players.</p>
+          <p><strong>Goal:</strong> complete every Teammate Link before three strikes.</p>
+        </article>
+        <article class="rules-mode-card mode-division">
+          <h4>Division Rivalry</h4>
+          <p>Two players build one lineup, alternating 20-second turns.</p>
+          <p><strong>Win:</strong> have your opponent run out of time.</p>
+        </article>
+        <article class="rules-mode-card mode-playoffs">
+          <h4>Playoffs</h4>
+          <p>Division Rivalry with powerups and a chosen Win Condition.</p>
+          <p><strong>Win:</strong> complete your Win Condition or have your opponent run out of time.</p>
+        </article>
+      </div>
+    </section>
+    <section class="rules-section">
+      <h3>Vocabulary</h3>
+      <div class="rules-term-grid">
+        <div class="rules-term-card"><strong>Lineup</strong><span>The player chain. Example: Anthony Rizzo -> Kris Bryant -> Javier Baez.</span></div>
+        <div class="rules-term-card"><strong>Teammate Link</strong><span>Two players connect if they ever played together. Example: Rizzo and Bryant connect through the 2016 Cubs.</span></div>
+        <div class="rules-term-card"><strong>Team-Season</strong><span>One team in one season. Example: 2016 Cubs or 2019-20 Lakers.</span></div>
+        <div class="rules-term-card"><strong>Team Strikes</strong><span>Each used Team-Season gets a strike. Three strikes means that team is out.</span></div>
+        <div class="rules-term-card"><strong>Blocked Guess</strong><span>If a player only links through an out team, the guess does not count.</span></div>
+        <div class="rules-term-card"><strong>Powerup</strong><span>A one-use Playoffs move. Some let you play a same-franchise player instead of a direct teammate.</span></div>
+        <div class="rules-term-card"><strong>Win Condition</strong><span>Your Playoffs target. Complete it first and the game ends.</span></div>
+      </div>
+    </section>
+    <section class="rules-section">
+      <h3>Sport Terms</h3>
+      <p class="rules-note">Rules use baseball terms first. Other sports use the same rules with different words.</p>
+      <table class="rules-term-table">
+        <thead><tr><th>Baseball</th><th>Basketball</th><th>Football</th><th>Hockey</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td>Leadoff</td><td>Tipoff</td><td>Snapper</td><td>Faceoff</td><td>The starting player.</td></tr>
+          <tr><td>Struck Out</td><td>Fouled Out</td><td>Punted</td><td>Game Misconduct</td><td>Three Team Strikes.</td></tr>
+          <tr><td>Hit</td><td>Bucket</td><td>Completion</td><td>Goal</td><td>Correct Film Review answer.</td></tr>
+          <tr><td>Foul</td><td>Rim Out</td><td>Incompletion</td><td>Offside</td><td>One correct Film Review field.</td></tr>
+          <tr><td>Strike</td><td>Turnover</td><td>Turnover</td><td>Penalty</td><td>Film Review miss.</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </div>`;
 
 const POWERUP_REFERENCE = {
-  baseball: [['Bubblegum', 'Use a same-franchise 40+ home run season batter. +5 seconds.'], ['Pine Tar', 'Use a same-franchise 200+ strikeout season pitcher. +5 seconds.'], ['Bat Donut', 'Use a same-franchise Silver Slugger winner. +5 seconds.'], ['Sunglasses', 'Use a same-franchise All-Star. +5 seconds.'], ['Backup Mitt', 'Use a same-franchise Gold Glove winner. +5 seconds.'], ['ABS', 'Add 15 seconds to your turn.'], ['Quick Pitch', 'Opponent gets 10 seconds next turn.']],
-  basketball: [['Heat Check', 'Use a same-franchise 2,000-point season scorer. +5 seconds.'], ['Sixth Man', 'Use a same-franchise 7,000-assist player. +5 seconds.'], ['Switch', 'Use a same-position-group player from the same franchise. +5 seconds.'], ['MVP Badge', 'Use a same-franchise MVP winner. +5 seconds.'], ['All-Star Call-Up', 'Use a same-franchise All-Star. +5 seconds.'], ['Timeout', 'Add 15 seconds to your turn.'], ['Full-Court Press', 'Opponent gets 10 seconds next turn.']],
-  football: [['Trick Play', 'Use a same-franchise 20-touchdown scorer. +5 seconds.'], ['Iron Man', 'Use a same-franchise 100-game veteran. +5 seconds.'], ['Package Change', 'Use a same-unit player from the same franchise. +5 seconds.'], ['MVP Badge', 'Use a same-franchise MVP winner. +5 seconds.'], ['Pro Bowl Call-Up', 'Use a same-franchise Pro Bowl player. +5 seconds.'], ['Timeout', 'Add 15 seconds to your turn.'], ['Blitz', 'Opponent gets 10 seconds next turn.']],
-  hockey: [['Breakaway', 'Use a same-franchise 250-goal scorer. +5 seconds.'], ['Veteran Presence', 'Use a same-franchise 500-point scorer. +5 seconds.'], ['Line Change', 'Use a same-position-group player from the same franchise. +5 seconds.'], ['Hart Honor', 'Use a same-franchise Hart Trophy winner. +5 seconds.'], ['All-Star Call-Up', 'Use a same-franchise All-Star. +5 seconds.'], ['Timeout', 'Add 15 seconds to your turn.'], ['Forecheck', 'Opponent gets 10 seconds next turn.']],
+  baseball: [['Bubblegum', 'Play a same-franchise 40 home run season batter. Team Strikes still apply. Adds 5 seconds.'], ['Pine Tar', 'Play a same-franchise 200 strikeout season pitcher. Team Strikes still apply. Adds 5 seconds.'], ['Bat Donut', 'Play a same-franchise Silver Slugger winner. Team Strikes still apply. Adds 5 seconds.'], ['Sunglasses', 'Play a same-franchise All-Star. Team Strikes still apply. Adds 5 seconds.'], ['Backup Mitt', 'Play a same-franchise Gold Glove winner. Team Strikes still apply. Adds 5 seconds.'], ['ABS', 'Add 15 seconds to your current turn.'], ['Quick Pitch', 'Limit your opponent to 10 seconds on their next turn.']],
+  basketball: [['Heat Check', 'Play a same-franchise 2,000-point season scorer. Team Strikes still apply. Adds 5 seconds.'], ['Sixth Man', 'Play a same-franchise 7,000-assist player. Team Strikes still apply. Adds 5 seconds.'], ['Switch', 'Play a same-franchise same-position-group player. Team Strikes still apply. Adds 5 seconds.'], ['MVP Badge', 'Play a same-franchise MVP winner. Team Strikes still apply. Adds 5 seconds.'], ['All-Star Call-Up', 'Play a same-franchise All-Star. Team Strikes still apply. Adds 5 seconds.'], ['Timeout', 'Add 15 seconds to your current turn.'], ['Full-Court Press', 'Limit your opponent to 10 seconds on their next turn.']],
+  football: [['Trick Play', 'Play a same-franchise 20-touchdown scorer. Team Strikes still apply. Adds 5 seconds.'], ['Iron Man', 'Play a same-franchise 100-game veteran. Team Strikes still apply. Adds 5 seconds.'], ['Package Change', 'Play a same-franchise same-unit player. Team Strikes still apply. Adds 5 seconds.'], ['MVP Badge', 'Play a same-franchise MVP winner. Team Strikes still apply. Adds 5 seconds.'], ['Pro Bowl Call-Up', 'Play a same-franchise Pro Bowl player. Team Strikes still apply. Adds 5 seconds.'], ['Timeout', 'Add 15 seconds to your current turn.'], ['Blitz', 'Limit your opponent to 10 seconds on their next turn.']],
+  hockey: [['Breakaway', 'Play a same-franchise 250-goal scorer. Team Strikes still apply. Adds 5 seconds.'], ['Veteran Presence', 'Play a same-franchise 500-point scorer. Team Strikes still apply. Adds 5 seconds.'], ['Line Change', 'Play a same-franchise same-position-group player. Team Strikes still apply. Adds 5 seconds.'], ['Hart Honor', 'Play a same-franchise Hart Trophy winner. Team Strikes still apply. Adds 5 seconds.'], ['All-Star Call-Up', 'Play a same-franchise All-Star. Team Strikes still apply. Adds 5 seconds.'], ['Timeout', 'Add 15 seconds to your current turn.'], ['Forecheck', 'Limit your opponent to 10 seconds on their next turn.']],
 };
+
+const POWERUP_META = {
+  bubblegum: ['BG', 'bubblegum'], pine_tar: ['PT', 'pine-tar'], bat_donut: ['BD', 'bat-donut'],
+  sunglasses: ['SG', 'sunglasses'], backup_mitt: ['BM', 'backup-mitt'], abs: ['ABS', 'abs'],
+  quick_pitch: ['QP', 'quick-pitch'], heat_check: ['HC', 'bubblegum'], sixth_man: ['6M', 'pine-tar'],
+  switch: ['SW', 'bat-donut'], mvp_badge: ['MV', 'sunglasses'], all_star_callup: ['AS', 'backup-mitt'],
+  timeout: ['TO', 'abs'], full_court_press: ['FP', 'quick-pitch'], trick_play: ['TP', 'bubblegum'],
+  iron_man: ['IM', 'pine-tar'], package_change: ['PC', 'bat-donut'], pro_bowl_callup: ['PB', 'backup-mitt'],
+  blitz: ['BZ', 'quick-pitch'], breakaway: ['BA', 'bubblegum'], veteran_presence: ['VP', 'pine-tar'],
+  line_change: ['LC', 'bat-donut'], hart_honor: ['HT', 'sunglasses'], forecheck: ['FC', 'quick-pitch'],
+};
+
+const POWERUP_SVG = {
+  bubblegum: '<path d="M8.2 8h7.6v8H8.2z"/><path d="m8.2 9.2-4-1.7 1.1 4.5-1.1 4.5 4-1.7"/><path d="m15.8 9.2 4-1.7-1.1 4.5 1.1 4.5-4-1.7"/><path d="M10.2 10.5h3.6M10.2 13.5h3.6"/>',
+  pine_tar: '<path d="M12 3v18"/><path d="m12 4-5 6h10z"/><path d="m12 8-6 7h12z"/><path d="m12 12-7 7h14z"/><path d="M9 21h6"/>',
+  bat_donut: '<path d="M6.2 19.2 17 8.4"/><path d="m16.2 5.8 2 2c.5.5.5 1.2 0 1.7l-.7.7-3.7-3.7.7-.7c.5-.5 1.2-.5 1.7 0z"/><path d="M5.1 18.1 7.3 20.3"/><circle cx="11.6" cy="13.8" r="2.6"/><circle cx="11.6" cy="13.8" r="1.1"/>',
+  sunglasses: '<path d="M3.5 10.5h17"/><path d="M5 10.5h5l-1 4H6zM14 10.5h5l-1 4h-3z"/><path d="M10 11.3c1.2-.8 2.8-.8 4 0"/>',
+  backup_mitt: '<path d="M6.5 19.5c-1.2-2.6-1.6-5.8-.9-9.7.3-1.7 1.5-2.1 2.5-.8l.5.8V5.9c0-1 .7-1.7 1.6-1.7.9 0 1.6.7 1.6 1.7v3.4l.7-2.4c.3-.9 1-1.4 1.8-1.1.8.2 1.2 1 1 1.9l-.6 2.4 1.3-1.8c.6-.8 1.5-.9 2.2-.4.7.5.8 1.4.2 2.2l-4.3 6.2c-1.3 1.9-3.7 2.9-7.6 3.2z"/><path d="M7.6 13.1c2.2 1.5 4.8 1.7 7.7.7"/><path d="M9.3 16.6c1.6.5 3.1.4 4.6-.3"/>',
+  abs: '<rect x="5" y="4" width="14" height="16" rx="1.4"/><path d="M5 9.3h14M5 14.7h14"/><path d="M9.7 4v16M14.3 4v16"/>',
+  quick_pitch: '<path d="M12 4 19 9v8l-7 3-7-3V9z"/><path d="M8.2 10h7.6M8.2 14h7.6"/>',
+  heat_check: '<path d="M12 21c4-2.2 6-5 6-8.4 0-2.1-1-4-2.8-5.4.1 2-.7 3.2-2 4.1.4-3.2-.8-5.7-3.6-7.7.2 2.8-.6 4.4-2 5.9C6.5 10.7 6 12 6 13.6 6 16.7 8 19.2 12 21z"/><path d="M11 18c1.9-1.2 2.8-2.7 2.6-4.5-.7.8-1.4 1.1-2.2 1 .2-1.4-.2-2.7-1.3-3.9-.1 1.3-.5 2.2-1.2 2.9-.5.6-.8 1.3-.8 2.1 0 1.1 1 2 2.9 2.4z"/>',
+  sixth_man: '<path d="M6 20V6h12v14"/><path d="M8.5 20v-8h7v8"/><path d="M9 9h2M13 9h2"/><path d="M11 16h2"/><path d="M6 6l2-2h8l2 2"/>',
+  switch: '<path d="M7.2 8.4A6 6 0 0 1 17 7.2"/><path d="m17.2 4.8-.2 2.5-2.5-.2"/><path d="M16.8 15.6A6 6 0 0 1 7 16.8"/><path d="m6.8 19.2.2-2.5 2.5.2"/><path d="M9.5 12h5"/>',
+  mvp_badge: '<circle cx="12" cy="9" r="4"/><path d="M9.5 12.4 8 20l4-2 4 2-1.5-7.6"/><path d="m12 6.6.7 1.5 1.6.2-1.2 1.1.3 1.6-1.4-.8-1.4.8.3-1.6-1.2-1.1 1.6-.2z"/>',
+  all_star_callup: '<path d="m12 3 2.5 5.1 5.6.8-4 3.9.9 5.5-5-2.6-5 2.6.9-5.5-4-3.9 5.6-.8z"/>',
+  timeout: '<circle cx="12" cy="12" r="7.5"/><path d="M12 7.5v5l3.2 2"/><path d="M8 3h8"/>',
+  full_court_press: '<rect x="4" y="5" width="16" height="14" rx="1.5"/><path d="M12 5v14"/><circle cx="12" cy="12" r="2.2"/><path d="M4 9h3.4v6H4M20 9h-3.4v6H20"/><path d="M6.8 7.5h2.2M15 16.5h2.2"/>',
+  trick_play: '<path d="M5 17c4-7 8-7 13-7"/><path d="m15.8 7.4 2.7 2.6-2.7 2.6"/><path d="m7 6.2.5 1 .9.4-.9.4-.5 1-.5-1-.9-.4.9-.4z"/><path d="m11 14 .5 1 .9.4-.9.4-.5 1-.5-1-.9-.4.9-.4z"/><path d="m14 5 .4.8.8.3-.8.3-.4.8-.4-.8-.8-.3.8-.3z"/>',
+  iron_man: '<path d="M12 3 19 6v5.5c0 4-2.7 7.2-7 9.5-4.3-2.3-7-5.5-7-9.5V6z"/><path d="M9 12h6M12 9v6"/>',
+  package_change: '<circle cx="7.5" cy="8" r="2.2"/><path d="M14.5 6.2h4v3.6h-4z"/><path d="M6 15.8h4v3.6H6z"/><circle cx="16.5" cy="17.6" r="2.2"/><path d="M10 8h3.2M13.2 8l-1.4-1.4M13.2 8l-1.4 1.4"/><path d="M14 17.6h-3.2M10.8 17.6l1.4-1.4M10.8 17.6l1.4 1.4"/>',
+  pro_bowl_callup: '<path d="m12 3 2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4-3.9-3.8 5.4-.8z"/><path d="M8 20h8"/>',
+  blitz: '<path d="M13 2 5.5 13H12l-1 9 7.5-11H12z"/>',
+  breakaway: '<ellipse cx="14" cy="13.5" rx="4.6" ry="2.4"/><path d="M4 8.2h7M3 12.2h8M5 16.2h6"/><path d="M10.4 13.5c1.3-1.5 3-2.1 5.1-1.8"/><path d="M17.8 11.8l2.3-1.3M18.4 14.4l2.6.7"/>',
+  veteran_presence: '<path d="M12 3 19 6v5.5c0 4-2.7 7.2-7 9.5-4.3-2.3-7-5.5-7-9.5V6z"/><path d="m8.8 12 2.1 2.1 4.5-5"/>',
+  line_change: '<circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="1.8"/><path d="M4.5 12h15"/><path d="M12 4.5v15"/>',
+  hart_honor: '<path d="M12 20s-7-4.2-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.8-7 10-7 10z"/><path d="m12 8.2.8 1.6 1.8.3-1.3 1.2.3 1.8-1.6-.8-1.6.8.3-1.8-1.3-1.2 1.8-.3z"/>',
+  forecheck: '<path d="M5 18 18 5"/><path d="M15.4 4.8h3.4v3.4"/><path d="M6.6 15.6l2.2 2.2"/><circle cx="8" cy="16" r="1.8"/><path d="M14.5 14.5c-2.2-1.5-4.5-1.4-6.9.3"/><path d="M4 10h4M3 13h3.2"/>',
+};
+
+function powerupKeyFromLabel(label) {
+  const explicit = {
+    'All-Star Call-Up': 'all_star_callup',
+    'Pro Bowl Call-Up': 'pro_bowl_callup',
+  };
+  if (explicit[label]) return explicit[label];
+  return String(label || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+}
+
+function powerupChip(label) {
+  const key = powerupKeyFromLabel(label);
+  const meta = POWERUP_META[key] || ['P', 'generic'];
+  const icon = POWERUP_SVG[key]
+    ? `<span class="powerup-icon powerup-svg" aria-hidden="true"><svg viewBox="0 0 24 24">${POWERUP_SVG[key]}</svg></span>`
+    : `<span class="powerup-icon">${escapeHtml(meta[0])}</span>`;
+  return `<div class="reference-chip powerup-chip powerup-chip-static powerup-${meta[1]}">
+    ${icon}
+    <span class="powerup-label">${escapeHtml(label)}</span>
+  </div>`;
+}
 
 const CONDITION_REQUIREMENTS = {
   random: 'Randomly choose from available conditions.',
@@ -401,17 +492,20 @@ function closeHubModal() {
 }
 
 function allModeRulesHtml() {
-  if (hub && MODE_RULES[hub]) return MODE_RULES[hub];
-  return ['manager', 'film', 'division', 'playoffs'].map((key) => MODE_RULES[key]).join('');
+  return SHARED_RULES_HTML;
 }
 
 function conditionsHtml(sport = null) {
   const sports = sport ? [sport] : ['baseball', 'basketball', 'football', 'hockey'];
   return sports.map((sportKey) => {
     const rows = PLAYOFF_OPTIONS[sportKey] || [];
-    return `<h3>${escapeHtml(sportKey[0].toUpperCase() + sportKey.slice(1))}</h3><div class="reference-key">${rows.map(([key, label]) =>
-      `<div class="reference-row"><div class="reference-name">${escapeHtml(label)}</div><div class="muted small">${escapeHtml(CONDITION_REQUIREMENTS[key] || 'Complete the listed stat goal before your opponent.')}</div></div>`
-    ).join('')}</div>`;
+    return `<h3>${escapeHtml(sportKey[0].toUpperCase() + sportKey.slice(1))}</h3>
+      <table class="reference-table">
+        <thead><tr><th>Condition</th><th>Need</th></tr></thead>
+        <tbody>${rows.map(([key, label]) =>
+          `<tr><td class="reference-condition-name">${escapeHtml(label)}</td><td class="reference-condition-need">${escapeHtml(CONDITION_REQUIREMENTS[key] || 'Complete the listed stat goal before your opponent.')}</td></tr>`
+        ).join('')}</tbody>
+      </table>`;
   }).join('');
 }
 
@@ -420,7 +514,7 @@ function powerupsHtml(sport = null) {
   return sports.map((sportKey) => {
     const rows = POWERUP_REFERENCE[sportKey] || [];
     return `<h3>${escapeHtml(sportKey[0].toUpperCase() + sportKey.slice(1))}</h3><div class="reference-key">${rows.map(([label, desc]) =>
-      `<div class="reference-row"><div class="reference-name">${escapeHtml(label)}</div><div class="muted small">${escapeHtml(desc)}</div></div>`
+      `<div class="reference-row">${powerupChip(label)}<div class="reference-copy"><div class="muted small">${escapeHtml(desc)}</div></div></div>`
     ).join('')}</div>`;
   }).join('');
 }

@@ -18,12 +18,12 @@
       {% endif %}
     </div>
   </header>
-  <main class="home mode-hub-page">
+  <main class="home mode-hub-page mode-hub-{{ slug }}">
     <a class="back-btn" href="/">&larr; Sports</a>
     <h2>{{ hub.title }}</h2>
     <p class="muted">{{ hub.description }}</p>
     <h3>Choose a sport</h3>
-    <div class="sport-tiles">
+    <div class="sport-tiles hub-sport-tiles">
       {% for key, sport in sports.items() %}
         {% if slug == 'film' and key == 'football' %}
       <div class="mode-sport-choice">
@@ -108,7 +108,7 @@
     {% endif %}
     {% if slug == 'division' or slug == 'playoffs' %}
     <section class="shared-queue-panel" id="shared-queue-panel">
-      <h3>Multi-sport queue</h3>
+      <h3>Multi-sport Queue</h3>
       <p class="muted small">Pick one or more sports. You will enter whichever selected sport finds an opponent first.</p>
       <div class="shared-sport-picker">
         {% for key, sport in sports.items() %}
