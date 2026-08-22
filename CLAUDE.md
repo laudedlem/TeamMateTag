@@ -1884,3 +1884,13 @@ Update, 2026-08-21 (0.3.09): scoped modal color pass.
 - Moved the richer angled color treatment into `.modal-content`, especially for
   `?` How to Play and `Ref` / Playoffs Reference surfaces. Rules cards and the
   sport-term table now carry more color while the main page stays calmer.
+
+Update, 2026-08-22: copy editing worksheet.
+- Created `docs/TeamMateTag_Copy_Edit_Worksheet.docx` as an editable worksheet
+  for the user to revise the `?` How to Play and `Ref` / Playoffs Reference
+  copy outside the app. It includes stable IDs, current text, and blank edit
+  columns for game modes, vocabulary, sport terms, reference intros,
+  win-condition categories, all sport powerups, and win-condition dropdown
+  labels.
+- Added `scripts/create_copy_edit_worksheet.py` so the worksheet can be
+  regenerated from the current known copy structure if needed.
