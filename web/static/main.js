@@ -2373,37 +2373,42 @@ function sharedRulesHtml() {
         <div class="rules-mode-grid">
         <article class="rules-mode-card mode-manager">
           <h4>Manager Mode</h4>
-          <p>Start with the daily leadoff player. Name a teammate before the clock runs out, then keep building.</p>
+          <p>Starting with the Leadoff Player, name TeamMates of the Top Player until time runs out.</p>
+          <p>The same Team-Season Link used 3 times in a Lineup results in a Strike Out.</p>
           <p><strong>Goal:</strong> set your longest lineup.</p>
+          <p><strong>Lose:</strong> run out of time.</p>
         </article>
         <article class="rules-mode-card mode-film">
           <h4>Film Review</h4>
-          <p>Guess the team and year that connect each pair of players.</p>
-          <p><strong>Goal:</strong> complete every Teammate Link before three strikes.</p>
+          <p>Build your daily Lineup by naming the team and season two TeamMates played together.</p>
+          <p><strong>Goal:</strong> complete every TeamMate Link in the Lineup. Maintain your daily streak or try any you missed in the Archives.</p>
+          <p><strong>Lose:</strong> get 3 Strikes. Consecutive Fouls yield a Strike.</p>
         </article>
         <article class="rules-mode-card mode-division">
           <h4>Division Rivalry</h4>
-          <p>Two players build one lineup, alternating 20-second turns.</p>
-            <p><strong>Win:</strong> have your opponent run out of time.</p>
-          </article>
-          <article class="rules-mode-card mode-playoffs">
-            <h4>Playoffs</h4>
-            <p>Division Rivalry with powerups and a chosen Win Condition.</p>
-            <p><strong>Win:</strong> complete your Win Condition or have your opponent run out of time.</p>
-          </article>
+          <p>Head-to-head, back-and-forth naming TeamMates of the Top Player and avoiding Struck Out Team-Seasons.</p>
+          <p><strong>Goal:</strong> outlast your opponent.</p>
+          <p><strong>Lose:</strong> run out of eligible TeamMates to name.</p>
+        </article>
+        <article class="rules-mode-card mode-playoffs">
+          <h4>Playoffs</h4>
+          <p>Division Rivalry with Powerups and Win Conditions.</p>
+          <p><strong>Goal:</strong> complete your Win Condition before your opponent, or outlast them.</p>
+          <p><strong>Lose:</strong> allow your opponent to play their Win Condition, or run out of time.</p>
+        </article>
         </div>
       </section>
 
       <section class="rules-section">
         <h3>Vocabulary</h3>
         <div class="rules-term-grid">
-        <div class="rules-term-card"><strong>Lineup</strong><span>The player chain. Example: Anthony Rizzo -> Kris Bryant -> Javier Baez.</span></div>
-        <div class="rules-term-card"><strong>Teammate Link</strong><span>Two players connect if they ever played together. Example: Rizzo and Bryant connect through the 2016 Cubs.</span></div>
-        <div class="rules-term-card"><strong>Team-Season</strong><span>One team in one season. Example: 2016 Cubs or 2019-20 Lakers.</span></div>
-        <div class="rules-term-card"><strong>Team Strikes</strong><span>Each used Team-Season gets a strike. Three strikes means that team is out.</span></div>
-        <div class="rules-term-card"><strong>Blocked Guess</strong><span>If a player only links through an out team, the guess does not count.</span></div>
-          <div class="rules-term-card"><strong>Powerup</strong><span>A one-use Playoffs move. Some let you play a same-franchise player instead of a direct teammate.</span></div>
-          <div class="rules-term-card"><strong>Win Condition</strong><span>Your Playoffs target. Complete it first and the game ends.</span></div>
+        <div class="rules-term-card"><strong>Lineup</strong><span>The Player Chain. Ex: Anthony Rizzo -> Kris Bryant -> Javier Baez -> Aroldis Chapman. 2016 Cubs Struck Out.</span></div>
+        <div class="rules-term-card"><strong>TeamMate Link</strong><span>Two Players connect if they ever played together. Example: Rizzo and Bryant Link for Cubs 2015-2021.</span></div>
+        <div class="rules-term-card"><strong>Team-Season</strong><span>One season for one team. Example: 2016 Cubs or 2019-20 Lakers.</span></div>
+        <div class="rules-term-card"><strong>Team Strikes</strong><span>When TeamMates are Linked, Team-Seasons get a strike. 3 Strikes and TeamMates from that Team-Season can no longer be played.</span></div>
+        <div class="rules-term-card"><strong>Blocked Guess</strong><span>If a Player Links to a TeamMate on a Struck Out Team, then they must enter a new eligible TeamMate.</span></div>
+        <div class="rules-term-card"><strong>Powerup</strong><span>Only in Playoffs. Can get you out of tricky Links or apply pressure to your opponent. Visit the Ref button for details.</span></div>
+        <div class="rules-term-card"><strong>Win Condition</strong><span>Only in Playoffs. Name enough Players that qualify for your Win Condition thresholds: awards, stats, or teams. Visit the Ref button for details.</span></div>
         </div>
       </section>
 
@@ -2552,7 +2557,7 @@ function renderPowerupReferenceHtml() {
   if (isCrossSport() && game?.powerups?.your_powerups) {
     const rows = game.powerups.your_powerups;
     return `
-      <p class="muted">Each Playoffs game gives both players one use of every powerup. You can activate one powerup on a turn.</p>
+      <p class="muted">Each Playoffs Game gives both Players 1 use of every Powerup. You can activate Powerups on your turn.</p>
       <div class="reference-key">
         ${rows.map((powerup) => `
           <div class="reference-row powerup-${powerupClass(powerup.key)}">
@@ -2577,28 +2582,33 @@ function renderPowerupReferenceHtml() {
     quick_pitch: 'Quick Pitch',
   };
   const baseballRows = [
-    ['bubblegum', 'Play a same-franchise 40 home run season batter. Team Strikes still apply. Adds 5 seconds.'],
-    ['pine_tar', 'Play a same-franchise 200 strikeout season pitcher. Team Strikes still apply. Adds 5 seconds.'],
-    ['bat_donut', 'Play a same-franchise Silver Slugger winner. Team Strikes still apply. Adds 5 seconds.'],
-    ['sunglasses', 'Play a same-franchise All-Star. Team Strikes still apply. Adds 5 seconds.'],
-    ['backup_mitt', 'Play a same-franchise Gold Glove winner. Team Strikes still apply. Adds 5 seconds.'],
-    ['abs', 'Add 15 seconds to your current turn.'],
-    ['quick_pitch', 'Limit your opponent to 10 seconds on their next turn.'],
+    ['bubblegum', 'Name a Player from the same franchise with a 40+ home run season. +5 seconds.'],
+    ['pine_tar', 'Name a Player from the same franchise with a 200+ strikeout season. +5 seconds.'],
+    ['bat_donut', 'Name a Silver Slugger from the same franchise. +5 seconds.'],
+    ['sunglasses', 'Name an All-Star from the same franchise. +5 seconds.'],
+    ['backup_mitt', 'Name a Gold-Glover from the same franchise. +5 seconds.'],
+    ['abs', '+15 seconds.'],
+    ['quick_pitch', 'Your opponent only has 10 seconds on their next turn.'],
   ];
   const sportRows = {
-    basketball: [['heat_check', 'Play a same-franchise 2,000-point season scorer. Team Strikes still apply. Adds 5 seconds.'], ['sixth_man', 'Play a same-franchise 7,000-assist player. Team Strikes still apply. Adds 5 seconds.'], ['switch', 'Play a same-franchise same-position-group player. Team Strikes still apply. Adds 5 seconds.'], ['mvp_badge', 'Play a same-franchise MVP winner. Team Strikes still apply. Adds 5 seconds.'], ['all_star_callup', 'Play a same-franchise All-Star. Team Strikes still apply. Adds 5 seconds.'], ['timeout', 'Add 15 seconds to your current turn.'], ['full_court_press', 'Limit your opponent to 10 seconds on their next turn.']],
-    football: [['trick_play', 'Play a same-franchise 20-touchdown scorer. Team Strikes still apply. Adds 5 seconds.'], ['iron_man', 'Play a same-franchise 100-game veteran. Team Strikes still apply. Adds 5 seconds.'], ['package_change', 'Play a same-franchise same-unit player. Team Strikes still apply. Adds 5 seconds.'], ['mvp_badge', 'Play a same-franchise MVP winner. Team Strikes still apply. Adds 5 seconds.'], ['pro_bowl_callup', 'Play a same-franchise Pro Bowl player. Team Strikes still apply. Adds 5 seconds.'], ['timeout', 'Add 15 seconds to your current turn.'], ['blitz', 'Limit your opponent to 10 seconds on their next turn.']],
-    hockey: [['breakaway', 'Play a same-franchise 250-goal scorer. Team Strikes still apply. Adds 5 seconds.'], ['veteran_presence', 'Play a same-franchise 500-point scorer. Team Strikes still apply. Adds 5 seconds.'], ['line_change', 'Play a same-franchise same-position-group player. Team Strikes still apply. Adds 5 seconds.'], ['hart_honor', 'Play a same-franchise Hart Trophy winner. Team Strikes still apply. Adds 5 seconds.'], ['all_star_callup', 'Play a same-franchise All-Star. Team Strikes still apply. Adds 5 seconds.'], ['timeout', 'Add 15 seconds to your current turn.'], ['forecheck', 'Limit your opponent to 10 seconds on their next turn.']],
+    basketball: [['heat_check', 'Name a Player from the same franchise with a 2,000+ point season. +5 seconds.'], ['sixth_man', 'Name a Player from the same franchise with 7,000+ career assists. +5 seconds.'], ['switch', 'Name a Player from the same franchise who played the same position. +5 seconds.'], ['mvp_badge', 'Name a Player from the same franchise who won an MVP Award. +5 seconds.'], ['all_star_callup', 'Name an All-Star from the same franchise. +5 seconds.'], ['timeout', '+15 seconds.'], ['full_court_press', 'Your opponent only has 10 seconds on their next turn.']],
+    football: [['trick_play', 'Name a Player from the same franchise with a 20+ touchdown season (non-passing). +5 seconds.'], ['iron_man', 'Name a Player from the same franchise with 100 career games played. +5 seconds.'], ['package_change', 'Name a Player from the same franchise who played the same position. +5 seconds.'], ['mvp_badge', 'Name a Player from the same franchise who won an MVP Award. +5 seconds.'], ['pro_bowl_callup', 'Name a Pro Bowler from the same franchise. +5 seconds.'], ['timeout', '+15 seconds.'], ['blitz', 'Your opponent only has 10 seconds on their next turn.']],
+    hockey: [['breakaway', 'Name a Player from the same franchise with a 400+ goal career. +5 seconds.'], ['veteran_presence', 'Name a Player from the same franchise with 800+ career points. +5 seconds.'], ['line_change', 'Name a Player from the same franchise who played the same position. +5 seconds.'], ['hart_honor', 'Name a Hart Trophy winner from the same franchise. +5 seconds.'], ['all_star_callup', 'Name an All-Star from the same franchise. +5 seconds.'], ['timeout', '+15 seconds.'], ['forecheck', 'Your opponent only has 10 seconds on their next turn.']],
   };
-  const labels = { ...names, heat_check: 'Heat Check', sixth_man: 'Sixth Man', switch: 'Switch', mvp_badge: 'MVP Badge', all_star_callup: 'All-Star Call-Up', timeout: 'Timeout', full_court_press: 'Full-Court Press', trick_play: 'Trick Play', iron_man: 'Iron Man', package_change: 'Package Change', pro_bowl_callup: 'Pro Bowl Call-Up', blitz: 'Blitz', breakaway: 'Breakaway', veteran_presence: 'Veteran Presence', line_change: 'Line Change', hart_honor: 'Hart Honor', forecheck: 'Forecheck' };
   const sport = CURRENT_SPORT || referenceSport;
+  const labelForPowerup = (key, sportKey = sport) => {
+    const labels = { ...names, heat_check: 'Heat Check', sixth_man: 'Sixth Man', switch: 'Switch', mvp_badge: 'MVP Badge', timeout: 'Timeout', full_court_press: 'Full-Court Press', trick_play: 'Trick Play', iron_man: 'Iron Man', package_change: 'Package Change', blitz: 'Blitz', breakaway: 'Breakaway', veteran_presence: 'Veteran Presence', line_change: 'Line Change', hart_honor: 'Hart Honor', forecheck: 'Forecheck' };
+    if (key === 'all_star_callup') return sportKey === 'basketball' ? 'Star Power' : sportKey === 'hockey' ? 'All-Star' : 'All-Star Call-Up';
+    if (key === 'pro_bowl_callup') return 'Bowler';
+    return labels[key] || key;
+  };
   const rows = sportRows[sport] || baseballRows;
   const conditionRows = [
-    ['Award Circles', 'Name players with the listed major award.'],
-    ['Career Milestones', 'Name players who reached the listed career stat threshold.'],
-    ['Peak Seasons', 'Name players with a qualifying single-season feat.'],
-    ['Roster Paths', 'Name one-franchise players or well-traveled players.'],
-    ['Ring Chaser', 'Build the required combined championship total.'],
+    ['Award Circles', 'Name Players with the listed award.'],
+    ['Career Milestones', 'Name Players who met the career stat threshold.'],
+    ['Peak Seasons', 'Name Players with a qualifying single-season feat.'],
+    ['Roster Paths', 'Name career franchise Players or journeymen.'],
+    ['Ring Chaser', 'Name Players that add to a combined championship total.'],
   ];
   const conditionTable = `<table class="reference-table">
     <thead><tr><th>Type</th><th>What You Need</th></tr></thead>
@@ -2606,7 +2616,7 @@ function renderPowerupReferenceHtml() {
   </table>`;
   if (!CURRENT_SPORT) {
     const allSports = ['baseball', 'basketball', 'football', 'hockey'];
-    return `<p class="muted">Playoffs adds powerups and win conditions to the head-to-head lineup game.</p>
+    return `<p class="muted">Playoffs adds Powerups and Win Conditions to the Head-to-Head Lineup Game.</p>
       <h3>Win Conditions</h3>${conditionTable}
       ${allSports.map((sportKey) => {
         const sportRowsForKey = sportRows[sportKey] || baseballRows;
@@ -2614,7 +2624,7 @@ function renderPowerupReferenceHtml() {
           <div class="reference-row powerup-${powerupClass(key)}">
             <div class="reference-chip powerup-chip powerup-chip-static powerup-${powerupClass(key)}">
               ${powerupIconHtml(key)}
-              <span class="powerup-label">${escapeHtml(labels[key] || key)}</span>
+              <span class="powerup-label">${escapeHtml(labelForPowerup(key, sportKey))}</span>
             </div>
             <div class="reference-copy">
               <div class="muted small">${escapeHtml(desc)}</div>
@@ -2623,7 +2633,7 @@ function renderPowerupReferenceHtml() {
       }).join('')}`;
   }
   return `
-    <p class="muted">Each Playoffs game gives both players one use of every powerup. You can activate one powerup on a turn. Choose a preferred win condition before queueing, or choose Random.</p>
+    <p class="muted">Each Playoffs Game gives both Players 1 use of every Powerup. You can activate Powerups on your turn. When queueing, choose a preferred Win Condition or Random.</p>
     <h3>Win Conditions</h3>
     ${conditionTable}
     <h3>Powerups</h3>
@@ -2632,7 +2642,7 @@ function renderPowerupReferenceHtml() {
         <div class="reference-row powerup-${powerupClass(key)}">
           <div class="reference-chip powerup-chip powerup-chip-static powerup-${powerupClass(key)}">
             ${powerupIconHtml(key)}
-            <span class="powerup-label">${escapeHtml(labels[key])}</span>
+            <span class="powerup-label">${escapeHtml(labelForPowerup(key, sport))}</span>
           </div>
           <div class="reference-copy">
             <div class="muted small">${escapeHtml(desc)}</div>

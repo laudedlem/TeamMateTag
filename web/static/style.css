@@ -4012,3 +4012,25 @@ body.dark::before {
     white-space: nowrap;
   }
 }
+
+/* 0.3.10 matte site texture. */
+body.dark {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent 34%),
+    linear-gradient(135deg, #090d14 0%, #111722 48%, #0c1119 100%);
+}
+
+body.dark::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='.24'/%3E%3C/svg%3E"),
+    linear-gradient(90deg, rgba(245, 74, 103, 0.075), transparent 22%, rgba(79, 157, 255, 0.065) 58%, transparent 84%),
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.026) 0 1px, transparent 1px 18px);
+  background-size: 120px 120px, 100% 100%, 180px 180px;
+  mix-blend-mode: screen;
+  opacity: 0.42;
+}

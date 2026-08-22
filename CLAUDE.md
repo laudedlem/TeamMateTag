@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.3.09`
+- Current display version: `0.3.10`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -1894,3 +1894,23 @@ Update, 2026-08-22: copy editing worksheet.
   labels.
 - Added `scripts/create_copy_edit_worksheet.py` so the worksheet can be
   regenerated from the current known copy structure if needed.
+
+Update, 2026-08-22 (0.3.10): worksheet copy applied and matte texture.
+- Bumped visible app version to `0.3.10`.
+- Applied the user's filled worksheet edits to the shared `?` How to Play copy
+  in both `web/static/main.js` and `web/static/mode_hub.js`.
+- Applied Playoffs Reference copy updates for reference intros, win-condition
+  category descriptions, and powerup descriptions across baseball,
+  basketball, football, and hockey.
+- Renamed several powerup display labels from the worksheet: basketball
+  `All-Star Call-Up` now displays as `Star Power`, football `Pro Bowl Call-Up`
+  now displays as `Bowler`, and hockey `All-Star Call-Up` now displays as
+  `All-Star`.
+- Updated local Playoffs gameplay thresholds to match the edited reference text
+  where the rule changed: hockey `Breakaway` now requires 400+ career goals,
+  hockey `Veteran Presence` now requires 800+ career points, and football
+  `Trick Play` now uses a 20+ touchdown season stat instead of loose career
+  touchdowns.
+- Reworked the global background again: no corner bloom and no flat black.
+  The site now uses a restrained matte dark gradient with subtle grain,
+  low-contrast color wash, and faint field/court-like texture.
