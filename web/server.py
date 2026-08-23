@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.3.39"
+APP_VERSION = "0.3.40"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -2321,7 +2321,8 @@ def _hydrate_player_cards(conn, player_ids: list[str]) -> dict[str, dict]:
             ]
             team_stints = [
                 {"team_id": team_id, "team_name": name, "start": start, "end": end,
-                 "seasons": end - start + 1}
+                 "seasons": end - start + 1,
+                 "label": f"{name} {_sport_card_stint_label('baseball', start, end)}"}
                 for team_id, name, start, end in spans
             ]
             card = {
@@ -3411,6 +3412,7 @@ def _local_sport_cards(conn: sqlite3.Connection, sport: str, player_ids: list[st
                 "team_id": team_id,
                 "color_team_id": franchise_id or team_id,
                 "team_name": team,
+                "label": f"{team} {years}",
                 "start": ranges[0][0],
                 "end": ranges[-1][1],
                 "seasons": sum(end - start + 1 for start, end in ranges),
@@ -3670,6 +3672,7 @@ def _sport_cards(conn, sport: str, player_ids: list[str]) -> dict[str, dict]:
             team_stints.append({
                 "team_id": team_id, "team_name": team,
                 "color_team_id": franchise_id or team_id,
+                "label": f"{team} {years}",
                 "start": ranges[0][0], "end": ranges[-1][1],
                 "seasons": sum(end - start + 1 for start, end in ranges),
                 "games": games_by_player_team.get((player_id, team_id, franchise_id or team_id, team), 0),

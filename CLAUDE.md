@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.3.39`
+- Current display version: `0.3.40`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -158,6 +158,18 @@ ranking. Basketball, football, and hockey cards now send games and franchise
 color IDs with team stints, so historical IDs such as Oakland Raiders resolve
 to the correct palette. The client ranks the top three teams by longest tenure
 left-to-right instead of re-sorting those teams chronologically.
+
+Update, 2026-08-23 (0.3.40): completed a final audit of the UI/UX playtest
+items originally carried forward from 0.3.32. Player-card side team text now
+sorts by longest tenure using the same ranked stint data as the background
+colors, while preserving the special one-season card label such as `2017`
+instead of `2017-18` for cross-year sports. Player names are forced to one
+line with a client fit pass and final CSS overrides, and team-season side text
+is plain left-aligned/right-aligned text with no rectangular year boxes. The
+previous 0.3.38 and 0.3.39 fixes remain logged above for copy/powerup/game-over
+and cross-sport color ranking recall. No known outstanding items remain from
+the 0.3.32 UI/UX handoff pass after this audit; continue normal playtesting for
+subjective spacing or sport-specific edge cases.
 - **Division Rivalry**: online two-player alternating lineup. 20-second turns,
   Rule B team strikes, matchmaking, challenge codes, friends, rematches,
   requeueing, ELO, and profile statistics.

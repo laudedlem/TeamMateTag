@@ -6240,3 +6240,53 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
     display: flex;
   }
 }
+
+/* 0.3.40: final player-card stint/name hardening. */
+.player-card.has-team-columns {
+  grid-template-columns: minmax(72px, 1fr) minmax(0, auto) minmax(72px, 1fr);
+}
+
+.player-card .player-identity,
+.player-card .player-info {
+  min-width: 0;
+}
+
+.player-card .player-info .name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: clip;
+  white-space: nowrap;
+  word-break: keep-all;
+  overflow-wrap: normal;
+}
+
+.card-team-column {
+  min-width: 0;
+}
+
+.card-team-column.left {
+  justify-items: start;
+  text-align: left;
+}
+
+.card-team-column.right {
+  justify-items: end;
+  text-align: right;
+}
+
+.card-team-column li,
+.player-card.team-color-card .card-team-column li,
+.game-main .player-card.team-color-card .card-team-column li {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  max-width: 100%;
+  padding: 0 !important;
+}
+
+@media (max-width: 640px) {
+  .player-card.has-team-columns {
+    grid-template-columns: minmax(44px, 1fr) minmax(0, auto) minmax(44px, 1fr);
+  }
+}

@@ -2191,6 +2191,13 @@ const TEAM_PRIMARY_COLORS = {
 };
 
 function playerTeamColors(stints) {
+  return sortedPlayerStints(stints)
+    .map((stint) => TEAM_PRIMARY_COLORS[CURRENT_SPORT]?.[stint.colorId])
+    .filter(Boolean)
+    .slice(0, 3);
+}
+
+function sortedPlayerStints(stints) {
   const totals = new Map();
   (stints || []).forEach((stint) => {
     const id = String(stint.color_team_id || stint.franchise_id || stint.team_id || '');
@@ -2199,11 +2206,13 @@ function playerTeamColors(stints) {
     const start = Number(stint.start || 9999);
     const end = Number(stint.end || start);
     const games = Number(stint.games || 0);
-    const current = totals.get(id) || { seasons: 0, games: 0, start, end };
+    const label = String(stint.label || '').trim();
+    const current = totals.get(id) || { colorId: id, seasons: 0, games: 0, start, end, labels: [] };
     current.seasons += seasons;
     current.games += games;
     current.start = Math.min(current.start, start);
     current.end = Math.max(current.end, end);
+    if (label && !current.labels.includes(label)) current.labels.push(label);
     totals.set(id, current);
   });
   return [...totals.entries()]
@@ -2213,10 +2222,27 @@ function playerTeamColors(stints) {
       a[1].start - b[1].start ||
       a[1].end - b[1].end
     )
-    .slice(0, 3)
-    .map(([id]) => TEAM_PRIMARY_COLORS[CURRENT_SPORT]?.[id])
-    .filter(Boolean)
-    .slice(0, 3);
+    .map(([, stint]) => stint);
+}
+
+function playerTeamRows(player) {
+  const ranked = sortedPlayerStints(player.team_stints)
+    .flatMap((stint) => stint.labels.length ? stint.labels : [])
+    .filter(Boolean);
+  return ranked.length ? ranked : (player.teams || []);
+}
+
+function fitPlayerName(nameEl) {
+  if (!nameEl) return;
+  requestAnimationFrame(() => {
+    if (!nameEl.isConnected || !nameEl.clientWidth) return;
+    const originalSize = Number.parseFloat(getComputedStyle(nameEl).fontSize) || 18;
+    let nextSize = originalSize;
+    while (nameEl.scrollWidth > nameEl.clientWidth && nextSize > 8) {
+      nextSize -= 0.5;
+      nameEl.style.fontSize = `${nextSize}px`;
+    }
+  });
 }
 
 function nameFitClass(name) {
@@ -2261,6 +2287,7 @@ function makePlayerCard(player, isSeed, options = {}) {
     <h3 class="name ${nameFitClass(player.name)}">${escapeHtml(player.name)}${seedBadge}</h3>
     <div class="years">${escapeHtml(yrs)}</div>
     ${position}`;
+  fitPlayerName(info.querySelector('.name'));
 
   const identity = document.createElement('div');
   identity.className = 'player-identity';
@@ -2270,7 +2297,7 @@ function makePlayerCard(player, isSeed, options = {}) {
     return playerCard;
   }
 
-  const teams = player.teams || [];
+  const teams = playerTeamRows(player);
   const splitAt = Math.ceil(teams.length / 2);
   const makeTeamColumn = (rows, side) => {
     const column = document.createElement('ul');
