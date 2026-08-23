@@ -2927,18 +2927,18 @@ function frBoardPlacement(sport, unit, slot, index) {
       11: { x: 15.5, y: 89.5, zone: 'sideline', label: 'CP' },
     },
     basketball: {
-      0: { x: 58, y: 29, zone: 'surface', label: 'PG' },
-      2: { x: 40, y: 53, zone: 'surface', label: 'SG' },
-      4: { x: 74, y: 53, zone: 'surface', label: 'SF' },
-      6: { x: 45, y: 75, zone: 'surface', label: 'PF' },
-      8: { x: 63, y: 76, zone: 'surface', label: 'C' },
-      1: { x: 9, y: 33, zone: 'sideline', label: 'PG' },
-      3: { x: 9, y: 43, zone: 'sideline', label: 'SG' },
-      5: { x: 9, y: 53, zone: 'sideline', label: 'SF' },
-      7: { x: 9, y: 63, zone: 'sideline', label: 'PF' },
-      9: { x: 9, y: 73, zone: 'sideline', label: 'C' },
-      10: { x: 9, y: 83, zone: 'sideline', label: 'BN' },
-      11: { x: 9, y: 93, zone: 'sideline', label: 'BN' },
+      0: { x: 60, y: 18, zone: 'surface', label: 'PG' },
+      2: { x: 41, y: 49, zone: 'surface', label: 'SG' },
+      4: { x: 78, y: 49, zone: 'surface', label: 'SF' },
+      6: { x: 50, y: 77, zone: 'surface', label: 'PF' },
+      8: { x: 68, y: 78, zone: 'surface', label: 'C' },
+      1: { x: 9, y: 13, zone: 'sideline', label: 'PG' },
+      3: { x: 9, y: 26, zone: 'sideline', label: 'SG' },
+      5: { x: 9, y: 39, zone: 'sideline', label: 'SF' },
+      7: { x: 9, y: 52, zone: 'sideline', label: 'PF' },
+      9: { x: 9, y: 65, zone: 'sideline', label: 'C' },
+      10: { x: 9, y: 78, zone: 'sideline', label: 'BN' },
+      11: { x: 9, y: 91, zone: 'sideline', label: 'BN' },
     },
     hockey: {
       0: { x: 28, y: 67, zone: 'surface', label: 'LW' },
@@ -3015,14 +3015,14 @@ function frSurfaceArt(sport) {
   if (sport === 'basketball') {
     return `
       <svg class="fr-basketball-svg" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
-        <rect class="fr-basketball-bench" x="2" y="29" width="14" height="67" rx="2" />
-        <rect class="fr-basketball-court" x="18" y="4" width="80" height="92" rx="1" />
-        <path class="fr-basketball-three" d="M 26 96 L 26 84 Q 26 41 58 41 Q 90 41 90 84 L 90 96" />
-        <rect class="fr-basketball-paint" x="45" y="59" width="26" height="37" />
-        <path class="fr-basketball-ft-solid" d="M 45 59 Q 58 47 71 59" />
-        <path class="fr-basketball-ft-dash" d="M 45 59 Q 58 71 71 59" />
-        <circle class="fr-basketball-rim" cx="58" cy="84.5" r="2" />
-        <path class="fr-basketball-backboard" d="M 51 88 H 65" />
+        <rect class="fr-basketball-bench" x="2" y="5" width="14" height="90" rx="2" />
+        <rect class="fr-basketball-court" x="19" y="5" width="79" height="90" rx="1" />
+        <path class="fr-basketball-three" d="M 27 95 L 27 82 Q 27 31 58.5 31 Q 90 31 90 82 L 90 95" />
+        <rect class="fr-basketball-paint" x="44" y="52" width="29" height="43" />
+        <path class="fr-basketball-ft-solid" d="M 44 52 Q 58.5 39 73 52" />
+        <path class="fr-basketball-ft-dash" d="M 44 52 Q 58.5 66 73 52" />
+        <circle class="fr-basketball-rim" cx="58.5" cy="83" r="2" />
+        <path class="fr-basketball-backboard" d="M 51 87 H 66" />
       </svg>`;
   }
   return '';

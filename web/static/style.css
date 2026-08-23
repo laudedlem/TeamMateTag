@@ -7488,7 +7488,7 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
 
 /* 0.3.54 final basketball court override after older Film Review diagram rules. */
 .sport-basketball .fr-board-surface {
-  aspect-ratio: 1 / 0.58;
+  aspect-ratio: 1 / 0.48;
   background:
     linear-gradient(180deg, rgba(255, 168, 91, 0.98), rgba(203, 102, 48, 0.98));
   border: 2px solid rgba(94, 42, 18, 0.88);
@@ -7501,13 +7501,13 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
 }
 
 .sport-basketball .fr-board-slot.zone-surface {
-  height: 86px;
-  width: 116px;
+  height: 78px;
+  width: 112px;
 }
 
 .sport-basketball .fr-board-slot.zone-surface .fr-board-headshot {
-  height: 40px;
-  width: 40px;
+  height: 36px;
+  width: 36px;
 }
 
 .sport-basketball .fr-board-slot.zone-sideline {
@@ -7522,17 +7522,17 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
 
 @media (max-width: 640px) {
   .sport-basketball .fr-board-surface {
-    aspect-ratio: 1 / 0.62;
+    aspect-ratio: 1 / 0.52;
   }
 
   .sport-basketball .fr-board-slot.zone-surface {
-    height: 58px;
-    width: 70px;
+    height: 47px;
+    width: 62px;
   }
 
   .sport-basketball .fr-board-slot.zone-surface .fr-board-headshot {
-    height: 29px;
-    width: 29px;
+    height: 22px;
+    width: 22px;
   }
 
   .sport-basketball .fr-board-slot.zone-sideline {
