@@ -7488,7 +7488,7 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
 
 /* 0.3.54 final basketball court override after older Film Review diagram rules. */
 .sport-basketball .fr-board-surface {
-  aspect-ratio: 1 / 0.74;
+  aspect-ratio: 1 / 0.62;
   background:
     linear-gradient(180deg, rgba(255, 168, 91, 0.98), rgba(203, 102, 48, 0.98));
   border: 2px solid rgba(94, 42, 18, 0.88);
@@ -7522,7 +7522,7 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
 
 @media (max-width: 640px) {
   .sport-basketball .fr-board-surface {
-    aspect-ratio: 1 / 0.78;
+    aspect-ratio: 1 / 0.66;
   }
 
   .sport-basketball .fr-board-slot.zone-surface {
