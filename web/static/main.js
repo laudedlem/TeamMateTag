@@ -2913,18 +2913,18 @@ function frBoardPlacement(sport, unit, slot, index) {
   const fallback = { x: 50, y: 50, zone: 'surface' };
   const layouts = {
     baseball: {
-      0: { x: 85, y: 83, zone: 'sideline', label: 'DH' },
+      0: { x: 84.5, y: 83.5, zone: 'sideline', label: 'DH' },
       1: { x: 72, y: 62, zone: 'surface' },
       2: { x: 50, y: 60, zone: 'surface' },
-      3: { x: 60, y: 42, zone: 'surface' },
+      3: { x: 61.5, y: 41, zone: 'surface' },
       4: { x: 28, y: 62, zone: 'surface' },
-      5: { x: 40, y: 42, zone: 'surface' },
-      6: { x: 30, y: 24, zone: 'surface' },
-      7: { x: 50, y: 17, zone: 'surface' },
-      8: { x: 70, y: 24, zone: 'surface' },
+      5: { x: 38.5, y: 41, zone: 'surface' },
+      6: { x: 25.5, y: 23, zone: 'surface' },
+      7: { x: 50, y: 15.5, zone: 'surface' },
+      8: { x: 74.5, y: 23, zone: 'surface' },
       9: { x: 50, y: 87, zone: 'surface' },
-      10: { x: 15, y: 78, zone: 'sideline', label: 'RP' },
-      11: { x: 15, y: 92, zone: 'sideline', label: 'CP' },
+      10: { x: 15.5, y: 79.5, zone: 'sideline', label: 'RP' },
+      11: { x: 15.5, y: 89.5, zone: 'sideline', label: 'CP' },
     },
     basketball: {
       0: { x: 58, y: 38, zone: 'surface', label: 'PG' },

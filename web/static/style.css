@@ -7373,9 +7373,23 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
   width: 94px;
 }
 
+.sport-baseball .slot-index-6,
+.sport-baseball .slot-index-7,
+.sport-baseball .slot-index-8 {
+  height: 90px;
+  width: 118px;
+}
+
 .sport-baseball .fr-board-headshot {
   height: 44px;
   width: 44px;
+}
+
+.sport-baseball .slot-index-6 .fr-board-headshot,
+.sport-baseball .slot-index-7 .fr-board-headshot,
+.sport-baseball .slot-index-8 .fr-board-headshot {
+  height: 48px;
+  width: 48px;
 }
 
 @media (max-width: 640px) {
@@ -7389,8 +7403,22 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
     width: 54px;
   }
 
+  .sport-baseball .slot-index-6,
+  .sport-baseball .slot-index-7,
+  .sport-baseball .slot-index-8 {
+    height: 56px;
+    width: 68px;
+  }
+
   .sport-baseball .fr-board-headshot {
     height: 26px;
     width: 26px;
+  }
+
+  .sport-baseball .slot-index-6 .fr-board-headshot,
+  .sport-baseball .slot-index-7 .fr-board-headshot,
+  .sport-baseball .slot-index-8 .fr-board-headshot {
+    height: 28px;
+    width: 28px;
   }
 }
