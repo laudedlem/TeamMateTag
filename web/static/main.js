@@ -2128,7 +2128,7 @@ function renderCardStack(chain, allStrikes, showStrikes, animateNewest = false) 
 function makePlayerCard(player, isSeed, options = {}) {
   const showTeams = options.showTeams !== false;
   const playerCard = document.createElement('div');
-  playerCard.className = 'player-card' + (isSeed ? ' seed' : '') + (player.win_condition_hit ? ' win-hit' : '');
+  playerCard.className = 'player-card' + (showTeams ? ' has-team-columns' : '') + (isSeed ? ' seed' : '') + (player.win_condition_hit ? ' win-hit' : '');
 
   const headshot = document.createElement('div');
   headshot.className = 'headshot';
@@ -2143,8 +2143,6 @@ function makePlayerCard(player, isSeed, options = {}) {
     img.onerror = () => img.remove();
     headshot.appendChild(img);
   }
-  playerCard.appendChild(headshot);
-
   const info = document.createElement('div');
   info.className = 'player-info';
   const yrs = formatYears(player.debut_year, player.final_year);
@@ -2153,9 +2151,29 @@ function makePlayerCard(player, isSeed, options = {}) {
   info.innerHTML = `
     <h3 class="name">${escapeHtml(player.name)}${seedBadge}</h3>
     <div class="years">${escapeHtml(yrs)}</div>
-    ${position}
-    ${showTeams ? `<div class="teams-label">Teams</div><ul class="teams">${(player.teams || []).map((t) => `<li>${escapeHtml(t)}</li>`).join('')}</ul>` : ''}`;
-  playerCard.appendChild(info);
+    ${position}`;
+
+  const identity = document.createElement('div');
+  identity.className = 'player-identity';
+  identity.append(headshot, info);
+  if (!showTeams) {
+    playerCard.appendChild(identity);
+    return playerCard;
+  }
+
+  const teams = player.teams || [];
+  const splitAt = Math.ceil(teams.length / 2);
+  const makeTeamColumn = (rows, side) => {
+    const column = document.createElement('ul');
+    column.className = `card-team-column ${side}`;
+    column.innerHTML = rows.map((team) => `<li>${escapeHtml(team)}</li>`).join('');
+    return column;
+  };
+  playerCard.append(
+    makeTeamColumn(teams.slice(0, splitAt), 'left'),
+    identity,
+    makeTeamColumn(teams.slice(splitAt), 'right'),
+  );
   return playerCard;
 }
 
@@ -2667,6 +2685,7 @@ async function loadFrArchive() {
   }).join('');
   els.frArchiveList.querySelectorAll('[data-action]').forEach((button) => {
     button.addEventListener('click', async () => {
+      els.frArchive.open = false;
       const action = button.dataset.action;
       if (action === 'daily') {
         await startFr(button.dataset.unit || activeUnit || null);

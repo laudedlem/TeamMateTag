@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.3.29`
+- Current display version: `0.3.30`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -84,6 +84,12 @@ Update, 2026-08-22 (0.3.29): fixed the sport queue class so its redesigned
 layout is applied to the actual multiplayer setup rather than the Football
 Film Review unit picker. The header brand now displays `TeamMateTag.Com` and
 mode-specific How to Play dialogs no longer repeat their heading.
+
+Update, 2026-08-22 (0.3.30): selecting any Film Review archive action closes
+the archive. Non-Film player cards use team-stint columns around a centered
+portrait and career summary; links and game-over panels have stronger color.
+Open UI/data follow-up: player-card team-color blends require adding team IDs
+and tenure weights to card payloads before they can be implemented accurately.
 - **Division Rivalry**: online two-player alternating lineup. 20-second turns,
   Rule B team strikes, matchmaking, challenge codes, friends, rematches,
   requeueing, ELO, and profile statistics.

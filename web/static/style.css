@@ -4062,6 +4062,118 @@ body.dark::before {
   }
 }
 
+/* 0.3.30: team-stint card columns and high-contrast game finishes. */
+.game-main .player-card.has-team-columns {
+  grid-template-columns: minmax(0, 1fr) 150px minmax(0, 1fr);
+  align-items: center;
+  column-gap: 0.85rem;
+}
+
+.player-identity {
+  display: grid;
+  justify-items: center;
+  gap: 0.58rem;
+  min-width: 0;
+}
+
+.card-team-column {
+  display: grid;
+  gap: 0.42rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: rgba(246, 249, 252, 0.92);
+  font-size: 0.84rem;
+  font-weight: 700;
+  line-height: 1.22;
+}
+
+.card-team-column li {
+  padding: 0.3rem 0.38rem;
+  border: 1px solid color-mix(in srgb, var(--sport-accent, var(--accent)) 24%, transparent);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.card-team-column.left {
+  text-align: right;
+}
+
+.card-team-column.right {
+  text-align: left;
+}
+
+.game-main .connection-bar {
+  padding: 0.72rem;
+  border-top-width: 3px;
+  background:
+    linear-gradient(90deg, transparent, color-mix(in srgb, var(--sport-accent, var(--accent)) 23%, transparent), transparent),
+    rgba(255, 255, 255, 0.045);
+}
+
+.game-main .season-pill {
+  color: #f9fbff;
+  border: 1px solid color-mix(in srgb, var(--sport-accent, var(--accent)) 55%, rgba(255, 255, 255, 0.4));
+  background: color-mix(in srgb, var(--sport-accent, var(--accent)) 24%, #182334);
+  box-shadow: 0 3px 12px color-mix(in srgb, var(--sport-accent, var(--accent)) 16%, transparent);
+}
+
+.game-main .season-pill.burned {
+  color: #fff5f5;
+  border-color: rgba(255, 102, 102, 0.8);
+  background: rgba(185, 38, 50, 0.56);
+}
+
+.game-over-banner {
+  overflow: hidden;
+  border-width: 1px;
+  border-top: 6px solid var(--sport-accent, var(--accent));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--sport-accent, var(--accent)) 34%, transparent), transparent 46%),
+    linear-gradient(320deg, rgba(155, 123, 255, 0.2), transparent 52%),
+    #192539;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.38);
+}
+
+#winner-text,
+#fr-summary-text {
+  color: color-mix(in srgb, var(--sport-accent, var(--accent)) 68%, #ffffff);
+  font-size: clamp(1.7rem, 5vw, 2.45rem);
+}
+
+.game-over-banner .banner-buttons {
+  justify-content: center;
+}
+
+.game-over-banner .primary {
+  color: #071018;
+  background: var(--sport-accent, var(--accent));
+  border: 0;
+}
+
+@media (max-width: 640px) {
+  .game-main .player-card.has-team-columns {
+    grid-template-columns: minmax(0, 1fr) 112px minmax(0, 1fr);
+    column-gap: 0.42rem;
+    padding: 0.85rem 0.55rem;
+  }
+
+  .game-main .player-card.has-team-columns .headshot {
+    width: 96px;
+    height: 96px;
+  }
+
+  .card-team-column {
+    gap: 0.28rem;
+    font-size: 0.69rem;
+  }
+
+  .card-team-column li {
+    padding: 0.24rem 0.22rem;
+  }
+}
+
 /* 0.3.29: taller Film tiles and portrait-first player cards. */
 body[data-mode-hub="film"] .film-sport-tile {
   min-height: 338px;
