@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.3.46`
+- Current display version: `0.3.47`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -218,6 +218,12 @@ playtesting. Second base now sits inside the infield instead of near the
 center-field wall, the board background uses the site's baseball red, the mound
 is drawn as a mound/plate instead of another base, and simple no-text bullpen
 and dugout graphics sit behind the RP/CP and DH areas.
+
+Update, 2026-08-23 (0.3.47): tightened the baseball Film Review SVG layout.
+The outfield wall is pushed higher to reduce dead top space while the
+outfielders sit below it, second base moved lower inside the infield, and the
+bullpen/dugout became vertical bottom-corner rectangles sized for stacked
+player chips.
 - **Division Rivalry**: online two-player alternating lineup. 20-second turns,
   Rule B team strikes, matchmaking, challenge codes, friends, rematches,
   requeueing, ELO, and profile statistics.
