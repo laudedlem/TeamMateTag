@@ -5578,3 +5578,95 @@ body[data-mode-hub="film"] .film-preview-player small {
     font-size: 0.98rem;
   }
 }
+
+/* 0.3.35: shared final card/out-list normalization across sports and modes. */
+.player-card.team-color-card {
+  position: relative;
+  overflow: hidden;
+  border-color: color-mix(in srgb, var(--team-color-1) 70%, rgba(255, 255, 255, 0.35));
+  border-top-color: color-mix(in srgb, var(--team-color-1) 82%, #ffffff);
+  background:
+    linear-gradient(125deg,
+      color-mix(in srgb, var(--team-color-1) 52%, #172131) 0%,
+      color-mix(in srgb, var(--team-color-2) 39%, #172131) 48%,
+      color-mix(in srgb, var(--team-color-3) 34%, #172131) 100%);
+}
+
+.player-card.team-color-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.32;
+  background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0 1px, transparent 1px 8px);
+}
+
+.player-card.team-color-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.player-card.team-color-card .headshot {
+  border-color: rgba(255, 255, 255, 0.58);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.3);
+}
+
+.player-card.has-team-columns {
+  grid-template-columns: minmax(64px, 1fr) max-content minmax(64px, 1fr);
+  align-items: center;
+}
+
+.card-team-column.left {
+  justify-items: start;
+  text-align: left;
+}
+
+.card-team-column.right {
+  justify-items: end;
+  text-align: right;
+}
+
+.card-team-column li,
+.player-card.team-color-card .card-team-column li {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.out-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.42rem;
+}
+
+.out-list li.out-pill {
+  margin: 0;
+  padding: 0.24rem 0.58rem;
+  color: #fff5f5;
+  border-color: rgba(255, 102, 102, 0.8);
+  background: rgba(185, 38, 50, 0.56);
+  box-shadow: 0 3px 12px rgba(185, 38, 50, 0.2);
+}
+
+.out-list li.out-pill > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 640px) {
+  .player-card.has-team-columns {
+    grid-template-columns: minmax(42px, 1fr) max-content minmax(42px, 1fr);
+  }
+
+  .out-list {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .out-list li.out-pill {
+    justify-content: space-between;
+    width: 100%;
+  }
+}

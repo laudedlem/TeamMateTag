@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.3.34"
+APP_VERSION = "0.3.35"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -3365,7 +3365,7 @@ def _local_sport_cards(conn: sqlite3.Connection, sport: str, player_ids: list[st
         appearances = conn.execute(
             """SELECT DISTINCT a.team_id, t.name, a.season FROM sport_appearances a
                  JOIN sport_teams t ON t.sport_id = a.sport_id AND t.team_id = a.team_id AND t.season = a.season
-                WHERE a.sport_id = ? AND a.player_id = ? AND a.season >= 2000
+                WHERE a.sport_id = ? AND a.player_id = ?
                 ORDER BY a.season, t.name""",
             (sport, player_id),
         ).fetchall()
@@ -3616,7 +3616,7 @@ def _sport_cards(conn, sport: str, player_ids: list[str]) -> dict[str, dict]:
              FROM sport_appearances a
              JOIN sport_teams t ON t.sport_id=a.sport_id
                AND t.team_id=a.team_id AND t.season=a.season
-            WHERE a.sport_id=%s AND a.player_id = ANY(%s) AND a.season >= 2000
+            WHERE a.sport_id=%s AND a.player_id = ANY(%s)
             ORDER BY a.player_id, a.season, t.name""",
         (sport, missing),
     ).fetchall()
@@ -3772,6 +3772,7 @@ def _local_fr_card(sport: str, player_id: str, card: dict) -> dict:
         "final_year": card.get("final_year"),
         "primary_pos": card.get("primary_pos"),
         "teams": [],
+        "team_stints": card.get("team_stints", []),
     }
 
 
@@ -5549,6 +5550,36 @@ def _film_card_map(conn, sport: str, deck: list[str]) -> dict[str, dict]:
     return {pid: _sport_fr_card(sport, pid, card) for pid, card in _sport_cards(conn, sport, deck).items()}
 
 
+def _film_card_map_missing_team_stints(card_map: dict | None, deck: list[str]) -> bool:
+    if not isinstance(card_map, dict):
+        return True
+    return any(
+        not isinstance(card_map.get(pid), dict) or not card_map.get(pid, {}).get("team_stints")
+        for pid in deck
+    )
+
+
+def _film_card_map_with_team_stints(conn, sport: str, deck: list[str], card_map: dict | None) -> dict[str, dict]:
+    if _film_card_map_missing_team_stints(card_map, deck):
+        fresh = _film_card_map(conn, sport, deck)
+        merged = dict(card_map or {})
+        for pid in deck:
+            fresh_card = fresh.get(pid)
+            if not fresh_card:
+                continue
+            current = dict(merged.get(pid) or {})
+            if not current:
+                merged[pid] = fresh_card
+                continue
+            if not current.get("team_stints"):
+                current["team_stints"] = fresh_card.get("team_stints", [])
+            if current.get("teams") is None:
+                current["teams"] = []
+            merged[pid] = current
+        return merged
+    return card_map or {}
+
+
 def _film_shared_for_deck(conn, sport: str, deck: list[str]) -> list[list]:
     if len(deck) < 2:
         return []
@@ -5564,19 +5595,19 @@ def _film_puzzle_with_cached_payload(conn, sport: str, puzzle_day: date, unit: s
     preview = puzzle.get("preview_cards")
     card_map = puzzle.get("card_map")
     shared = puzzle.get("shared_per_pair")
+    deck = list(puzzle.get("deck") or [])
     if (isinstance(preview, list) and len(preview) >= 2
             and isinstance(card_map, dict)
+            and not _film_card_map_missing_team_stints(card_map, deck)
             and isinstance(shared, list)
-            and len(shared) == max(0, len(puzzle.get("deck") or []) - 1)):
+            and len(shared) == max(0, len(deck) - 1)):
         return puzzle
-    deck = list(puzzle.get("deck") or [])
     if len(deck) < 2:
         return puzzle
     enriched = dict(puzzle)
     if not isinstance(preview, list) or len(preview) < 2:
         enriched["preview_cards"] = _build_film_preview_cards(conn, sport, deck)
-    if not isinstance(card_map, dict):
-        enriched["card_map"] = _film_card_map(conn, sport, deck)
+    enriched["card_map"] = _film_card_map_with_team_stints(conn, sport, deck, card_map)
     if not isinstance(shared, list) or len(shared) != len(deck) - 1:
         enriched["shared_per_pair"] = _film_shared_for_deck(conn, sport, deck)
     conn.execute(
@@ -7441,6 +7472,12 @@ def fr_state_dict(gid: str, blob: dict, conn=None) -> dict:
     elif not cards:
         with db() as _conn:
             cards = _film_card_map(_conn, "baseball", list(deck))
+    elif _film_card_map_missing_team_stints(cards, list(deck)):
+        if conn:
+            cards = _film_card_map_with_team_stints(conn, "baseball", list(deck), cards)
+        else:
+            with db() as _conn:
+                cards = _film_card_map_with_team_stints(_conn, "baseball", list(deck), cards)
     current_streak = 0
     if conn and blob.get("puzzle_date") and blob.get("finished"):
         try:
@@ -7787,6 +7824,8 @@ def _sport_fr_state_dict(gid: str, blob: dict, conn) -> dict:
     cards = blob.get("card_map") if isinstance(blob.get("card_map"), dict) else None
     if not cards:
         cards = _film_card_map(conn, sport, deck)
+    elif _film_card_map_missing_team_stints(cards, deck):
+        cards = _film_card_map_with_team_stints(conn, sport, deck, cards)
     else:
         for pid in deck:
             if pid in cards:

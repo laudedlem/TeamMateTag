@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.3.34`
+- Current display version: `0.3.35`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -117,6 +117,13 @@ fit classes and stay on one line, team-stint side text remains plain aligned
 text, lineups render explicit numbers, Film Review hub previews use larger
 portraits/names, and mobile Playoffs in-game Powerups use full-width compact
 single-line chips while Win Condition boxes stay dense.
+
+Update, 2026-08-22 (0.3.35): normalized player-card color and team-column
+formatting across sports and game modes. Local and cached Film Review cards now
+keep `team_stints`, so hockey and football show top-team background colors
+during gameplay before puzzle reveal. The Struck Out/Fouled Out/Punted/Game
+Misconduct side list now uses the same burned team-season pill treatment as
+link bars when a team-season reaches three marks.
 - **Division Rivalry**: online two-player alternating lineup. 20-second turns,
   Rule B team strikes, matchmaking, challenge codes, friends, rematches,
   requeueing, ELO, and profile statistics.

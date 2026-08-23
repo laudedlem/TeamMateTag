@@ -2192,7 +2192,7 @@ function makePlayerCard(player, isSeed, options = {}) {
   info.className = 'player-info';
   const yrs = formatYears(player.debut_year, player.final_year);
   const position = player.primary_pos ? `<div class="years">${escapeHtml(player.primary_pos)}</div>` : '';
-  const seedBadge = isSeed ? `<span class="seed-badge">${SPORT_START_LABELS[CURRENT_SPORT] || 'Leadoff'}</span>` : '';
+  const seedBadge = isSeed ? ` <span class="seed-badge">${SPORT_START_LABELS[CURRENT_SPORT] || 'Leadoff'}</span>` : '';
   info.innerHTML = `
     <h3 class="name ${nameFitClass(player.name)}">${escapeHtml(player.name)}${seedBadge}</h3>
     <div class="years">${escapeHtml(yrs)}</div>
@@ -2271,7 +2271,17 @@ function renderOut(strikes) {
     els.outList.innerHTML = '';
   } else {
     els.outEmpty.hidden = true;
-    els.outList.innerHTML = burned.map((s) => `<li>${escapeHtml(s.team_name)} ${escapeHtml(seasonText(s))}</li>`).join('');
+    els.outList.innerHTML = burned.map((s) => {
+      const count = Math.min(Number(s.count || 3), 3);
+      return `<li class="season-pill burned out-pill">
+        <span>${escapeHtml(s.team_name)} ${escapeHtml(seasonText(s))}</span>
+        <span class="x-marks">
+          <span class="x-mark ${count >= 1 ? 's3' : ''}"></span>
+          <span class="x-mark ${count >= 2 ? 's3' : ''}"></span>
+          <span class="x-mark ${count >= 3 ? 's3' : ''}"></span>
+        </span>
+      </li>`;
+    }).join('');
   }
 }
 
