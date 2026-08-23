@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.3.48`
+- Current display version: `0.3.49`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -229,6 +229,11 @@ Update, 2026-08-23 (0.3.48): made a small baseball Film Review polish pass.
 The DH chip is centered in the dugout, 2B and SS are nudged slightly up and
 toward the middle, and the center-field wall is pulled closer to the top edge
 to reduce dead space above the diagram.
+
+Update, 2026-08-23 (0.3.49): enlarged and spread the baseball Film Review board
+chips. Baseball now gets slightly larger board spots and headshots than the
+shared sport default, while the position coordinates are spread outward enough
+to keep the larger chips clear on mobile and desktop.
 - **Division Rivalry**: online two-player alternating lineup. 20-second turns,
   Rule B team strikes, matchmaking, challenge codes, friends, rematches,
   requeueing, ELO, and profile statistics.

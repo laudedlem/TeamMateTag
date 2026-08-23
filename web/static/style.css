@@ -7359,3 +7359,36 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
   stroke-linejoin: round;
   stroke-width: 2.2;
 }
+
+/* 0.3.49: baseball board chips get a little more presence. */
+.sport-baseball .fr-board-slot {
+  height: 72px;
+  width: 96px;
+}
+
+.sport-baseball .fr-board-slot.zone-sideline {
+  height: 62px;
+  width: 82px;
+}
+
+.sport-baseball .fr-board-headshot {
+  height: 34px;
+  width: 34px;
+}
+
+@media (max-width: 640px) {
+  .sport-baseball .fr-board-slot {
+    height: 46px;
+    width: 55px;
+  }
+
+  .sport-baseball .fr-board-slot.zone-sideline {
+    height: 38px;
+    width: 48px;
+  }
+
+  .sport-baseball .fr-board-headshot {
+    height: 20px;
+    width: 20px;
+  }
+}
