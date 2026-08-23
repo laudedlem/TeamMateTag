@@ -2751,7 +2751,7 @@ function renderFrLineupBoard() {
   const earnedCount = frGame.finished
     ? (frGame.won ? slots.length : Math.min(slots.length, frGame.earned_count || ((frGame.stats?.hits || 0) + 2)))
     : 0;
-  const collapsed = frBoardCollapsed ?? window.matchMedia('(max-width: 760px)').matches;
+  const collapsed = frBoardCollapsed ?? true;
   els.frLineupBoard.className = `fr-lineup-board sport-${sport} unit-${unit} ${collapsed ? 'collapsed' : ''}`;
   els.frLineupBoard.innerHTML = `
     <button type="button" class="fr-board-toggle" aria-expanded="${collapsed ? 'false' : 'true'}">

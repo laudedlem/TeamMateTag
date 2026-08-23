@@ -4542,3 +4542,228 @@ body[data-mode-hub="film"] .film-preview-player small {
     width: 100%;
   }
 }
+
+/* 0.3.26: denser hubs, stronger game surfaces, and readable menus. */
+.home-root .auth-card {
+  margin: 0;
+  padding: 0.75rem 1rem 0.9rem;
+  border: 0;
+  background: transparent;
+}
+
+.home-root .profile-head {
+  padding-bottom: 0.1rem;
+}
+
+.home-root .account-tray[open] {
+  background:
+    linear-gradient(108deg, rgba(74, 179, 255, 0.11), rgba(155, 123, 255, 0.07) 48%, rgba(255, 101, 173, 0.04)),
+    var(--surface);
+}
+
+.sport-mode-back {
+  margin-bottom: 0.65rem;
+}
+
+select,
+.fr-hub-archive-select,
+.manager-board-picker select,
+.manager-records-picker select,
+.hub-condition-select,
+.playoff-condition-picker select {
+  color: #f7f9fc;
+  background-color: #1a2434;
+  border-color: rgba(190, 208, 231, 0.42);
+}
+
+select option {
+  color: #f7f9fc;
+  background: #1a2434;
+}
+
+body[data-mode-hub="film"] .film-sport-tile {
+  min-height: 230px;
+  padding-bottom: 6.25rem;
+}
+
+body[data-mode-hub="film"] .sport-tile-name {
+  font-size: clamp(2rem, 5vw, 2.85rem);
+}
+
+body[data-mode-hub="film"] .sport-tile-status {
+  max-width: none;
+  white-space: nowrap;
+  font-size: 0.9rem;
+}
+
+body[data-mode-hub="film"] .film-hub-meta {
+  bottom: 0.95rem;
+}
+
+body[data-mode-hub="film"] .film-preview-player {
+  grid-template-columns: 46px minmax(0, 1fr);
+  gap: 0.5rem;
+}
+
+body[data-mode-hub="film"] .film-preview-photo {
+  width: 46px;
+  height: 46px;
+  border-width: 2px;
+}
+
+body[data-mode-hub="film"] .film-preview-player small {
+  font-size: 0.9rem;
+  font-weight: 750;
+}
+
+.manager-leaderboard-panel {
+  max-width: none;
+  padding: 1.2rem;
+  text-align: center;
+}
+
+.manager-board-header {
+  justify-content: center;
+  align-items: center;
+}
+
+.manager-board-picker {
+  text-align: left;
+}
+
+.manager-board-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.manager-board-card {
+  min-height: 118px;
+  align-content: center;
+  text-align: center;
+}
+
+.manager-board-card strong {
+  font-size: 1.65rem;
+}
+
+.manager-records-picker {
+  max-width: 28rem;
+  margin: 0.2rem auto 0;
+  text-align: left;
+}
+
+.shared-queue-panel {
+  max-width: 960px;
+  margin-top: 1.65rem;
+  padding: 1.25rem;
+}
+
+.shared-sport-picker {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.shared-sport-option {
+  min-height: 84px;
+  align-content: center;
+  border: 1px solid rgba(170, 193, 221, 0.3);
+  border-top: 4px solid var(--sport-accent);
+  background: #202b3c;
+  transition: background-color 150ms ease, color 150ms ease, transform 150ms ease;
+}
+
+.shared-sport-option:has(input:checked) {
+  color: #071018;
+  border-color: var(--sport-accent);
+  background: var(--sport-accent);
+  box-shadow: none;
+}
+
+.shared-sport-option:has(input:checked) strong,
+.shared-sport-option:has(input:checked) span,
+.shared-sport-option:has(input:checked) small {
+  color: #071018;
+}
+
+.shared-sport-option:has(input:checked) .hub-condition-select {
+  color: #071018;
+  border-color: rgba(7, 16, 24, 0.32);
+  background: rgba(255, 255, 255, 0.56);
+}
+
+.shared-sport-option:hover {
+  transform: translateY(-2px);
+}
+
+.shared-queue-actions {
+  justify-content: center;
+}
+
+.turn-card,
+.side-section,
+.player-card,
+.connection-bar {
+  background:
+    linear-gradient(115deg, color-mix(in srgb, var(--sport-accent, var(--accent)) 10%, transparent), transparent 54%),
+    var(--surface);
+}
+
+.guess-form input {
+  background: rgba(20, 31, 47, 0.92);
+  border-color: color-mix(in srgb, var(--sport-accent, var(--accent)) 42%, var(--border));
+}
+
+.side-section {
+  border-top: 3px solid color-mix(in srgb, var(--sport-accent, var(--accent)) 72%, var(--border));
+}
+
+.lineup-list {
+  padding: 0;
+  text-align: center;
+  list-style: none;
+}
+
+.lineup-list li {
+  padding: 0.14rem 0;
+}
+
+.out-list {
+  display: grid;
+  gap: 0.32rem;
+}
+
+.out-list li {
+  margin: 0;
+  border-left: 3px solid var(--burn);
+  background: color-mix(in srgb, var(--burn) 12%, transparent);
+}
+
+@media (max-width: 760px) {
+  body[data-mode-hub="film"] .film-sport-tile {
+    min-height: 218px;
+    padding-bottom: 6.05rem;
+  }
+
+  body[data-mode-hub="film"] .film-preview-player {
+    grid-template-columns: 40px minmax(0, 1fr);
+  }
+
+  body[data-mode-hub="film"] .film-preview-photo {
+    width: 40px;
+    height: 40px;
+  }
+
+  .manager-board-grid,
+  .shared-sport-picker {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 460px) {
+  body[data-mode-hub="film"] .sport-tile-status {
+    font-size: 0.8rem;
+  }
+
+  .manager-board-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}

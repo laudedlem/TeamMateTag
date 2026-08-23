@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.3.25`
+- Current display version: `0.3.26`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -61,6 +61,13 @@ guess endpoint decide Hit, Foul, or Strike. Stored daily puzzles are trusted
 at launch instead of re-querying every pair. Normal production requests also
 skip the historical runtime-schema migration pass; use
 `TEAMMATETAG_AUTO_MIGRATE=1` only for deliberate schema changes.
+
+Update, 2026-08-22 (0.3.26): Film Review accepts a team fragment plus a
+typed year in autocomplete. For cross-year leagues, a typed `2011` offers
+both `2010-11` and `2011-12` candidates where either could be meant. Film
+Review lineup boards now begin collapsed on every screen. The account tray,
+Film hub, Manager Mode leaderboard, sport-page return navigation, multiplayer
+queue, player cards, Lineup, and out panels received the current UI pass.
 - **Division Rivalry**: online two-player alternating lineup. 20-second turns,
   Rule B team strikes, matchmaking, challenge codes, friends, rematches,
   requeueing, ELO, and profile statistics.

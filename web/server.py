@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.3.25"
+APP_VERSION = "0.3.26"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -7927,15 +7927,27 @@ def _film_review_autocomplete_options(conn, sport: str, game_id: str, query: str
     end = min(spans[first][1], spans[second][1])
     if start > end:
         return []
-    needle = normalize(query)
+    # Let the team part and season part narrow independently. For a cross-year
+    # league, typing 2011 can reasonably mean either 2010-11 or 2011-12.
+    year_match = re.search(r"(?:^|\s)(\d{4})(?:\s*-\s*\d{2,4})?\s*$", query)
+    requested_year = int(year_match.group(1)) if year_match else None
+    team_query = query[:year_match.start()].strip() if year_match else query
+    needle = re.sub(r"(.)\1+", r"\1", normalize(team_query))
     names = {}
     for team_id, name in teams:
         label = fr_display_team_name(team_id, start) if sport == "baseball" else _canonical_sport_team_name(sport, team_id, name)
-        if needle in normalize(label):
+        label_key = re.sub(r"(.)\1+", r"\1", normalize(label))
+        if needle in label_key:
             names[normalize(label)] = label
     options = []
     for team_name in sorted(names.values()):
         for season in range(start, end + 1):
+            if requested_year is not None:
+                year_matches = season == requested_year
+                if sport != "baseball":
+                    year_matches = year_matches or season + 1 == requested_year
+                if not year_matches:
+                    continue
             season_label = _sport_season_label(sport, season)
             options.append({"team_name": team_name, "season": season, "season_label": season_label,
                             "label": f"{team_name} {season_label}"})

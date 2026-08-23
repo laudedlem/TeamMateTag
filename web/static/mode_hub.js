@@ -316,7 +316,7 @@ function renderFilmReviewArchiveSelect(sport, days, unitData = null) {
   if (status && current) {
     const streak = Number(unitData?.streak || 0);
     const display = current.is_today && current.status === 'unseen' ? 'new' : current.status || 'unseen';
-    status.innerHTML = `Streak ${streak}<br>${displayStatus(display)}`;
+    status.textContent = `Streak ${streak} | ${displayStatus(display)}`;
     status.className = `fr-today-status ${display}`;
   }
   const sorted = [...days].sort((a, b) => {

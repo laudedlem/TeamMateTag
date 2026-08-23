@@ -75,6 +75,7 @@
         </div>
       </details>{% endif %}
       {% if sport and sport_ready %}
+      <a class="back-btn sport-mode-back" href="/">&larr; Game Modes</a>
       <h2>{% if sport and sport.key == 'football' %}Hit The Field{% elif sport and sport.key == 'basketball' %}Take The Court{% elif sport and sport.key == 'hockey' %}Hit The Ice{% else %}Step Into The Box{% endif %}</h2>
       <div class="mode-tiles">
         <button class="mode-tile mode-tile-manager" data-mode="bp">
