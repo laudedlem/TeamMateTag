@@ -2908,6 +2908,91 @@ function frBoardRole(sport, unit, slot, index) {
   return slot;
 }
 
+function frBoardPlacement(sport, unit, slot, index) {
+  const role = frBoardRole(sport, unit, slot, index);
+  const fallback = { x: 50, y: 50, zone: 'surface' };
+  const layouts = {
+    baseball: {
+      0: { x: 12, y: 83, zone: 'sideline', label: 'DH' },
+      1: { x: 72, y: 58, zone: 'surface' },
+      2: { x: 50, y: 58, zone: 'surface' },
+      3: { x: 62, y: 38, zone: 'surface' },
+      4: { x: 28, y: 58, zone: 'surface' },
+      5: { x: 38, y: 38, zone: 'surface' },
+      6: { x: 22, y: 20, zone: 'surface' },
+      7: { x: 50, y: 13, zone: 'surface' },
+      8: { x: 78, y: 20, zone: 'surface' },
+      9: { x: 50, y: 83, zone: 'surface' },
+    },
+    basketball: {
+      0: { x: 50, y: 76, zone: 'surface', label: 'PG' },
+      2: { x: 27, y: 58, zone: 'surface', label: 'SG' },
+      4: { x: 73, y: 58, zone: 'surface', label: 'SF' },
+      6: { x: 34, y: 32, zone: 'surface', label: 'PF' },
+      8: { x: 50, y: 25, zone: 'surface', label: 'C' },
+      1: { x: 12, y: 88, zone: 'sideline', label: 'PG' },
+      3: { x: 28, y: 88, zone: 'sideline', label: 'SG' },
+      5: { x: 44, y: 88, zone: 'sideline', label: 'SF' },
+      7: { x: 60, y: 88, zone: 'sideline', label: 'PF' },
+      9: { x: 76, y: 88, zone: 'sideline', label: 'C' },
+      10: { x: 88, y: 28, zone: 'sideline', label: 'BN' },
+      11: { x: 88, y: 44, zone: 'sideline', label: 'BN' },
+    },
+    hockey: {
+      0: { x: 24, y: 35, zone: 'surface', label: 'LW' },
+      2: { x: 43, y: 30, zone: 'surface', label: 'C' },
+      4: { x: 62, y: 35, zone: 'surface', label: 'RW' },
+      6: { x: 36, y: 58, zone: 'surface', label: 'LD' },
+      8: { x: 55, y: 58, zone: 'surface', label: 'RD' },
+      10: { x: 82, y: 50, zone: 'surface', label: 'G' },
+      1: { x: 14, y: 88, zone: 'sideline', label: 'LW' },
+      3: { x: 30, y: 88, zone: 'sideline', label: 'C' },
+      5: { x: 46, y: 88, zone: 'sideline', label: 'RW' },
+      7: { x: 62, y: 88, zone: 'sideline', label: 'D' },
+      9: { x: 78, y: 88, zone: 'sideline', label: 'D' },
+    },
+    football: unit === 'defense'
+      ? {
+          0: { x: 22, y: 32, zone: 'surface', label: 'EDGE' },
+          1: { x: 40, y: 29, zone: 'surface', label: 'DT' },
+          2: { x: 58, y: 29, zone: 'surface', label: 'DT' },
+          3: { x: 76, y: 32, zone: 'surface', label: 'EDGE' },
+          4: { x: 32, y: 52, zone: 'surface', label: 'OLB' },
+          5: { x: 50, y: 55, zone: 'surface', label: 'MIKE' },
+          6: { x: 68, y: 52, zone: 'surface', label: 'OLB' },
+          7: { x: 14, y: 70, zone: 'surface', label: 'CB' },
+          8: { x: 86, y: 70, zone: 'surface', label: 'CB' },
+          9: { x: 40, y: 83, zone: 'surface', label: 'S' },
+          10: { x: 60, y: 83, zone: 'surface', label: 'S' },
+          11: { x: 88, y: 17, zone: 'sideline', label: 'P' },
+        }
+      : {
+          0: { x: 50, y: 74, zone: 'surface', label: 'QB' },
+          1: { x: 50, y: 88, zone: 'surface', label: 'RB' },
+          2: { x: 14, y: 68, zone: 'surface', label: 'WR' },
+          3: { x: 20, y: 52, zone: 'surface', label: 'WR' },
+          4: { x: 86, y: 68, zone: 'surface', label: 'WR' },
+          5: { x: 72, y: 50, zone: 'surface', label: 'TE' },
+          6: { x: 14, y: 34, zone: 'surface', label: 'OT' },
+          7: { x: 32, y: 34, zone: 'surface', label: 'OG' },
+          8: { x: 50, y: 34, zone: 'surface', label: 'C' },
+          9: { x: 68, y: 34, zone: 'surface', label: 'OG' },
+          10: { x: 86, y: 34, zone: 'surface', label: 'OT' },
+          11: { x: 88, y: 17, zone: 'sideline', label: 'K' },
+        },
+  };
+  const placement = layouts[sport]?.[index] || fallback;
+  return { ...placement, role: placement.label || role };
+}
+
+function frSurfaceLabel(sport, unit) {
+  if (sport === 'baseball') return 'Baseball Diamond';
+  if (sport === 'basketball') return 'Half Court';
+  if (sport === 'hockey') return 'Half Rink';
+  if (sport === 'football') return unit === 'defense' ? 'Defensive Half Field' : 'Offensive Half Field';
+  return 'Lineup Board';
+}
+
 function renderFrLineupBoard() {
   const slots = frGame?.slots || [];
   if (!slots.length) {
@@ -2921,19 +3006,25 @@ function renderFrLineupBoard() {
   const earnedCount = frGame.finished
     ? (frGame.won ? slots.length : Math.min(slots.length, frGame.earned_count || ((frGame.stats?.hits || 0) + 2)))
     : 0;
-  const collapsed = frBoardCollapsed ?? true;
+  const collapsed = frBoardCollapsed ?? false;
   els.frLineupBoard.className = `fr-lineup-board sport-${sport} unit-${unit} ${collapsed ? 'collapsed' : ''}`;
+  const surfaceLabel = frSurfaceLabel(sport, unit);
   els.frLineupBoard.innerHTML = `
     <button type="button" class="fr-board-toggle" aria-expanded="${collapsed ? 'false' : 'true'}">
-      <span>${sport === 'football' ? (unit === 'defense' ? 'Defensive Formation' : 'Offensive Formation') : 'Lineup Board'}</span>
+      <span>${surfaceLabel}</span>
       <span>${collapsed ? 'Show' : 'Hide'}</span>
     </button>
-    <div class="fr-board-grid" ${collapsed ? 'hidden' : ''}>
+    <div class="fr-board-surface" aria-label="${escapeHtml(surfaceLabel)}" ${collapsed ? 'hidden' : ''}>
+      <div class="fr-surface-lines" aria-hidden="true"></div>
+      <div class="fr-board-section fr-board-section-surface" aria-hidden="true"></div>
+      <div class="fr-board-section fr-board-section-sideline" aria-hidden="true"></div>
       ${slots.map((slot, index) => {
         const player = revealed[index];
-        const role = frBoardRole(sport, unit, slot, index);
+        const placement = frBoardPlacement(sport, unit, slot, index);
+        const role = placement.role;
         const resultClass = frGame.finished && player ? (index < earnedCount ? 'earned' : 'missed') : '';
-        return `<div class="fr-board-slot slot-${slot.toLowerCase()} slot-index-${index} ${player ? 'filled' : ''} ${resultClass}">
+        const style = `--slot-x:${placement.x}%; --slot-y:${placement.y}%;`;
+        return `<div class="fr-board-slot zone-${escapeHtml(placement.zone)} slot-${slot.toLowerCase()} slot-index-${index} ${player ? 'filled' : ''} ${resultClass}" style="${style}">
           ${player?.headshot_url ? `<img class="fr-board-headshot" src="${escapeHtml(player.headshot_url)}" alt="">` : ''}
           <span class="fr-board-role">${escapeHtml(role)}</span>
           <span class="fr-board-player">${player ? escapeHtml(player.name) : ''}</span>

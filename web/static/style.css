@@ -6290,3 +6290,310 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
     grid-template-columns: minmax(44px, 1fr) minmax(0, auto) minmax(44px, 1fr);
   }
 }
+
+/* 0.3.41: Film Review sport-surface lineup boards. */
+.fr-lineup-board {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.012)),
+    var(--bg-elevated);
+  border-color: rgba(255, 255, 255, 0.13);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.18);
+}
+
+.fr-board-surface {
+  --surface-line: rgba(255, 255, 255, 0.72);
+  --surface-soft-line: rgba(255, 255, 255, 0.36);
+  --sideline-bg: rgba(5, 12, 21, 0.28);
+  aspect-ratio: 16 / 10;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  min-height: 260px;
+  overflow: hidden;
+  position: relative;
+}
+
+.fr-surface-lines,
+.fr-surface-lines::before,
+.fr-surface-lines::after,
+.fr-board-section,
+.fr-board-section::before,
+.fr-board-section::after {
+  pointer-events: none;
+  position: absolute;
+}
+
+.fr-surface-lines {
+  inset: 0;
+}
+
+.fr-board-section-sideline {
+  background: var(--sideline-bg);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 0.62rem;
+  font-weight: 800;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.fr-board-section-sideline::after {
+  content: "Bench";
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.sport-baseball .fr-board-section-sideline::after {
+  content: "DH / Bullpen";
+}
+
+.sport-football .fr-board-section-sideline::after {
+  content: "Special Teams";
+}
+
+.fr-board-slot {
+  align-items: center;
+  background:
+    linear-gradient(180deg, rgba(14, 22, 35, 0.94), rgba(8, 14, 23, 0.94));
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 999px;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.24);
+  display: flex;
+  flex-direction: column;
+  gap: 0.04rem;
+  height: 58px;
+  justify-content: center;
+  left: var(--slot-x);
+  min-height: 0;
+  overflow: hidden;
+  padding: 0.25rem 0.38rem;
+  position: absolute;
+  text-align: center;
+  top: var(--slot-y);
+  transform: translate(-50%, -50%);
+  width: 86px;
+  z-index: 3;
+}
+
+.fr-board-slot.zone-sideline {
+  height: 46px;
+  width: 74px;
+  z-index: 4;
+}
+
+.fr-board-slot.filled {
+  background:
+    linear-gradient(180deg, rgba(39, 91, 82, 0.96), rgba(16, 55, 51, 0.96));
+  border-color: rgba(116, 242, 194, 0.86);
+  box-shadow:
+    0 0 0 2px rgba(116, 242, 194, 0.12),
+    0 12px 28px rgba(0, 0, 0, 0.3);
+}
+
+.fr-board-slot.filled.earned {
+  background:
+    linear-gradient(180deg, rgba(47, 112, 96, 0.98), rgba(18, 68, 59, 0.98));
+}
+
+.fr-board-slot.filled.missed {
+  background:
+    linear-gradient(180deg, rgba(96, 36, 42, 0.98), rgba(58, 20, 26, 0.98));
+  border-color: rgba(255, 124, 124, 0.82);
+}
+
+.fr-board-headshot {
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  border-radius: 50%;
+  height: 24px;
+  margin: 0;
+  object-fit: cover;
+  object-position: top;
+  width: 24px;
+}
+
+.fr-board-role {
+  color: rgba(255, 255, 255, 0.78);
+  font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+  font-size: 0.66rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.fr-board-player {
+  color: var(--text);
+  display: block;
+  font-size: 0.62rem;
+  font-weight: 800;
+  line-height: 1.05;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fr-board-slot:not(.filled) .fr-board-player,
+.fr-board-slot:not(.filled) .fr-board-headshot {
+  display: none;
+}
+
+.sport-baseball .fr-board-surface {
+  background:
+    radial-gradient(ellipse at 50% 82%, rgba(194, 134, 80, 0.9) 0 12%, transparent 12.4%),
+    radial-gradient(circle at 50% 58%, rgba(194, 134, 80, 0.9) 0 7%, transparent 7.4%),
+    linear-gradient(135deg, transparent 0 47%, rgba(194, 134, 80, 0.78) 47.2% 51%, transparent 51.2%),
+    linear-gradient(45deg, transparent 0 47%, rgba(194, 134, 80, 0.78) 47.2% 51%, transparent 51.2%),
+    radial-gradient(ellipse at 50% 22%, rgba(35, 86, 54, 0.98) 0 55%, rgba(24, 64, 42, 0.98) 56% 100%);
+}
+
+.sport-baseball .fr-surface-lines::before {
+  border: 2px solid rgba(245, 236, 205, 0.86);
+  height: 33%;
+  left: 50%;
+  top: 58%;
+  transform: translate(-50%, -50%) rotate(45deg);
+  width: 21%;
+}
+
+.sport-baseball .fr-surface-lines::after {
+  border: 2px solid rgba(245, 236, 205, 0.62);
+  border-bottom: 0;
+  border-radius: 50% 50% 0 0;
+  height: 38%;
+  left: 18%;
+  top: 7%;
+  width: 64%;
+}
+
+.sport-baseball .fr-board-section-sideline {
+  bottom: 5%;
+  height: 16%;
+  left: 4%;
+  width: 26%;
+}
+
+.sport-basketball .fr-board-surface {
+  background:
+    radial-gradient(circle at 50% 74%, transparent 0 17%, rgba(255, 255, 255, 0.58) 17.4% 18%, transparent 18.4%),
+    linear-gradient(90deg, rgba(246, 169, 91, 0.98), rgba(206, 114, 59, 0.98));
+}
+
+.sport-basketball .fr-surface-lines::before {
+  border: 2px solid rgba(255, 255, 255, 0.72);
+  border-bottom: 0;
+  border-radius: 999px 999px 0 0;
+  bottom: 0;
+  height: 34%;
+  left: 35%;
+  width: 30%;
+}
+
+.sport-basketball .fr-surface-lines::after {
+  background:
+    linear-gradient(var(--surface-line), var(--surface-line)) 50% 100% / 18% 2px no-repeat,
+    linear-gradient(var(--surface-line), var(--surface-line)) 50% 82% / 42% 2px no-repeat;
+  border: 2px solid rgba(255, 255, 255, 0.66);
+  border-bottom: 0;
+  bottom: 0;
+  height: 50%;
+  left: 30%;
+  width: 40%;
+}
+
+.sport-basketball .fr-board-section-sideline {
+  bottom: 4%;
+  height: 14%;
+  left: 5%;
+  width: 72%;
+}
+
+.sport-hockey .fr-board-surface {
+  --surface-line: rgba(32, 91, 178, 0.78);
+  background:
+    radial-gradient(circle at 31% 50%, transparent 0 10%, rgba(195, 38, 57, 0.6) 10.4% 11%, transparent 11.4%),
+    radial-gradient(circle at 60% 50%, transparent 0 10%, rgba(195, 38, 57, 0.6) 10.4% 11%, transparent 11.4%),
+    linear-gradient(90deg, rgba(226, 241, 248, 0.98), rgba(199, 225, 236, 0.98));
+}
+
+.sport-hockey .fr-surface-lines::before {
+  background:
+    linear-gradient(90deg, transparent 0 20%, rgba(32, 91, 178, 0.72) 20% 21.3%, transparent 21.3% 67%, rgba(195, 38, 57, 0.78) 67% 68.3%, transparent 68.3%),
+    linear-gradient(0deg, transparent 0 46%, rgba(32, 91, 178, 0.38) 46% 47.5%, transparent 47.5%);
+  inset: 0;
+}
+
+.sport-hockey .fr-surface-lines::after {
+  border: 3px solid rgba(195, 38, 57, 0.74);
+  border-left: 0;
+  border-radius: 0 999px 999px 0;
+  height: 38%;
+  right: 6%;
+  top: 31%;
+  width: 15%;
+}
+
+.sport-hockey .fr-board-section-sideline {
+  bottom: 4%;
+  height: 14%;
+  left: 7%;
+  width: 76%;
+}
+
+.sport-football .fr-board-surface {
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.18) 0 2px, transparent 2px 10%),
+    linear-gradient(90deg, rgba(43, 116, 50, 0.98), rgba(31, 92, 46, 0.98));
+}
+
+.sport-football .fr-surface-lines::before {
+  background:
+    linear-gradient(90deg, transparent 0 9.5%, rgba(255, 255, 255, 0.42) 9.5% 10.2%, transparent 10.2% 19.5%, rgba(255, 255, 255, 0.42) 19.5% 20.2%, transparent 20.2% 29.5%, rgba(255, 255, 255, 0.42) 29.5% 30.2%, transparent 30.2% 39.5%, rgba(255, 255, 255, 0.42) 39.5% 40.2%, transparent 40.2% 49.5%, rgba(255, 255, 255, 0.42) 49.5% 50.2%, transparent 50.2% 59.5%, rgba(255, 255, 255, 0.42) 59.5% 60.2%, transparent 60.2% 69.5%, rgba(255, 255, 255, 0.42) 69.5% 70.2%, transparent 70.2% 79.5%, rgba(255, 255, 255, 0.42) 79.5% 80.2%, transparent 80.2% 89.5%, rgba(255, 255, 255, 0.42) 89.5% 90.2%, transparent 90.2%);
+  inset: 0;
+}
+
+.sport-football .fr-surface-lines::after {
+  border: 2px solid rgba(255, 255, 255, 0.6);
+  border-top: 0;
+  height: 14%;
+  left: 6%;
+  right: 6%;
+  top: 0;
+}
+
+.sport-football .fr-board-section-sideline {
+  height: 13%;
+  right: 4%;
+  top: 5%;
+  width: 26%;
+}
+
+@media (max-width: 640px) {
+  .fr-board-surface {
+    aspect-ratio: 10 / 9;
+    min-height: 300px;
+  }
+
+  .fr-board-slot {
+    height: 42px;
+    padding-inline: 0.18rem;
+    width: 48px;
+  }
+
+  .fr-board-slot.zone-sideline {
+    height: 30px;
+    width: 44px;
+  }
+
+  .fr-board-headshot {
+    height: 17px;
+    width: 17px;
+  }
+
+  .fr-board-role {
+    font-size: 0.54rem;
+  }
+
+  .fr-board-player {
+    font-size: 0.48rem;
+  }
+}
