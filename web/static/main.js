@@ -1884,12 +1884,12 @@ function renderWinConditions() {
   const opp = game.win_conditions.opponent_condition;
   els.yourWinName.textContent = your?.label || '--';
   els.yourWinDesc.innerHTML = your
-    ? `${your.progress}/${your.target} <em>${escapeHtml(your.description || '')}</em>`
+    ? `<span class="win-progress-count">${your.progress}/${your.target}</span><em>${escapeHtml(your.description || '')}</em>`
     : '';
   els.yourWinPips.innerHTML = your ? renderWinPips(your.progress, your.target) : '';
   els.oppWinName.textContent = opp?.label || '--';
   els.oppWinDesc.innerHTML = opp
-    ? `${opp.progress}/${opp.target} <em>${escapeHtml(opp.description || '')}</em>`
+    ? `<span class="win-progress-count">${opp.progress}/${opp.target}</span><em>${escapeHtml(opp.description || '')}</em>`
     : '';
   els.oppWinPips.innerHTML = opp ? renderWinPips(opp.progress, opp.target) : '';
 }
@@ -2076,6 +2076,12 @@ function renderPowerups() {
   if (!isPo) return;
   const your = game.powerups.your_powerups || [];
   const opp = game.powerups.opponent_powerups || [];
+  const ready = your.filter((powerup) => !powerup.used).length;
+  const oppReady = opp.filter((powerup) => !powerup.used).length;
+  const summary = els.powerupPanel.querySelector('summary');
+  if (summary) {
+    summary.innerHTML = `Powerups <span>${ready} ready</span> <small>${oppReady} opp</small>`;
+  }
   const buttonsDisabled = !game.your_turn || game.finished || !!game.powerups.turn_powerup_used || (game.countdown_seconds_remaining || 0) > 0;
   els.yourPowerupName.textContent = game.your_turn
     ? (game.powerups.turn_powerup_used ? 'Powerup used this turn' : 'One use each this game')

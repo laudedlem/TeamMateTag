@@ -5670,3 +5670,301 @@ body[data-mode-hub="film"] .film-preview-player small {
     width: 100%;
   }
 }
+
+/* 0.3.36: larger Film Review launch previews and denser Playoffs controls. */
+body[data-mode-hub="film"] .film-sport-tile {
+  min-height: 310px;
+  padding: 1.1rem 1.1rem 10.15rem;
+}
+
+body[data-mode-hub="film"] .sport-tile-copy {
+  max-width: 100%;
+}
+
+body[data-mode-hub="film"] .sport-tile-name {
+  font-size: 2.35rem;
+  line-height: 0.96;
+}
+
+body[data-mode-hub="film"] .sport-tile-status {
+  white-space: normal;
+}
+
+body[data-mode-hub="film"] .film-hub-meta {
+  left: 1rem;
+  right: 1rem;
+  bottom: 1rem;
+}
+
+body[data-mode-hub="film"] .film-preview-pair {
+  align-items: stretch;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+body[data-mode-hub="film"] .film-preview-player {
+  align-content: center;
+  align-items: center;
+  background: rgba(8, 14, 24, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: var(--radius-sm);
+  grid-template-columns: 98px minmax(0, 1fr);
+  gap: 0.7rem;
+  min-height: 116px;
+  padding: 0.55rem;
+}
+
+body[data-mode-hub="film"] .film-preview-photo {
+  width: 98px;
+  height: 98px;
+  border-width: 2px;
+}
+
+body[data-mode-hub="film"] .film-preview-player small {
+  display: block;
+  color: var(--text);
+  font-size: 1.12rem;
+  font-weight: 850;
+  line-height: 1.02;
+  max-height: 3.1em;
+  overflow: hidden;
+  text-overflow: clip;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: anywhere;
+}
+
+body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player small {
+  font-size: 1.08rem;
+  white-space: normal;
+}
+
+.win-panel {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.46rem;
+  margin: 0.62rem 0 0.42rem;
+}
+
+.win-box {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "label pips"
+    "name pips"
+    "desc desc";
+  gap: 0.14rem 0.45rem;
+  min-width: 0;
+  padding: 0.46rem 0.55rem;
+}
+
+.win-box .powerup-box-label {
+  grid-area: label;
+  margin: 0;
+}
+
+.win-box .powerup-name {
+  grid-area: name;
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.win-box .muted.small {
+  align-items: center;
+  display: flex;
+  gap: 0.38rem;
+  grid-area: desc;
+  min-width: 0;
+}
+
+.win-progress-count {
+  color: #ffe49a;
+  flex: 0 0 auto;
+  font-weight: 850;
+}
+
+.win-box em {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.win-pips {
+  align-content: center;
+  display: grid;
+  gap: 0.18rem;
+  grid-area: pips;
+  grid-template-columns: repeat(5, 0.48rem);
+  justify-content: end;
+  margin: 0;
+}
+
+.win-pip {
+  height: 0.48rem;
+  width: 0.48rem;
+}
+
+.powerup-panel {
+  margin: 0.4rem 0 0.35rem;
+}
+
+.powerup-panel > summary {
+  display: grid;
+  grid-template-columns: auto auto auto;
+  gap: 0.42rem;
+  min-height: 34px;
+  padding: 0.28rem 0.6rem;
+}
+
+.powerup-panel > summary span,
+.powerup-panel > summary small {
+  border-radius: 999px;
+  color: #07111c;
+  font-size: 0.68rem;
+  font-weight: 850;
+  line-height: 1;
+  padding: 0.26rem 0.42rem;
+}
+
+.powerup-panel > summary span {
+  background: #ffe49a;
+}
+
+.powerup-panel > summary small {
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.powerup-panel[open] {
+  grid-template-columns: minmax(0, 1.45fr) minmax(180px, 0.75fr);
+  gap: 0.5rem;
+}
+
+.powerup-box {
+  min-width: 0;
+  padding: 0.5rem;
+}
+
+.powerup-box:nth-of-type(2) {
+  opacity: 0.86;
+}
+
+.powerup-list {
+  display: grid;
+  gap: 0.32rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.powerup-box:nth-of-type(2) .powerup-list {
+  grid-template-columns: 1fr;
+}
+
+.powerup-chip {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr) auto;
+  gap: 0.38rem;
+  min-height: 36px;
+  padding: 0.3rem 0.44rem;
+  width: 100%;
+}
+
+.powerup-icon,
+.powerup-icon.powerup-svg {
+  height: 1.55rem;
+  min-width: 2rem;
+  width: 2rem;
+}
+
+.powerup-label {
+  align-self: center;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.powerup-state {
+  align-self: center;
+  font-size: 0.66rem;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  body[data-mode-hub="film"] .film-sport-tile {
+    min-height: 334px;
+    padding: 1rem 0.9rem 13.35rem;
+  }
+
+  body[data-mode-hub="film"] .sport-tile-name {
+    font-size: 1.9rem;
+  }
+
+  body[data-mode-hub="film"] .film-preview-pair {
+    grid-template-columns: 1fr;
+    gap: 0.46rem;
+  }
+
+  body[data-mode-hub="film"] .film-preview-player {
+    grid-template-columns: 84px minmax(0, 1fr);
+    min-height: 96px;
+    padding: 0.42rem;
+  }
+
+  body[data-mode-hub="film"] .film-preview-photo {
+    width: 84px;
+    height: 84px;
+  }
+
+  body[data-mode-hub="film"] .film-preview-player small {
+    font-size: 1rem;
+    max-height: 2.12em;
+  }
+
+  body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player small {
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .win-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .win-box {
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 0.42rem 0.48rem;
+  }
+
+  .powerup-panel[open] {
+    grid-template-columns: 1fr;
+  }
+
+  .powerup-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .powerup-box:nth-of-type(2) .powerup-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .powerup-chip {
+    grid-template-columns: 1.65rem minmax(0, 1fr);
+    min-height: 42px;
+  }
+
+  .powerup-state {
+    grid-column: 2;
+    justify-self: start;
+    line-height: 1;
+  }
+
+  .powerup-icon,
+  .powerup-icon.powerup-svg {
+    height: 1.5rem;
+    min-width: 1.65rem;
+    width: 1.65rem;
+  }
+}
