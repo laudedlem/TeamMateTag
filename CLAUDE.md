@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.3.63`
+- Current display version: `0.3.64`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -24,6 +24,11 @@ changes. It is the concise source of truth for another coding assistant.
   migration run, then remove it again.
 
 ## Current user experience
+
+Update, 2026-08-23 (0.3.64): refined basketball Film Review court and bench
+placement again. `PG` stayed fixed; `SG`/`SF` moved farther toward the sidelines,
+`PF`/`C` moved outward between the paint and three-point arc, and bench widgets
+were enlarged while keeping a centered one-column stack with tighter spacing.
 
 Update, 2026-08-23 (0.3.63): retuned basketball Film Review starter placement.
 The point guard moved slightly back up between the top line and three-point arc,

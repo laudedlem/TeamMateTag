@@ -7511,13 +7511,13 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
 }
 
 .sport-basketball .fr-board-slot.zone-sideline {
-  height: 36px;
-  width: 58px;
+  height: 40px;
+  width: 62px;
 }
 
 .sport-basketball .fr-board-slot.zone-sideline .fr-board-headshot {
-  height: 16px;
-  width: 16px;
+  height: 18px;
+  width: 18px;
 }
 
 @media (max-width: 640px) {
@@ -7536,12 +7536,12 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
   }
 
   .sport-basketball .fr-board-slot.zone-sideline {
-    height: 23px;
-    width: 34px;
+    height: 25px;
+    width: 36px;
   }
 
   .sport-basketball .fr-board-slot.zone-sideline .fr-board-headshot {
-    height: 9px;
-    width: 9px;
+    height: 10px;
+    width: 10px;
   }
 }
