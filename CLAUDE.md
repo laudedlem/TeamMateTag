@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.3.57`
+- Current display version: `0.3.58`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -24,6 +24,12 @@ changes. It is the concise source of truth for another coding assistant.
   migration run, then remove it again.
 
 ## Current user experience
+
+Update, 2026-08-23 (0.3.58): corrected the basketball Film Review board after
+the 0.3.57 bench/court pass pinched the court too far. The court now uses nearly
+the full horizontal space again, the bench is a narrow one-column lane with a
+small gap before the court, bench widgets are centered inside that lane, and the
+overall board is shorter.
 
 Update, 2026-08-23 (0.3.57): refined basketball Film Review into a wider,
 shorter board. The bench is now a lower-left rectangle separated from the court
