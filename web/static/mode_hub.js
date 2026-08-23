@@ -239,6 +239,29 @@ const CONDITION_REQUIREMENTS = {
   single_season_sniper: 'Peak goal seasons.', point_streak: 'Career point producers.',
 };
 
+function gameCopyStyle(text) {
+  return String(text || '')
+    .replace(/\bplayers\b/g, 'Players')
+    .replace(/\bplayer\b/g, 'Player')
+    .replace(/\bopponent\b/g, 'Opponent')
+    .replace(/\bpowerups\b/g, 'Powerups')
+    .replace(/\bpowerup\b/g, 'Powerup')
+    .replace(/\bteam-seasons\b/g, 'Team-Seasons')
+    .replace(/\bteam-season\b/g, 'Team-Season')
+    .replace(/\blineup\b/g, 'Lineup')
+    .replace(/\bconditions\b/g, 'Conditions')
+    .replace(/\bcondition\b/g, 'Condition')
+    .replace(/\bcareer\b/g, 'Career')
+    .replace(/\bseason\b/g, 'Season')
+    .replace(/\bfranchise\b/g, 'Franchise')
+    .replace(/\bsame\b/g, 'Same')
+    .replace(/\bposition\b/g, 'Position')
+    .replace(/\bcombined\b/g, 'Combined')
+    .replace(/\bchampionships\b/g, 'Championships')
+    .replace(/\bselections\b/g, 'Selections')
+    .replace(/\bavailable\b/g, 'Available');
+}
+
 async function post(url, body) {
   const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   return response.json();
@@ -372,7 +395,7 @@ function escapeHtml(value) {
   })[char]);
 }
 
-function managerScore(run, emptyText = 'No lineup yet') {
+function managerScore(run, emptyText = 'No Lineup Yet') {
   if (!run) return `<strong>--</strong><span>${emptyText}</span>`;
   const starter = run.starter?.name ? `Starter: ${escapeHtml(run.starter.name)}` : '';
   return `<strong>${run.chain_length}</strong><span>${starter}</span>`;
@@ -392,10 +415,10 @@ function renderManagerLeaderboard(summary, sport) {
   const records = document.getElementById('manager-records-select');
   if (!grid || !records) return;
   grid.innerHTML = [
-    renderManagerCard('Your All-Time Best', data.own_all_time, 'No finished run'),
-    renderManagerCard('Your Best Today', data.own_today, 'No run today'),
-    renderManagerCard('Global All-Time Best', data.global_all_time, 'No global run'),
-    renderManagerCard('Global Best Today', data.global_today, 'No global run today'),
+    renderManagerCard('Your All-Time Best', data.own_all_time, 'No Finished Run'),
+    renderManagerCard('Your Best Today', data.own_today, 'No Run Today'),
+    renderManagerCard('Global All-Time Best', data.global_all_time, 'No Global Run'),
+    renderManagerCard('Global Best Today', data.global_today, 'No Global Run Today'),
   ].join('');
   const rows = data.records || [];
   records.innerHTML = rows.length
@@ -403,7 +426,7 @@ function renderManagerLeaderboard(summary, sport) {
       const starter = row.starter?.name ? ` - ${row.starter.name}` : '';
       return `<option>${escapeHtml(row.date || '')} - ${escapeHtml(row.display_name || 'Guest')} - ${row.chain_length}${escapeHtml(starter)}</option>`;
     }).join('')
-    : '<option>No daily records yet</option>';
+    : '<option>No Daily Records Yet</option>';
 }
 
 function renderManagerSummary(summary) {
@@ -428,7 +451,7 @@ function renderManagerTiles(summary) {
   const sports = summary?.sports || {};
   Object.entries(sports).forEach(([sport, data]) => {
     const bestTarget = document.querySelector(`[data-manager-best="${sport}"]`);
-    if (bestTarget) bestTarget.textContent = `Longest lineup: ${data.own_best ?? data.own_all_time?.chain_length ?? 0}`;
+    if (bestTarget) bestTarget.textContent = `Longest Lineup: ${data.own_best ?? data.own_all_time?.chain_length ?? 0}`;
     const starterTarget = document.querySelector(`[data-manager-starter="${sport}"]`);
     if (starterTarget) {
       const starter = data.starter || {};
@@ -436,7 +459,7 @@ function renderManagerTiles(summary) {
         ? `<img src="${escapeHtml(starter.headshot_url)}" alt="">`
         : '';
       starterTarget.innerHTML = `<span class="manager-starter-photo ${photo ? '' : 'placeholder'}">${photo}</span>
-        <span><small>Today's starter</small><strong>${escapeHtml(starter.name || 'Unknown')}</strong></span>`;
+        <span><small>Today's Starter</small><strong>${escapeHtml(starter.name || 'Unknown')}</strong></span>`;
     }
   });
 }
@@ -485,7 +508,7 @@ async function handleQueueResponse(response) {
     window.location.href = response.redirect;
     return;
   }
-  setQueueUi(true, 'Searching selected sports...');
+  setQueueUi(true, 'Searching Selected Sports...');
 }
 
 async function queueForSports(sports, preferences = {}) {
@@ -516,7 +539,7 @@ async function pollSharedQueue() {
     clearInterval(queuePoll);
     queuePoll = null;
     activeQueueSports = [];
-    setQueueUi(false, 'Queue stopped.');
+    setQueueUi(false, 'Queue Stopped.');
   }
 }
 
@@ -532,7 +555,7 @@ function configureSharedQueue() {
   document.getElementById('shared-queue-btn')?.addEventListener('click', async () => {
     const sports = selectedSports();
     if (!sports.length) {
-      setQueueUi(false, 'Choose at least one sport.');
+      setQueueUi(false, 'Choose at Least One Sport.');
       return;
     }
     await queueForSports(sports, hub === 'playoffs' ? playoffPreferences() : {});
@@ -544,7 +567,7 @@ function configureSharedQueue() {
     await post(queueEndpoint('cancel_queue'), {
       guest_id: hubProfile?.guest_id || localStorage.getItem(guestKey) || '',
     });
-    setQueueUi(false, 'Queue canceled.');
+    setQueueUi(false, 'Queue Canceled.');
   });
 }
 
@@ -587,7 +610,7 @@ function conditionsHtml(sport = null) {
         <thead><tr><th>Condition</th><th>Need</th></tr></thead>
         <tbody>${rows.filter(([key]) => key !== 'random').map(([key, label]) => {
           const [name, need] = label.split(': ');
-          return `<tr><td class="reference-condition-name">${escapeHtml(name)}</td><td class="reference-condition-need">${escapeHtml(need || CONDITION_REQUIREMENTS[key] || 'Complete the Listed Stat Goal Before Your Opponent.')}</td></tr>`;
+          return `<tr><td class="reference-condition-name">${escapeHtml(name)}</td><td class="reference-condition-need">${escapeHtml(gameCopyStyle(need || CONDITION_REQUIREMENTS[key] || 'Complete the Listed Stat Goal Before Your Opponent.'))}</td></tr>`;
         }
         ).join('')}</tbody>
       </table>`;
@@ -599,7 +622,7 @@ function powerupsHtml(sport = null) {
   return sports.map((sportKey) => {
     const rows = POWERUP_REFERENCE[sportKey] || [];
     return `<h3>${escapeHtml(sportKey[0].toUpperCase() + sportKey.slice(1))}</h3><div class="reference-key">${rows.map(([label, desc]) =>
-      `<div class="reference-row">${powerupChip(label)}<div class="reference-copy"><div class="muted small">${escapeHtml(desc)}</div></div></div>`
+      `<div class="reference-row">${powerupChip(label)}<div class="reference-copy"><div class="muted small">${escapeHtml(gameCopyStyle(desc))}</div></div></div>`
     ).join('')}</div>`;
   }).join('');
 }

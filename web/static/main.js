@@ -329,36 +329,36 @@ const LOCAL_PLAYOFF_OPTIONS = {
     ['journeyman', 'Journeyman: 2 Seven-Team Players'],
   ],
   basketball: [
-    ['random', 'Random'], ['bucket_getter', 'Bucket Getter: 2 players with 25,000 career points'],
-    ['season_scorer', 'Scoring Run: 2 players with a 2,000-point season'],
-    ['playmaker', 'Table Setter: 2 players with 7,000 career assists'],
-    ['three_point_club', 'Deep Range: 2 players with 2,000 career three-pointers'],
-    ['ironhorse', 'Ironhorse: 2 players with 1,000 career games'],
-    ['one_team', 'Home Court: 2 players with 8 seasons for one franchise'],
-    ['journeyman', 'Frequent Flyer: 2 players who played for 5 teams'], ['mvp_circle', 'MVP Circle: 2 MVP winners'],
-    ['all_star_marathon', 'All-Star Marathon: 12 combined selections'], ['ring_chaser', 'Ring Chaser: 6 combined championships'],
-    ['young_guns', 'Young Guns: 2 Rookie of the Year winners'],
+    ['random', 'Random'], ['bucket_getter', 'Bucket Getter: 2 Players with 25,000 Career Points'],
+    ['season_scorer', 'Scoring Run: 2 Players with a 2,000-Point Season'],
+    ['playmaker', 'Table Setter: 2 Players with 7,000 Career Assists'],
+    ['three_point_club', 'Deep Range: 2 Players with 2,000 Career Three-Pointers'],
+    ['ironhorse', 'Ironhorse: 2 Players with 1,000 Career Games'],
+    ['one_team', 'Home Court: 2 Players with 8 Seasons for One Franchise'],
+    ['journeyman', 'Frequent Flyer: 2 Players Who Played for 5 Teams'], ['mvp_circle', 'MVP Circle: 2 MVP Winners'],
+    ['all_star_marathon', 'All-Star Marathon: 12 Combined All-Star Selections'], ['ring_chaser', 'Ring Chaser: 6 Combined Championships'],
+    ['young_guns', 'Young Guns: 2 Rookie of the Year Winners'],
   ],
   football: [
-    ['random', 'Random'], ['touchdown_club', 'End Zone: 2 players with 100 career touchdowns'],
-    ['season_scorer', 'Season Scorer: 2 players with a 15-touchdown season'],
-    ['air_raid', 'Air Raid: 2 players with 300 career passing touchdowns'],
-    ['single_season_passer', 'Sunday Slingers: 2 players with a 35-passing-touchdown season'],
-    ['sack_master', 'Sack Master: 2 players with 100 career sacks'], ['ballhawk', 'Ballhawk: 2 players with 30 career interceptions'],
-    ['one_team', 'One Club: 2 players with 10 seasons for one franchise'],
-    ['journeyman', 'Journeyman: 2 players who played for 5 teams'], ['mvp_circle', 'MVP Circle: 2 MVP winners'],
-    ['pro_bowl_marathon', 'Pro Bowl Marathon: 12 combined selections'], ['ring_chaser', 'Ring Chaser: 5 combined championships'],
-    ['young_guns', 'Fresh Faces: 2 Rookie of the Year winners'],
+    ['random', 'Random'], ['touchdown_club', 'End Zone: 2 Players with 100 Career Touchdowns'],
+    ['season_scorer', 'Season Scorer: 2 Players with a 15-Touchdown Season'],
+    ['air_raid', 'Air Raid: 2 Players with 300 Career Passing Touchdowns'],
+    ['single_season_passer', 'Sunday Slingers: 2 Players with a 35-Passing-Touchdown Season'],
+    ['sack_master', 'Sack Master: 2 Players with 100 Career Sacks'], ['ballhawk', 'Ballhawk: 2 Players with 30 Career Interceptions'],
+    ['one_team', 'One Club: 2 Players with 10 Seasons for One Franchise'],
+    ['journeyman', 'Journeyman: 2 Players Who Played for 5 Teams'], ['mvp_circle', 'MVP Circle: 2 MVP Winners'],
+    ['pro_bowl_marathon', 'Pro Bowl Marathon: 12 Combined Pro Bowl Selections'], ['ring_chaser', 'Ring Chaser: 5 Combined Championships'],
+    ['young_guns', 'Fresh Faces: 2 Rookie of the Year Winners'],
   ],
   hockey: [
-    ['random', 'Random'], ['sniper', 'Sniper: 2 players with 500 career goals'],
-    ['single_season_sniper', 'Rocket Season: 1 player with a 60-goal season'],
-    ['playmaker', 'Playmaker: 2 players with 1,000 career assists'],
-    ['point_streak', 'Point Machine: 1 player with a 120-point season'],
-    ['one_team', 'Lifer: 2 players with 10 seasons for one franchise'],
-    ['journeyman', 'Journeyman: 2 players who played for 5 teams'], ['mvp_circle', 'Hart Club: 2 Hart Trophy winners'],
-    ['all_star_marathon', 'All-Star Marathon: 12 combined selections'], ['ironhorse', 'Ironhorse: 2 players with 1,200 career games'],
-    ['ring_chaser', 'Cup Chasers: 7 combined Stanley Cup credits'], ['young_guns', 'Fresh Ice: 2 Calder Trophy winners'],
+    ['random', 'Random'], ['sniper', 'Sniper: 2 Players with 500 Career Goals'],
+    ['single_season_sniper', 'Rocket Season: 1 Player with a 60-Goal Season'],
+    ['playmaker', 'Playmaker: 2 Players with 1,000 Career Assists'],
+    ['point_streak', 'Point Machine: 1 Player with a 120-Point Season'],
+    ['one_team', 'Lifer: 2 Players with 10 Seasons for One Franchise'],
+    ['journeyman', 'Journeyman: 2 Players Who Played for 5 Teams'], ['mvp_circle', 'Hart Club: 2 Hart Trophy Winners'],
+    ['all_star_marathon', 'All-Star Marathon: 12 Combined All-Star Selections'], ['ironhorse', 'Ironhorse: 2 Players with 1,200 Career Games'],
+    ['ring_chaser', 'Cup Chasers: 7 Combined Stanley Cup Credits'], ['young_guns', 'Fresh Ice: 2 Calder Trophy Winners'],
   ],
 };
 
@@ -1201,7 +1201,7 @@ async function pollMatchmaking() {
     return;
   }
   if (status.status === 'waiting') {
-    els.mpStatusText.textContent = 'Searching for an opponent...';
+    els.mpStatusText.textContent = 'Searching for an Opponent...';
     return;
   }
   if (status.status === 'idle' && els.challengeStatusText.textContent) return;
@@ -1211,7 +1211,7 @@ async function pollMatchmaking() {
 async function startMpGame(opts = {}) {
   clearRequeueRelaxTimeout();
   showScreen('mp-setup');
-  els.mpStatusText.textContent = 'Searching for an opponent...';
+  els.mpStatusText.textContent = 'Searching for an Opponent...';
   els.startBtn.hidden = true;
   els.cancelMatchBtn.hidden = false;
   clearInterval(mpQueuePollInterval);
@@ -1384,7 +1384,7 @@ async function rematch() {
       return;
     }
     els.mpRematchStatus.hidden = false;
-    els.mpRematchStatus.textContent = "Let's play two? Waiting on your opponent.";
+    els.mpRematchStatus.textContent = "Let's Play Two? Waiting on Your Opponent.";
     els.requeueBtn.hidden = false;
     startRematchPolling();
     return;
@@ -1406,14 +1406,15 @@ function showGameOverBanner() {
 
   if (isOnlineMode()) {
     const teamsOut = game.strikes.filter((s) => s.count >= 3).length;
-    const outSummary = ({ baseball: 'struck out', basketball: 'fouled out', football: 'punted', hockey: 'with game misconducts' })[CURRENT_SPORT] || 'out';
-    els.winnerText.textContent = game.winner ? `${game.winner} wins!` : 'Game over.';
+    const outSummary = ({ baseball: 'Struck Out', basketball: 'Fouled Out', football: 'Punted', hockey: 'with Game Misconducts' })[CURRENT_SPORT] || 'Out';
+    els.winnerText.textContent = game.winner ? `${game.winner} Wins!` : 'Game Over.';
     if (currentMode === 'po' && game.last_move?.win_condition_completed) {
+      const playerName = game.last_move.display_name || game.chain[game.chain.length - 1]?.name || 'The Final Player';
       els.gameOverSummary.textContent =
-        `${game.last_move.win_condition_label} completed. Lineup of ${game.chain.length}. ${teamsOut} team${teamsOut === 1 ? '' : 's'} ${outSummary}.`;
+        `${playerName} Completed ${game.last_move.win_condition_label}. Lineup of ${game.chain.length}. ${teamsOut} Team${teamsOut === 1 ? '' : 's'} ${outSummary}.`;
     } else {
       els.gameOverSummary.textContent =
-        `Lineup of ${game.chain.length}. ${teamsOut} team${teamsOut === 1 ? '' : 's'} ${outSummary}.`;
+        `Lineup of ${game.chain.length}. ${teamsOut} Team${teamsOut === 1 ? '' : 's'} ${outSummary}.`;
     }
     if (game.last_move?.outcome === 'forfeit') {
       els.playAgainBtn.hidden = true;
@@ -1432,7 +1433,7 @@ function showGameOverBanner() {
     els.playAgainBtn.hidden = false;
     els.requeueBtn.hidden = true;
     els.winnerText.textContent = `Lineup of ${game.longest_chain}.`;
-    els.gameOverSummary.textContent = 'Time expired. Try to beat your longest lineup.';
+    els.gameOverSummary.textContent = 'Time Expired. Try to Beat Your Longest Lineup.';
     els.playAgainBtn.textContent = ({ football: 'Run it back', basketball: 'Shoot again', hockey: 'Skate again' })[CURRENT_SPORT] || 'Take more cuts';
   }
 }
@@ -1476,7 +1477,7 @@ async function requeueForNewMatch(message, options = {}) {
   showScreen('mp-setup');
   els.matchModeTitle.textContent = onlineModeName(onlineMode);
   els.challengeStatusText.textContent = '';
-  els.mpStatusText.textContent = message || 'Searching for a new opponent...';
+  els.mpStatusText.textContent = message || 'Searching for a New Opponent...';
   await startMpGame({
     avoidGuestId,
     allowSameOpponentAfterMs: shouldAvoidLastOpponent ? 5000 : 0,
@@ -1498,7 +1499,7 @@ function resetTurnTimer() {
   activeTimerKey = timerKey(game);
   turnLocalStart = performance.now() / 1000;
   const startRemaining = game.remaining_seconds;
-  els.timer.title = 'seconds left';
+  els.timer.title = 'Seconds Left';
   els.timer.textContent = startRemaining.toFixed(1) + 's';
   timerInterval = setInterval(() => {
     const elapsed = performance.now() / 1000 - turnLocalStart;
@@ -1843,7 +1844,22 @@ function powerupIconHtml(key) {
   return `<span class="powerup-icon powerup-svg" aria-hidden="true"><svg viewBox="0 0 24 24">${paths}</svg></span>`;
 }
 
-function powerupButtonHtml(powerup, disabled) {
+function powerupLockedLabel() {
+  if (game?.finished) return 'Game Over';
+  if ((game?.countdown_seconds_remaining || 0) > 0) {
+    return ({
+      baseball: 'After Leadoff',
+      basketball: 'After Tipoff',
+      football: 'After Snap',
+      hockey: 'After Faceoff',
+    })[CURRENT_SPORT] || 'After Start';
+  }
+  if (!game?.your_turn) return 'Your Turn';
+  if (game?.powerups?.turn_powerup_used) return 'Used This Turn';
+  return 'Ready';
+}
+
+function powerupButtonHtml(powerup, disabled, stateLabel = 'Ready') {
   const classes = ['powerup-chip', 'powerup-' + powerupClass(powerup.key)];
   if (powerup.used) classes.push('used');
   return `<button
@@ -1853,7 +1869,7 @@ function powerupButtonHtml(powerup, disabled) {
     ${disabled ? 'disabled' : ''}>
       ${powerupIconHtml(powerup.key)}
       <span class="powerup-label">${escapeHtml(powerup.label || powerup.key)}</span>
-      <span class="powerup-state">${powerup.used ? 'Used' : 'Ready'}</span>
+      <span class="powerup-state">${powerup.used ? 'Used' : escapeHtml(stateLabel)}</span>
     </button>`;
 }
 
@@ -1868,16 +1884,38 @@ function powerupPillHtml(powerup) {
 }
 
 function opponentPowerupScoutHtml(powerups) {
-  const ready = powerups.filter((powerup) => !powerup.used);
-  const used = powerups.filter((powerup) => powerup.used);
-  const groups = [];
-  if (ready.length) {
-    groups.push(`<span><strong>Ready</strong> ${ready.map((powerup) => escapeHtml(powerup.label || powerup.key)).join(', ')}</span>`);
-  }
-  if (used.length) {
-    groups.push(`<span><strong>Used</strong> ${used.map((powerup) => escapeHtml(powerup.label || powerup.key)).join(', ')}</span>`);
-  }
-  return groups.join('');
+  return powerups.map((powerup) => {
+    const classes = ['opponent-powerup-name', 'powerup-' + powerupClass(powerup.key)];
+    if (powerup.used) classes.push('used');
+    return `<span class="${classes.join(' ')}">${escapeHtml(powerup.label || powerup.key)}</span>`;
+  }).join('');
+}
+
+function gameCopyStyle(text) {
+  return String(text || '')
+    .replace(/\bplayers\b/g, 'Players')
+    .replace(/\bplayer\b/g, 'Player')
+    .replace(/\bopponents\b/g, 'Opponents')
+    .replace(/\bopponent\b/g, 'Opponent')
+    .replace(/\bpowerups\b/g, 'Powerups')
+    .replace(/\bpowerup\b/g, 'Powerup')
+    .replace(/\bteammates\b/g, 'TeamMates')
+    .replace(/\bteammate\b/g, 'TeamMate')
+    .replace(/\bteam-seasons\b/g, 'Team-Seasons')
+    .replace(/\bteam-season\b/g, 'Team-Season')
+    .replace(/\blineup\b/g, 'Lineup')
+    .replace(/\bconditions\b/g, 'Conditions')
+    .replace(/\bcondition\b/g, 'Condition')
+    .replace(/\bcareer\b/g, 'Career')
+    .replace(/\bseason\b/g, 'Season')
+    .replace(/\bfranchise\b/g, 'Franchise')
+    .replace(/\bsame\b/g, 'Same')
+    .replace(/\bposition\b/g, 'Position')
+    .replace(/\bcombined\b/g, 'Combined')
+    .replace(/\bchampionships\b/g, 'Championships')
+    .replace(/\bselections\b/g, 'Selections')
+    .replace(/\bavailable\b/g, 'Available')
+    .replace(/\brandomly\b/g, 'Randomly');
 }
 
 function renderWinPips(progress, target) {
@@ -1897,28 +1935,28 @@ function renderWinConditions() {
   const opp = game.win_conditions.opponent_condition;
   els.yourWinName.textContent = your?.label || '--';
   els.yourWinDesc.innerHTML = your
-    ? `<span class="win-progress-count">${your.progress}/${your.target}</span><em>${escapeHtml(your.description || '')}</em>`
+    ? `<span class="win-progress-count">${your.progress}/${your.target}</span><em>${escapeHtml(gameCopyStyle(your.description || ''))}</em>`
     : '';
   els.yourWinPips.innerHTML = your ? renderWinPips(your.progress, your.target) : '';
   els.oppWinName.textContent = opp?.label || '--';
   els.oppWinDesc.innerHTML = opp
-    ? `<span class="win-progress-count">${opp.progress}/${opp.target}</span><em>${escapeHtml(opp.description || '')}</em>`
+    ? `<span class="win-progress-count">${opp.progress}/${opp.target}</span><em>${escapeHtml(gameCopyStyle(opp.description || ''))}</em>`
     : '';
   els.oppWinPips.innerHTML = opp ? renderWinPips(opp.progress, opp.target) : '';
 }
 
 function renderMpGame() {
-  els.turnLabel.textContent = game.your_turn ? 'Your turn' : `${game.current_label}'s turn`;
+  els.turnLabel.textContent = game.your_turn ? 'Your Turn' : `${game.current_label}'s Turn`;
   els.currentPlayerName.textContent = game.current_player.name;
   els.turnCard.classList.toggle('your-turn', !!game.your_turn);
   els.turnCard.classList.toggle('opponent-turn', !game.your_turn);
   els.timer.classList.toggle('your-turn', !!game.your_turn);
   els.timer.classList.toggle('opponent-turn', !game.your_turn);
   setGuessDisabled(game.finished || (game.countdown_seconds_remaining || 0) > 0 || !game.your_turn);
-  els.guessInput.placeholder = game.your_turn ? 'Type a name (first or last)...' : '';
+  els.guessInput.placeholder = game.your_turn ? 'Type a Name (First or Last)...' : '';
   const prompt = currentMode === 'po' && game.powerups?.active_turn_powerup
-    ? 'Name a player linked to'
-    : 'Name a teammate of';
+    ? 'Name a Player Linked to'
+    : 'Name a TeamMate of';
   const promptLabel = document.querySelector('#turn-card .turn-prompt .muted');
   if (promptLabel) promptLabel.textContent = prompt;
   renderWinConditions();
@@ -2013,45 +2051,45 @@ function startRematchPolling() {
     if (res.status === 'requeued') {
       if (res.you_requested) {
         els.mpRematchStatus.hidden = false;
-        els.mpRematchStatus.textContent = 'Opponent left. Finding a new match...';
-        await requeueForNewMatch('Opponent left. Searching for a new opponent...', {
+        els.mpRematchStatus.textContent = 'Opponent Left. Finding a New Match...';
+        await requeueForNewMatch('Opponent Left. Searching for a New Opponent...', {
           avoidLastOpponent: true,
         });
       } else {
         els.mpRematchStatus.hidden = false;
-        els.mpRematchStatus.textContent = 'Opponent left the game.';
+        els.mpRematchStatus.textContent = 'Opponent Left the Game.';
       }
       return;
     }
     if (res.status === 'abandoned') {
       if (res.you_requested) {
         els.mpRematchStatus.hidden = false;
-        els.mpRematchStatus.textContent = 'Opponent left. Finding a new match...';
-        await requeueForNewMatch('Opponent left. Searching for a new opponent...', {
+        els.mpRematchStatus.textContent = 'Opponent Left. Finding a New Match...';
+        await requeueForNewMatch('Opponent Left. Searching for a New Opponent...', {
           avoidLastOpponent: true,
         });
       } else {
         els.mpRematchStatus.hidden = false;
-        els.mpRematchStatus.textContent = 'Opponent left the game.';
+        els.mpRematchStatus.textContent = 'Opponent Left the Game.';
       }
       return;
     }
     if (!res.rematch_available) {
       clearInterval(mpRematchPollInterval);
       els.mpRematchStatus.hidden = false;
-      els.mpRematchStatus.textContent = 'Rematch is unavailable after a player leaves.';
+      els.mpRematchStatus.textContent = 'Rematch Is Unavailable After a Player Leaves.';
       return;
     }
     if (res.opponent_requested && !res.you_requested) {
       els.mpRematchStatus.hidden = false;
-      els.mpRematchStatus.textContent = 'Your opponent wants a rematch.';
+      els.mpRematchStatus.textContent = 'Your Opponent Wants a Rematch.';
     } else if (res.you_requested) {
       els.mpRematchStatus.hidden = false;
       els.mpRematchStatus.textContent = res.opponent_present
-        ? "Let's play two? Waiting on your opponent."
-        : 'Opponent left. Finding a new match...';
+        ? "Let's Play Two? Waiting on Your Opponent."
+        : 'Opponent Left. Finding a New Match...';
       if (!res.opponent_present) {
-        await requeueForNewMatch('Opponent left. Searching for a new opponent...', {
+        await requeueForNewMatch('Opponent Left. Searching for a New Opponent...', {
           avoidLastOpponent: true,
         });
       }
@@ -2063,9 +2101,9 @@ function renderBpGame() {
   clearModePanels();
   els.turnLabel.textContent = game.mode_name || 'Manager Mode';
   els.currentPlayerName.textContent = game.current_player.name;
-  els.timer.title = 'seconds left';
+  els.timer.title = 'Seconds Left';
   setGuessDisabled(game.finished || (game.countdown_seconds_remaining || 0) > 0);
-  els.guessInput.placeholder = 'Type a name (first or last)...';
+  els.guessInput.placeholder = 'Type a Name (First or Last)...';
 
   els.feedback.innerHTML = renderMoveFeedback(game.last_move, game);
   renderCardStack(game.chain, game.strikes, true, animateNewestCard);
@@ -2089,23 +2127,24 @@ function renderPowerups() {
   if (!isPo) return;
   const your = game.powerups.your_powerups || [];
   const opp = game.powerups.opponent_powerups || [];
-  const ready = your.filter((powerup) => !powerup.used).length;
-  const oppReady = opp.filter((powerup) => !powerup.used).length;
+  const unused = your.filter((powerup) => !powerup.used).length;
+  const oppUnused = opp.filter((powerup) => !powerup.used).length;
   const summary = els.powerupPanel.querySelector('summary');
   if (summary) {
-    summary.innerHTML = `Powerups <span>${ready} ready</span> <small>${oppReady} opp</small>`;
+    summary.innerHTML = `Powerups <span>${unused} Unused</span> <small>${oppUnused} Opponent</small>`;
   }
   const buttonsDisabled = !game.your_turn || game.finished || !!game.powerups.turn_powerup_used || (game.countdown_seconds_remaining || 0) > 0;
+  const buttonState = powerupLockedLabel();
   els.yourPowerupName.textContent = game.your_turn
-    ? (game.powerups.turn_powerup_used ? 'Powerup used this turn' : 'One use each this game')
-    : 'Available on your turn';
-  els.oppPowerupName.textContent = 'Track what is still live';
+    ? (game.powerups.turn_powerup_used ? 'Powerup Used This Turn' : 'One Use Each Game')
+    : ((game.countdown_seconds_remaining || 0) > 0 ? 'Powerups Open After the First Play' : 'Available On Your Turn');
+  els.oppPowerupName.textContent = 'Opponent Powerups';
   els.yourPowerupDesc.innerHTML = your.length
-    ? your.map((powerup) => powerupButtonHtml(powerup, buttonsDisabled || powerup.used)).join('')
-    : '<div class="muted small">No powerups assigned.</div>';
+    ? your.map((powerup) => powerupButtonHtml(powerup, buttonsDisabled || powerup.used, buttonState)).join('')
+    : '<div class="muted small">No Powerups Assigned.</div>';
   els.oppPowerupDesc.innerHTML = opp.length
     ? opponentPowerupScoutHtml(opp)
-    : '<div class="muted small">No powerups assigned.</div>';
+    : '<div class="muted small">No Powerups Assigned.</div>';
   els.yourPowerupDesc.querySelectorAll('[data-powerup-key]').forEach((btn) => {
     btn.addEventListener('click', () => usePowerup(btn.dataset.powerupKey));
   });
@@ -2306,16 +2345,16 @@ function renderOut(strikes) {
 
 function renderMoveFeedback(m, g) {
   if (!m) return '';
-  if (m.outcome === 'timeout') return '<span class="bad">Time expired.</span>';
+  if (m.outcome === 'timeout') return '<span class="bad">Time Expired.</span>';
   if (m.outcome === 'powerup_activated') {
-    return `<span class="ok">${escapeHtml(m.message || `${m.powerup_label} activated.`)}</span>`;
+    return `<span class="ok">${escapeHtml(m.message || `${m.powerup_label} Activated.`)}</span>`;
   }
 
   const name = m.display_name
     ? `${escapeHtml(m.display_name)}${m.disambiguation ? ` <span class="muted-inline">(${escapeHtml(m.disambiguation)})</span>` : ''}`
     : '';
   const ambig = m.ambiguous_count > 1
-    ? ` <span class="muted-inline">(auto-picked from ${m.ambiguous_count} matches. Try the dropdown to be specific.)</span>`
+    ? ` <span class="muted-inline">(Auto-Picked from ${m.ambiguous_count} Matches. Try the Dropdown to be Specific.)</span>`
     : '';
   const outTerm = ({ baseball: 'STRUCK OUT', basketball: 'FOULED OUT', hockey: 'GAME MISCONDUCT', football: 'PUNTED' })[CURRENT_SPORT] || 'OUT';
   const seasonPills = (items) => {
@@ -2335,37 +2374,37 @@ function renderMoveFeedback(m, g) {
         })
         .map((s) => `${s.team_name} ${seasonText(s)}`).join(', ');
       const lead = m.move_via_powerup
-        ? `${escapeHtml(m.powerup_label || 'Powerup')}: ${name}${ambig}. Linked through`
-        : `${name}${ambig}. Teammates on`;
+        ? `${escapeHtml(m.powerup_label || 'Powerup')}: ${name}${ambig}. Linked Through`
+        : `${name}${ambig}. TeamMates on`;
       const winNote = m.win_condition_hit
         ? `<br><span class="ok">${escapeHtml(m.win_condition_label)}: ${m.win_condition_progress}/${m.win_condition_target}</span>`
         : '';
       const winFinish = m.win_condition_completed
-        ? `<br><span class="burn">${escapeHtml(m.win_condition_label)} completed.</span>`
+        ? `<br><span class="burn">${escapeHtml(m.win_condition_label)} Completed.</span>`
         : '';
       return `<span class="ok feedback-link-line">${lead} <span class="feedback-season-list">${seasonPills(m.shared_seasons)}</span></span>` +
-        (newOut ? `<br><span class="burn">${outTerm} this move: ${escapeHtml(newOut)}</span>` : '') +
+        (newOut ? `<br><span class="burn">${outTerm} This Move: ${escapeHtml(newOut)}</span>` : '') +
         winNote +
         winFinish;
     }
     case 'unknown_player':
-      return '<span class="bad">Unknown player.</span>';
+      return '<span class="bad">Unknown Player.</span>';
     case 'already_used':
-      return `<span class="bad">${name} already used in this lineup.</span>`;
+      return `<span class="bad">${name} Already Used in This Lineup.</span>`;
     case 'not_teammate': {
       const prev = g.chain[g.chain.length - 1].name;
-      return `<span class="bad">${name}${ambig} was never a teammate of ${escapeHtml(prev)}.</span>`;
+      return `<span class="bad">${name}${ambig} Was Never a TeamMate of ${escapeHtml(prev)}.</span>`;
     }
     case 'blocked_by_burned': {
       const prev = g.chain[g.chain.length - 1].name;
       const allShared = m.shared_seasons.map((s) => `${s.team_name} ${seasonText(s)}`).join(', ');
       const out = m.burned_seasons.map((s) => `${s.team_name} ${seasonText(s)}`).join(', ');
       const verb = m.burned_seasons.length === 1 ? 'is' : 'are';
-      return `<span class="bad">${name}${ambig} and ${escapeHtml(prev)} were linked on ${escapeHtml(allShared)},<br>` +
-        `but ${escapeHtml(out)} ${verb} already ${outTerm.toLowerCase()}. Pick someone else.</span>`;
+      return `<span class="bad">${name}${ambig} and ${escapeHtml(prev)} Were Linked on ${escapeHtml(allShared)},<br>` +
+        `but ${escapeHtml(out)} ${verb === 'is' ? 'Is' : 'Are'} Already ${outTerm}. Pick Someone Else.</span>`;
     }
     case 'powerup_not_eligible':
-      return `<span class="bad">${name}${ambig} does not qualify for ${escapeHtml(m.powerup_label || 'that powerup')}. ${escapeHtml(m.reason || '')}</span>`;
+      return `<span class="bad">${name}${ambig} Does Not Qualify for ${escapeHtml(m.powerup_label || 'That Powerup')}. ${escapeHtml(gameCopyStyle(m.reason || ''))}</span>`;
     default:
       return '';
   }
@@ -2888,7 +2927,7 @@ function renderPowerupReferenceHtml() {
               <span class="powerup-label">${escapeHtml(powerup.label || powerup.key)}</span>
             </div>
             <div class="reference-copy">
-              <div class="muted small">${escapeHtml(powerup.description || '')}</div>
+              <div class="muted small">${escapeHtml(gameCopyStyle(powerup.description || ''))}</div>
             </div>
           </div>
         `).join('')}
@@ -2934,7 +2973,7 @@ function renderPowerupReferenceHtml() {
   ];
   const conditionTable = `<table class="reference-table">
     <thead><tr><th>Type</th><th>What You Need</th></tr></thead>
-    <tbody>${conditionRows.map(([name, desc]) => `<tr><td class="reference-condition-name">${escapeHtml(name)}</td><td class="reference-condition-need">${escapeHtml(desc)}</td></tr>`).join('')}</tbody>
+    <tbody>${conditionRows.map(([name, desc]) => `<tr><td class="reference-condition-name">${escapeHtml(name)}</td><td class="reference-condition-need">${escapeHtml(gameCopyStyle(desc))}</td></tr>`).join('')}</tbody>
   </table>`;
   const SPORT_CONDITION_ROWS = {
     baseball: [
@@ -2952,7 +2991,7 @@ function renderPowerupReferenceHtml() {
   const sportConditionRows = (SPORT_CONDITION_ROWS[sport] || []).filter(([label]) => label !== 'Random');
   const sportConditionTable = `<table class="reference-table">
     <thead><tr><th>Win Condition</th><th>What You Need</th></tr></thead>
-    <tbody>${sportConditionRows.map(([name, desc]) => `<tr><td class="reference-condition-name">${escapeHtml(name)}</td><td class="reference-condition-need">${escapeHtml(desc || '')}</td></tr>`).join('')}</tbody>
+    <tbody>${sportConditionRows.map(([name, desc]) => `<tr><td class="reference-condition-name">${escapeHtml(name)}</td><td class="reference-condition-need">${escapeHtml(gameCopyStyle(desc || ''))}</td></tr>`).join('')}</tbody>
   </table>`;
   if (!CURRENT_SPORT) {
     const allSports = ['baseball', 'basketball', 'football', 'hockey'];
@@ -2967,7 +3006,7 @@ function renderPowerupReferenceHtml() {
               <span class="powerup-label">${escapeHtml(labelForPowerup(key, sportKey))}</span>
             </div>
             <div class="reference-copy">
-              <div class="muted small">${escapeHtml(desc)}</div>
+              <div class="muted small">${escapeHtml(gameCopyStyle(desc))}</div>
             </div>
           </div>`).join('')}</div>`;
       }).join('')}`;
@@ -2985,7 +3024,7 @@ function renderPowerupReferenceHtml() {
             <span class="powerup-label">${escapeHtml(labelForPowerup(key, sport))}</span>
           </div>
           <div class="reference-copy">
-            <div class="muted small">${escapeHtml(desc)}</div>
+            <div class="muted small">${escapeHtml(gameCopyStyle(desc))}</div>
           </div>
         </div>
       `).join('')}
@@ -3050,7 +3089,7 @@ on(els.guessInput, 'input', onGuessInput);
 on(els.guessInput, 'keydown', onGuessKeydown);
 
 on(els.playAgainBtn, 'click', rematch);
-on(els.requeueBtn, 'click', () => requeueForNewMatch('Searching for a new opponent...', {
+on(els.requeueBtn, 'click', () => requeueForNewMatch('Searching for a New Opponent...', {
   avoidLastOpponent: true,
 }));
 on(els.homeFromBannerBtn, 'click', goHome);

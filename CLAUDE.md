@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.3.37`
+- Current display version: `0.3.38`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -144,6 +144,14 @@ prioritize the user's action buttons and collapse opponent powerups into a
 single scouting summary rather than duplicating the full control grid. Film
 hub preview loading now tolerates malformed stale guest IDs instead of failing
 the archive-summary request.
+
+Update, 2026-08-23 (0.3.38): applied the worksheet-style capitalization pass to
+active game, queue, mode-hub, reference, and game-over copy. Playoffs powerup
+buttons no longer say Ready during the opening countdown or while it is the
+opponent's turn; they show contextual labels such as After Tipoff, Your Turn,
+or Used This Turn. Opponent powerups are now a compact one-row scouting strip
+with colored names that fade after use. Playoffs game-over summaries now name
+the Player who completed the Win Condition and the specific Win Condition met.
 - **Division Rivalry**: online two-player alternating lineup. 20-second turns,
   Rule B team strikes, matchmaking, challenge codes, friends, rematches,
   requeueing, ELO, and profile statistics.

@@ -80,44 +80,44 @@
           <span class="mode-tile-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 12a6 6 0 0 1 12 0"/><path d="M5 12h3v5H5zM16 12h3v5h-3z"/><path d="M18 17c0 2-1.5 3-4.2 3H12"/><path d="M11 20h2"/></svg></span>
           <div class="mode-tile-head">
           <span class="mode-tile-name">Manager Mode</span>
-          <span class="mode-tile-tag">solo</span>
+          <span class="mode-tile-tag">Solo</span>
         </div>
           <span class="mode-tile-desc">
-            Build a solo lineup. Name a teammate of the current player before
-            time expires. Correct links reset the clock. Set your best lineup.
+            Build a Solo Lineup. Name a TeamMate of the Current Player before
+            Time Expires. Correct Links reset the Clock. Set Your Best Lineup.
         </span>
         </button>
         <button class="mode-tile mode-tile-film" data-mode="fr">
           <span class="mode-tile-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4.5 7h10.5a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4.5z"/><path d="m17 10 4-2.5v9L17 14"/></svg></span>
           <div class="mode-tile-head">
             <span class="mode-tile-name">Film Review</span>
-            <span class="mode-tile-tag">daily</span>
+            <span class="mode-tile-tag">Daily</span>
           </div>
           <span class="mode-tile-desc">
-            {% if sport.key == 'football' %}Choose offense or defense. Each puzzle is 12 players and 11 connections.{% elif sport.key == 'basketball' %}12 players, 11 connections.{% elif sport.key == 'hockey' %}11 players, 10 connections.{% else %}10 players, 9 connections.{% endif %}
-            Identify the team and season linking each pair. Three strikes end the review.
+            {% if sport.key == 'football' %}Choose Offense or Defense. Each Puzzle is 12 Players and 11 Connections.{% elif sport.key == 'basketball' %}12 Players, 11 Connections.{% elif sport.key == 'hockey' %}11 Players, 10 Connections.{% else %}10 Players, 9 Connections.{% endif %}
+            Identify the Team and Season linking each Pair. Three Strikes end the Review.
           </span>
         </button>
         <button class="mode-tile mode-tile-division" data-mode="mp">
           <span class="mode-tile-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6.5 22h10.7v-3.5c1.4-.9 2.2-2.3 2.2-4.1V9.6c0-1.2-.9-2.1-2.1-2.1-.5 0-.9.1-1.3.4-.3-.9-1.1-1.5-2.1-1.5-.6 0-1.1.2-1.5.6-.4-.6-1.1-1-1.9-1-.4 0-.8.1-1.1.3V3.8c0-1-.8-1.8-1.8-1.8S5.8 2.8 5.8 3.8v9.1L4.3 15c-.5.8-.4 1.8.2 2.5l2 2.1z"/><path d="M7.5 13.2h5.8M7.1 16h5.8M8.8 11.8l-1.3 5.7M11.5 11.8l-1.3 5.7"/><path d="M15.5 17.5v-5.7l-1.6 1.1M13.6 17.5h3.4"/></svg></span>
           <div class="mode-tile-head">
           <span class="mode-tile-name">Division Rivalry</span>
-          <span class="mode-tile-tag">2 players</span>
+          <span class="mode-tile-tag">2 Players</span>
         </div>
         <span class="mode-tile-desc">
-            Take turns adding teammates to one lineup. Team strikes block
-            future links. Win when your opponent runs out of time.
+            Take Turns adding TeamMates to one Lineup. Team Strikes block
+            future Links. Win when Your Opponent Runs Out of Time.
         </span>
         </button>
         <button class="mode-tile mode-tile-playoffs" data-mode="po">
           <span class="mode-tile-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 4h8v3a4 4 0 0 1-8 0z"/><path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4"/><path d="M12 11v5"/><path d="M9.2 16h5.6v2.2H9.2z"/><path d="M7.5 20h9"/></svg></span>
           <div class="mode-tile-head">
           <span class="mode-tile-name">Playoffs</span>
-          <span class="mode-tile-tag">2 players</span>
+          <span class="mode-tile-tag">2 Players</span>
         </div>
         <span class="mode-tile-desc">
-            Head-to-head with powerups and a win condition. Complete it first
-            or run your opponent out of time.
+            Head-to-Head with Powerups and a Win Condition. Complete it First
+            or Run Your Opponent Out of Time.
         </span>
         </button>
       </div>
@@ -125,7 +125,7 @@
       <div class="sport-coming-soon">
         <p class="sport-league">{{ sport.league }}</p>
         <h2>{{ sport.name }} Is On Deck</h2>
-        <p class="muted">Roster and teammate data are being built now. The same four modes will be ready here once the league is loaded.</p>
+        <p class="muted">Roster and TeamMate Data are being built now. The same four Modes will be Ready here once the League is loaded.</p>
         <div class="mode-preview-grid" aria-label="Upcoming game modes">
           <span>Manager Mode</span>
           <span>Film Review</span>
@@ -304,28 +304,28 @@
     <div class="start-card match-queue-card">
       <button class="back-btn" data-back="home">&larr; Home</button>
       <h2 id="match-mode-title">Division Rivalry</h2>
-      <p class="queue-mode-copy">Choose a matchup, then take turns building one lineup. Win by time or, in Playoffs, by completing your Win Condition.</p>
-      <p class="queue-mode-status" id="mp-status-text">Ready to find an opponent.</p>
+      <p class="queue-mode-copy">Choose a Matchup, then Take Turns building one Lineup. Win by Time or, in Playoffs, by Completing Your Win Condition.</p>
+      <p class="queue-mode-status" id="mp-status-text">Ready to Find an Opponent.</p>
       <div id="playoff-condition-picker" class="playoff-condition-picker" hidden>
         <label for="playoff-condition-select">Win Condition</label>
         <div class="challenge-row">
           <select id="playoff-condition-select">
             <option value="random">Random</option>
-            <option value="sunset_kingdom">Sunset Kingdom: Name 3 Japanese players</option>
-            <option value="havana_heat">Havana Heat: Name 3 Cuban players</option>
-            <option value="maple_corridor">Maple Corridor: Name 4 Canadian players</option>
-            <option value="mvp_circle">MVP Circle: Name 2 MVP winners</option>
-            <option value="young_buck">Young Buck: Name 2 Rookie of the Year winners</option>
-            <option value="gonna_be_golden">Gonna Be Golden: Name 2 Gold Glove winners</option>
-            <option value="secretariat">Secretariat: Name 1 Triple Crown winner</option>
-            <option value="hound_dog">Hound-dog: Name 2 one-franchise players</option>
-            <option value="great_bambinos">Great Bambinos: Name 1 500-home-run player</option>
-            <option value="ring_chaser">Ring Chaser: Earn 15 World Series rings</option>
-            <option value="journeyman">Journeyman: Name 2 seven-team players</option>
+            <option value="sunset_kingdom">Sunset Kingdom: Name 3 Japanese Players</option>
+            <option value="havana_heat">Havana Heat: Name 3 Cuban Players</option>
+            <option value="maple_corridor">Maple Corridor: Name 4 Canadian Players</option>
+            <option value="mvp_circle">MVP Circle: Name 2 MVP Winners</option>
+            <option value="young_buck">Young Buck: Name 2 Rookie of the Year Winners</option>
+            <option value="gonna_be_golden">Gonna Be Golden: Name 2 Gold Glove Winners</option>
+            <option value="secretariat">Secretariat: Name 1 Triple Crown Winner</option>
+            <option value="hound_dog">Hound-dog: Name 2 One-Franchise Players</option>
+            <option value="great_bambinos">Great Bambinos: Name 1 500-Home-Run Player</option>
+            <option value="ring_chaser">Ring Chaser: Earn 15 World Series Rings</option>
+            <option value="journeyman">Journeyman: Name 2 Seven-Team Players</option>
           </select>
           <button id="playoff-random-btn" class="secondary" type="button">Random</button>
         </div>
-        <p class="muted small">Your last choice is remembered for your next Playoffs match.</p>
+        <p class="muted small">Your Last Choice is Remembered for Your Next Playoffs Match.</p>
       </div>
       <button id="start-btn" class="primary">Find Match</button>
       <button id="cancel-match-btn" class="secondary" type="button" hidden>Cancel Search</button>
@@ -351,7 +351,7 @@
           <p id="game-over-summary" class="muted"></p>
           <p id="mp-rematch-status" class="muted small"></p>
           <div class="banner-buttons">
-            <button id="play-again-btn" class="primary">Let's play two.</button>
+            <button id="play-again-btn" class="primary">Let's Play Two.</button>
             <button id="requeue-btn" class="secondary" type="button" hidden>Find New Match</button>
             <button id="home-from-banner-btn" class="secondary" type="button">Home</button>
           </div>
@@ -364,7 +364,7 @@
             <span id="timer" class="timer">--</span>
           </div>
           <div class="turn-prompt">
-            <span class="muted">Name a teammate of</span>
+            <span class="muted">Name a TeamMate of</span>
             <span id="current-player-name"></span>
           </div>
           <div id="win-panel" class="win-panel" hidden>
@@ -385,12 +385,12 @@
             <summary>Powerups</summary>
             <div class="powerup-box">
               <div class="powerup-box-label">Your Powerups</div>
-              <div id="your-powerup-name" class="powerup-name">Ready this game</div>
+              <div id="your-powerup-name" class="powerup-name">Ready This Game</div>
               <div id="your-powerup-desc" class="powerup-list"></div>
             </div>
             <div class="powerup-box">
               <div class="powerup-box-label">Opponent Powerups</div>
-              <div id="opp-powerup-name" class="powerup-name">Scouting report</div>
+              <div id="opp-powerup-name" class="powerup-name">Scouting Report</div>
               <div id="opp-powerup-desc" class="powerup-list"></div>
             </div>
           </details>
@@ -401,7 +401,7 @@
                 type="text"
                 autocomplete="off"
                 spellcheck="false"
-                placeholder="Type a name (first or last)..."
+                placeholder="Type a Name (First or Last)..."
               />
               <ul id="autocomplete-list" class="autocomplete-list" hidden></ul>
             </div>
@@ -453,7 +453,7 @@
             <span id="fr-stats" class="fr-stats"></span>
           </div>
           <div class="turn-prompt">
-            <span class="muted">Guess the team and season linking</span>
+            <span class="muted">Guess the Team and Season linking</span>
             <div id="fr-pair-names"></div>
           </div>
           <form id="fr-guess-form" autocomplete="off" class="guess-form fr-guess-form">
@@ -476,7 +476,7 @@
           <div id="fr-feedback" class="feedback"></div>
         </div>
 
-        <div id="fr-lineup-board" class="fr-lineup-board" aria-label="Film Review lineup board"></div>
+        <div id="fr-lineup-board" class="fr-lineup-board" aria-label="Film Review Lineup Board"></div>
         <div id="fr-card-stack" class="card-stack"></div>
       </div>
     </div>

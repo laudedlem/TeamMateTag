@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.3.37"
+APP_VERSION = "0.3.38"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -8868,11 +8868,19 @@ def sport_online_move(sport: str, mode: str):
                         blob["finished"] = True
                         blob["winner"] = blob[mover]
                 else:
-                    inc = _local_po_condition_increment(PgEngineConn(conn), sport, blob[f"{mover}_win_condition_key"], payload["player_id"])
+                    condition_key = blob[f"{mover}_win_condition_key"]
+                    condition = LOCAL_PLAYOFF_CONFIG[sport]["conditions"][condition_key]
+                    inc = _local_po_condition_increment(PgEngineConn(conn), sport, condition_key, payload["player_id"])
                     blob[f"{mover}_win_progress"] += inc
                     blob["chain_win_condition_hits"].append(bool(inc))
                     blob["chain_link_meta"].append(None)
-                    if blob[f"{mover}_win_progress"] >= LOCAL_PLAYOFF_CONFIG[sport]["conditions"][blob[f"{mover}_win_condition_key"]]["target"]:
+                    completed = blob[f"{mover}_win_progress"] >= condition["target"]
+                    payload["win_condition_hit"] = bool(inc)
+                    payload["win_condition_label"] = condition["label"]
+                    payload["win_condition_progress"] = blob[f"{mover}_win_progress"]
+                    payload["win_condition_target"] = condition["target"]
+                    payload["win_condition_completed"] = completed
+                    if completed:
                         blob[f"{mover}_win_completed"] = True; blob["finished"] = True; blob["winner"] = blob[mover]
             if sport == "baseball":
                 _record_player_usage(conn, payload["player_id"], mode)
