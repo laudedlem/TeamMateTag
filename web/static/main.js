@@ -2913,12 +2913,12 @@ function frBoardPlacement(sport, unit, slot, index) {
   const fallback = { x: 50, y: 50, zone: 'surface' };
   const layouts = {
     baseball: {
-      0: { x: 84, y: 82, zone: 'sideline', label: 'DH' },
+      0: { x: 85, y: 83, zone: 'sideline', label: 'DH' },
       1: { x: 69, y: 61, zone: 'surface' },
       2: { x: 50, y: 58, zone: 'surface' },
-      3: { x: 66, y: 48, zone: 'surface' },
+      3: { x: 64, y: 46, zone: 'surface' },
       4: { x: 31, y: 61, zone: 'surface' },
-      5: { x: 34, y: 48, zone: 'surface' },
+      5: { x: 36, y: 46, zone: 'surface' },
       6: { x: 22, y: 28, zone: 'surface' },
       7: { x: 50, y: 23, zone: 'surface' },
       8: { x: 78, y: 28, zone: 'surface' },
@@ -2999,8 +2999,8 @@ function frSurfaceArt(sport) {
   if (sport !== 'baseball') return '';
   return `
       <svg class="fr-baseball-svg" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
-        <path class="fr-baseball-outfield" d="M 5 30 Q 50 -4 95 30" />
-        <path class="fr-baseball-foul" d="M 5 30 L 50 86 L 95 30" />
+        <path class="fr-baseball-outfield" d="M 5 25 Q 50 -10 95 25" />
+        <path class="fr-baseball-foul" d="M 5 25 L 50 86 L 95 25" />
         <rect class="fr-baseball-bullpen" x="6" y="70" width="18" height="26" rx="2" />
         <rect class="fr-baseball-dugout" x="76" y="70" width="18" height="26" rx="2" />
         <path class="fr-baseball-diamond" d="M 50 38 L 72 59 L 50 86 L 28 59 Z" />
