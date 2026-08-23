@@ -7300,6 +7300,7 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
 
 /* 0.3.45: reliable reference-style baseball SVG diagram. */
 .sport-baseball .fr-board-surface {
+  aspect-ratio: 1 / 0.86;
   background:
     linear-gradient(180deg, rgba(255, 115, 115, 0.98), rgba(181, 47, 56, 0.98));
   border: 2px solid rgba(67, 10, 16, 0.9);
@@ -7312,10 +7313,10 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
 }
 
 .fr-baseball-svg {
-  height: 110%;
+  height: 126%;
   left: 0;
   position: absolute;
-  top: -5%;
+  top: -13%;
   width: 100%;
   z-index: 1;
 }
@@ -7363,33 +7364,33 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
 
 /* 0.3.49: baseball board chips get a little more presence. */
 .sport-baseball .fr-board-slot {
-  height: 76px;
-  width: 100px;
+  height: 84px;
+  width: 110px;
 }
 
 .sport-baseball .fr-board-slot.zone-sideline {
-  height: 66px;
-  width: 86px;
+  height: 72px;
+  width: 94px;
 }
 
 .sport-baseball .fr-board-headshot {
-  height: 38px;
-  width: 38px;
+  height: 44px;
+  width: 44px;
 }
 
 @media (max-width: 640px) {
   .sport-baseball .fr-board-slot {
-    height: 49px;
-    width: 58px;
+    height: 52px;
+    width: 62px;
   }
 
   .sport-baseball .fr-board-slot.zone-sideline {
-    height: 41px;
-    width: 50px;
+    height: 44px;
+    width: 54px;
   }
 
   .sport-baseball .fr-board-headshot {
-    height: 22px;
-    width: 22px;
+    height: 26px;
+    width: 26px;
   }
 }
