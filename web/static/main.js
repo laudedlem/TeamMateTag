@@ -2527,7 +2527,6 @@ function sportRulesHtml(sport = CURRENT_SPORT || 'baseball', mode = currentMode)
   if (activeRule) {
     return `<div class="rules-sheet">
       <section class="rules-section">
-        <h3>How to Play ${escapeHtml(activeRule.title)}</h3>
         <div class="rules-mode-grid rules-mode-grid-single">
           <article class="rules-mode-card ${escapeHtml(activeRule.className)}">
             <h4>${escapeHtml(activeRule.title)}</h4>

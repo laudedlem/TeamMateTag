@@ -568,7 +568,6 @@ function allModeRulesHtml() {
   if (!rule) return SHARED_RULES_HTML;
   return `<div class="rules-sheet">
     <section class="rules-section">
-      <h3>How to Play ${escapeHtml(rule.title)}</h3>
       <div class="rules-mode-grid rules-mode-grid-single">
         <article class="rules-mode-card ${escapeHtml(rule.className)}">
           <h4>${escapeHtml(rule.title)}</h4>
