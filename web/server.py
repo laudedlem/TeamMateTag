@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.3.30"
+APP_VERSION = "0.3.31"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -2284,30 +2284,35 @@ def _hydrate_player_cards(conn, player_ids: list[str]) -> dict[str, dict]:
         }
         registry_urls = _headshot_registry_urls(conn, "baseball", missing)
         appearance_rows = conn.execute(
-            """SELECT a.player_id, a.season, t.name
+            """SELECT a.player_id, a.season, a.team_id, t.name
                  FROM appearances a
                  JOIN teams t ON t.team_id = a.team_id AND t.season = a.season
                 WHERE a.player_id = ANY(%s) AND a.season >= 2000
                 ORDER BY a.player_id, a.season, t.team_id""",
             (missing,),
         ).fetchall()
-        appearances_by_player: dict[str, list[tuple[int, str]]] = {pid: [] for pid in missing}
-        for pid, season, team_name in appearance_rows:
-            appearances_by_player.setdefault(pid, []).append((season, team_name))
+        appearances_by_player: dict[str, list[tuple[int, str, str]]] = {pid: [] for pid in missing}
+        for pid, season, team_id, team_name in appearance_rows:
+            appearances_by_player.setdefault(pid, []).append((season, team_id, team_name))
 
         for pid in missing:
             mlbam_id, debut_year, final_year, first, last = player_map.get(
                 pid, (None, None, None, None, None)
             )
             spans: list[list] = []
-            for season, team_name in appearances_by_player.get(pid, []):
-                if spans and spans[-1][0] == team_name and spans[-1][2] == season - 1:
-                    spans[-1][2] = season
+            for season, team_id, team_name in appearances_by_player.get(pid, []):
+                if spans and spans[-1][0] == team_id and spans[-1][3] == season - 1:
+                    spans[-1][3] = season
                 else:
-                    spans.append([team_name, season, season])
+                    spans.append([team_id, team_name, season, season])
             teams_list = [
                 f"{name} {start}" if start == end else f"{name} {start}-{end}"
-                for name, start, end in spans
+                for _, name, start, end in spans
+            ]
+            team_stints = [
+                {"team_id": team_id, "team_name": name, "start": start, "end": end,
+                 "seasons": end - start + 1}
+                for team_id, name, start, end in spans
             ]
             card = {
                 "mlbam_id": mlbam_id,
@@ -2316,6 +2321,7 @@ def _hydrate_player_cards(conn, player_ids: list[str]) -> dict[str, dict]:
                 "debut_year": max(debut_year or 2000, 2000),
                 "final_year": final_year,
                 "teams": teams_list,
+                "team_stints": team_stints,
                 "name_first": first,
                 "name_last": last,
             }
@@ -2413,6 +2419,7 @@ def chain_dict(state: GameState, cards: dict[str, dict] | None = None) -> list[d
             "debut_year": card["debut_year"],
             "final_year": card["final_year"],
             "teams": card["teams"],
+            "team_stints": card.get("team_stints", []),
             "shared_with_prev": [
                 {
                     "team_id": t,
@@ -3589,7 +3596,7 @@ def _sport_cards(conn, sport: str, player_ids: list[str]) -> dict[str, dict]:
     ).fetchall())
     registry_urls = _headshot_registry_urls(conn, sport, missing)
     appearances = conn.execute(
-        """SELECT DISTINCT a.player_id, t.name, a.season
+        """SELECT DISTINCT a.player_id, a.team_id, t.name, a.season
              FROM sport_appearances a
              JOIN sport_teams t ON t.sport_id=a.sport_id
                AND t.team_id=a.team_id AND t.season=a.season
@@ -3597,16 +3604,16 @@ def _sport_cards(conn, sport: str, player_ids: list[str]) -> dict[str, dict]:
             ORDER BY a.player_id, a.season, t.name""",
         (sport, missing),
     ).fetchall()
-    teams_by_player: dict[str, dict[str, list[list[int]]]] = {}
+    teams_by_player: dict[str, dict[tuple[str, str], list[list[int]]]] = {}
     seen_player_team_seasons = set()
-    for player_id, team, season in appearances:
+    for player_id, team_id, team, season in appearances:
         if sport == "hockey":
             team = NHL_TEAM_NAMES.get(team, team)
-        key = (player_id, team, season)
+        key = (player_id, team_id, team, season)
         if key in seen_player_team_seasons:
             continue
         seen_player_team_seasons.add(key)
-        ranges = teams_by_player.setdefault(player_id, {}).setdefault(team, [])
+        ranges = teams_by_player.setdefault(player_id, {}).setdefault((team_id, team), [])
         # A player returning after an injury is still one tenure line, with
         # each actual year range preserved (Chicago Bulls 2008-11, 2013-15).
         if ranges and ranges[-1][1] == season - 1:
@@ -3615,12 +3622,18 @@ def _sport_cards(conn, sport: str, player_ids: list[str]) -> dict[str, dict]:
             ranges.append([season, season])
     for player_id, external_id, debut, final, first, last, primary_pos, canonical_name in rows:
         teams = []
-        for team, ranges in teams_by_player.get(player_id, {}).items():
+        team_stints = []
+        for (team_id, team), ranges in teams_by_player.get(player_id, {}).items():
             years = ", ".join(
                 _sport_team_span_label(sport, a, b)
                 for a, b in ranges
             )
             teams.append(f"{team} {years}")
+            team_stints.append({
+                "team_id": team_id, "team_name": team,
+                "start": ranges[0][0], "end": ranges[-1][1],
+                "seasons": sum(end - start + 1 for start, end in ranges),
+            })
         # NBA's official image CDN covers many older players omitted by the
         # source-image catalog. Broken URLs still fall through to the UI's
         # existing placeholder without affecting gameplay.
@@ -3637,6 +3650,7 @@ def _sport_cards(conn, sport: str, player_ids: list[str]) -> dict[str, dict]:
             "display_name": _sport_display_name(sport, player_id, first, last, canonical_name),
             "primary_pos": primary_pos,
             "teams": teams,
+            "team_stints": team_stints,
         }
         SPORT_CARD_CACHE[(sport, player_id)] = card
         out[player_id] = card

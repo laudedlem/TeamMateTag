@@ -4062,6 +4062,43 @@ body.dark::before {
   }
 }
 
+/* 0.3.31: player-card palette from the three longest team tenures. */
+.game-main .player-card.team-color-card {
+  position: relative;
+  overflow: hidden;
+  border-color: color-mix(in srgb, var(--team-color-1) 70%, rgba(255, 255, 255, 0.35));
+  border-top-color: color-mix(in srgb, var(--team-color-1) 82%, #ffffff);
+  background:
+    linear-gradient(125deg,
+      color-mix(in srgb, var(--team-color-1) 52%, #172131) 0%,
+      color-mix(in srgb, var(--team-color-2) 39%, #172131) 48%,
+      color-mix(in srgb, var(--team-color-3) 34%, #172131) 100%);
+}
+
+.game-main .player-card.team-color-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.32;
+  background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0 1px, transparent 1px 8px);
+}
+
+.game-main .player-card.team-color-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.game-main .player-card.team-color-card .card-team-column li {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(5, 12, 21, 0.22);
+}
+
+.game-main .player-card.team-color-card .headshot {
+  border-color: rgba(255, 255, 255, 0.58);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.3);
+}
+
 /* 0.3.30: team-stint card columns and high-contrast game finishes. */
 .game-main .player-card.has-team-columns {
   grid-template-columns: minmax(0, 1fr) 150px minmax(0, 1fr);
