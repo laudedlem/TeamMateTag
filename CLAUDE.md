@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.3.76`
+- Current display version: `0.3.77`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -24,6 +24,11 @@ changes. It is the concise source of truth for another coding assistant.
   migration run, then remove it again.
 
 ## Current user experience
+
+Update, 2026-08-23 (0.3.77): tightened Film Review's game-over summary so it
+no longer reads larger than the normal search card. Bench/sideline player
+widgets are wider and taller, with larger headshots and two-line name room so
+long bench names do not get cut off while staying centered in their bench lane.
 
 Update, 2026-08-23 (0.3.76): finished the latest Film Review polish pass. The
 hockey rink now uses larger faceoff circles and larger faceoff dots, with
