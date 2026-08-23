@@ -7548,7 +7548,7 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
 
 /* 0.3.65: reference-style hockey half-rink with left bench lane. */
 .sport-hockey .fr-board-surface {
-  aspect-ratio: 1 / 0.78;
+  aspect-ratio: 1 / 0.68;
   background:
     linear-gradient(180deg, rgba(239, 250, 255, 0.98), rgba(203, 232, 244, 0.98));
   border: 2px solid rgba(16, 43, 60, 0.88);
@@ -7633,7 +7633,7 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
 
 @media (max-width: 640px) {
   .sport-hockey .fr-board-surface {
-    aspect-ratio: 1 / 0.84;
+    aspect-ratio: 1 / 0.74;
   }
 
   .sport-hockey .fr-board-slot.zone-surface {
