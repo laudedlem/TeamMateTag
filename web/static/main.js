@@ -2916,15 +2916,15 @@ function frBoardPlacement(sport, unit, slot, index) {
       0: { x: 85, y: 83, zone: 'sideline', label: 'DH' },
       1: { x: 72, y: 62, zone: 'surface' },
       2: { x: 50, y: 60, zone: 'surface' },
-      3: { x: 68, y: 43, zone: 'surface' },
+      3: { x: 60, y: 42, zone: 'surface' },
       4: { x: 28, y: 62, zone: 'surface' },
-      5: { x: 32, y: 43, zone: 'surface' },
-      6: { x: 12, y: 30, zone: 'surface' },
-      7: { x: 50, y: 23, zone: 'surface' },
-      8: { x: 88, y: 30, zone: 'surface' },
+      5: { x: 40, y: 42, zone: 'surface' },
+      6: { x: 30, y: 24, zone: 'surface' },
+      7: { x: 50, y: 17, zone: 'surface' },
+      8: { x: 70, y: 24, zone: 'surface' },
       9: { x: 50, y: 87, zone: 'surface' },
-      10: { x: 9, y: 75, zone: 'sideline', label: 'RP' },
-      11: { x: 9, y: 91, zone: 'sideline', label: 'CP' },
+      10: { x: 15, y: 78, zone: 'sideline', label: 'RP' },
+      11: { x: 15, y: 92, zone: 'sideline', label: 'CP' },
     },
     basketball: {
       0: { x: 58, y: 38, zone: 'surface', label: 'PG' },
@@ -3001,8 +3001,8 @@ function frSurfaceArt(sport) {
       <svg class="fr-baseball-svg" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
         <path class="fr-baseball-outfield" d="M 5 25 Q 50 -10 95 25" />
         <path class="fr-baseball-foul" d="M 5 25 L 50 86 L 95 25" />
-        <rect class="fr-baseball-bullpen" x="6" y="70" width="18" height="26" rx="2" />
-        <rect class="fr-baseball-dugout" x="76" y="70" width="18" height="26" rx="2" />
+        <rect class="fr-baseball-bullpen" x="8" y="71" width="15" height="24" rx="2" />
+        <rect class="fr-baseball-dugout" x="77" y="72" width="15" height="22" rx="2" />
         <path class="fr-baseball-diamond" d="M 50 38 L 72 59 L 50 86 L 28 59 Z" />
         <rect class="fr-baseball-base" x="47" y="35" width="6" height="6" rx="1" transform="rotate(45 50 38)" />
         <rect class="fr-baseball-base" x="25" y="56" width="6" height="6" rx="1" transform="rotate(45 28 59)" />

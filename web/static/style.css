@@ -7300,7 +7300,7 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
 
 /* 0.3.45: reliable reference-style baseball SVG diagram. */
 .sport-baseball .fr-board-surface {
-  aspect-ratio: 1 / 0.86;
+  aspect-ratio: 1 / 0.92;
   background:
     linear-gradient(180deg, rgba(255, 115, 115, 0.98), rgba(181, 47, 56, 0.98));
   border: 2px solid rgba(67, 10, 16, 0.9);
@@ -7313,10 +7313,10 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
 }
 
 .fr-baseball-svg {
-  height: 126%;
+  height: 112%;
   left: 0;
   position: absolute;
-  top: -13%;
+  top: -7%;
   width: 100%;
   z-index: 1;
 }
