@@ -6507,6 +6507,69 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
   width: 72%;
 }
 
+/* 0.3.54: reference-style basketball half-court SVG with baseline at bottom. */
+.sport-basketball .fr-board-surface {
+  background:
+    linear-gradient(180deg, rgba(255, 168, 91, 0.98), rgba(203, 102, 48, 0.98));
+  border: 2px solid rgba(94, 42, 18, 0.88);
+  border-radius: 8px;
+}
+
+.sport-basketball .fr-surface-lines,
+.sport-basketball .fr-board-section {
+  display: none;
+}
+
+.fr-basketball-svg {
+  height: 100%;
+  inset: 0;
+  position: absolute;
+  width: 100%;
+  z-index: 1;
+}
+
+.fr-basketball-court,
+.fr-basketball-paint,
+.fr-basketball-three,
+.fr-basketball-ft-solid,
+.fr-basketball-ft-dash,
+.fr-basketball-backboard,
+.fr-basketball-rim {
+  fill: none;
+  stroke: rgba(77, 31, 13, 0.92);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.9;
+}
+
+.fr-basketball-court {
+  fill: rgba(255, 195, 122, 0.18);
+  stroke-width: 2.2;
+}
+
+.fr-basketball-paint {
+  fill: rgba(255, 255, 255, 0.1);
+}
+
+.fr-basketball-ft-dash {
+  stroke-dasharray: 3 3;
+}
+
+.fr-basketball-backboard {
+  stroke-width: 2.2;
+}
+
+.fr-basketball-rim {
+  fill: rgba(255, 244, 226, 0.96);
+}
+
+.fr-basketball-bench {
+  fill: rgba(255, 255, 255, 0.15);
+  stroke: rgba(77, 31, 13, 0.78);
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
 .sport-hockey .fr-board-surface {
   --surface-line: rgba(32, 91, 178, 0.78);
   background:
@@ -7421,4 +7484,17 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
     height: 28px;
     width: 28px;
   }
+}
+
+/* 0.3.54 final basketball court override after older Film Review diagram rules. */
+.sport-basketball .fr-board-surface {
+  background:
+    linear-gradient(180deg, rgba(255, 168, 91, 0.98), rgba(203, 102, 48, 0.98));
+  border: 2px solid rgba(94, 42, 18, 0.88);
+  border-radius: 8px;
+}
+
+.sport-basketball .fr-surface-lines,
+.sport-basketball .fr-board-section {
+  display: none;
 }
