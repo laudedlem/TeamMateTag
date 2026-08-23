@@ -3033,13 +3033,12 @@ function frSurfaceArt(sport) {
         <path class="fr-hockey-center" d="M 19 3 H 98" />
         <path class="fr-hockey-icing" d="M 19 78 H 98" />
         <path class="fr-hockey-blue" d="M 19 17 H 98" />
-        <circle class="fr-hockey-dot" cx="42" cy="10" r="1.4" />
-        <circle class="fr-hockey-dot" cx="75" cy="10" r="1.4" />
+        <ellipse class="fr-hockey-dot" cx="42" cy="10" rx="0.95" ry="1.4" />
+        <ellipse class="fr-hockey-dot" cx="75" cy="10" rx="0.95" ry="1.4" />
         <ellipse class="fr-hockey-faceoff" cx="42" cy="54" rx="6.8" ry="10" />
         <ellipse class="fr-hockey-faceoff" cx="75" cy="54" rx="6.8" ry="10" />
-        <circle class="fr-hockey-dot" cx="42" cy="54" r="1.5" />
-        <circle class="fr-hockey-dot" cx="75" cy="54" r="1.5" />
-        <path class="fr-hockey-hash" d="M 31 54 H 34 M 50 54 H 53 M 42 45 V 48 M 42 60 V 63 M 64 54 H 67 M 83 54 H 86 M 75 45 V 48 M 75 60 V 63" />
+        <ellipse class="fr-hockey-dot" cx="42" cy="54" rx="1" ry="1.5" />
+        <ellipse class="fr-hockey-dot" cx="75" cy="54" rx="1" ry="1.5" />
         <path class="fr-hockey-crease" d="M 50 78 Q 58.5 66 67 78" />
       </svg>`;
   }

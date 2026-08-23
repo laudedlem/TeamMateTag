@@ -7571,7 +7571,6 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
 
 .fr-hockey-rink,
 .fr-hockey-faceoff,
-.fr-hockey-hash,
 .fr-hockey-crease {
   fill: none;
   stroke: rgba(232, 35, 61, 0.8);
@@ -7612,10 +7611,10 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
 }
 
 .fr-hockey-bench {
-  fill: rgba(235, 249, 255, 0.24);
-  stroke: rgba(235, 249, 255, 0.62);
+  fill: rgba(235, 249, 255, 0.48);
+  stroke: rgba(6, 42, 78, 0.88);
   stroke-linejoin: round;
-  stroke-width: 1.8;
+  stroke-width: 2.2;
 }
 
 .sport-hockey .fr-board-slot.zone-surface {
