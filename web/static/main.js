@@ -3014,15 +3014,15 @@ function frSurfaceArt(sport) {
   }
   if (sport === 'basketball') {
     return `
-      <svg class="fr-basketball-svg" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
-        <rect class="fr-basketball-bench" x="2" y="5" width="14" height="90" rx="2" />
-        <rect class="fr-basketball-court" x="19" y="5" width="79" height="90" rx="1" />
-        <path class="fr-basketball-three" d="M 27 95 L 27 82 Q 27 31 58.5 31 Q 90 31 90 82 L 90 95" />
-        <rect class="fr-basketball-paint" x="44" y="52" width="29" height="43" />
-        <path class="fr-basketball-ft-solid" d="M 44 52 Q 58.5 39 73 52" />
-        <path class="fr-basketball-ft-dash" d="M 44 52 Q 58.5 66 73 52" />
+      <svg class="fr-basketball-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+        <rect class="fr-basketball-bench" x="2" y="4" width="14" height="92" rx="2" />
+        <rect class="fr-basketball-court" x="19" y="4" width="79" height="92" rx="1" />
+        <path class="fr-basketball-three" d="M 27 96 L 27 82 Q 27 30 58.5 30 Q 90 30 90 82 L 90 96" />
+        <rect class="fr-basketball-paint" x="43" y="51" width="31" height="45" />
+        <path class="fr-basketball-ft-solid" d="M 43 51 Q 58.5 38 74 51" />
+        <path class="fr-basketball-ft-dash" d="M 43 51 Q 58.5 66 74 51" />
         <circle class="fr-basketball-rim" cx="58.5" cy="83" r="2" />
-        <path class="fr-basketball-backboard" d="M 51 87 H 66" />
+        <path class="fr-basketball-backboard" d="M 50.5 87 H 66.5" />
       </svg>`;
   }
   return '';
