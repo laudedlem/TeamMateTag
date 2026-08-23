@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.3.24"
+APP_VERSION = "0.3.25"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -524,7 +524,13 @@ MANAGER_SEED_CACHE: dict[tuple[str, str], str] = {}
 STATIC_CACHE_LOCK = Lock()
 STATIC_CACHE_READY = False
 RUNTIME_SCHEMA_LOCK = Lock()
-RUNTIME_SCHEMA_READY = False
+# Runtime tables are established by the deployment/bootstrap migration. Running
+# every historical `ALTER TABLE ... IF NOT EXISTS` on a serverless cold start
+# adds several seconds before the first game can load. Set
+# TEAMMATETAG_AUTO_MIGRATE=1 only while intentionally applying a new migration.
+RUNTIME_SCHEMA_READY = os.environ.get("TEAMMATETAG_AUTO_MIGRATE", "").strip().lower() not in {
+    "1", "true", "yes",
+}
 DB_POOL = None
 DB_POOL_LOCK = Lock()
 
@@ -2504,10 +2510,10 @@ def index():
 
 
 MODE_HUBS = {
-    "manager": {"title": "Manager Mode", "mode": "bp", "description": "Build an endless solo lineup. Name a teammate of the current player before the 20-second clock expires, avoid blocked teams, and chase your longest lineup."},
-    "film": {"title": "Film Review", "mode": "fr", "description": "Solve the daily lineup by identifying the team and season between each visible pair. Three misses end the review; archived lineups are always available."},
-    "division": {"title": "Division Rivalry", "mode": "mp", "description": "Online head-to-head. Alternate teammate links on one lineup, watch Team Strikes, and win when your opponent runs out of time."},
-    "playoffs": {"title": "Playoffs", "mode": "po", "description": "Online lineup battle with powerups and a personal Win Condition. Complete it first or run your opponent out of time."},
+    "manager": {"title": "Manager Mode", "mode": "bp", "description": "Build a solo lineup. Name a teammate before the clock expires and set your longest lineup."},
+    "film": {"title": "Film Review", "mode": "fr", "description": "Solve the daily lineup. Identify the team and season linking each pair before three strikes end the review."},
+    "division": {"title": "Division Rivalry", "mode": "mp", "description": "Head-to-head. Take turns adding teammates to one lineup. Team strikes block links. Win on time."},
+    "playoffs": {"title": "Playoffs", "mode": "po", "description": "Head-to-head with powerups and a win condition. Complete yours first, or win on time."},
 }
 
 MODE_ALIASES = {
@@ -4826,6 +4832,10 @@ def fr_team_autocomplete():
     q = (request.args.get("q") or "").strip().lower()
     if not q:
         return jsonify([])
+    game_id = (request.args.get("game_id") or "").strip()
+    if game_id:
+        with db() as conn:
+            return jsonify(_film_review_autocomplete_options(conn, "baseball", game_id, q))
     prefix = [n for n in ALL_FR_TEAM_NAMES if n.lower().startswith(q)]
     sub = [
         n for n in ALL_FR_TEAM_NAMES
@@ -7872,6 +7882,68 @@ def _film_puzzle_connections_are_clean(conn, sport: str, deck: list[str]) -> boo
     return True
 
 
+def _film_review_autocomplete_options(conn, sport: str, game_id: str, query: str) -> list[dict]:
+    """Return team-season guesses inside the current pair's career overlap.
+
+    Film Review lets a player explore an educated wrong answer. The picker is
+    therefore broader than the exact solution: it offers every league team for
+    seasons both visible players could plausibly have shared, while the guess
+    endpoint remains authoritative about whether they actually did.
+    """
+    row = conn.execute("SELECT state FROM fr_games WHERE game_id=%s", (game_id,)).fetchone()
+    if not row:
+        return []
+    blob = row[0]
+    if blob.get("sport", sport) != sport:
+        return []
+    index, deck = int(blob.get("pair_index", 0)), list(blob.get("deck") or [])
+    if index < 0 or index + 1 >= len(deck):
+        return []
+    first, second = deck[index], deck[index + 1]
+    if sport == "baseball":
+        years = conn.execute(
+            "SELECT player_id, debut_year, final_year FROM players WHERE player_id = ANY(%s)",
+            ([first, second],),
+        ).fetchall()
+        teams = conn.execute(
+            "SELECT DISTINCT team_id, name FROM teams WHERE season >= 2000 ORDER BY name", ()
+        ).fetchall()
+    else:
+        years = conn.execute(
+            """SELECT player_id, debut_year, final_year FROM sport_players
+                 WHERE sport_id=%s AND player_id = ANY(%s)""",
+            (sport, [first, second]),
+        ).fetchall()
+        teams = conn.execute(
+            """SELECT DISTINCT team_id, name FROM sport_teams
+                 WHERE sport_id=%s AND season >= 2000 ORDER BY name""",
+            (sport,),
+        ).fetchall()
+    spans = {player_id: (max(2000, int(debut or 2000)), min(2026, int(final or 2026)))
+             for player_id, debut, final in years}
+    if first not in spans or second not in spans:
+        return []
+    start = max(spans[first][0], spans[second][0])
+    end = min(spans[first][1], spans[second][1])
+    if start > end:
+        return []
+    needle = normalize(query)
+    names = {}
+    for team_id, name in teams:
+        label = fr_display_team_name(team_id, start) if sport == "baseball" else _canonical_sport_team_name(sport, team_id, name)
+        if needle in normalize(label):
+            names[normalize(label)] = label
+    options = []
+    for team_name in sorted(names.values()):
+        for season in range(start, end + 1):
+            season_label = _sport_season_label(sport, season)
+            options.append({"team_name": team_name, "season": season, "season_label": season_label,
+                            "label": f"{team_name} {season_label}"})
+            if len(options) >= 40:
+                return options
+    return options
+
+
 def _valid_daily_film_puzzle(conn, puzzle: dict, sport: str, puzzle_day: date, unit: str | None) -> bool:
     deck = puzzle.get("deck")
     slots = puzzle.get("slots")
@@ -7889,8 +7961,6 @@ def _valid_daily_film_puzzle(conn, puzzle: dict, sport: str, puzzle_day: date, u
     if sport == "football" and expected_unit not in {"offense", "defense"}:
         return False
     if not _film_deck_has_verified_headshots(conn, sport, deck):
-        return False
-    if not _film_puzzle_connections_are_clean(conn, sport, deck):
         return False
     if _film_puzzle_repeats_history(conn, sport, puzzle_day, puzzle):
         return False
@@ -8008,6 +8078,10 @@ def sport_fr_team_autocomplete(sport: str):
     q = normalize(request.args.get("q") or "")
     if not _is_cross_sport(sport) or not q:
         return jsonify([])
+    game_id = (request.args.get("game_id") or "").strip()
+    if game_id:
+        with db() as conn:
+            return jsonify(_film_review_autocomplete_options(conn, sport, game_id, q))
     names = CURRENT_SPORT_TEAM_NAMES.get(sport)
     if not names:
         with db() as conn:

@@ -38,7 +38,7 @@
             <span class="profile-label">Playing as</span>
             <span id="profile-status" class="account-status-line">Loading guest profile...</span>
           </span>
-          <span class="account-chevron" aria-hidden="true">Login</span>
+          <button id="account-tray-action" class="account-tray-action" type="button">Login</button>
         </summary>
         <div class="account-tray-body">
           <div class="profile-head">
@@ -50,7 +50,7 @@
               <button id="profile-open-btn" class="secondary" type="button">View Profile</button>
               <button id="friends-open-btn" class="secondary" type="button">Friends</button>
             </div>
-            <p class="muted small">Use a guest profile for this browser, or sign in to carry stats across devices.</p>
+            <p class="muted small">Guest profiles stay in this browser. Sign in to keep stats across devices.</p>
           </div>
         </div>
         <div class="auth-card">
@@ -68,7 +68,7 @@
           </div>
           <div id="account-logged-in" hidden>
             <p class="muted small" id="account-summary"></p>
-            <button id="account-logout-btn" class="secondary" type="button">Log Out</button>
+            <button id="account-logout-btn" class="secondary account-body-logout" type="button">Log Out</button>
           </div>
           <p id="account-status" class="muted small"></p>
         </div>
@@ -84,8 +84,8 @@
           <span class="mode-tile-tag">solo</span>
         </div>
           <span class="mode-tile-desc">
-            Solo and endless. Name a teammate of the current player before time
-            expires. Correct links reset the clock. Build your longest lineup.
+            Build a solo lineup. Name a teammate of the current player before
+            time expires. Correct links reset the clock. Set your best lineup.
         </span>
         </button>
         <button class="mode-tile mode-tile-film" data-mode="fr">
@@ -96,7 +96,7 @@
           </div>
           <span class="mode-tile-desc">
             {% if sport.key == 'football' %}24 players, 23 connections.{% elif sport.key == 'basketball' %}12 players, 11 connections.{% elif sport.key == 'hockey' %}11 players, 10 connections.{% else %}10 players, 9 connections.{% endif %}
-            Identify the team and season linking each pair. Three misses end the review.
+            Identify the team and season linking each pair. Three strikes end the review.
           </span>
         </button>
         <button class="mode-tile mode-tile-division" data-mode="mp">
@@ -106,8 +106,8 @@
           <span class="mode-tile-tag">2 players</span>
         </div>
         <span class="mode-tile-desc">
-            Alternate TeamMate Links on One Lineup. Team Strikes can Block
-            Future Links. Win when Your Opponent Runs Out of Time.
+            Take turns adding teammates to one lineup. Team strikes block
+            future links. Win when your opponent runs out of time.
         </span>
         </button>
         <button class="mode-tile mode-tile-playoffs" data-mode="po">
@@ -117,8 +117,8 @@
           <span class="mode-tile-tag">2 players</span>
         </div>
         <span class="mode-tile-desc">
-            Head-to-Head Lineup Battle with One-Use Powerups and a Personal
-            Win Condition. Complete It First or Run Your Opponent Out of Time.
+            Head-to-head with powerups and a win condition. Complete it first
+            or run your opponent out of time.
         </span>
         </button>
       </div>

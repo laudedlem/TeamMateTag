@@ -21,6 +21,7 @@ const els = {
   accountLoginBtn: document.getElementById('account-login-btn'),
   accountResetBtn: document.getElementById('account-reset-btn'),
   accountLogoutBtn: document.getElementById('account-logout-btn'),
+  accountTrayAction: document.getElementById('account-tray-action'),
   accountSummary: document.getElementById('account-summary'),
   accountStatus: document.getElementById('account-status'),
   profileScreen: document.getElementById('profile-screen'),
@@ -547,7 +548,7 @@ function renderProfile() {
   els.profileNameInput.value = profile.display_name || '';
   const activeProfileName = profile.account?.username || profile.display_name || 'Guest';
   els.profileStatus.textContent = profile.authenticated
-    ? `${activeProfileName} - signed in`
+    ? activeProfileName
     : profile.account
       ? `${activeProfileName} - account found`
       : activeProfileName;
@@ -596,11 +597,15 @@ function renderProfile() {
       ? `${profile.account.username} - ${profile.account.email}`
       : `${profile.account?.username || ""}`;
     els.accountStatus.textContent = 'Account connected.';
+    els.accountTrayAction.textContent = 'Log Out';
+    els.accountTrayAction.classList.add('is-logout');
   } else {
     els.accountLoggedOut.hidden = false;
     els.accountLoggedIn.hidden = true;
     els.accountSummary.textContent = '';
     els.accountStatus.textContent = 'Create an account or log in to carry your profile across browsers and devices.';
+    els.accountTrayAction.textContent = 'Login';
+    els.accountTrayAction.classList.remove('is-logout');
   }
   els.deleteAccountCard.hidden = !profile.authenticated;
   if (!profile.authenticated) {
@@ -988,19 +993,11 @@ async function getAutocomplete(q) {
 }
 
 async function getTeamAutocomplete(q) {
-  if (frGame && usesConsolidatedFrAnswerInput()) {
-    const query = normalize(q);
-    if (!query) return [];
-    const options = currentFrAnswerOptions();
-    const prefix = options.filter((item) => normalize(item.label).startsWith(query));
-    const contains = options.filter((item) => {
-      const key = normalize(item.label);
-      return key.includes(query) && !key.startsWith(query);
-    });
-    return [...prefix, ...contains].slice(0, 8);
-  }
+  if (!q.trim()) return [];
   const endpoint = filmReviewPath('team_autocomplete');
-  const r = await fetch(endpoint + '?q=' + encodeURIComponent(q));
+  const params = new URLSearchParams({ q });
+  if (frGame?.game_id) params.set('game_id', frGame.game_id);
+  const r = await fetch(endpoint + '?' + params.toString());
   return r.json();
 }
 
@@ -2994,6 +2991,17 @@ on(els.accountRegisterBtn, 'click', registerAccount);
 on(els.accountLoginBtn, 'click', loginAccount);
 on(els.accountResetBtn, 'click', resetPassword);
 on(els.accountLogoutBtn, 'click', logoutAccount);
+on(els.accountTrayAction, 'click', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  if (profile?.authenticated) {
+    logoutAccount();
+    return;
+  }
+  const tray = document.getElementById('profile-card');
+  if (tray) tray.open = true;
+  els.accountUsernameInput?.focus();
+});
 on(els.deleteAccountBtn, 'click', deleteAccount);
 on(els.friendRequestBtn, 'click', sendFriendRequest);
 on(els.profileNameInput, 'keydown', (e) => {

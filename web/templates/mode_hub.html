@@ -21,7 +21,7 @@
   <main class="home mode-hub-page mode-hub-{{ slug }}">
     <a class="back-btn" href="/">&larr; Sports</a>
     <h2>{{ hub.title }}</h2>
-    <p class="muted">{{ hub.description }}</p>
+    <p class="muted mode-hub-description">{{ hub.description }}</p>
     <h3>Choose a sport</h3>
     <div class="sport-tiles hub-sport-tiles">
       {% for key, sport in sports.items() %}
@@ -89,9 +89,7 @@
         {% endif %}
       {% endfor %}
     </div>
-    {% if slug == 'film' %}
-    <p class="muted small mode-hub-note">Choose a sport for today's puzzle or open its archive dropdown.</p>
-    {% elif slug == 'manager' %}
+    {% if slug == 'manager' %}
     <section class="manager-leaderboard-panel" id="manager-leaderboard-panel">
       <div class="manager-board-header">
         <div>
@@ -118,6 +116,7 @@
     {% if slug == 'division' or slug == 'playoffs' %}
     <section class="shared-queue-panel" id="shared-queue-panel">
       <h3>Multi-Sport Queue</h3>
+      <p class="muted small queue-brief">{% if slug == 'playoffs' %}Choose one or more sports, a win condition for each, then enter the first available matchup.{% else %}Choose one or more sports. You will enter the first available matchup.{% endif %}</p>
       <div class="shared-sport-picker">
         {% for key, sport in sports.items() %}
         <label class="shared-sport-option sport-tile-{{ key }}">

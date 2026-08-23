@@ -4344,3 +4344,201 @@ body[data-sport] .sport-tile::before {
   background:
     radial-gradient(ellipse at center bottom, color-mix(in srgb, var(--sport-accent) 32%, transparent), transparent 68%);
 }
+
+/* 0.3.25: compact hubs and stable Film Review preview tiles. */
+button,
+input,
+select,
+textarea,
+.timer,
+.countdown,
+.turn-clock,
+.fr-stats,
+.fr-board-role,
+.season-pill,
+.out-list,
+.player-info .career,
+.player-info .teams,
+.feedback-timer {
+  font-family: "LT Karaoke Body", "Aptos Display", "Inter", "SF Pro Display", "Segoe UI", system-ui, sans-serif;
+}
+
+.account-tray-action {
+  position: relative;
+  z-index: 2;
+  border: 1px solid color-mix(in srgb, var(--accent) 58%, var(--border));
+  border-radius: 999px;
+  padding: 0.34rem 0.68rem;
+  color: color-mix(in srgb, var(--accent) 78%, #ffffff);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.account-tray-action.is-logout {
+  border-color: rgba(242, 85, 85, 0.64);
+  color: #ffd6d6;
+  background: rgba(242, 85, 85, 0.16);
+}
+
+.account-tray-body {
+  background: linear-gradient(100deg, rgba(74, 179, 255, 0.08), rgba(155, 123, 255, 0.05), transparent 72%);
+}
+
+.auth-card {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.account-body-logout {
+  display: none;
+}
+
+body[data-mode-hub] .mode-hub-page {
+  max-width: 980px;
+}
+
+.mode-hub-description {
+  max-width: 46rem;
+  padding: 0.7rem 0.85rem;
+  border-left: 3px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+}
+
+body[data-mode-hub="film"] .mode-sport-choice {
+  display: grid;
+  min-width: 0;
+  gap: 0.45rem;
+}
+
+body[data-mode-hub="film"] .film-sport-tile {
+  display: block;
+  min-height: 205px;
+  padding: 1rem 5.15rem 5.4rem 1rem;
+}
+
+body[data-mode-hub="film"] .film-sport-tile .sport-tile-copy {
+  display: block;
+  min-width: 0;
+}
+
+body[data-mode-hub="film"] .film-hub-meta {
+  position: absolute;
+  right: 0.9rem;
+  bottom: 0.8rem;
+  left: 1rem;
+  z-index: 2;
+}
+
+body[data-mode-hub="film"] .film-preview-pair {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+body[data-mode-hub="film"] .film-preview-player {
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 0.35rem;
+}
+
+body[data-mode-hub="film"] .film-preview-photo {
+  width: 30px;
+  height: 30px;
+}
+
+body[data-mode-hub="film"] .film-preview-player small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.manager-leaderboard-panel {
+  border-color: color-mix(in srgb, var(--mode-manager) 45%, var(--border));
+  background:
+    linear-gradient(115deg, rgba(154, 166, 178, 0.14), transparent 46%),
+    rgba(20, 27, 40, 0.9);
+}
+
+.manager-board-card {
+  border-color: color-mix(in srgb, var(--mode-manager) 32%, var(--border));
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.manager-board-card strong {
+  color: #f8fafc;
+}
+
+.shared-queue-panel {
+  max-width: 760px;
+  padding: 0.9rem;
+  background:
+    linear-gradient(115deg, color-mix(in srgb, var(--accent) 16%, transparent), transparent 48%),
+    rgba(20, 27, 40, 0.9);
+}
+
+.shared-queue-panel h3 {
+  margin-bottom: 0.15rem;
+}
+
+.queue-brief {
+  max-width: 44rem;
+  margin: 0;
+}
+
+.shared-sport-picker {
+  gap: 0.55rem;
+  margin-top: 0.65rem;
+}
+
+.shared-sport-option {
+  gap: 0.45rem;
+  padding: 0.58rem 0.65rem;
+}
+
+.shared-sport-option strong {
+  font-size: 0.98rem;
+}
+
+.hub-condition-select {
+  margin-top: 0.1rem;
+  padding: 0.42rem 0.5rem;
+  font-size: 0.84rem;
+}
+
+.shared-queue-actions {
+  margin-top: 0.7rem;
+}
+
+@media (max-width: 640px) {
+  .account-tray-summary {
+    grid-template-columns: 38px minmax(0, 1fr) auto;
+    gap: 0.6rem;
+    min-height: 58px;
+    padding: 0.62rem 0.7rem;
+  }
+
+  body[data-mode-hub="film"] .film-sport-tile {
+    min-height: 195px;
+    padding-right: 4.45rem;
+  }
+
+  body[data-mode-hub="film"] .film-preview-pair {
+    grid-template-columns: 1fr;
+    gap: 0.3rem;
+  }
+
+  body[data-mode-hub="film"] .film-sport-tile {
+    padding-bottom: 6.3rem;
+  }
+
+  .manager-board-header {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .manager-board-picker select,
+  .manager-records-picker select {
+    min-width: 0;
+    width: 100%;
+  }
+}
