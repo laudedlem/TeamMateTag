@@ -2927,7 +2927,7 @@ function frBoardPlacement(sport, unit, slot, index) {
       11: { x: 15.5, y: 89.5, zone: 'sideline', label: 'CP' },
     },
     basketball: {
-      0: { x: 59, y: 15, zone: 'surface', label: 'PG' },
+      0: { x: 59, y: 20, zone: 'surface', label: 'PG' },
       2: { x: 37, y: 49, zone: 'surface', label: 'SG' },
       4: { x: 82, y: 49, zone: 'surface', label: 'SF' },
       6: { x: 46, y: 80, zone: 'surface', label: 'PF' },
