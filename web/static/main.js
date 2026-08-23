@@ -2941,9 +2941,9 @@ function frBoardPlacement(sport, unit, slot, index) {
       11: { x: 9, y: 87.5, zone: 'sideline', label: 'BN' },
     },
     hockey: {
-      0: { x: 31.5, y: 50, zone: 'surface', label: 'LW' },
+      0: { x: 29.5, y: 50, zone: 'surface', label: 'LW' },
       2: { x: 58.5, y: 63, zone: 'surface', label: 'C' },
-      4: { x: 85.5, y: 50, zone: 'surface', label: 'RW' },
+      4: { x: 87.5, y: 50, zone: 'surface', label: 'RW' },
       6: { x: 44, y: 28, zone: 'surface', label: 'LD' },
       8: { x: 73, y: 28, zone: 'surface', label: 'RD' },
       10: { x: 58.5, y: 86, zone: 'surface', label: 'G' },
@@ -3035,10 +3035,10 @@ function frSurfaceArt(sport) {
         <path class="fr-hockey-blue" d="M 19 17 H 98" />
         <ellipse class="fr-hockey-dot" cx="42" cy="10" rx="0.95" ry="1.4" />
         <ellipse class="fr-hockey-dot" cx="75" cy="10" rx="0.95" ry="1.4" />
-        <ellipse class="fr-hockey-faceoff" cx="42" cy="54" rx="6.8" ry="10" />
-        <ellipse class="fr-hockey-faceoff" cx="75" cy="54" rx="6.8" ry="10" />
-        <ellipse class="fr-hockey-dot" cx="42" cy="54" rx="1" ry="1.5" />
-        <ellipse class="fr-hockey-dot" cx="75" cy="54" rx="1" ry="1.5" />
+        <ellipse class="fr-hockey-faceoff" cx="39" cy="54" rx="6.8" ry="10" />
+        <ellipse class="fr-hockey-faceoff" cx="78" cy="54" rx="6.8" ry="10" />
+        <ellipse class="fr-hockey-dot" cx="39" cy="54" rx="1" ry="1.5" />
+        <ellipse class="fr-hockey-dot" cx="78" cy="54" rx="1" ry="1.5" />
         <path class="fr-hockey-crease" d="M 50 78 Q 58.5 66 67 78" />
       </svg>`;
   }
