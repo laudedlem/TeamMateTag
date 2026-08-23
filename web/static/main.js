@@ -2137,13 +2137,30 @@ function playerTeamColors(stints) {
   (stints || []).forEach((stint) => {
     const id = String(stint.team_id || '');
     const seasons = Number(stint.seasons || 0);
-    totals.set(id, (totals.get(id) || 0) + seasons);
+    if (!id) return;
+    const start = Number(stint.start || 9999);
+    const end = Number(stint.end || start);
+    const current = totals.get(id) || { seasons: 0, start, end };
+    current.seasons += seasons;
+    current.start = Math.min(current.start, start);
+    current.end = Math.max(current.end, end);
+    totals.set(id, current);
   });
   return [...totals.entries()]
-    .sort((a, b) => b[1] - a[1])
+    .sort((a, b) => b[1].seasons - a[1].seasons || a[1].start - b[1].start)
+    .slice(0, 3)
+    .sort((a, b) => a[1].start - b[1].start || a[1].end - b[1].end)
     .map(([id]) => TEAM_PRIMARY_COLORS[CURRENT_SPORT]?.[id])
     .filter(Boolean)
     .slice(0, 3);
+}
+
+function nameFitClass(name) {
+  const length = String(name || '').length;
+  if (length >= 34) return 'name-fit-xxl';
+  if (length >= 27) return 'name-fit-xl';
+  if (length >= 21) return 'name-fit-lg';
+  return '';
 }
 
 function makePlayerCard(player, isSeed, options = {}) {
@@ -2177,7 +2194,7 @@ function makePlayerCard(player, isSeed, options = {}) {
   const position = player.primary_pos ? `<div class="years">${escapeHtml(player.primary_pos)}</div>` : '';
   const seedBadge = isSeed ? `<span class="seed-badge">${SPORT_START_LABELS[CURRENT_SPORT] || 'Leadoff'}</span>` : '';
   info.innerHTML = `
-    <h3 class="name">${escapeHtml(player.name)}${seedBadge}</h3>
+    <h3 class="name ${nameFitClass(player.name)}">${escapeHtml(player.name)}${seedBadge}</h3>
     <div class="years">${escapeHtml(yrs)}</div>
     ${position}`;
 
@@ -2243,7 +2260,7 @@ function makeConnectionBar(sharedSeasons, allStrikes, showStrikes, linkMeta) {
 
 function renderLineup(chain) {
   els.lineup.innerHTML = chain
-    .map((p, i) => `<li class="${i === chain.length - 1 ? 'last' : ''}">${escapeHtml(p.name)}</li>`)
+    .map((p, i) => `<li class="${i === chain.length - 1 ? 'last' : ''}"><span class="lineup-number">${i + 1}</span><span class="lineup-name">${escapeHtml(p.name)}</span></li>`)
     .join('');
 }
 

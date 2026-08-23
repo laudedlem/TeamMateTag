@@ -3562,7 +3562,14 @@ select:focus {
     gap: 0.35rem;
     flex-wrap: nowrap;
     justify-content: flex-end;
-    max-width: calc(100vw - 148px);
+    max-width: none;
+  }
+
+  body[data-mode-hub="playoffs"] .header-controls {
+    display: grid;
+    grid-template-columns: repeat(4, 32px);
+    gap: 0.24rem;
+    flex: 0 0 auto;
   }
 
   .icon-btn,
@@ -3574,8 +3581,10 @@ select:focus {
     font-size: 0.76rem;
   }
 
-  .hub-ref-btn {
+  button.secondary.hub-ref-btn {
     font-size: 0;
+    overflow: hidden;
+    white-space: nowrap;
     padding-left: 0.45rem;
     padding-right: 0.45rem;
     min-width: 32px;
@@ -3584,12 +3593,26 @@ select:focus {
 
   #hub-conditions-btn::before,
   #hub-powerups-btn::before {
+    color: var(--text);
     font-size: 0.68rem;
     font-weight: 800;
   }
 
   #hub-conditions-btn::before { content: "W"; }
   #hub-powerups-btn::before { content: "P"; }
+
+  body[data-mode-hub="playoffs"] .site-header .title {
+    min-width: 0;
+  }
+
+  body[data-mode-hub="playoffs"] .brand-row {
+    gap: 0.28rem;
+  }
+
+  body[data-mode-hub="playoffs"] .app-version {
+    font-size: 0.62rem;
+    padding-inline: 0.28rem;
+  }
 
   .screen {
     padding: 0.9rem 0.75rem;
@@ -5315,7 +5338,7 @@ body[data-mode-hub="film"] .fr-hub-archive-select {
 
 /* 0.3.31: clean team-stint typography and compact Playoffs widgets. */
 .game-main .player-card.has-team-columns {
-  grid-template-columns: minmax(0, 1fr) minmax(220px, 250px) minmax(0, 1fr);
+  grid-template-columns: minmax(64px, 1fr) max-content minmax(64px, 1fr);
 }
 
 .card-team-column {
@@ -5342,8 +5365,24 @@ body[data-mode-hub="film"] .fr-hub-archive-select {
 
 .game-main .player-info .name {
   max-width: 100%;
-  overflow: visible;
+  overflow: hidden;
+  text-overflow: clip;
   white-space: nowrap;
+  font-size: 1.42rem;
+  line-height: 1.02;
+}
+
+.game-main .player-info .name.name-fit-lg { font-size: 1.26rem; }
+.game-main .player-info .name.name-fit-xl { font-size: 1.1rem; }
+.game-main .player-info .name.name-fit-xxl { font-size: 0.96rem; }
+
+.game-main .player-info .seed-badge {
+  margin-left: 0.42rem;
+  vertical-align: middle;
+}
+
+.game-main .player-identity {
+  min-width: max-content;
 }
 
 .game-main .connection-bar {
@@ -5382,7 +5421,7 @@ body[data-mode-hub="film"] .fr-hub-archive-select {
 
 @media (max-width: 640px) {
   .game-main .player-card.has-team-columns {
-    grid-template-columns: minmax(0, 1fr) minmax(135px, 154px) minmax(0, 1fr);
+    grid-template-columns: minmax(42px, 1fr) max-content minmax(42px, 1fr);
   }
 
   .card-team-column {
@@ -5391,17 +5430,24 @@ body[data-mode-hub="film"] .fr-hub-archive-select {
   }
 
   .game-main .player-info .name {
-    font-size: clamp(0.82rem, 3.8vw, 1rem);
+    font-size: 0.95rem;
   }
+
+  .game-main .player-info .name.name-fit-lg { font-size: 0.86rem; }
+  .game-main .player-info .name.name-fit-xl { font-size: 0.78rem; }
+  .game-main .player-info .name.name-fit-xxl { font-size: 0.7rem; }
 
   .game-main .player-card.has-team-columns .headshot {
     width: 88px;
     height: 88px;
   }
 
-  .win-panel,
-  .powerup-panel[open] {
+  .win-panel {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .powerup-panel[open] {
+    grid-template-columns: 1fr;
   }
 
   .powerup-panel[open] > summary {
@@ -5412,8 +5458,123 @@ body[data-mode-hub="film"] .fr-hub-archive-select {
     font-size: 0.82rem;
   }
 
+  .powerup-box {
+    padding: 0.5rem;
+  }
+
+  .powerup-list {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.24rem;
+  }
+
+  .powerup-chip {
+    display: grid;
+    grid-template-columns: 1.75rem minmax(0, 1fr) auto;
+    min-height: 34px;
+    gap: 0.34rem;
+    padding: 0.28rem 0.42rem;
+  }
+
+  .powerup-icon,
+  .powerup-icon.powerup-svg {
+    width: 1.75rem;
+    min-width: 1.75rem;
+    height: 1.55rem;
+  }
+
+  .powerup-label {
+    align-self: center;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .powerup-state {
+    align-self: center;
+    font-size: 0.66rem;
+    white-space: nowrap;
+  }
+
   .powerup-box-label,
   .win-box .powerup-box-label {
     font-size: 0.62rem;
+  }
+}
+
+/* 0.3.34: tighter card text, numbered lineups, and larger Film hub previews. */
+.lineup-list {
+  list-style: none;
+  text-align: left;
+}
+
+.lineup-list li {
+  display: grid;
+  grid-template-columns: 2.1rem minmax(0, 1fr);
+  gap: 0.35rem;
+  align-items: baseline;
+}
+
+.lineup-number {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.lineup-name {
+  min-width: 0;
+}
+
+body[data-mode-hub="film"] .film-sport-tile {
+  min-height: 226px;
+  padding: 1.15rem 6rem 7.35rem 1.15rem;
+}
+
+body[data-mode-hub="film"] .film-hub-meta {
+  right: 1rem;
+  bottom: 1rem;
+  left: 1.15rem;
+}
+
+body[data-mode-hub="film"] .film-preview-pair {
+  gap: 0.75rem;
+}
+
+body[data-mode-hub="film"] .film-preview-player {
+  grid-template-columns: 66px minmax(0, 1fr);
+  gap: 0.62rem;
+}
+
+body[data-mode-hub="film"] .film-preview-photo {
+  width: 66px;
+  height: 66px;
+}
+
+body[data-mode-hub="film"] .film-preview-player small {
+  color: var(--text);
+  font-size: 1.08rem;
+  font-weight: 850;
+  line-height: 1.02;
+}
+
+@media (max-width: 760px) {
+  body[data-mode-hub="film"] .film-sport-tile {
+    min-height: 218px;
+    padding-right: 5rem;
+    padding-bottom: 6.95rem;
+  }
+
+  body[data-mode-hub="film"] .film-preview-player {
+    grid-template-columns: 56px minmax(0, 1fr);
+  }
+
+  body[data-mode-hub="film"] .film-preview-photo {
+    width: 56px;
+    height: 56px;
+  }
+
+  body[data-mode-hub="film"] .film-preview-player small {
+    font-size: 0.98rem;
   }
 }

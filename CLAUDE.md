@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.3.32`
+- Current display version: `0.3.34`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -99,6 +99,24 @@ single calendar year rather than a full league-season span. Team stints are
 plain side-aligned text rather than pills, player names are kept on one line,
 and Playoffs' in-game Win Condition and Powerups widgets have a denser mobile
 layout. Film Review archive actions close the archive when selected.
+
+Update, 2026-08-22 (0.3.33): UI/UX playtesting from 0.3.32 cleaned the
+Playoffs hub mobile header so Exit, How to Play, Win Conditions, and Powerups
+fit as compact controls without overlap. The stale Multi-Sport Queue helper
+sentence was removed from hub pages to match the 0.3.11 direction. Contact,
+Privacy, Terms, and Reset Password now use the shared `APP_VERSION`, cache-bust
+their stylesheet with it, and display the current `TeamMateTag.Com` brand.
+
+Update, 2026-08-22 (0.3.34): implemented the missing UI/UX fixes from the
+handoff before 0.3.33. Player-card team-color backgrounds now choose the top
+three stints and order the colors chronologically. Film Review cards receive
+team-stint color hints while still hiding the team text. Cross-sport card stint
+labels now show a single calendar year for one recorded team-season, clarifying
+midseason moves such as Derrick Rose's 2017 Cavaliers stint. Player names have
+fit classes and stay on one line, team-stint side text remains plain aligned
+text, lineups render explicit numbers, Film Review hub previews use larger
+portraits/names, and mobile Playoffs in-game Powerups use full-width compact
+single-line chips while Win Condition boxes stay dense.
 - **Division Rivalry**: online two-player alternating lineup. 20-second turns,
   Rule B team strikes, matchmaking, challenge codes, friends, rematches,
   requeueing, ELO, and profile statistics.

@@ -116,7 +116,6 @@
     {% if slug == 'division' or slug == 'playoffs' %}
     <section class="shared-queue-panel" id="shared-queue-panel">
       <h3>Multi-Sport Queue</h3>
-      <p class="muted small queue-brief">{% if slug == 'playoffs' %}Choose one or more sports, a win condition for each, then enter the first available matchup.{% else %}Choose one or more sports. You will enter the first available matchup.{% endif %}</p>
       <div class="shared-sport-picker">
         {% for key, sport in sports.items() %}
         <label class="shared-sport-option sport-tile-{{ key }}">

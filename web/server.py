@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.3.32"
+APP_VERSION = "0.3.34"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -2306,7 +2306,7 @@ def _hydrate_player_cards(conn, player_ids: list[str]) -> dict[str, dict]:
                 else:
                     spans.append([team_id, team_name, season, season])
             teams_list = [
-                f"{name} {start}" if start == end else f"{name} {start}-{end}"
+                f"{name} {_sport_card_stint_label('baseball', start, end)}"
                 for _, name, start, end in spans
             ]
             team_stints = [
@@ -2632,17 +2632,17 @@ def sport_hub():
 
 @app.route("/privacy")
 def privacy():
-    return render_template("privacy.html", support_email=SUPPORT_EMAIL)
+    return render_template("privacy.html", support_email=SUPPORT_EMAIL, app_version=APP_VERSION)
 
 
 @app.route("/terms")
 def terms():
-    return render_template("terms.html", support_email=SUPPORT_EMAIL)
+    return render_template("terms.html", support_email=SUPPORT_EMAIL, app_version=APP_VERSION)
 
 
 @app.route("/contact")
 def contact():
-    return render_template("contact.html", support_email=SUPPORT_EMAIL)
+    return render_template("contact.html", support_email=SUPPORT_EMAIL, app_version=APP_VERSION)
 
 
 def _headshot_audit_allowed() -> bool:
@@ -2735,6 +2735,7 @@ def reset_password_page():
     return render_template(
         "reset_password.html",
         support_email=SUPPORT_EMAIL,
+        app_version=APP_VERSION,
         supabase_url=SUPABASE_URL or "",
         supabase_anon_key=SUPABASE_ANON_KEY or "",
     )
@@ -3362,7 +3363,7 @@ def _local_sport_cards(conn: sqlite3.Connection, sport: str, player_ids: list[st
             (sport, player_id),
         ).fetchone()
         appearances = conn.execute(
-            """SELECT DISTINCT t.name, a.season FROM sport_appearances a
+            """SELECT DISTINCT a.team_id, t.name, a.season FROM sport_appearances a
                  JOIN sport_teams t ON t.sport_id = a.sport_id AND t.team_id = a.team_id AND t.season = a.season
                 WHERE a.sport_id = ? AND a.player_id = ? AND a.season >= 2000
                 ORDER BY a.season, t.name""",
@@ -3370,25 +3371,33 @@ def _local_sport_cards(conn: sqlite3.Connection, sport: str, player_ids: list[st
         ).fetchall()
         spans_by_team = {}
         seen_team_seasons = set()
-        for team, season in appearances:
+        for team_id, team, season in appearances:
             if sport == "hockey":
                 team = NHL_TEAM_NAMES.get(team, team)
-            key = (team, season)
+            key = (team_id, team, season)
             if key in seen_team_seasons:
                 continue
             seen_team_seasons.add(key)
-            spans = spans_by_team.setdefault(team, [])
+            spans = spans_by_team.setdefault((team_id, team), [])
             if spans and spans[-1][1] == season - 1:
                 spans[-1][1] = season
             else:
                 spans.append([season, season])
         teams = []
-        for team, ranges in spans_by_team.items():
+        team_stints = []
+        for (team_id, team), ranges in spans_by_team.items():
             years = ", ".join(
-                _sport_team_span_label(sport, start, end)
+                _sport_card_stint_label(sport, start, end)
                 for start, end in ranges
             )
             teams.append(f"{team} {years}")
+            team_stints.append({
+                "team_id": team_id,
+                "team_name": team,
+                "start": ranges[0][0],
+                "end": ranges[-1][1],
+                "seasons": sum(end - start + 1 for start, end in ranges),
+            })
         external_id = row[0] if row else None
         image_row = conn.execute("SELECT local_path FROM local_player_images WHERE sport_id = ? AND player_id = ?", (sport, player_id)).fetchone() if conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='local_player_images'").fetchone() else None
         if sport == "basketball" and external_id:
@@ -3407,6 +3416,7 @@ def _local_sport_cards(conn: sqlite3.Connection, sport: str, player_ids: list[st
             "name_first": row[3] if row else None, "name_last": row[4] if row else None,
             "display_name": _sport_display_name(sport, player_id, row[3] if row else None, row[4] if row else None),
             "primary_pos": ({"R": "RW", "L": "LW", "D": "D"}.get(row[5], row[5]) if row else None), "teams": teams,
+            "team_stints": team_stints,
         }
     return out
 
@@ -3493,6 +3503,12 @@ def _sport_team_span_label(sport: str, start: int, end: int) -> str:
     if _cross_year_season_sports(sport):
         return f"{start}-{end + 1}"
     return f"{start}-{end}"
+
+
+def _sport_card_stint_label(sport: str, start: int, end: int) -> str:
+    if start == end:
+        return str(start)
+    return _sport_team_span_label(sport, start, end)
 
 
 def _parse_cross_year_season_guess(year_text: str) -> tuple[int | None, int | None]:
@@ -3625,7 +3641,7 @@ def _sport_cards(conn, sport: str, player_ids: list[str]) -> dict[str, dict]:
         team_stints = []
         for (team_id, team), ranges in teams_by_player.get(player_id, {}).items():
             years = ", ".join(
-                str(a) if a == b else _sport_team_span_label(sport, a, b)
+                _sport_card_stint_label(sport, a, b)
                 for a, b in ranges
             )
             teams.append(f"{team} {years}")
@@ -7412,6 +7428,7 @@ def fr_card_dict_from_card(player_id: str, card: dict) -> dict:
         "debut_year": card["debut_year"],
         "final_year": card["final_year"],
         "teams": [],  # hidden in FR
+        "team_stints": card.get("team_stints", []),
     }
 
 
@@ -7761,6 +7778,7 @@ def _sport_fr_card(sport: str, player_id: str, card: dict) -> dict:
         "mlbam_id": None, "headshot_url": card.get("headshot_url"),
         "debut_year": card.get("debut_year"), "final_year": card.get("final_year"),
         "primary_pos": card.get("primary_pos"), "teams": [],
+        "team_stints": card.get("team_stints", []),
     }
 
 

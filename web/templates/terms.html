@@ -4,14 +4,14 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Terms of Use | TeamMateTag</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ app_version }}" />
 </head>
 <body class="dark">
   <header>
     <div class="title">
       <div class="brand-row">
-        <h1>TeamMateTag</h1>
-<span class="app-version">0.3.21</span>
+        <h1>TeamMateTag.Com</h1>
+        <span class="app-version" title="Current version">{{ app_version }}</span>
       </div>
     </div>
   </header>
