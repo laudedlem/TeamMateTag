@@ -1867,6 +1867,19 @@ function powerupPillHtml(powerup) {
   </div>`;
 }
 
+function opponentPowerupScoutHtml(powerups) {
+  const ready = powerups.filter((powerup) => !powerup.used);
+  const used = powerups.filter((powerup) => powerup.used);
+  const groups = [];
+  if (ready.length) {
+    groups.push(`<span><strong>Ready</strong> ${ready.map((powerup) => escapeHtml(powerup.label || powerup.key)).join(', ')}</span>`);
+  }
+  if (used.length) {
+    groups.push(`<span><strong>Used</strong> ${used.map((powerup) => escapeHtml(powerup.label || powerup.key)).join(', ')}</span>`);
+  }
+  return groups.join('');
+}
+
 function renderWinPips(progress, target) {
   const pips = [];
   for (let i = 0; i < target; i += 1) {
@@ -2091,7 +2104,7 @@ function renderPowerups() {
     ? your.map((powerup) => powerupButtonHtml(powerup, buttonsDisabled || powerup.used)).join('')
     : '<div class="muted small">No powerups assigned.</div>';
   els.oppPowerupDesc.innerHTML = opp.length
-    ? opp.map((powerup) => powerupPillHtml(powerup)).join('')
+    ? opponentPowerupScoutHtml(opp)
     : '<div class="muted small">No powerups assigned.</div>';
   els.yourPowerupDesc.querySelectorAll('[data-powerup-key]').forEach((btn) => {
     btn.addEventListener('click', () => usePowerup(btn.dataset.powerupKey));
@@ -2305,10 +2318,16 @@ function renderMoveFeedback(m, g) {
     ? ` <span class="muted-inline">(auto-picked from ${m.ambiguous_count} matches. Try the dropdown to be specific.)</span>`
     : '';
   const outTerm = ({ baseball: 'STRUCK OUT', basketball: 'FOULED OUT', hockey: 'GAME MISCONDUCT', football: 'PUNTED' })[CURRENT_SPORT] || 'OUT';
+  const seasonPills = (items) => {
+    const visible = (items || []).slice(0, 4);
+    const hidden = Math.max(0, (items || []).length - visible.length);
+    return visible.map((s) =>
+      `<span class="season-pill feedback-season-pill">${escapeHtml(s.team_name)} ${escapeHtml(seasonText(s))}</span>`
+    ).join(' ') + (hidden ? ` <span class="season-pill feedback-season-pill more">+${hidden} more</span>` : '');
+  };
 
   switch (m.outcome) {
     case 'valid': {
-      const teams = m.shared_seasons.map((s) => `${s.team_name} ${seasonText(s)}`).join(', ');
       const newOut = m.shared_seasons
         .filter((s) => {
           const row = g.strikes.find((x) => x.team_id === s.team_id && x.season === s.season);
@@ -2316,15 +2335,15 @@ function renderMoveFeedback(m, g) {
         })
         .map((s) => `${s.team_name} ${seasonText(s)}`).join(', ');
       const lead = m.move_via_powerup
-        ? `${escapeHtml(m.powerup_label || 'Powerup')}: ${name}${ambig}. Linked through ${escapeHtml(teams)}.`
-        : `${name}${ambig}. Teammates on ${escapeHtml(teams)}.`;
+        ? `${escapeHtml(m.powerup_label || 'Powerup')}: ${name}${ambig}. Linked through`
+        : `${name}${ambig}. Teammates on`;
       const winNote = m.win_condition_hit
         ? `<br><span class="ok">${escapeHtml(m.win_condition_label)}: ${m.win_condition_progress}/${m.win_condition_target}</span>`
         : '';
       const winFinish = m.win_condition_completed
         ? `<br><span class="burn">${escapeHtml(m.win_condition_label)} completed.</span>`
         : '';
-      return `<span class="ok">${lead}</span>` +
+      return `<span class="ok feedback-link-line">${lead} <span class="feedback-season-list">${seasonPills(m.shared_seasons)}</span></span>` +
         (newOut ? `<br><span class="burn">${outTerm} this move: ${escapeHtml(newOut)}</span>` : '') +
         winNote +
         winFinish;

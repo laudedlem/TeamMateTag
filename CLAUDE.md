@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.3.36`
+- Current display version: `0.3.37`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -131,6 +131,19 @@ inside the preview instead of disappearing. Playoffs in-game Win Conditions now
 render as compact always-visible progress strips, while the Powerups drawer
 shows ready counts in its summary and opens into a denser action-first layout
 with opponent powerups treated as secondary scouting information.
+
+Update, 2026-08-23 (0.3.37): refined the 0.3.36 playtest pass. Correct
+team-season feedback now renders as compact link-style chips instead of a long
+comma sentence. Struck Out/Fouled Out/Punted/Game Misconduct side widgets are
+centered pills. `/film` previews are integrated back into the sport buttons
+without inner boxes, long names wrap only at spaces with a smaller compact
+fallback, status text sits under the sport/unit name, the Film Review link bar
+is shorter, and the desktop Film hub uses three columns so Football Defense is
+visible without the page becoming unnecessarily tall. Playoffs powerups now
+prioritize the user's action buttons and collapse opponent powerups into a
+single scouting summary rather than duplicating the full control grid. Film
+hub preview loading now tolerates malformed stale guest IDs instead of failing
+the archive-summary request.
 - **Division Rivalry**: online two-player alternating lineup. 20-second turns,
   Rule B team strikes, matchmaking, challenge codes, friends, rematches,
   requeueing, ELO, and profile statistics.

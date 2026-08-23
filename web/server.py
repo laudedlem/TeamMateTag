@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.3.36"
+APP_VERSION = "0.3.37"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -1545,6 +1545,16 @@ def _guest_stats(conn, guest_id: str) -> dict:
     return {**baseball_stats, "sports": sports}
 
 
+def _valid_uuid_text(value: str | None) -> bool:
+    if not value:
+        return False
+    try:
+        uuid.UUID(str(value))
+    except (TypeError, ValueError):
+        return False
+    return True
+
+
 def _guest_profile(conn, guest_id: str, *, authenticated: bool = False) -> dict | None:
     row = conn.execute(
         """SELECT
@@ -2746,6 +2756,8 @@ def profile_bootstrap():
     ensure_runtime_schema()
     data = request.get_json(silent=True) or {}
     requested_guest_id = (data.get("guest_id") or "").strip() or None
+    if not _valid_uuid_text(requested_guest_id):
+        requested_guest_id = None
     with db() as conn:
         session_guest_id = _session_guest_id(conn)
         if session_guest_id:
@@ -5689,30 +5701,33 @@ def _ensure_daily_film_puzzles(conn, puzzle_day: date | None = None) -> dict[str
 def film_archive_summary():
     ensure_runtime_schema()
     guest_id = ((request.get_json(silent=True) or {}).get("guest_id") or "").strip()
-    if not guest_id:
-        return jsonify({"error": "guest_id required"}), 400
+    if not _valid_uuid_text(guest_id):
+        guest_id = None
     sports = ["baseball", "basketball", "hockey", "football"]
     today = datetime.now(CENTRAL_TIME).date()
     with db() as conn:
         _ensure_daily_film_puzzles(conn, today)
         preview_map = _film_preview_map_for_day(conn, today)
-        attempt_rows = {
-            (sport_id, puzzle_date, unit or ""): (status, game_id)
-            for sport_id, puzzle_date, unit, status, game_id in conn.execute(
-                """SELECT sport_id, puzzle_date, unit, status, game_id::text
-                     FROM film_review_daily_attempts
-                    WHERE owner_guest_id=%s""",
-                (guest_id,),
-            ).fetchall()
-        }
+        attempt_rows = {}
+        if guest_id:
+            attempt_rows = {
+                (sport_id, puzzle_date, unit or ""): (status, game_id)
+                for sport_id, puzzle_date, unit, status, game_id in conn.execute(
+                    """SELECT sport_id, puzzle_date, unit, status, game_id::text
+                         FROM film_review_daily_attempts
+                        WHERE owner_guest_id=%s""",
+                    (guest_id,),
+                ).fetchall()
+            }
         won_rows: dict[tuple[str, str], set[date]] = {}
-        for sport_id, unit, puzzle_date in conn.execute(
-            """SELECT sport_id, unit, puzzle_date
-                 FROM film_review_daily_attempts
-                WHERE owner_guest_id=%s AND status='won' AND official""",
-            (guest_id,),
-        ).fetchall():
-            won_rows.setdefault((sport_id, unit or ""), set()).add(puzzle_date)
+        if guest_id:
+            for sport_id, unit, puzzle_date in conn.execute(
+                """SELECT sport_id, unit, puzzle_date
+                     FROM film_review_daily_attempts
+                    WHERE owner_guest_id=%s AND status='won' AND official""",
+                (guest_id,),
+            ).fetchall():
+                won_rows.setdefault((sport_id, unit or ""), set()).add(puzzle_date)
         payload = {}
         for sport in sports:
             units = ["offense", "defense"] if sport == "football" else [""]

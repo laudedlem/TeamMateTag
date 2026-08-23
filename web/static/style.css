@@ -5968,3 +5968,267 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
     width: 1.65rem;
   }
 }
+
+/* 0.3.37: softer Film hub previews, compact feedback links, and cleaner Playoffs scouting. */
+.feedback-link-line {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.32rem 0.42rem;
+}
+
+.feedback-season-list {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.28rem;
+}
+
+.feedback-season-pill {
+  padding: 0.14rem 0.42rem;
+  font-size: 0.72rem;
+  line-height: 1.1;
+  vertical-align: middle;
+}
+
+.feedback-season-pill.more {
+  color: var(--text-muted);
+  border-style: dashed;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+#out-section {
+  text-align: center;
+}
+
+#out-section .out-list {
+  justify-content: center;
+}
+
+#out-section .out-list li.out-pill {
+  border-radius: 999px;
+  justify-content: center;
+}
+
+#fr-card-stack .connection-bar,
+#fr-card-stack .fr-link-spacer {
+  width: min(72%, 360px);
+  align-self: center;
+  margin-left: 0;
+}
+
+#fr-card-stack .connection-bar {
+  justify-content: center;
+  min-height: 2.35rem;
+  padding: 0.32rem 0.48rem;
+}
+
+#fr-card-stack .connection-seasons {
+  justify-content: center;
+}
+
+#fr-card-stack .season-pill {
+  padding: 0.15rem 0.48rem;
+}
+
+body[data-mode-hub="film"] .film-sport-tile {
+  min-height: 174px;
+  padding: 0.82rem 4.2rem 5rem 0.82rem;
+}
+
+body[data-mode-hub="film"] .mode-hub-page {
+  max-width: 1160px;
+  margin-top: 1.2rem;
+}
+
+body[data-mode-hub="film"] .mode-hub-description {
+  display: none;
+}
+
+body[data-mode-hub="film"] .mode-hub-page h2 {
+  margin-bottom: 0.35rem;
+}
+
+body[data-mode-hub="film"] .mode-hub-page h3 {
+  margin: 0.3rem 0 0.55rem;
+}
+
+body[data-mode-hub="film"] .hub-sport-tiles {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+body[data-mode-hub="film"] .film-grid-spacer {
+  display: none;
+}
+
+body[data-mode-hub="film"] .film-sport-tile .home-tile-icon {
+  opacity: 0.42;
+}
+
+body[data-mode-hub="film"] .sport-tile-copy {
+  display: grid;
+  gap: 0.22rem;
+  max-width: calc(100% - 4.8rem);
+}
+
+body[data-mode-hub="film"] .sport-tile-name {
+  display: block;
+  font-size: 1.78rem;
+  line-height: 0.96;
+}
+
+body[data-mode-hub="film"] .sport-tile-status {
+  display: block;
+  grid-row: 3;
+  justify-self: start;
+  max-width: 100%;
+  white-space: normal;
+}
+
+body[data-mode-hub="film"] .film-hub-meta {
+  bottom: 0.85rem;
+  left: 1rem;
+  right: 1rem;
+}
+
+body[data-mode-hub="film"] .film-preview-pair {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.82rem;
+}
+
+body[data-mode-hub="film"] .film-preview-player {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  grid-template-columns: 54px minmax(0, 1fr);
+  gap: 0.42rem;
+  min-height: 54px;
+  padding: 0;
+}
+
+body[data-mode-hub="film"] .film-preview-photo {
+  width: 54px;
+  height: 54px;
+}
+
+body[data-mode-hub="film"] .film-preview-player small,
+body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player small {
+  display: block;
+  font-size: 1rem;
+  font-weight: 850;
+  line-height: 1.02;
+  max-height: 2.08em;
+  overflow: hidden;
+  overflow-wrap: normal;
+  text-overflow: clip;
+  white-space: normal;
+  word-break: normal;
+}
+
+body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player small {
+  font-size: 0.82rem;
+}
+
+.powerup-panel[open] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.powerup-box {
+  width: 100%;
+}
+
+.powerup-box:nth-of-type(2) {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.3rem 0.55rem;
+  opacity: 0.8;
+}
+
+.powerup-box:nth-of-type(2) .powerup-box-label,
+.powerup-box:nth-of-type(2) .powerup-name {
+  margin: 0;
+}
+
+.powerup-box:nth-of-type(2) .powerup-list {
+  align-items: center;
+  color: var(--text-muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.75rem;
+  gap: 0.28rem 0.55rem;
+  grid-column: 1 / -1;
+  line-height: 1.2;
+}
+
+.powerup-box:nth-of-type(2) .powerup-list span {
+  min-width: 0;
+}
+
+.powerup-box:nth-of-type(2) .powerup-list strong {
+  color: #ffe49a;
+  margin-right: 0.18rem;
+}
+
+.powerup-list {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.powerup-chip {
+  min-width: 0;
+}
+
+@media (max-width: 760px) {
+  body[data-mode-hub="film"] .hub-sport-tiles {
+    grid-template-columns: 1fr;
+  }
+
+  body[data-mode-hub="film"] .film-sport-tile {
+    min-height: 236px;
+    padding: 0.88rem 4.05rem 7.95rem 0.88rem;
+  }
+
+  body[data-mode-hub="film"] .sport-tile-copy {
+    max-width: calc(100% - 3.7rem);
+  }
+
+  body[data-mode-hub="film"] .sport-tile-name {
+    font-size: 1.74rem;
+  }
+
+  body[data-mode-hub="film"] .film-preview-pair {
+    grid-template-columns: 1fr;
+    gap: 0.36rem;
+  }
+
+  body[data-mode-hub="film"] .film-preview-player {
+    grid-template-columns: 58px minmax(0, 1fr);
+    min-height: 58px;
+  }
+
+  body[data-mode-hub="film"] .film-preview-photo {
+    width: 58px;
+    height: 58px;
+  }
+
+  body[data-mode-hub="film"] .film-preview-player small,
+  body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player small {
+    font-size: 0.92rem;
+  }
+}
+
+@media (max-width: 640px) {
+  #fr-card-stack .connection-bar,
+  #fr-card-stack .fr-link-spacer {
+    width: min(82%, 300px);
+  }
+
+  .powerup-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .powerup-box:nth-of-type(2) .powerup-list {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+}
