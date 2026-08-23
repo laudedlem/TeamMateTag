@@ -6597,3 +6597,300 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
     font-size: 0.48rem;
   }
 }
+
+/* 0.3.42: diagram-first Film Review fields with scoring area at the bottom. */
+#fr-card-stack .connection-bar {
+  align-self: center;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.02));
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  justify-content: center;
+  margin: 0.38rem auto;
+  max-width: min(470px, calc(100% - 2rem));
+  padding: 0.5rem 0.7rem;
+  text-align: center;
+  width: fit-content;
+}
+
+#fr-card-stack .connection-seasons {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+#fr-card-stack .fr-link-spacer {
+  align-self: center;
+  border-left: 0;
+  height: 18px;
+  margin-left: 0;
+}
+
+.fr-lineup-board {
+  padding: 0.7rem;
+}
+
+.fr-board-toggle {
+  margin-bottom: 0.55rem;
+}
+
+.fr-board-surface {
+  --surface-line: rgba(255, 255, 255, 0.82);
+  --surface-line-soft: rgba(255, 255, 255, 0.36);
+  --surface-red: rgba(231, 47, 59, 0.82);
+  --surface-blue: rgba(35, 169, 228, 0.78);
+  aspect-ratio: 1 / 1;
+  border-radius: 6px;
+  min-height: 0;
+}
+
+.fr-board-section-sideline {
+  background: rgba(5, 12, 21, 0.18);
+  border-color: rgba(255, 255, 255, 0.22);
+  border-radius: 8px;
+}
+
+.fr-board-section-sideline::after,
+.sport-baseball .fr-board-section-sideline::after,
+.sport-football .fr-board-section-sideline::after {
+  content: "";
+}
+
+.fr-board-slot {
+  background:
+    linear-gradient(180deg, rgba(12, 19, 30, 0.96), rgba(6, 10, 17, 0.96));
+  border-color: rgba(255, 255, 255, 0.28);
+  border-radius: 12px;
+  gap: 0.03rem;
+  height: 62px;
+  padding: 0.22rem 0.3rem;
+  width: 82px;
+}
+
+.fr-board-slot.zone-sideline {
+  height: 52px;
+  width: 72px;
+}
+
+.fr-board-headshot {
+  height: 25px;
+  width: 25px;
+}
+
+.fr-board-role {
+  color: rgba(255, 255, 255, 0.74);
+  font-size: 0.58rem;
+}
+
+.fr-board-player {
+  font-size: 0.58rem;
+  white-space: normal;
+  word-break: normal;
+}
+
+.fr-board-slot:not(.filled) {
+  background: rgba(7, 13, 22, 0.64);
+  box-shadow: none;
+}
+
+.sport-baseball .fr-board-surface {
+  background:
+    radial-gradient(ellipse at 50% 91%, rgba(203, 146, 82, 0.92) 0 9%, transparent 9.4%),
+    radial-gradient(circle at 50% 57%, rgba(203, 146, 82, 0.9) 0 5.5%, transparent 5.9%),
+    linear-gradient(135deg, transparent 0 49.2%, rgba(238, 238, 218, 0.78) 49.3% 50.2%, transparent 50.3%),
+    linear-gradient(45deg, transparent 0 49.2%, rgba(238, 238, 218, 0.78) 49.3% 50.2%, transparent 50.3%),
+    radial-gradient(ellipse at 50% 37%, rgba(203, 146, 82, 0.86) 0 35%, transparent 35.5%),
+    radial-gradient(ellipse at 50% 24%, rgba(55, 132, 65, 0.98) 0 66%, rgba(43, 112, 58, 0.98) 66.4% 100%);
+  clip-path: polygon(50% 100%, 2% 47%, 14% 25%, 28% 10%, 50% 3%, 72% 10%, 86% 25%, 98% 47%);
+}
+
+.sport-baseball .fr-surface-lines::before {
+  border: 2px solid rgba(255, 255, 255, 0.84);
+  height: 24%;
+  left: 50%;
+  top: 66%;
+  transform: translate(-50%, -50%) rotate(45deg);
+  width: 24%;
+}
+
+.sport-baseball .fr-surface-lines::after {
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  border-bottom: 0;
+  border-radius: 50% 50% 0 0;
+  height: 41%;
+  left: 15%;
+  top: 11%;
+  width: 70%;
+}
+
+.sport-baseball .fr-board-section-sideline {
+  bottom: 7%;
+  height: 16%;
+  left: 8%;
+  transform: rotate(-42deg);
+  width: 23%;
+}
+
+.sport-baseball .fr-board-section-surface {
+  bottom: 7%;
+  height: 14%;
+  right: 11%;
+  transform: rotate(42deg);
+  width: 20%;
+}
+
+.sport-baseball .fr-board-section-surface::after {
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  content: "";
+  height: 42%;
+  inset: 28% 18%;
+}
+
+.sport-basketball .fr-board-surface {
+  background:
+    linear-gradient(var(--surface-line), var(--surface-line)) 0 100% / 100% 2px no-repeat,
+    radial-gradient(circle at 50% 96%, transparent 0 3.2%, var(--surface-line) 3.4% 3.9%, transparent 4.1%),
+    linear-gradient(90deg, rgba(242, 166, 83, 0.98), rgba(209, 117, 57, 0.98));
+}
+
+.sport-basketball .fr-surface-lines::before {
+  border: 2px solid var(--surface-line);
+  border-bottom: 0;
+  border-radius: 999px 999px 0 0;
+  bottom: 0;
+  height: 54%;
+  left: 16%;
+  width: 68%;
+}
+
+.sport-basketball .fr-surface-lines::after {
+  background:
+    linear-gradient(var(--surface-line), var(--surface-line)) 50% 0 / 34% 2px no-repeat,
+    linear-gradient(var(--surface-line), var(--surface-line)) 50% 45% / 34% 2px no-repeat,
+    radial-gradient(ellipse at 50% 45%, transparent 0 28%, var(--surface-line) 28.8% 30.5%, transparent 31.5%);
+  border: 2px solid var(--surface-line);
+  border-bottom: 0;
+  bottom: 0;
+  height: 50%;
+  left: 36%;
+  width: 28%;
+}
+
+.sport-basketball .fr-board-section-sideline {
+  height: 78%;
+  left: 3%;
+  top: 11%;
+  width: 13%;
+}
+
+.sport-hockey .fr-board-surface {
+  background:
+    linear-gradient(var(--surface-red), var(--surface-red)) 0 99% / 100% 3px no-repeat,
+    linear-gradient(var(--surface-blue), var(--surface-blue)) 0 45% / 100% 3px no-repeat,
+    linear-gradient(90deg, rgba(236, 248, 252, 0.98), rgba(211, 232, 239, 0.98));
+  border-radius: 28px 28px 6px 6px;
+}
+
+.sport-hockey .fr-surface-lines::before {
+  background:
+    radial-gradient(circle at 28% 27%, transparent 0 10%, var(--surface-red) 10.7% 11.8%, transparent 12.5%),
+    radial-gradient(circle at 72% 27%, transparent 0 10%, var(--surface-red) 10.7% 11.8%, transparent 12.5%),
+    radial-gradient(circle at 30% 57%, var(--surface-red) 0 1.6%, transparent 1.8%),
+    radial-gradient(circle at 70% 57%, var(--surface-red) 0 1.6%, transparent 1.8%);
+  inset: 0;
+}
+
+.sport-hockey .fr-surface-lines::after {
+  border: 3px solid var(--surface-red);
+  border-bottom: 0;
+  border-radius: 999px 999px 0 0;
+  bottom: 0;
+  height: 13%;
+  left: 40%;
+  width: 20%;
+}
+
+.sport-hockey .fr-board-section-sideline {
+  height: 58%;
+  right: 3%;
+  top: 22%;
+  width: 13%;
+}
+
+.sport-football .fr-board-surface {
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.72)) 0 82% / 100% 2px no-repeat,
+    repeating-linear-gradient(0deg, transparent 0 10.8%, rgba(255, 255, 255, 0.5) 10.9% 11.4%, transparent 11.5% 22%),
+    repeating-linear-gradient(90deg, transparent 0 27%, rgba(255, 255, 255, 0.38) 27.2% 27.8%, transparent 28% 72%, rgba(255, 255, 255, 0.38) 72.2% 72.8%, transparent 73%),
+    linear-gradient(180deg, rgba(42, 122, 51, 0.98), rgba(22, 95, 43, 0.98));
+}
+
+.sport-football .fr-surface-lines::before {
+  background: rgba(12, 78, 30, 0.4);
+  border-top: 2px solid rgba(255, 255, 255, 0.84);
+  bottom: 0;
+  content: "";
+  height: 18%;
+  left: 0;
+  right: 0;
+}
+
+.sport-football .fr-surface-lines::after {
+  background:
+    linear-gradient(var(--surface-line), var(--surface-line)) 50% 54% / 18% 2px no-repeat,
+    linear-gradient(var(--surface-line), var(--surface-line)) 44% 26% / 2px 55% no-repeat,
+    linear-gradient(var(--surface-line), var(--surface-line)) 56% 26% / 2px 55% no-repeat;
+  bottom: 7%;
+  content: "";
+  height: 22%;
+  left: 39%;
+  width: 22%;
+}
+
+.sport-football .fr-board-section-sideline {
+  background: transparent;
+  border: 0;
+  bottom: 1%;
+  height: 18%;
+  left: 40%;
+  width: 20%;
+}
+
+@media (max-width: 640px) {
+  .fr-lineup-board {
+    padding: 0.48rem;
+  }
+
+  .fr-board-surface {
+    aspect-ratio: 1 / 1;
+  }
+
+  .fr-board-slot {
+    border-radius: 9px;
+    height: 41px;
+    width: 47px;
+  }
+
+  .fr-board-slot.zone-sideline {
+    height: 34px;
+    width: 43px;
+  }
+
+  .fr-board-headshot {
+    height: 16px;
+    width: 16px;
+  }
+
+  .fr-board-role {
+    font-size: 0.5rem;
+  }
+
+  .fr-board-player {
+    font-size: 0.46rem;
+    line-height: 1;
+  }
+
+  #fr-card-stack .connection-bar {
+    max-width: calc(100% - 1rem);
+  }
+}

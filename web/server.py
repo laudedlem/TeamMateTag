@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.3.41"
+APP_VERSION = "0.3.42"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -7247,7 +7247,7 @@ def sport_bp_timeout(sport: str):
 # Film Review (daily puzzle)
 # ============================================================
 
-BASEBALL_FR_SLOTS = ("DH", "1B", "SP", "2B", "3B", "SS", "LF", "CF", "RF", "C")
+BASEBALL_FR_SLOTS = ("DH", "1B", "SP", "2B", "3B", "SS", "LF", "CF", "RF", "C", "RP", "CP")
 
 FR_MAX_STRIKES = 3
 
@@ -7357,16 +7357,31 @@ def generate_baseball_film_review(conn, puzzle_day: date, seed_suffix: str = "",
     """
     pools: dict[str, dict[str, int]] = {}
     for slot in BASEBALL_FR_SLOTS:
-        rows = conn.execute(
-            """SELECT bp.player_id, ps.career_games, ps.teammate_count, p.final_year, h.provider
-                 FROM baseball_player_positions bp
-                 JOIN players p ON p.player_id=bp.player_id
-                 JOIN players_searchable ps ON ps.player_id=p.player_id
-                 LEFT JOIN player_headshots h ON h.sport_id='baseball' AND h.player_id=p.player_id
-                WHERE bp.position=%s AND bp.games>=25 AND p.final_year>=2000
-                ORDER BY bp.player_id""",
-            (slot,),
-        ).fetchall()
+        if slot in {"RP", "CP"}:
+            min_pitching_games = 45 if slot == "CP" else 25
+            rows = conn.execute(
+                """SELECT a.player_id, ps.career_games, ps.teammate_count, p.final_year, h.provider
+                     FROM appearances a
+                     JOIN players p ON p.player_id=a.player_id
+                     JOIN players_searchable ps ON ps.player_id=p.player_id
+                     LEFT JOIN player_headshots h ON h.sport_id='baseball' AND h.player_id=p.player_id
+                    WHERE a.season>=2000 AND p.final_year>=2000
+                    GROUP BY a.player_id, ps.career_games, ps.teammate_count, p.final_year, h.provider
+                    HAVING SUM(a.games_pitched)>=%s
+                    ORDER BY a.player_id""",
+                (min_pitching_games,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """SELECT bp.player_id, ps.career_games, ps.teammate_count, p.final_year, h.provider
+                     FROM baseball_player_positions bp
+                     JOIN players p ON p.player_id=bp.player_id
+                     JOIN players_searchable ps ON ps.player_id=p.player_id
+                     LEFT JOIN player_headshots h ON h.sport_id='baseball' AND h.player_id=p.player_id
+                    WHERE bp.position=%s AND bp.games>=25 AND p.final_year>=2000
+                    ORDER BY bp.player_id""",
+                (slot,),
+            ).fetchall()
         pools[slot] = {
             player_id: _fr_player_quality(career_games, teammate_count, final_year, provider, "baseball")
             for player_id, career_games, teammate_count, final_year, provider in rows
@@ -7650,7 +7665,8 @@ def fr_new():
                 if prior:
                     blob, finished = prior
                     if (blob.get("puzzle_date") == puzzle_day.isoformat()
-                            and blob.get("puzzle_number") == _film_review_number(puzzle_day)):
+                            and blob.get("puzzle_number") == _film_review_number(puzzle_day)
+                            and tuple(blob.get("slots") or []) == BASEBALL_FR_SLOTS):
                         _store_daily_film_review_puzzle(conn, "baseball", puzzle_day, None, {
                             "id": blob["puzzle_id"], "puzzle_date": blob["puzzle_date"],
                             "slots": blob["slots"], "deck": blob["deck"], "unit": None,
@@ -8067,6 +8083,8 @@ def _valid_daily_film_puzzle(conn, puzzle: dict, sport: str, puzzle_day: date, u
     if not isinstance(deck, list) or not isinstance(slots, list):
         return False
     if len(deck) < 2 or len(deck) != len(slots):
+        return False
+    if sport == "baseball" and tuple(slots) != BASEBALL_FR_SLOTS:
         return False
     if len(set(deck)) != len(deck):
         return False

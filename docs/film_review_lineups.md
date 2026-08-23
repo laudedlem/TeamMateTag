@@ -6,7 +6,7 @@ elsewhere in the same deck.
 
 | Sport | Cards | Required lineup slots |
 | --- | ---: | --- |
-| Baseball | 10 | C, 1B, 2B, 3B, SS, LF, CF, RF, DH, SP |
+| Baseball | 12 | C, 1B, 2B, 3B, SS, LF, CF, RF, DH, SP, RP, CP |
 | Football | 12 | Choose offense: QB, RB, 3 WR, TE, 5 OL, K; or defense: 4 DL, 3 LB, 2 CB, 2 S, P |
 | Hockey | 11 | 2 LW, 2 C, 2 RW, 4 D, G |
 | Basketball | 12 | 2 PG, 2 SG, 2 SF, 2 PF, 2 C, 2 random |

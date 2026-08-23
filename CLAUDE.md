@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.3.41`
+- Current display version: `0.3.42`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -179,6 +179,17 @@ goalie placement plus bench slots, and football draws offensive or defensive
 half-field formations with kicker/punter on special-teams sideline. Boards now
 open by default so correct guesses visibly fill the sport graphic as the lineup
 is solved.
+
+Update, 2026-08-23 (0.3.42): redid the Film Review board graphics around the
+reference diagrams. The background surfaces are simple line-only diagrams with
+home plate, hoop/baseline, hockey net/endboard, and football end zone at the
+bottom. Background label text was removed from bench/dugout/bullpen/special
+teams areas. Baseball Film Review now targets 12 players and 11 connections by
+adding RP and CP bullpen slots from pitcher appearances; archive rebuilds should
+regenerate baseball Film Review tapes for the new length. Football formations
+now orient offense toward the bottom end zone and defense protecting it, with a
+SLOT role available on offense. Film Review link bars are centered against the
+card chain across sports.
 - **Division Rivalry**: online two-player alternating lineup. 20-second turns,
   Rule B team strikes, matchmaking, challenge codes, friends, rematches,
   requeueing, ELO, and profile statistics.
