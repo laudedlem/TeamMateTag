@@ -7794,8 +7794,7 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
 }
 
 .fr-football-yard,
-.fr-football-sideline-hashes,
-.fr-football-inner-hashes {
+.fr-football-sideline-hashes {
   fill: none;
   stroke: rgba(248, 255, 244, 0.86);
   stroke-linecap: square;
@@ -7805,8 +7804,7 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
   stroke-width: 0.95;
 }
 
-.fr-football-sideline-hashes,
-.fr-football-inner-hashes {
+.fr-football-sideline-hashes {
   stroke-width: 1.05;
 }
 
@@ -7819,13 +7817,13 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
 }
 
 .sport-football .fr-board-slot {
-  height: 54px;
-  width: 76px;
+  height: 50px;
+  width: 60px;
 }
 
 .sport-football .fr-board-slot .fr-board-headshot {
-  height: 23px;
-  width: 23px;
+  height: 21px;
+  width: 21px;
 }
 
 .sport-football .fr-board-slot .fr-board-role {
@@ -7838,13 +7836,13 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
 }
 
 .sport-football .slot-index-11 {
-  height: 50px;
-  width: 70px;
+  height: 40px;
+  width: 54px;
 }
 
 .sport-football .slot-index-11 .fr-board-headshot {
-  height: 21px;
-  width: 21px;
+  height: 19px;
+  width: 19px;
 }
 
 @media (max-width: 640px) {
@@ -7853,8 +7851,8 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
   }
 
   .sport-football .fr-board-slot {
-    height: 42px;
-    width: 48px;
+    height: 38px;
+    width: 41px;
   }
 
   .sport-football .fr-board-slot .fr-board-headshot {
@@ -7872,8 +7870,8 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
   }
 
   .sport-football .slot-index-11 {
-    height: 39px;
-    width: 46px;
+    height: 32px;
+    width: 38px;
   }
 
   .sport-football .slot-index-11 .fr-board-headshot {

@@ -2959,32 +2959,32 @@ function frBoardPlacement(sport, unit, slot, index) {
     },
     football: unit === 'defense'
       ? {
-          0: { x: 20, y: 55, zone: 'surface', label: 'EDGE' },
-          1: { x: 40, y: 55, zone: 'surface', label: 'DT' },
-          2: { x: 60, y: 55, zone: 'surface', label: 'DT' },
-          3: { x: 80, y: 55, zone: 'surface', label: 'EDGE' },
-          4: { x: 31, y: 40, zone: 'surface', label: 'OLB' },
-          5: { x: 50, y: 38, zone: 'surface', label: 'MIKE' },
-          6: { x: 69, y: 40, zone: 'surface', label: 'OLB' },
-          7: { x: 9, y: 48, zone: 'surface', label: 'CB' },
-          8: { x: 91, y: 48, zone: 'surface', label: 'CB' },
-          9: { x: 36, y: 24, zone: 'surface', label: 'S' },
-          10: { x: 64, y: 24, zone: 'surface', label: 'S' },
-          11: { x: 50, y: 89, zone: 'surface', label: 'P' },
+          0: { x: 32, y: 33, zone: 'surface', label: 'EDGE' },
+          1: { x: 44, y: 33, zone: 'surface', label: 'DT' },
+          2: { x: 56, y: 33, zone: 'surface', label: 'DT' },
+          3: { x: 68, y: 33, zone: 'surface', label: 'EDGE' },
+          4: { x: 34, y: 48, zone: 'surface', label: 'OLB' },
+          5: { x: 50, y: 49, zone: 'surface', label: 'MIKE' },
+          6: { x: 66, y: 48, zone: 'surface', label: 'OLB' },
+          7: { x: 10, y: 40, zone: 'surface', label: 'CB' },
+          8: { x: 90, y: 40, zone: 'surface', label: 'CB' },
+          9: { x: 38, y: 64, zone: 'surface', label: 'S' },
+          10: { x: 62, y: 64, zone: 'surface', label: 'S' },
+          11: { x: 50, y: 76.5, zone: 'surface', label: 'P' },
         }
       : {
-          0: { x: 50, y: 61, zone: 'surface', label: 'QB' },
-          1: { x: 50, y: 74, zone: 'surface', label: 'RB' },
-          2: { x: 8, y: 46, zone: 'surface', label: 'WR' },
-          3: { x: 24, y: 47, zone: 'surface', label: 'SLOT' },
-          4: { x: 92, y: 46, zone: 'surface', label: 'WR' },
-          5: { x: 76, y: 47, zone: 'surface', label: 'TE' },
-          6: { x: 18, y: 52, zone: 'surface', label: 'OT' },
-          7: { x: 34, y: 52, zone: 'surface', label: 'OG' },
-          8: { x: 50, y: 52, zone: 'surface', label: 'C' },
-          9: { x: 66, y: 52, zone: 'surface', label: 'OG' },
-          10: { x: 82, y: 52, zone: 'surface', label: 'OT' },
-          11: { x: 50, y: 89, zone: 'surface', label: 'K' },
+          0: { x: 50, y: 38, zone: 'surface', label: 'QB' },
+          1: { x: 50, y: 24, zone: 'surface', label: 'RB' },
+          2: { x: 8, y: 44, zone: 'surface', label: 'WR' },
+          3: { x: 22, y: 43, zone: 'surface', label: 'SLOT' },
+          4: { x: 92, y: 44, zone: 'surface', label: 'WR' },
+          5: { x: 78, y: 43, zone: 'surface', label: 'TE' },
+          6: { x: 32, y: 56, zone: 'surface', label: 'OT' },
+          7: { x: 41, y: 56, zone: 'surface', label: 'OG' },
+          8: { x: 50, y: 56, zone: 'surface', label: 'C' },
+          9: { x: 59, y: 56, zone: 'surface', label: 'OG' },
+          10: { x: 68, y: 56, zone: 'surface', label: 'OT' },
+          11: { x: 50, y: 76.5, zone: 'surface', label: 'K' },
         },
   };
   const placement = layouts[sport]?.[index] || fallback;
@@ -3053,7 +3053,6 @@ function frSurfaceArt(sport) {
         <rect class="fr-football-endzone" x="2" y="44" width="96" height="12" />
         <path class="fr-football-yard" d="M 2 8 H 98 M 2 20 H 98 M 2 32 H 98 M 2 44 H 98" />
         <path class="fr-football-sideline-hashes" d="M 2 5 H 7 M 93 5 H 98 M 2 11 H 7 M 93 11 H 98 M 2 17 H 7 M 93 17 H 98 M 2 23 H 7 M 93 23 H 98 M 2 29 H 7 M 93 29 H 98 M 2 35 H 7 M 93 35 H 98 M 2 41 H 7 M 93 41 H 98" />
-        <path class="fr-football-inner-hashes" d="M 36 5 V 7.6 M 64 5 V 7.6 M 36 11 V 13.6 M 64 11 V 13.6 M 36 17 V 19.6 M 64 17 V 19.6 M 36 23 V 25.6 M 64 23 V 25.6 M 36 29 V 31.6 M 64 29 V 31.6 M 36 35 V 37.6 M 64 35 V 37.6 M 36 41 V 43.6 M 64 41 V 43.6" />
         <path class="fr-football-goalpost" d="M 50 55 V 49 M 37 49 H 63 M 37 49 V 39 M 63 49 V 39" />
       </svg>`;
   }
