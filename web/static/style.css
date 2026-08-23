@@ -7550,8 +7550,8 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
 .sport-hockey .fr-board-surface {
   aspect-ratio: 1 / 0.68;
   background:
-    linear-gradient(180deg, rgba(103, 215, 255, 0.96), rgba(48, 160, 222, 0.96));
-  border: 2px solid rgba(26, 112, 170, 0.9);
+    linear-gradient(135deg, rgba(152, 222, 246, 0.96), rgba(78, 169, 221, 0.96) 48%, rgba(12, 73, 132, 0.98));
+  border: 2px solid rgba(9, 49, 82, 0.9);
   border-radius: 8px;
 }
 
