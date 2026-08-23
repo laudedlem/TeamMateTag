@@ -550,7 +550,7 @@ function renderProfile() {
   els.profileStatus.textContent = profile.authenticated
     ? activeProfileName
     : profile.account
-      ? `${activeProfileName} - account found`
+      ? `${activeProfileName} - Account Found`
       : activeProfileName;
   const selectedSport = els.profileSportSelect?.value || 'baseball';
   const sportTerms = {
@@ -576,13 +576,13 @@ function renderProfile() {
   } else {
     els.profileFrRecord.textContent = `${wins}-${Math.max(0, plays - wins)}`;
   }
-  els.profileFrStreak.textContent = `${stats.fr_daily_streak ?? 0} day${(stats.fr_daily_streak ?? 0) === 1 ? '' : 's'}`;
+  els.profileFrStreak.textContent = `${stats.fr_daily_streak ?? 0} ${(stats.fr_daily_streak ?? 0) === 1 ? 'Day' : 'Days'}`;
   els.profileDrElo.textContent = String(stats.dr_elo ?? 1200);
   els.profileDrRecord.textContent = `${drWins}-${drLosses}`;
   const topStruck = stats.top_struck_teams || [];
   els.profileTopStruck.textContent = topStruck.length
     ? topStruck.map((t) => `${t.team_name} ${seasonText(t)} (${t.count})`).join(', ')
-    : 'None yet';
+    : 'None Yet';
   els.profileBpBestLabel.textContent = `${sportTerms.reps} Longest Lineup`;
   els.profileBpPlaysLabel.textContent = `${sportTerms.reps} Plays`;
   els.profileFrLabel.textContent = 'Film Review Win-Loss';
@@ -603,7 +603,7 @@ function renderProfile() {
     els.accountLoggedOut.hidden = false;
     els.accountLoggedIn.hidden = true;
     els.accountSummary.textContent = '';
-    els.accountStatus.textContent = 'Sign in to keep your profile and stats across devices.';
+    els.accountStatus.textContent = 'Sign In to Keep Your Profile and Stats Across Devices.';
     els.accountTrayAction.textContent = 'Login';
     els.accountTrayAction.classList.remove('is-logout');
   }
@@ -744,7 +744,7 @@ async function deleteAccount() {
 }
 
 function currentHandle() {
-  return profile?.account?.username || profile?.display_name || 'your profile';
+  return profile?.account?.username || profile?.display_name || 'Your Profile';
 }
 
 function renderSimpleList(el, rows, emptyText, actionBuilder) {
@@ -796,27 +796,27 @@ function renderFriends() {
   if (!els.friendsStatus) return;
   if (!profile?.authenticated) {
     if (els.friendsOpenBtn) els.friendsOpenBtn.textContent = 'Friends';
-    els.friendsStatus.textContent = 'Create an account or log in to use friends.';
-    renderSimpleList(els.incomingRequestsList, [], 'Account required.', null);
-    renderSimpleList(els.outgoingRequestsList, [], 'Account required.', null);
-    renderSimpleList(els.incomingChallengesList, [], 'Account required.', null);
-    renderSimpleList(els.outgoingChallengesList, [], 'Account required.', null);
-    renderSimpleList(els.challengeHistoryList, [], 'Account required.', null);
-    renderSimpleList(els.friendsList, [], 'Account required.', null);
+    els.friendsStatus.textContent = 'Create an Account or Log In to Use Friends.';
+    renderSimpleList(els.incomingRequestsList, [], 'Account Required.', null);
+    renderSimpleList(els.outgoingRequestsList, [], 'Account Required.', null);
+    renderSimpleList(els.incomingChallengesList, [], 'Account Required.', null);
+    renderSimpleList(els.outgoingChallengesList, [], 'Account Required.', null);
+    renderSimpleList(els.challengeHistoryList, [], 'Account Required.', null);
+    renderSimpleList(els.friendsList, [], 'Account Required.', null);
     return;
   }
   if (!friendsData) {
     if (els.friendsOpenBtn) els.friendsOpenBtn.textContent = 'Friends';
-    els.friendsStatus.textContent = 'Loading friends...';
+    els.friendsStatus.textContent = 'Loading Friends...';
     return;
   }
   const pendingCount = (friendsData.incoming_requests?.length || 0) + (friendsData.incoming_challenges?.length || 0);
   if (els.friendsOpenBtn) els.friendsOpenBtn.textContent = pendingCount > 0 ? `Friends (${pendingCount})` : 'Friends';
-  els.friendsStatus.textContent = 'Add friends by username or email. Friend challenges start Division Rivalry right away.';
+  els.friendsStatus.textContent = 'Add Friends by Username or Email. Friend Challenges start Division Rivalry right away.';
   renderSimpleList(
     els.incomingRequestsList,
     friendsData.incoming_requests,
-    'No incoming requests.',
+    'No Incoming Requests.',
     (row) => `
       <button class="secondary" type="button" data-friend-accept="${row.request_id}">Accept</button>
       <button class="secondary" type="button" data-friend-decline="${row.request_id}">Decline</button>
@@ -825,13 +825,13 @@ function renderFriends() {
   renderSimpleList(
     els.outgoingRequestsList,
     friendsData.outgoing_requests,
-    'No outgoing requests.',
+    'No Outgoing Requests.',
     (row) => `<button class="secondary" type="button" data-friend-cancel="${row.request_id}">Cancel</button>`,
   );
   renderSimpleList(
     els.incomingChallengesList,
     friendsData.incoming_challenges,
-    'No game requests.',
+    'No Game Requests.',
     (row) => `
       <button class="secondary" type="button" data-challenge-accept="${row.challenge_id}">Accept</button>
       <button class="secondary" type="button" data-challenge-decline="${row.challenge_id}">Decline</button>
@@ -840,19 +840,19 @@ function renderFriends() {
   renderSimpleList(
     els.outgoingChallengesList,
     friendsData.outgoing_challenges,
-    'No sent game requests.',
+    'No Sent Game Requests.',
     (row) => `<button class="secondary" type="button" data-challenge-cancel="${row.challenge_id}">Cancel</button>`,
   );
   renderSimpleList(
     els.friendsList,
     friendsData.friends,
-    'No friends yet.',
+    'No Friends Yet.',
     (row) => `<button class="secondary" type="button" data-friend-challenge="${row.user_id}">Challenge</button>`,
   );
   renderSimpleList(
     els.challengeHistoryList,
     friendsData.challenge_history,
-    'No challenge history yet.',
+    'No Challenge History Yet.',
     (row) => '',
   );
   els.challengeHistoryList.querySelectorAll('.friend-row').forEach((rowEl, idx) => {
@@ -2819,6 +2819,9 @@ async function loadFrArchive() {
     const state = escapeHtml(day.status);
     const date = escapeHtml(day.date);
     const label = day.is_today ? 'Today' : `#${day.number}`;
+    const dateText = day.date
+      ? new Date(`${day.date}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+      : '';
     const action = day.is_today
       ? (day.status === 'unseen' ? 'daily' : (day.status === 'in_progress' ? 'continue' : 'review'))
       : (day.status === 'in_progress' ? 'continue' : (day.status === 'unseen' ? 'archive' : 'review'));
@@ -2830,6 +2833,7 @@ async function loadFrArchive() {
       ? `<button class="fr-archive-action" data-date="${date}" data-unit="${unitAttr}" data-action="retry">Retry</button>` : '';
     return `<div class="fr-archive-day ${state}">
       <span class="fr-archive-number">${label}</span>
+      <span class="fr-archive-date">${escapeHtml(dateText)}</span>
       <span class="fr-archive-status">${filmStatusText(day.status, day.is_today)}</span>
       <button class="fr-archive-action" data-date="${date}" data-unit="${unitAttr}" data-game-id="${escapeHtml(day.game_id || '')}" data-action="${action}">${text}</button>
       ${retry}

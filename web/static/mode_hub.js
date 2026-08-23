@@ -347,7 +347,7 @@ function renderFilmReviewArchiveSelect(sport, days, unitData = null) {
     if (b.is_today) return 1;
     return Number(b.number || 0) - Number(a.number || 0);
   });
-  select.innerHTML = '<option value="">Select Archived Tape...</option>' + sorted.map((day) => {
+  select.innerHTML = '<option value="">Choose Tape...</option>' + sorted.map((day) => {
     const optionStatus = day.is_today && day.status === 'unseen' ? 'new' : day.status || 'unseen';
     return `<option value="${filmReviewUrl(sport, day)}" class="fr-option-${optionStatus}">${unitLabel(day.unit)}${day.unit ? ' - ' : ''}${formatArchiveLabel(day)}</option>`;
   }).join('');
