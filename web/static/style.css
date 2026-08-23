@@ -7545,3 +7545,114 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
     width: 10px;
   }
 }
+
+/* 0.3.65: reference-style hockey half-rink with left bench lane. */
+.sport-hockey .fr-board-surface {
+  aspect-ratio: 1 / 0.78;
+  background:
+    linear-gradient(180deg, rgba(239, 250, 255, 0.98), rgba(203, 232, 244, 0.98));
+  border: 2px solid rgba(16, 43, 60, 0.88);
+  border-radius: 8px;
+}
+
+.sport-hockey .fr-surface-lines,
+.sport-hockey .fr-board-section {
+  display: none;
+}
+
+.fr-hockey-svg {
+  height: 100%;
+  inset: 0;
+  position: absolute;
+  width: 100%;
+  z-index: 1;
+}
+
+.fr-hockey-rink,
+.fr-hockey-faceoff,
+.fr-hockey-hash,
+.fr-hockey-crease {
+  fill: none;
+  stroke: rgba(232, 35, 61, 0.8);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.fr-hockey-rink {
+  fill: rgba(255, 255, 255, 0.36);
+  stroke: rgba(20, 28, 36, 0.86);
+  stroke-width: 2.2;
+}
+
+.fr-hockey-icing {
+  stroke: rgba(232, 35, 61, 0.78);
+  stroke-width: 1.8;
+}
+
+.fr-hockey-blue {
+  stroke: rgba(18, 103, 182, 0.86);
+  stroke-width: 2.4;
+}
+
+.fr-hockey-dot {
+  fill: rgba(232, 35, 61, 0.9);
+}
+
+.fr-hockey-crease {
+  fill: rgba(95, 191, 225, 0.62);
+  stroke: rgba(232, 35, 61, 0.82);
+}
+
+.fr-hockey-bench {
+  fill: rgba(13, 29, 44, 0.12);
+  stroke: rgba(20, 28, 36, 0.68);
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.sport-hockey .fr-board-slot.zone-surface {
+  height: 70px;
+  width: 98px;
+}
+
+.sport-hockey .fr-board-slot.zone-surface .fr-board-headshot {
+  height: 32px;
+  width: 32px;
+}
+
+.sport-hockey .fr-board-slot.zone-sideline {
+  height: 46px;
+  width: 64px;
+}
+
+.sport-hockey .fr-board-slot.zone-sideline .fr-board-headshot {
+  height: 20px;
+  width: 20px;
+}
+
+@media (max-width: 640px) {
+  .sport-hockey .fr-board-surface {
+    aspect-ratio: 1 / 0.84;
+  }
+
+  .sport-hockey .fr-board-slot.zone-surface {
+    height: 47px;
+    width: 60px;
+  }
+
+  .sport-hockey .fr-board-slot.zone-surface .fr-board-headshot {
+    height: 22px;
+    width: 22px;
+  }
+
+  .sport-hockey .fr-board-slot.zone-sideline {
+    height: 33px;
+    width: 40px;
+  }
+
+  .sport-hockey .fr-board-slot.zone-sideline .fr-board-headshot {
+    height: 13px;
+    width: 13px;
+  }
+}

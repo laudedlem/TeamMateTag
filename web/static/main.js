@@ -2941,17 +2941,17 @@ function frBoardPlacement(sport, unit, slot, index) {
       11: { x: 9, y: 87.5, zone: 'sideline', label: 'BN' },
     },
     hockey: {
-      0: { x: 28, y: 67, zone: 'surface', label: 'LW' },
-      2: { x: 49, y: 72, zone: 'surface', label: 'C' },
-      4: { x: 70, y: 67, zone: 'surface', label: 'RW' },
-      6: { x: 36, y: 42, zone: 'surface', label: 'LD' },
-      8: { x: 61, y: 42, zone: 'surface', label: 'RD' },
-      10: { x: 49, y: 90, zone: 'surface', label: 'G' },
-      1: { x: 92, y: 25, zone: 'sideline', label: 'LW' },
-      3: { x: 92, y: 37, zone: 'sideline', label: 'C' },
-      5: { x: 92, y: 49, zone: 'sideline', label: 'RW' },
-      7: { x: 92, y: 61, zone: 'sideline', label: 'D' },
-      9: { x: 92, y: 73, zone: 'sideline', label: 'D' },
+      0: { x: 39, y: 66, zone: 'surface', label: 'LW' },
+      2: { x: 58.5, y: 72, zone: 'surface', label: 'C' },
+      4: { x: 78, y: 66, zone: 'surface', label: 'RW' },
+      6: { x: 44, y: 39, zone: 'surface', label: 'LD' },
+      8: { x: 73, y: 39, zone: 'surface', label: 'RD' },
+      10: { x: 58.5, y: 90, zone: 'surface', label: 'G' },
+      1: { x: 9, y: 16, zone: 'sideline', label: 'LW' },
+      3: { x: 9, y: 33, zone: 'sideline', label: 'C' },
+      5: { x: 9, y: 50, zone: 'sideline', label: 'RW' },
+      7: { x: 9, y: 67, zone: 'sideline', label: 'D' },
+      9: { x: 9, y: 84, zone: 'sideline', label: 'D' },
     },
     football: unit === 'defense'
       ? {
@@ -3023,6 +3023,23 @@ function frSurfaceArt(sport) {
         <path class="fr-basketball-ft-dash" d="M 47 51 Q 58.5 66 70 51" />
         <circle class="fr-basketball-rim" cx="58.5" cy="83" r="2" />
         <path class="fr-basketball-backboard" d="M 50.5 87 H 66.5" />
+      </svg>`;
+  }
+  if (sport === 'hockey') {
+    return `
+      <svg class="fr-hockey-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+        <rect class="fr-hockey-bench" x="2" y="5" width="14" height="90" rx="2" />
+        <path class="fr-hockey-rink" d="M 19 4 H 98 V 78 Q 98 96 80 96 H 37 Q 19 96 19 78 Z" />
+        <path class="fr-hockey-icing" d="M 19 82 H 98" />
+        <path class="fr-hockey-blue" d="M 19 31 H 98" />
+        <circle class="fr-hockey-dot" cx="42" cy="22" r="1.4" />
+        <circle class="fr-hockey-dot" cx="75" cy="22" r="1.4" />
+        <circle class="fr-hockey-faceoff" cx="42" cy="62" r="10" />
+        <circle class="fr-hockey-faceoff" cx="75" cy="62" r="10" />
+        <circle class="fr-hockey-dot" cx="42" cy="62" r="1.5" />
+        <circle class="fr-hockey-dot" cx="75" cy="62" r="1.5" />
+        <path class="fr-hockey-hash" d="M 31 62 H 34 M 50 62 H 53 M 42 53 V 56 M 42 68 V 71 M 64 62 H 67 M 83 62 H 86 M 75 53 V 56 M 75 68 V 71" />
+        <path class="fr-hockey-crease" d="M 50 82 Q 58.5 70 67 82" />
       </svg>`;
   }
   return '';
