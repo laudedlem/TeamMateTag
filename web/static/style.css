@@ -7926,3 +7926,122 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
     width: 21px;
   }
 }
+
+/* 0.3.84 final support-page cascade overrides. */
+body.legal-shell,
+body.headshot-audit-page {
+  background:
+    radial-gradient(circle at 12% 18%, rgba(242, 85, 85, 0.16), transparent 28%),
+    radial-gradient(circle at 82% 12%, rgba(74, 179, 255, 0.14), transparent 30%),
+    radial-gradient(circle at 68% 88%, rgba(80, 211, 107, 0.12), transparent 34%),
+    linear-gradient(135deg, #101722, #0c1119 48%, #111827);
+}
+
+body.legal-shell header,
+body.headshot-audit-page header {
+  background:
+    linear-gradient(110deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.025)),
+    rgba(10, 16, 25, 0.88);
+  border-bottom-color: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.28);
+}
+
+body.legal-shell .legal-page,
+body.reset-shell .screen {
+  max-width: 900px;
+  margin-inline: auto;
+  padding: 2.4rem 1rem 1.25rem;
+}
+
+body.reset-shell .start-card.legal-page {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+body.legal-shell .legal-card,
+body.headshot-audit-page .audit-controls,
+body.headshot-audit-page .audit-summary,
+body.headshot-audit-page .audit-card {
+  background:
+    linear-gradient(135deg, rgba(74, 179, 255, 0.12), transparent 42%),
+    linear-gradient(315deg, rgba(255, 216, 79, 0.08), transparent 52%),
+    rgba(15, 23, 36, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-top: 5px solid color-mix(in srgb, var(--accent) 72%, #ffffff);
+  border-radius: 8px;
+  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.34);
+}
+
+body.legal-shell .legal-card {
+  padding: clamp(1.15rem, 3vw, 1.75rem);
+}
+
+body.legal-shell .legal-card h2,
+body.headshot-audit-page h2 {
+  color: color-mix(in srgb, var(--accent) 72%, #ffffff);
+  font-size: clamp(1.55rem, 3.5vw, 2.2rem);
+  letter-spacing: 0;
+  margin: 0.35rem 0 0.7rem;
+}
+
+body.legal-shell .legal-card p {
+  color: color-mix(in srgb, var(--text) 88%, var(--text-muted));
+  font-size: 1rem;
+  line-height: 1.55;
+}
+
+body.legal-shell .legal-card .muted {
+  color: color-mix(in srgb, var(--text-muted) 84%, #ffffff);
+}
+
+body.legal-shell .legal-card a:not(.back-link),
+body.legal-shell .legal-card a:not(.back-link):visited {
+  color: color-mix(in srgb, var(--accent) 78%, #ffffff);
+  font-weight: 800;
+}
+
+body.legal-shell .legal-card .back-link {
+  color: color-mix(in srgb, var(--accent) 82%, #ffffff);
+  display: inline-flex;
+  font-weight: 900;
+  margin-bottom: 0.65rem;
+}
+
+body.reset-shell .auth-card {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 0.85rem;
+}
+
+body.headshot-audit-page .audit-main {
+  max-width: 1240px;
+  padding-top: 2.2rem;
+}
+
+body.headshot-audit-page .audit-controls,
+body.headshot-audit-page .audit-summary {
+  padding: 0.8rem;
+}
+
+body.headshot-audit-page .audit-controls label,
+body.headshot-audit-page .audit-card label {
+  color: color-mix(in srgb, var(--text-muted) 84%, #ffffff);
+  font-weight: 800;
+}
+
+body.headshot-audit-page .audit-card {
+  border-radius: 8px;
+  padding: 0.75rem;
+}
+
+body.headshot-audit-page .audit-photo {
+  background: rgba(5, 10, 18, 0.68);
+  border-radius: 6px;
+}
+
+body.headshot-audit-page .audit-count,
+body.headshot-audit-page .audit-status-pill {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.18);
+}

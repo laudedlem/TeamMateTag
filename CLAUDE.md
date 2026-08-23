@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.3.83`
+- Current display version: `0.3.84`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -24,6 +24,13 @@ changes. It is the concise source of truth for another coding assistant.
   migration run, then remove it again.
 
 ## Current user experience
+
+Update, 2026-08-23 (0.3.84): completed a support-page aesthetic sweep after
+the Film Review sport graphics were accepted for now. Contact, Privacy, Terms,
+Reset Password, and the local Headshot Audit utility now use the current smoky
+app background, colored/top-accent panels, tighter 8px card radii, clearer form
+surfaces, and worksheet-style capitalization polish where the old utility copy
+was still visibly plain.
 
 Update, 2026-08-23 (0.3.83): separated the Football Film Review offensive
 outside WRs from SLOT/TE by tucking SLOT/TE inward and keeping WRs just inside
