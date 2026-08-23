@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.3.69`
+- Current display version: `0.3.70`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -24,6 +24,12 @@ changes. It is the concise source of truth for another coding assistant.
   migration run, then remove it again.
 
 ## Current user experience
+
+Update, 2026-08-23 (0.3.70): refined hockey Film Review styling. The outer
+board background is now stronger hockey blue while the ice stays pale, the top
+rink edge is drawn as a red center-line-style stroke, neutral-zone dots moved to
+the midpoint between that top line and the blue line, and all hockey player
+widgets were enlarged.
 
 Update, 2026-08-23 (0.3.69): refined the hockey Film Review frame so the rink
 no longer bleeds offscreen. The SVG now draws the cropped rink directly inside

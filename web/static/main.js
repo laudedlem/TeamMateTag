@@ -3030,10 +3030,11 @@ function frSurfaceArt(sport) {
       <svg class="fr-hockey-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">
         <rect class="fr-hockey-bench" x="2" y="3" width="14" height="94" rx="2" />
         <path class="fr-hockey-rink" d="M 19 3 H 98 V 78 Q 98 96 80 96 H 37 Q 19 96 19 78 Z" />
+        <path class="fr-hockey-center" d="M 19 3 H 98" />
         <path class="fr-hockey-icing" d="M 19 78 H 98" />
         <path class="fr-hockey-blue" d="M 19 17 H 98" />
-        <circle class="fr-hockey-dot" cx="42" cy="7" r="1.4" />
-        <circle class="fr-hockey-dot" cx="75" cy="7" r="1.4" />
+        <circle class="fr-hockey-dot" cx="42" cy="10" r="1.4" />
+        <circle class="fr-hockey-dot" cx="75" cy="10" r="1.4" />
         <circle class="fr-hockey-faceoff" cx="42" cy="54" r="10" />
         <circle class="fr-hockey-faceoff" cx="75" cy="54" r="10" />
         <circle class="fr-hockey-dot" cx="42" cy="54" r="1.5" />
