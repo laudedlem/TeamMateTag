@@ -7297,3 +7297,47 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
   content: "";
   display: none;
 }
+
+/* 0.3.45: reliable reference-style baseball SVG diagram. */
+.sport-baseball .fr-board-surface {
+  background:
+    linear-gradient(180deg, rgba(188, 222, 154, 0.98), rgba(116, 177, 102, 0.98));
+  border: 2px solid rgba(11, 20, 16, 0.9);
+  border-radius: 8px;
+}
+
+.sport-baseball .fr-surface-lines,
+.sport-baseball .fr-board-section {
+  display: none;
+}
+
+.fr-baseball-svg {
+  height: 100%;
+  inset: 0;
+  position: absolute;
+  width: 100%;
+  z-index: 1;
+}
+
+.fr-baseball-outfield,
+.fr-baseball-foul,
+.fr-baseball-diamond {
+  fill: none;
+  stroke: rgba(11, 18, 18, 0.92);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3.2;
+}
+
+.fr-baseball-outfield {
+  stroke-width: 3.6;
+}
+
+.fr-baseball-base,
+.fr-baseball-home,
+.fr-baseball-mound {
+  fill: rgba(248, 250, 252, 0.98);
+  stroke: rgba(11, 18, 18, 0.92);
+  stroke-linejoin: round;
+  stroke-width: 2.6;
+}

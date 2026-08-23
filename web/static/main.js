@@ -2995,6 +2995,21 @@ function frSurfaceLabel(sport, unit) {
   return 'Lineup Board';
 }
 
+function frSurfaceArt(sport) {
+  if (sport !== 'baseball') return '';
+  return `
+      <svg class="fr-baseball-svg" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
+        <path class="fr-baseball-outfield" d="M 4 36 Q 50 -8 96 36" />
+        <path class="fr-baseball-foul" d="M 4 36 L 50 88 L 96 36" />
+        <path class="fr-baseball-diamond" d="M 50 15 L 79 52 L 50 87 L 21 52 Z" />
+        <rect class="fr-baseball-base" x="46.8" y="11.8" width="6.4" height="6.4" rx="1.1" transform="rotate(45 50 15)" />
+        <rect class="fr-baseball-base" x="17.8" y="48.8" width="6.4" height="6.4" rx="1.1" transform="rotate(45 21 52)" />
+        <rect class="fr-baseball-base" x="75.8" y="48.8" width="6.4" height="6.4" rx="1.1" transform="rotate(45 79 52)" />
+        <path class="fr-baseball-home" d="M 44.5 84 L 55.5 84 L 55.5 90 L 50 95 L 44.5 90 Z" />
+        <rect class="fr-baseball-mound" x="46.5" y="50.5" width="7" height="7" rx="1.4" />
+      </svg>`;
+}
+
 function renderFrLineupBoard() {
   const slots = frGame?.slots || [];
   if (!slots.length) {
@@ -3017,6 +3032,7 @@ function renderFrLineupBoard() {
       <span>${collapsed ? 'Show' : 'Hide'}</span>
     </button>
     <div class="fr-board-surface" aria-label="${escapeHtml(surfaceLabel)}" ${collapsed ? 'hidden' : ''}>
+      ${frSurfaceArt(sport)}
       <div class="fr-surface-lines" aria-hidden="true"></div>
       <div class="fr-board-section fr-board-section-surface" aria-hidden="true"></div>
       <div class="fr-board-section fr-board-section-sideline" aria-hidden="true"></div>
