@@ -7301,8 +7301,8 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
 /* 0.3.45: reliable reference-style baseball SVG diagram. */
 .sport-baseball .fr-board-surface {
   background:
-    linear-gradient(180deg, rgba(188, 222, 154, 0.98), rgba(116, 177, 102, 0.98));
-  border: 2px solid rgba(11, 20, 16, 0.9);
+    linear-gradient(180deg, rgba(255, 115, 115, 0.98), rgba(181, 47, 56, 0.98));
+  border: 2px solid rgba(67, 10, 16, 0.9);
   border-radius: 8px;
 }
 
@@ -7321,9 +7321,10 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
 
 .fr-baseball-outfield,
 .fr-baseball-foul,
-.fr-baseball-diamond {
+.fr-baseball-diamond,
+.fr-baseball-rubber {
   fill: none;
-  stroke: rgba(11, 18, 18, 0.92);
+  stroke: rgba(67, 10, 16, 0.95);
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 3.2;
@@ -7337,7 +7338,24 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
 .fr-baseball-home,
 .fr-baseball-mound {
   fill: rgba(248, 250, 252, 0.98);
-  stroke: rgba(11, 18, 18, 0.92);
+  stroke: rgba(67, 10, 16, 0.95);
   stroke-linejoin: round;
   stroke-width: 2.6;
+}
+
+.fr-baseball-mound {
+  fill: rgba(255, 195, 122, 0.96);
+}
+
+.fr-baseball-rubber {
+  stroke: rgba(248, 250, 252, 0.98);
+  stroke-width: 2.2;
+}
+
+.fr-baseball-bullpen,
+.fr-baseball-dugout {
+  fill: rgba(255, 255, 255, 0.16);
+  stroke: rgba(67, 10, 16, 0.82);
+  stroke-linejoin: round;
+  stroke-width: 2.2;
 }

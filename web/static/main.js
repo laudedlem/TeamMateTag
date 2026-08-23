@@ -2999,14 +2999,17 @@ function frSurfaceArt(sport) {
   if (sport !== 'baseball') return '';
   return `
       <svg class="fr-baseball-svg" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
-        <path class="fr-baseball-outfield" d="M 4 36 Q 50 -8 96 36" />
-        <path class="fr-baseball-foul" d="M 4 36 L 50 88 L 96 36" />
-        <path class="fr-baseball-diamond" d="M 50 15 L 79 52 L 50 87 L 21 52 Z" />
-        <rect class="fr-baseball-base" x="46.8" y="11.8" width="6.4" height="6.4" rx="1.1" transform="rotate(45 50 15)" />
-        <rect class="fr-baseball-base" x="17.8" y="48.8" width="6.4" height="6.4" rx="1.1" transform="rotate(45 21 52)" />
-        <rect class="fr-baseball-base" x="75.8" y="48.8" width="6.4" height="6.4" rx="1.1" transform="rotate(45 79 52)" />
-        <path class="fr-baseball-home" d="M 44.5 84 L 55.5 84 L 55.5 90 L 50 95 L 44.5 90 Z" />
-        <rect class="fr-baseball-mound" x="46.5" y="50.5" width="7" height="7" rx="1.4" />
+        <path class="fr-baseball-outfield" d="M 5 36 Q 50 2 95 36" />
+        <path class="fr-baseball-foul" d="M 5 36 L 50 86 L 95 36" />
+        <path class="fr-baseball-bullpen" d="M 8 76 L 27 67 L 32 77 L 13 86 Z" />
+        <path class="fr-baseball-dugout" d="M 70 77 L 89 68 L 94 78 L 75 87 Z" />
+        <path class="fr-baseball-diamond" d="M 50 31 L 72 59 L 50 86 L 28 59 Z" />
+        <rect class="fr-baseball-base" x="47" y="28" width="6" height="6" rx="1" transform="rotate(45 50 31)" />
+        <rect class="fr-baseball-base" x="25" y="56" width="6" height="6" rx="1" transform="rotate(45 28 59)" />
+        <rect class="fr-baseball-base" x="69" y="56" width="6" height="6" rx="1" transform="rotate(45 72 59)" />
+        <path class="fr-baseball-home" d="M 44.5 83 L 55.5 83 L 55.5 89 L 50 94 L 44.5 89 Z" />
+        <ellipse class="fr-baseball-mound" cx="50" cy="57" rx="7" ry="4.5" />
+        <path class="fr-baseball-rubber" d="M 47 57 H 53" />
       </svg>`;
 }
 
