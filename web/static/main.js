@@ -2932,13 +2932,13 @@ function frBoardPlacement(sport, unit, slot, index) {
       4: { x: 78, y: 53, zone: 'surface', label: 'SF' },
       6: { x: 45, y: 75, zone: 'surface', label: 'PF' },
       8: { x: 63, y: 76, zone: 'surface', label: 'C' },
-      1: { x: 10.5, y: 20, zone: 'sideline', label: 'PG' },
-      3: { x: 10.5, y: 30, zone: 'sideline', label: 'SG' },
-      5: { x: 10.5, y: 40, zone: 'sideline', label: 'SF' },
-      7: { x: 10.5, y: 50, zone: 'sideline', label: 'PF' },
-      9: { x: 10.5, y: 60, zone: 'sideline', label: 'C' },
-      10: { x: 10.5, y: 70, zone: 'sideline', label: 'BN' },
-      11: { x: 10.5, y: 80, zone: 'sideline', label: 'BN' },
+      1: { x: 10.5, y: 35, zone: 'sideline', label: 'PG' },
+      3: { x: 10.5, y: 43, zone: 'sideline', label: 'SG' },
+      5: { x: 10.5, y: 51, zone: 'sideline', label: 'SF' },
+      7: { x: 10.5, y: 59, zone: 'sideline', label: 'PF' },
+      9: { x: 10.5, y: 67, zone: 'sideline', label: 'C' },
+      10: { x: 10.5, y: 75, zone: 'sideline', label: 'BN' },
+      11: { x: 10.5, y: 83, zone: 'sideline', label: 'BN' },
     },
     hockey: {
       0: { x: 28, y: 67, zone: 'surface', label: 'LW' },
@@ -3015,7 +3015,7 @@ function frSurfaceArt(sport) {
   if (sport === 'basketball') {
     return `
       <svg class="fr-basketball-svg" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
-        <rect class="fr-basketball-bench" x="4" y="15" width="13" height="70" rx="2" />
+        <rect class="fr-basketball-bench" x="2" y="29" width="17" height="67" rx="2" />
         <rect class="fr-basketball-court" x="20" y="3" width="76" height="93" rx="1" />
         <path class="fr-basketball-three" d="M 28 96 L 28 84 Q 28 38 58 38 Q 88 38 88 84 L 88 96" />
         <rect class="fr-basketball-paint" x="45" y="59" width="26" height="37" />
