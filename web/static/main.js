@@ -2941,17 +2941,17 @@ function frBoardPlacement(sport, unit, slot, index) {
       11: { x: 9, y: 87.5, zone: 'sideline', label: 'BN' },
     },
     hockey: {
-      0: { x: 34, y: 55, zone: 'surface', label: 'LW' },
-      2: { x: 58.5, y: 62, zone: 'surface', label: 'C' },
-      4: { x: 83, y: 55, zone: 'surface', label: 'RW' },
-      6: { x: 44, y: 39, zone: 'surface', label: 'LD' },
-      8: { x: 73, y: 39, zone: 'surface', label: 'RD' },
+      0: { x: 33, y: 50, zone: 'surface', label: 'LW' },
+      2: { x: 58.5, y: 64, zone: 'surface', label: 'C' },
+      4: { x: 84, y: 50, zone: 'surface', label: 'RW' },
+      6: { x: 44, y: 32, zone: 'surface', label: 'LD' },
+      8: { x: 73, y: 32, zone: 'surface', label: 'RD' },
       10: { x: 58.5, y: 86, zone: 'surface', label: 'G' },
-      1: { x: 9, y: 20, zone: 'sideline', label: 'LW' },
-      3: { x: 9, y: 35, zone: 'sideline', label: 'C' },
-      5: { x: 9, y: 50, zone: 'sideline', label: 'RW' },
-      7: { x: 9, y: 65, zone: 'sideline', label: 'D' },
-      9: { x: 9, y: 80, zone: 'sideline', label: 'D' },
+      1: { x: 9, y: 17, zone: 'sideline', label: 'LW' },
+      3: { x: 9, y: 34, zone: 'sideline', label: 'C' },
+      5: { x: 9, y: 51, zone: 'sideline', label: 'RW' },
+      7: { x: 9, y: 68, zone: 'sideline', label: 'D' },
+      9: { x: 9, y: 85, zone: 'sideline', label: 'D' },
     },
     football: unit === 'defense'
       ? {
@@ -3028,7 +3028,7 @@ function frSurfaceArt(sport) {
   if (sport === 'hockey') {
     return `
       <svg class="fr-hockey-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">
-        <rect class="fr-hockey-bench" x="2" y="5" width="14" height="90" rx="2" />
+        <rect class="fr-hockey-bench" x="2" y="22" width="14" height="74" rx="2" />
         <path class="fr-hockey-rink" d="M 19 4 H 98 V 78 Q 98 96 80 96 H 37 Q 19 96 19 78 Z" />
         <path class="fr-hockey-icing" d="M 19 82 H 98" />
         <path class="fr-hockey-blue" d="M 19 31 H 98" />
