@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.3.74`
+- Current display version: `0.3.75`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -24,6 +24,10 @@ changes. It is the concise source of truth for another coding assistant.
   migration run, then remove it again.
 
 ## Current user experience
+
+Update, 2026-08-23 (0.3.75): aligned the hockey Film Review neutral-zone dots
+with the offensive-zone faceoff dots by moving the top dots outward to the same
+left/right lanes.
 
 Update, 2026-08-23 (0.3.74): final hockey Film Review rink positioning tweak.
 The offensive-zone faceoff circles/dots and `LW`/`RW` widgets moved slightly
