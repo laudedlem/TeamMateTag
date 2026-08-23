@@ -594,16 +594,16 @@ function renderProfile() {
     els.accountLoggedOut.hidden = true;
     els.accountLoggedIn.hidden = false;
     els.accountSummary.textContent = profile.account?.email
-      ? `${profile.account.username} - ${profile.account.email}`
+      ? `${profile.account.username} | ${profile.account.email}`
       : `${profile.account?.username || ""}`;
-    els.accountStatus.textContent = 'Account connected.';
+    els.accountStatus.textContent = '';
     els.accountTrayAction.textContent = 'Log Out';
     els.accountTrayAction.classList.add('is-logout');
   } else {
     els.accountLoggedOut.hidden = false;
     els.accountLoggedIn.hidden = true;
     els.accountSummary.textContent = '';
-    els.accountStatus.textContent = 'Create an account or log in to carry your profile across browsers and devices.';
+    els.accountStatus.textContent = 'Sign in to keep your profile and stats across devices.';
     els.accountTrayAction.textContent = 'Login';
     els.accountTrayAction.classList.remove('is-logout');
   }
@@ -2540,7 +2540,7 @@ function sportRulesHtml(sport = CURRENT_SPORT || 'baseball', mode = currentMode)
   return `
     <div class="rules-sheet">
       <section class="rules-section">
-        <h3>Game Modes</h3>
+        <h3>GameModes</h3>
         <div class="rules-mode-grid">
           <article class="rules-mode-card mode-manager">
             <h4>Manager Mode</h4>
@@ -2576,7 +2576,7 @@ function sharedRulesHtml() {
   return `
     <div class="rules-sheet">
       <section class="rules-section">
-        <h3>Game Modes</h3>
+        <h3>GameModes</h3>
         <div class="rules-mode-grid">
         <article class="rules-mode-card mode-manager">
           <h4>Manager Mode</h4>

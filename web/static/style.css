@@ -4767,3 +4767,127 @@ body[data-mode-hub="film"] .film-preview-player small {
     grid-template-columns: 1fr 1fr;
   }
 }
+
+/* 0.3.27: stronger hierarchy for hub choices and game play. */
+.home-root .account-tray-body {
+  padding: 0.9rem 1rem 0.25rem;
+}
+
+.home-root .auth-card {
+  padding-top: 0.5rem;
+}
+
+.home-root .auth-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.home-root .auth-actions {
+  margin-top: 0.48rem;
+}
+
+#account-summary {
+  margin: 0.1rem 0 0.25rem;
+  color: color-mix(in srgb, var(--accent) 52%, #ffffff);
+  font-weight: 700;
+}
+
+.mode-hub-page .hub-sport-tiles {
+  gap: 1rem;
+}
+
+body[data-mode-hub="film"] .film-sport-tile {
+  border-top-width: 5px;
+  border-color: color-mix(in srgb, var(--sport-accent) 65%, var(--border));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--sport-accent) 25%, transparent), transparent 52%),
+    #1b2637;
+}
+
+body[data-mode-hub="film"] .film-sport-tile .home-tile-icon {
+  width: 4.8rem;
+  height: 4.8rem;
+  opacity: 0.78;
+}
+
+body[data-mode-hub="film"] .fr-hub-archive-select {
+  min-height: 2.65rem;
+  border-color: color-mix(in srgb, var(--sport-accent) 48%, var(--border));
+}
+
+.manager-leaderboard-panel {
+  background:
+    linear-gradient(135deg, rgba(154, 166, 178, 0.23), rgba(74, 179, 255, 0.1) 47%, rgba(155, 123, 255, 0.12)),
+    #182131;
+}
+
+.manager-board-card:nth-child(1) { background: linear-gradient(145deg, rgba(154, 166, 178, 0.42), rgba(154, 166, 178, 0.11)); }
+.manager-board-card:nth-child(2) { background: linear-gradient(145deg, rgba(74, 179, 255, 0.36), rgba(74, 179, 255, 0.08)); }
+.manager-board-card:nth-child(3) { background: linear-gradient(145deg, rgba(255, 216, 79, 0.34), rgba(255, 216, 79, 0.08)); }
+.manager-board-card:nth-child(4) { background: linear-gradient(145deg, rgba(155, 123, 255, 0.34), rgba(155, 123, 255, 0.08)); }
+
+.manager-board-card > span:first-child {
+  color: rgba(255, 255, 255, 0.84);
+}
+
+.game-main .card-stack {
+  width: min(100%, 760px);
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.game-main .player-card {
+  border-top: 3px solid color-mix(in srgb, var(--sport-accent, var(--accent)) 62%, var(--border));
+  border-left-width: 3px;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.24);
+}
+
+.game-main .connection-bar,
+.game-main .fr-link-spacer {
+  width: calc(100% - 4rem);
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.game-main .connection-bar {
+  border-left: 0;
+  border-top: 2px solid color-mix(in srgb, var(--sport-accent, var(--accent)) 52%, var(--border));
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  background: color-mix(in srgb, var(--sport-accent, var(--accent)) 8%, var(--surface));
+}
+
+.game-main .fr-link-spacer {
+  border-left: 0;
+  border-top: 2px solid transparent;
+}
+
+.turn-card {
+  border-top-width: 5px;
+  background:
+    linear-gradient(125deg, color-mix(in srgb, var(--sport-accent, var(--accent)) 20%, transparent), transparent 56%),
+    #192437;
+}
+
+.side-section {
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--sport-accent, var(--accent)) 17%, transparent), transparent 62%),
+    #1a2536;
+}
+
+@media (max-width: 640px) {
+  .home-root .auth-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .home-root .auth-actions button {
+    flex: 1 1 auto;
+  }
+
+  body[data-mode-hub="film"] .film-sport-tile {
+    padding-top: 0.9rem;
+  }
+
+  .game-main .connection-bar,
+  .game-main .fr-link-spacer {
+    width: calc(100% - 1.4rem);
+  }
+}

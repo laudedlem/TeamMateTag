@@ -99,7 +99,7 @@ const MODE_RULES = {
 const SHARED_RULES_HTML = `
   <div class="rules-sheet">
     <section class="rules-section">
-      <h3>Game Modes</h3>
+      <h3>GameModes</h3>
       <div class="rules-mode-grid">
         <article class="rules-mode-card mode-manager">
           <h4>Manager Mode</h4>

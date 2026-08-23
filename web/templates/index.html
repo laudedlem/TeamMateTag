@@ -43,26 +43,24 @@
         <div class="account-tray-body">
           <div class="profile-head">
             <div>
-              <div class="profile-label">Profile</div>
+              <div class="profile-label">Profile name</div>
             <div class="profile-name-row">
               <input id="profile-name-input" type="text" maxlength="24" placeholder="Profile name" />
               <button id="profile-save-btn" class="secondary" type="button">Save</button>
               <button id="profile-open-btn" class="secondary" type="button">View Profile</button>
               <button id="friends-open-btn" class="secondary" type="button">Friends</button>
             </div>
-            <p class="muted small">Guest profiles stay in this browser. Sign in to keep stats across devices.</p>
           </div>
         </div>
         <div class="auth-card">
-          <div class="profile-label">Accounts</div>
           <div id="account-logged-out">
             <div class="auth-grid">
               <input id="account-username-input" type="text" maxlength="120" placeholder="Username or Email" />
               <input id="account-password-input" type="password" maxlength="120" placeholder="Password" />
             </div>
             <div class="auth-actions">
-              <button id="account-register-btn" class="secondary" type="button">Create Account</button>
               <button id="account-login-btn" class="secondary" type="button">Log In</button>
+              <button id="account-register-btn" class="secondary" type="button">Create Account</button>
               <button id="account-reset-btn" class="secondary" type="button">Reset Password</button>
             </div>
           </div>
@@ -75,7 +73,7 @@
         </div>
       </details>{% endif %}
       {% if sport and sport_ready %}
-      <a class="back-btn sport-mode-back" href="/">&larr; Game Modes</a>
+      <a class="back-btn sport-mode-back" href="/">&larr; GameModes</a>
       <h2>{% if sport and sport.key == 'football' %}Hit The Field{% elif sport and sport.key == 'basketball' %}Take The Court{% elif sport and sport.key == 'hockey' %}Hit The Ice{% else %}Step Into The Box{% endif %}</h2>
       <div class="mode-tiles">
         <button class="mode-tile mode-tile-manager" data-mode="bp">
@@ -96,7 +94,7 @@
             <span class="mode-tile-tag">daily</span>
           </div>
           <span class="mode-tile-desc">
-            {% if sport.key == 'football' %}24 players, 23 connections.{% elif sport.key == 'basketball' %}12 players, 11 connections.{% elif sport.key == 'hockey' %}11 players, 10 connections.{% else %}10 players, 9 connections.{% endif %}
+            {% if sport.key == 'football' %}Choose offense or defense. Each puzzle is 12 players and 11 connections.{% elif sport.key == 'basketball' %}12 players, 11 connections.{% elif sport.key == 'hockey' %}11 players, 10 connections.{% else %}10 players, 9 connections.{% endif %}
             Identify the team and season linking each pair. Three strikes end the review.
           </span>
         </button>
