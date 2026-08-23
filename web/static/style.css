@@ -7561,10 +7561,10 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
 }
 
 .fr-hockey-svg {
-  height: 119%;
+  height: 100%;
   left: 0;
   position: absolute;
-  top: -20%;
+  top: 0;
   width: 100%;
   z-index: 1;
 }
@@ -7613,23 +7613,23 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
 }
 
 .sport-hockey .fr-board-slot.zone-surface {
-  height: 70px;
-  width: 98px;
+  height: 74px;
+  width: 104px;
 }
 
 .sport-hockey .fr-board-slot.zone-surface .fr-board-headshot {
-  height: 32px;
-  width: 32px;
+  height: 34px;
+  width: 34px;
 }
 
 .sport-hockey .fr-board-slot.zone-sideline {
-  height: 50px;
-  width: 68px;
+  height: 54px;
+  width: 72px;
 }
 
 .sport-hockey .fr-board-slot.zone-sideline .fr-board-headshot {
-  height: 22px;
-  width: 22px;
+  height: 24px;
+  width: 24px;
 }
 
 @media (max-width: 640px) {
@@ -7638,22 +7638,22 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
   }
 
   .sport-hockey .fr-board-slot.zone-surface {
-    height: 47px;
-    width: 60px;
+    height: 50px;
+    width: 64px;
   }
 
   .sport-hockey .fr-board-slot.zone-surface .fr-board-headshot {
-    height: 22px;
-    width: 22px;
+    height: 23px;
+    width: 23px;
   }
 
   .sport-hockey .fr-board-slot.zone-sideline {
-    height: 35px;
-    width: 42px;
+    height: 37px;
+    width: 44px;
   }
 
   .sport-hockey .fr-board-slot.zone-sideline .fr-board-headshot {
-    height: 14px;
-    width: 14px;
+    height: 15px;
+    width: 15px;
   }
 }
