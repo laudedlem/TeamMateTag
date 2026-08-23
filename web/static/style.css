@@ -7550,8 +7550,8 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
 .sport-hockey .fr-board-surface {
   aspect-ratio: 1 / 0.68;
   background:
-    linear-gradient(180deg, rgba(57, 156, 217, 0.98), rgba(21, 94, 151, 0.98));
-  border: 2px solid rgba(9, 49, 82, 0.9);
+    linear-gradient(180deg, rgba(103, 215, 255, 0.96), rgba(48, 160, 222, 0.96));
+  border: 2px solid rgba(26, 112, 170, 0.9);
   border-radius: 8px;
 }
 
@@ -7629,13 +7629,13 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
 }
 
 .sport-hockey .fr-board-slot.zone-sideline {
-  height: 58px;
-  width: 76px;
+  height: 62px;
+  width: 80px;
 }
 
 .sport-hockey .fr-board-slot.zone-sideline .fr-board-headshot {
-  height: 26px;
-  width: 26px;
+  height: 28px;
+  width: 28px;
 }
 
 @media (max-width: 640px) {
@@ -7654,12 +7654,12 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
   }
 
   .sport-hockey .fr-board-slot.zone-sideline {
-    height: 40px;
-    width: 46px;
+    height: 42px;
+    width: 48px;
   }
 
   .sport-hockey .fr-board-slot.zone-sideline .fr-board-headshot {
-    height: 16px;
-    width: 16px;
+    height: 17px;
+    width: 17px;
   }
 }
