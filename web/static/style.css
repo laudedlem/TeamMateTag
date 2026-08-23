@@ -7852,6 +7852,26 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
   width: 30px;
 }
 
+.sport-football.unit-defense .fr-board-slot {
+  height: 84px;
+  width: 98px;
+}
+
+.sport-football.unit-defense .fr-board-slot .fr-board-headshot {
+  height: 38px;
+  width: 38px;
+}
+
+.sport-football.unit-defense .slot-index-11 {
+  height: 70px;
+  width: 82px;
+}
+
+.sport-football.unit-defense .slot-index-11 .fr-board-headshot {
+  height: 32px;
+  width: 32px;
+}
+
 @media (max-width: 640px) {
   .sport-football .fr-board-surface {
     aspect-ratio: 1 / 0.72;
@@ -7884,5 +7904,25 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
   .sport-football .slot-index-11 .fr-board-headshot {
     height: 20px;
     width: 20px;
+  }
+
+  .sport-football.unit-defense .fr-board-slot {
+    height: 56px;
+    width: 58px;
+  }
+
+  .sport-football.unit-defense .fr-board-slot .fr-board-headshot {
+    height: 24px;
+    width: 24px;
+  }
+
+  .sport-football.unit-defense .slot-index-11 {
+    height: 48px;
+    width: 52px;
+  }
+
+  .sport-football.unit-defense .slot-index-11 .fr-board-headshot {
+    height: 21px;
+    width: 21px;
   }
 }
