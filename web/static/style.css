@@ -7561,9 +7561,10 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
 }
 
 .fr-hockey-svg {
-  height: 100%;
-  inset: 0;
+  height: 115%;
+  left: 0;
   position: absolute;
+  top: -15%;
   width: 100%;
   z-index: 1;
 }
