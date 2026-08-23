@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.3.38`
+- Current display version: `0.3.39`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -152,6 +152,12 @@ opponent's turn; they show contextual labels such as After Tipoff, Your Turn,
 or Used This Turn. Opponent powerups are now a compact one-row scouting strip
 with colored names that fade after use. Playoffs game-over summaries now name
 the Player who completed the Win Condition and the specific Win Condition met.
+
+Update, 2026-08-23 (0.3.39): fixed cross-sport player-card background team
+ranking. Basketball, football, and hockey cards now send games and franchise
+color IDs with team stints, so historical IDs such as Oakland Raiders resolve
+to the correct palette. The client ranks the top three teams by longest tenure
+left-to-right instead of re-sorting those teams chronologically.
 - **Division Rivalry**: online two-player alternating lineup. 20-second turns,
   Rule B team strikes, matchmaking, challenge codes, friends, rematches,
   requeueing, ELO, and profile statistics.

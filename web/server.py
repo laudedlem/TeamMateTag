@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.3.38"
+APP_VERSION = "0.3.39"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -3375,29 +3375,33 @@ def _local_sport_cards(conn: sqlite3.Connection, sport: str, player_ids: list[st
             (sport, player_id),
         ).fetchone()
         appearances = conn.execute(
-            """SELECT DISTINCT a.team_id, t.name, a.season FROM sport_appearances a
+            """SELECT DISTINCT a.team_id, COALESCE(t.franchise_id, a.team_id), t.name, a.season, COALESCE(a.games_total, 1)
+                 FROM sport_appearances a
                  JOIN sport_teams t ON t.sport_id = a.sport_id AND t.team_id = a.team_id AND t.season = a.season
                 WHERE a.sport_id = ? AND a.player_id = ?
                 ORDER BY a.season, t.name""",
             (sport, player_id),
         ).fetchall()
         spans_by_team = {}
+        games_by_team = {}
         seen_team_seasons = set()
-        for team_id, team, season in appearances:
+        for team_id, franchise_id, team, season, games_total in appearances:
             if sport == "hockey":
                 team = NHL_TEAM_NAMES.get(team, team)
             key = (team_id, team, season)
             if key in seen_team_seasons:
                 continue
             seen_team_seasons.add(key)
-            spans = spans_by_team.setdefault((team_id, team), [])
+            team_key = (team_id, franchise_id or team_id, team)
+            games_by_team[team_key] = games_by_team.get(team_key, 0) + int(games_total or 0)
+            spans = spans_by_team.setdefault(team_key, [])
             if spans and spans[-1][1] == season - 1:
                 spans[-1][1] = season
             else:
                 spans.append([season, season])
         teams = []
         team_stints = []
-        for (team_id, team), ranges in spans_by_team.items():
+        for (team_id, franchise_id, team), ranges in spans_by_team.items():
             years = ", ".join(
                 _sport_card_stint_label(sport, start, end)
                 for start, end in ranges
@@ -3405,10 +3409,12 @@ def _local_sport_cards(conn: sqlite3.Connection, sport: str, player_ids: list[st
             teams.append(f"{team} {years}")
             team_stints.append({
                 "team_id": team_id,
+                "color_team_id": franchise_id or team_id,
                 "team_name": team,
                 "start": ranges[0][0],
                 "end": ranges[-1][1],
                 "seasons": sum(end - start + 1 for start, end in ranges),
+                "games": games_by_team.get((team_id, franchise_id, team), 0),
             })
         external_id = row[0] if row else None
         image_row = conn.execute("SELECT local_path FROM local_player_images WHERE sport_id = ? AND player_id = ?", (sport, player_id)).fetchone() if conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='local_player_images'").fetchone() else None
@@ -3624,7 +3630,7 @@ def _sport_cards(conn, sport: str, player_ids: list[str]) -> dict[str, dict]:
     ).fetchall())
     registry_urls = _headshot_registry_urls(conn, sport, missing)
     appearances = conn.execute(
-        """SELECT DISTINCT a.player_id, a.team_id, t.name, a.season
+        """SELECT DISTINCT a.player_id, a.team_id, COALESCE(t.franchise_id, a.team_id), t.name, a.season, COALESCE(a.games_total, 1)
              FROM sport_appearances a
              JOIN sport_teams t ON t.sport_id=a.sport_id
                AND t.team_id=a.team_id AND t.season=a.season
@@ -3632,16 +3638,20 @@ def _sport_cards(conn, sport: str, player_ids: list[str]) -> dict[str, dict]:
             ORDER BY a.player_id, a.season, t.name""",
         (sport, missing),
     ).fetchall()
-    teams_by_player: dict[str, dict[tuple[str, str], list[list[int]]]] = {}
+    teams_by_player: dict[str, dict[tuple[str, str, str], list[list[int]]]] = {}
+    games_by_player_team: dict[tuple[str, str, str, str], int] = {}
     seen_player_team_seasons = set()
-    for player_id, team_id, team, season in appearances:
+    for player_id, team_id, franchise_id, team, season, games_total in appearances:
         if sport == "hockey":
             team = NHL_TEAM_NAMES.get(team, team)
         key = (player_id, team_id, team, season)
         if key in seen_player_team_seasons:
             continue
         seen_player_team_seasons.add(key)
-        ranges = teams_by_player.setdefault(player_id, {}).setdefault((team_id, team), [])
+        team_key = (team_id, franchise_id or team_id, team)
+        games_key = (player_id, team_id, franchise_id or team_id, team)
+        games_by_player_team[games_key] = games_by_player_team.get(games_key, 0) + int(games_total or 0)
+        ranges = teams_by_player.setdefault(player_id, {}).setdefault(team_key, [])
         # A player returning after an injury is still one tenure line, with
         # each actual year range preserved (Chicago Bulls 2008-11, 2013-15).
         if ranges and ranges[-1][1] == season - 1:
@@ -3651,7 +3661,7 @@ def _sport_cards(conn, sport: str, player_ids: list[str]) -> dict[str, dict]:
     for player_id, external_id, debut, final, first, last, primary_pos, canonical_name in rows:
         teams = []
         team_stints = []
-        for (team_id, team), ranges in teams_by_player.get(player_id, {}).items():
+        for (team_id, franchise_id, team), ranges in teams_by_player.get(player_id, {}).items():
             years = ", ".join(
                 _sport_card_stint_label(sport, a, b)
                 for a, b in ranges
@@ -3659,8 +3669,10 @@ def _sport_cards(conn, sport: str, player_ids: list[str]) -> dict[str, dict]:
             teams.append(f"{team} {years}")
             team_stints.append({
                 "team_id": team_id, "team_name": team,
+                "color_team_id": franchise_id or team_id,
                 "start": ranges[0][0], "end": ranges[-1][1],
                 "seasons": sum(end - start + 1 for start, end in ranges),
+                "games": games_by_player_team.get((player_id, team_id, franchise_id or team_id, team), 0),
             })
         # NBA's official image CDN covers many older players omitted by the
         # source-image catalog. Broken URLs still fall through to the UI's

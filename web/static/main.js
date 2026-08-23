@@ -2187,27 +2187,33 @@ const TEAM_PRIMARY_COLORS = {
   baseball: { ARI:'#A71930', ATH:'#003831', ATL:'#CE1141', BAL:'#DF4601', BOS:'#BD3039', CHA:'#27251F', CHN:'#0E3386', CIN:'#C6011F', CLE:'#E31937', COL:'#33006F', DET:'#0C2C56', HOU:'#EB6E1F', KCA:'#004687', LAA:'#BA0021', LAN:'#005A9C', MIA:'#00A3E0', MIL:'#12284B', MIN:'#002B5C', NYA:'#003087', NYN:'#002D72', OAK:'#003831', PHI:'#E81828', PIT:'#27251F', SDN:'#2F241D', SEA:'#0C2C56', SFN:'#FD5A1E', SLN:'#C41E3A', TBA:'#092C5C', TEX:'#003278', TOR:'#134A8E', WAS:'#AB0003' },
   basketball: { '1610612737':'#E03A3E', '1610612738':'#007A33', '1610612739':'#860038', '1610612740':'#0C2340', '1610612741':'#CE1141', '1610612742':'#00538C', '1610612743':'#0E2240', '1610612744':'#1D428A', '1610612745':'#CE1141', '1610612746':'#C8102E', '1610612747':'#552583', '1610612748':'#98002E', '1610612749':'#00471B', '1610612750':'#0C2340', '1610612751':'#000000', '1610612752':'#006BB6', '1610612753':'#0077C0', '1610612754':'#002D62', '1610612755':'#006BB6', '1610612756':'#1D1160', '1610612757':'#E03A3E', '1610612758':'#5A2D81', '1610612759':'#C4CED4', '1610612760':'#007AC1', '1610612761':'#CE1141', '1610612762':'#002B5C', '1610612763':'#5D76A9', '1610612764':'#002B5C', '1610612765':'#C8102E', '1610612766':'#1D1160' },
   hockey: { ANA:'#F47A38', BOS:'#FFB81C', BUF:'#003087', CAR:'#CC0000', CBJ:'#002654', CGY:'#C8102E', CHI:'#CF0A2C', COL:'#6F263D', DAL:'#006847', DET:'#CE1126', EDM:'#041E42', FLA:'#C8102E', LAK:'#A2AAAD', MIN:'#A6192E', MTL:'#AF1E2D', NJD:'#CE1126', NSH:'#FFB81C', NYI:'#00539B', NYR:'#0038A8', OTT:'#C52032', PHI:'#F74902', PIT:'#FCB514', SEA:'#001628', SJS:'#006D75', STL:'#002F87', TBL:'#002868', TOR:'#003E7E', UTA:'#6CACE4', VAN:'#00205B', VGK:'#B4975A', WPG:'#041E42', WSH:'#C8102E' },
-  football: { ARI:'#97233F', ATL:'#A71930', BAL:'#241773', BUF:'#00338D', CAR:'#0085CA', CHI:'#0B162A', CIN:'#FB4F14', CLE:'#311D00', DAL:'#003594', DEN:'#FB4F14', DET:'#0076B6', GB:'#203731', HOU:'#03202F', IND:'#002C5F', JAX:'#006778', KC:'#E31837', LA:'#003594', LAC:'#0080C6', LV:'#A5ACAF', MIA:'#008E97', MIN:'#4F2683', NE:'#002244', NO:'#D3BC8D', NYG:'#0B2265', NYJ:'#125740', PHI:'#004C54', PIT:'#FFB612', SEA:'#002244', SF:'#AA0000', TB:'#D50A0A', TEN:'#0C2340', WAS:'#5A1414' },
+  football: { ARI:'#97233F', ATL:'#A71930', BAL:'#241773', BUF:'#00338D', CAR:'#0085CA', CHI:'#0B162A', CIN:'#FB4F14', CLE:'#311D00', DAL:'#003594', DEN:'#FB4F14', DET:'#0076B6', GB:'#203731', HOU:'#03202F', IND:'#002C5F', JAX:'#006778', KC:'#E31837', LA:'#003594', LAR:'#003594', LAC:'#0080C6', SD:'#0080C6', LV:'#A5ACAF', OAK:'#A5ACAF', MIA:'#008E97', MIN:'#4F2683', NE:'#002244', NO:'#D3BC8D', NYG:'#0B2265', NYJ:'#125740', PHI:'#004C54', PIT:'#FFB612', SEA:'#002244', SF:'#AA0000', TB:'#D50A0A', TEN:'#0C2340', HOUOIL:'#0C2340', WAS:'#5A1414' },
 };
 
 function playerTeamColors(stints) {
   const totals = new Map();
   (stints || []).forEach((stint) => {
-    const id = String(stint.team_id || '');
+    const id = String(stint.color_team_id || stint.franchise_id || stint.team_id || '');
     const seasons = Number(stint.seasons || 0);
     if (!id) return;
     const start = Number(stint.start || 9999);
     const end = Number(stint.end || start);
-    const current = totals.get(id) || { seasons: 0, start, end };
+    const games = Number(stint.games || 0);
+    const current = totals.get(id) || { seasons: 0, games: 0, start, end };
     current.seasons += seasons;
+    current.games += games;
     current.start = Math.min(current.start, start);
     current.end = Math.max(current.end, end);
     totals.set(id, current);
   });
   return [...totals.entries()]
-    .sort((a, b) => b[1].seasons - a[1].seasons || a[1].start - b[1].start)
+    .sort((a, b) =>
+      b[1].games - a[1].games ||
+      b[1].seasons - a[1].seasons ||
+      a[1].start - b[1].start ||
+      a[1].end - b[1].end
+    )
     .slice(0, 3)
-    .sort((a, b) => a[1].start - b[1].start || a[1].end - b[1].end)
     .map(([id]) => TEAM_PRIMARY_COLORS[CURRENT_SPORT]?.[id])
     .filter(Boolean)
     .slice(0, 3);
