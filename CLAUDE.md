@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.3.77`
+- Current display version: `0.3.78`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -24,6 +24,14 @@ changes. It is the concise source of truth for another coding assistant.
   migration run, then remove it again.
 
 ## Current user experience
+
+Update, 2026-08-23 (0.3.78): rebuilt Football Film Review's lineup board as a
+short, wide SVG half-field for both Offense and Defense. It now shows roughly
+25 yards plus a distinct bottom end zone, consistent sideline and inner hash
+marks, a yellow goalpost in the end zone, and all 12 lineup players on the
+field with no sideline lane. Offense is arranged as if attacking the bottom end
+zone, Defense as if defending it, with the kicker/punter placed in the end
+zone.
 
 Update, 2026-08-23 (0.3.77): tightened Film Review's game-over summary so it
 no longer reads larger than the normal search card. Bench/sideline player

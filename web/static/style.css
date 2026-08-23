@@ -7758,3 +7758,126 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
     width: 18px;
   }
 }
+
+/* 0.3.78: SVG football half-field with end zone and full-width formations. */
+.sport-football .fr-board-surface {
+  aspect-ratio: 1 / 0.48;
+  background: linear-gradient(180deg, rgba(48, 148, 43, 0.98), rgba(21, 111, 39, 0.98));
+  border: 2px solid rgba(12, 66, 24, 0.92);
+  border-radius: 8px;
+}
+
+.sport-football .fr-surface-lines,
+.sport-football .fr-board-section {
+  display: none;
+}
+
+.fr-football-svg {
+  height: 100%;
+  left: 0;
+  position: absolute;
+  top: 0;
+  width: 100%;
+  z-index: 1;
+}
+
+.fr-football-field {
+  fill: rgba(42, 146, 37, 0.72);
+  stroke: rgba(248, 255, 244, 0.9);
+  stroke-width: 1.4;
+}
+
+.fr-football-endzone {
+  fill: rgba(8, 90, 30, 0.7);
+  stroke: rgba(248, 255, 244, 0.9);
+  stroke-width: 1.5;
+}
+
+.fr-football-yard,
+.fr-football-sideline-hashes,
+.fr-football-inner-hashes {
+  fill: none;
+  stroke: rgba(248, 255, 244, 0.86);
+  stroke-linecap: square;
+}
+
+.fr-football-yard {
+  stroke-width: 0.95;
+}
+
+.fr-football-sideline-hashes,
+.fr-football-inner-hashes {
+  stroke-width: 1.05;
+}
+
+.fr-football-goalpost {
+  fill: none;
+  stroke: rgba(255, 216, 44, 0.96);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.sport-football .fr-board-slot {
+  height: 54px;
+  width: 76px;
+}
+
+.sport-football .fr-board-slot .fr-board-headshot {
+  height: 23px;
+  width: 23px;
+}
+
+.sport-football .fr-board-slot .fr-board-role {
+  font-size: 0.54rem;
+}
+
+.sport-football .fr-board-slot .fr-board-player {
+  font-size: 0.52rem;
+  line-height: 1.02;
+}
+
+.sport-football .slot-index-11 {
+  height: 50px;
+  width: 70px;
+}
+
+.sport-football .slot-index-11 .fr-board-headshot {
+  height: 21px;
+  width: 21px;
+}
+
+@media (max-width: 640px) {
+  .sport-football .fr-board-surface {
+    aspect-ratio: 1 / 0.56;
+  }
+
+  .sport-football .fr-board-slot {
+    height: 42px;
+    width: 48px;
+  }
+
+  .sport-football .fr-board-slot .fr-board-headshot {
+    height: 16px;
+    width: 16px;
+  }
+
+  .sport-football .fr-board-slot .fr-board-role {
+    font-size: 0.45rem;
+  }
+
+  .sport-football .fr-board-slot .fr-board-player {
+    font-size: 0.41rem;
+    line-height: 1;
+  }
+
+  .sport-football .slot-index-11 {
+    height: 39px;
+    width: 46px;
+  }
+
+  .sport-football .slot-index-11 .fr-board-headshot {
+    height: 15px;
+    width: 15px;
+  }
+}

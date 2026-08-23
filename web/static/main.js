@@ -2959,32 +2959,32 @@ function frBoardPlacement(sport, unit, slot, index) {
     },
     football: unit === 'defense'
       ? {
-          0: { x: 17, y: 48, zone: 'surface', label: 'EDGE' },
-          1: { x: 39, y: 48, zone: 'surface', label: 'DT' },
-          2: { x: 61, y: 48, zone: 'surface', label: 'DT' },
-          3: { x: 83, y: 48, zone: 'surface', label: 'EDGE' },
-          4: { x: 30, y: 65, zone: 'surface', label: 'OLB' },
-          5: { x: 50, y: 67, zone: 'surface', label: 'MIKE' },
-          6: { x: 70, y: 65, zone: 'surface', label: 'OLB' },
-          7: { x: 10, y: 77, zone: 'surface', label: 'CB' },
-          8: { x: 90, y: 77, zone: 'surface', label: 'CB' },
-          9: { x: 36, y: 87, zone: 'surface', label: 'S' },
-          10: { x: 64, y: 87, zone: 'surface', label: 'S' },
-          11: { x: 50, y: 94, zone: 'sideline', label: 'P' },
+          0: { x: 20, y: 55, zone: 'surface', label: 'EDGE' },
+          1: { x: 40, y: 55, zone: 'surface', label: 'DT' },
+          2: { x: 60, y: 55, zone: 'surface', label: 'DT' },
+          3: { x: 80, y: 55, zone: 'surface', label: 'EDGE' },
+          4: { x: 31, y: 40, zone: 'surface', label: 'OLB' },
+          5: { x: 50, y: 38, zone: 'surface', label: 'MIKE' },
+          6: { x: 69, y: 40, zone: 'surface', label: 'OLB' },
+          7: { x: 9, y: 48, zone: 'surface', label: 'CB' },
+          8: { x: 91, y: 48, zone: 'surface', label: 'CB' },
+          9: { x: 36, y: 24, zone: 'surface', label: 'S' },
+          10: { x: 64, y: 24, zone: 'surface', label: 'S' },
+          11: { x: 50, y: 89, zone: 'surface', label: 'P' },
         }
       : {
-          0: { x: 50, y: 68, zone: 'surface', label: 'QB' },
-          1: { x: 50, y: 81, zone: 'surface', label: 'RB' },
-          2: { x: 7, y: 42, zone: 'surface', label: 'WR' },
-          3: { x: 24, y: 43, zone: 'surface', label: 'SLOT' },
-          4: { x: 93, y: 42, zone: 'surface', label: 'WR' },
-          5: { x: 76, y: 43, zone: 'surface', label: 'TE' },
-          6: { x: 18, y: 55, zone: 'surface', label: 'OT' },
-          7: { x: 34, y: 55, zone: 'surface', label: 'OG' },
-          8: { x: 50, y: 55, zone: 'surface', label: 'C' },
-          9: { x: 66, y: 55, zone: 'surface', label: 'OG' },
-          10: { x: 82, y: 55, zone: 'surface', label: 'OT' },
-          11: { x: 50, y: 94, zone: 'sideline', label: 'K' },
+          0: { x: 50, y: 61, zone: 'surface', label: 'QB' },
+          1: { x: 50, y: 74, zone: 'surface', label: 'RB' },
+          2: { x: 8, y: 46, zone: 'surface', label: 'WR' },
+          3: { x: 24, y: 47, zone: 'surface', label: 'SLOT' },
+          4: { x: 92, y: 46, zone: 'surface', label: 'WR' },
+          5: { x: 76, y: 47, zone: 'surface', label: 'TE' },
+          6: { x: 18, y: 52, zone: 'surface', label: 'OT' },
+          7: { x: 34, y: 52, zone: 'surface', label: 'OG' },
+          8: { x: 50, y: 52, zone: 'surface', label: 'C' },
+          9: { x: 66, y: 52, zone: 'surface', label: 'OG' },
+          10: { x: 82, y: 52, zone: 'surface', label: 'OT' },
+          11: { x: 50, y: 89, zone: 'surface', label: 'K' },
         },
   };
   const placement = layouts[sport]?.[index] || fallback;
@@ -3044,6 +3044,17 @@ function frSurfaceArt(sport) {
         <ellipse class="fr-hockey-dot" cx="39" cy="54" rx="1.45" ry="2.15" />
         <ellipse class="fr-hockey-dot" cx="78" cy="54" rx="1.45" ry="2.15" />
         <path class="fr-hockey-crease" d="M 50 78 Q 58.5 66 67 78" />
+      </svg>`;
+  }
+  if (sport === 'football') {
+    return `
+      <svg class="fr-football-svg" viewBox="0 0 100 58" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+        <rect class="fr-football-field" x="2" y="2" width="96" height="54" rx="1.5" />
+        <rect class="fr-football-endzone" x="2" y="44" width="96" height="12" />
+        <path class="fr-football-yard" d="M 2 8 H 98 M 2 20 H 98 M 2 32 H 98 M 2 44 H 98" />
+        <path class="fr-football-sideline-hashes" d="M 2 5 H 7 M 93 5 H 98 M 2 11 H 7 M 93 11 H 98 M 2 17 H 7 M 93 17 H 98 M 2 23 H 7 M 93 23 H 98 M 2 29 H 7 M 93 29 H 98 M 2 35 H 7 M 93 35 H 98 M 2 41 H 7 M 93 41 H 98" />
+        <path class="fr-football-inner-hashes" d="M 36 5 V 7.6 M 64 5 V 7.6 M 36 11 V 13.6 M 64 11 V 13.6 M 36 17 V 19.6 M 64 17 V 19.6 M 36 23 V 25.6 M 64 23 V 25.6 M 36 29 V 31.6 M 64 29 V 31.6 M 36 35 V 37.6 M 64 35 V 37.6 M 36 41 V 43.6 M 64 41 V 43.6" />
+        <path class="fr-football-goalpost" d="M 50 55 V 49 M 37 49 H 63 M 37 49 V 39 M 63 49 V 39" />
       </svg>`;
   }
   return '';
