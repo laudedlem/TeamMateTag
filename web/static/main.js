@@ -206,6 +206,15 @@ const SPORT_START_LABELS = {
   hockey: 'Faceoff',
 };
 
+function normalize(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
 function localSoloPath(suffix) {
   return (USE_LOCAL_CROSS_SPORTS ? '/api/local/' : '/api/sports/') + CURRENT_SPORT + '/bp/' + suffix;
 }

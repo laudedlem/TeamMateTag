@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.3.22"
+APP_VERSION = "0.3.24"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -3469,7 +3469,9 @@ def _sport_display_name(sport: str, player_id: str | None, first: str | None = N
     if (sport, player_id or "") in SPORT_DISPLAY_NAME_OVERRIDES:
         return SPORT_DISPLAY_NAME_OVERRIDES[(sport, player_id or "")]
     name = " ".join(part for part in (first, last) if part).strip()
-    return name or fallback or (player_id or "")
+    # League display names preserve common names and initials: Geno Smith,
+    # C.J. Mosley, A.J. Brown, and similar cases are not legal given names.
+    return fallback or name or (player_id or "")
 
 
 def _sport_team_span_label(sport: str, start: int, end: int) -> str:
@@ -3569,7 +3571,7 @@ def _sport_cards(conn, sport: str, player_ids: list[str]) -> dict[str, dict]:
         return out
     rows = conn.execute(
         """SELECT player_id, external_id, debut_year, final_year, first_name,
-                  last_name, primary_pos
+                  last_name, primary_pos, display_name
              FROM sport_players
             WHERE sport_id = %s AND player_id = ANY(%s)""",
         (sport, missing),
@@ -3605,7 +3607,7 @@ def _sport_cards(conn, sport: str, player_ids: list[str]) -> dict[str, dict]:
             ranges[-1][1] = season
         else:
             ranges.append([season, season])
-    for player_id, external_id, debut, final, first, last, primary_pos in rows:
+    for player_id, external_id, debut, final, first, last, primary_pos, canonical_name in rows:
         teams = []
         for team, ranges in teams_by_player.get(player_id, {}).items():
             years = ", ".join(
@@ -3626,7 +3628,7 @@ def _sport_cards(conn, sport: str, player_ids: list[str]) -> dict[str, dict]:
             "final_year": final,
             "name_first": first,
             "name_last": last,
-            "display_name": _sport_display_name(sport, player_id, first, last),
+            "display_name": _sport_display_name(sport, player_id, first, last, canonical_name),
             "primary_pos": primary_pos,
             "teams": teams,
         }
@@ -7173,9 +7175,11 @@ def _fr_choice_window(slot_index: int, total_slots: int, choices_len: int) -> in
 
 
 def _fr_early_choice_floor(sport: str, slot_index: int) -> int:
-    if slot_index > 3:
+    if slot_index > 5:
         return 0
-    return {"baseball": 1350, "basketball": 1350, "hockey": 1550, "football": 1300}.get(sport, 0)
+    early = {"baseball": 2300, "basketball": 2250, "hockey": 2300, "football": 1300}
+    middle = {"baseball": 1800, "basketball": 1650, "hockey": 1950, "football": 1050}
+    return (early if slot_index <= 2 else middle).get(sport, 0)
 
 
 def _fr_photo_score(sport: str, provider: str | None) -> int:
@@ -7189,9 +7193,9 @@ def _fr_photo_score(sport: str, provider: str | None) -> int:
 def _fr_player_quality(career_games: int | None, teammate_count: int | None, final_year: int | None,
                        provider: str | None, sport: str) -> int:
     final_year = final_year or 2000
-    recency = max(0, min(2026, final_year) - 2015) * 90
-    return int(career_games or 0) + int(teammate_count or 0) * 4 + recency \
-        + (500 if final_year >= 2024 else 0) + (250 if final_year >= 2020 else 0) \
+    recency = max(0, min(2026, final_year) - 2015) * 30
+    return int(career_games or 0) * 3 + int(teammate_count or 0) * 2 + recency \
+        + (250 if final_year >= 2024 else 0) + (125 if final_year >= 2020 else 0) \
         + _fr_photo_score(sport, provider)
 
 
@@ -7269,6 +7273,11 @@ def generate_baseball_film_review(conn, puzzle_day: date, seed_suffix: str = "",
     missing = [slot for slot, players in pools.items() if not players]
     if missing:
         raise RuntimeError("baseball Film Review position data is unavailable for " + ", ".join(missing))
+    recent_players = {
+        row[0] for row in conn.execute(
+            "SELECT player_id FROM players WHERE final_year>=2016"
+        ).fetchall()
+    }
 
     def candidates(player_id: str, eligible: dict[str, int], used_players: set[str],
                    used_links: set[tuple[str, int]]) -> list[tuple[str, tuple[str, int]]]:
@@ -7304,16 +7313,14 @@ def generate_baseball_film_review(conn, puzzle_day: date, seed_suffix: str = "",
         ).fetchall()
         by_candidate: dict[str, list[tuple[str, int]]] = {}
         for pid, team, season in rows:
-            if pid in eligible and pid not in used_players and (team, season) not in used_links:
+            if pid in eligible and pid not in used_players:
                 by_candidate.setdefault(pid, []).append((team, season))
-        unique = [(pid, links[0]) for pid, links in by_candidate.items() if len(links) == 1]
-        if unique:
-            return sorted(unique, key=lambda item: eligible[item[0]], reverse=True)
-        return sorted(
-            [(pid, link) for pid, links in by_candidate.items() for link in links],
-            key=lambda item: eligible[item[0]],
-            reverse=True,
-        )
+        unique = [
+            (pid, links[0])
+            for pid, links in by_candidate.items()
+            if len(links) == 1 and links[0] not in used_links
+        ]
+        return sorted(unique, key=lambda item: eligible[item[0]], reverse=True)
 
     banned_opening_players = banned_opening_players or set()
     banned_adjacent_pairs = banned_adjacent_pairs or set()
@@ -7322,8 +7329,14 @@ def generate_baseball_film_review(conn, puzzle_day: date, seed_suffix: str = "",
         first = [
             player_id
             for player_id in sorted(pools[BASEBALL_FR_SLOTS[0]], key=pools[BASEBALL_FR_SLOTS[0]].get, reverse=True)
-            if player_id not in banned_opening_players
+            if player_id not in banned_opening_players and player_id in recent_players
         ]
+        if not first:
+            first = [
+                player_id
+                for player_id in sorted(pools[BASEBALL_FR_SLOTS[0]], key=pools[BASEBALL_FR_SLOTS[0]].get, reverse=True)
+                if player_id not in banned_opening_players
+            ]
         if not first:
             first = sorted(pools[BASEBALL_FR_SLOTS[0]], key=pools[BASEBALL_FR_SLOTS[0]].get, reverse=True)
         deck = [rng.choice(first[:min(5, len(first))])]
@@ -7334,6 +7347,7 @@ def generate_baseball_film_review(conn, puzzle_day: date, seed_suffix: str = "",
                 item for item in candidates(deck[-1], pools[slot], used_players, used_links)
                 if _film_pair_key(deck[-1], item[0]) not in banned_adjacent_pairs
                    and not (slot_index == 1 and item[0] in banned_opening_players)
+                   and not (slot_index == 1 and item[0] not in recent_players)
             ]
             preferred_floor = _fr_early_choice_floor("baseball", slot_index)
             if preferred_floor:
@@ -7838,6 +7852,26 @@ def _film_deck_has_verified_headshots(conn, sport: str, deck: list[str]) -> bool
     return bool(rows and int(rows[0] or 0) == len(set(deck)))
 
 
+def _film_puzzle_connections_are_clean(conn, sport: str, deck: list[str]) -> bool:
+    """Film Review links must each have one answer and never reuse a team-season."""
+    if len(deck) < 2:
+        return False
+    all_shared = _fr_compute_shared(conn, deck) if sport == "baseball" else None
+    used_links: set[tuple[str, int]] = set()
+    for index in range(len(deck) - 1):
+        shared = all_shared[index] if all_shared is not None else _sport_fr_shared(
+            conn, sport, deck[index], deck[index + 1]
+        )
+        if len(shared) != 1:
+            return False
+        team_id, season = shared[0][0], shared[0][1]
+        key = (team_id, int(season))
+        if key in used_links:
+            return False
+        used_links.add(key)
+    return True
+
+
 def _valid_daily_film_puzzle(conn, puzzle: dict, sport: str, puzzle_day: date, unit: str | None) -> bool:
     deck = puzzle.get("deck")
     slots = puzzle.get("slots")
@@ -7855,6 +7889,8 @@ def _valid_daily_film_puzzle(conn, puzzle: dict, sport: str, puzzle_day: date, u
     if sport == "football" and expected_unit not in {"offense", "defense"}:
         return False
     if not _film_deck_has_verified_headshots(conn, sport, deck):
+        return False
+    if not _film_puzzle_connections_are_clean(conn, sport, deck):
         return False
     if _film_puzzle_repeats_history(conn, sport, puzzle_day, puzzle):
         return False
@@ -7892,7 +7928,10 @@ def _build_film_review_puzzle_with_history(conn, sport: str, puzzle_day: date, u
                     "deck": list(generated.deck),
                     "unit": generated.unit,
                 }
-            if not _film_puzzle_repeats_history(conn, sport, puzzle_day, puzzle):
+            if (
+                not _film_puzzle_repeats_history(conn, sport, puzzle_day, puzzle)
+                and _film_puzzle_connections_are_clean(conn, sport, list(puzzle["deck"]))
+            ):
                 return puzzle
         except Exception as error:
             last_error = error

@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.3.21`
+- Current display version: `0.3.24`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -39,7 +39,15 @@ changes. It is the concise source of truth for another coding assistant.
 - **Film Review**: nine-player / eight-connection puzzle. Guess team and season.
   A correct answer advances; one correct field is a foul. The first foul in a
   streak is safe; each additional consecutive foul is a strike. Three strikes
-  ends the puzzle and shows the completed lineup.
+  ends the puzzle and shows the completed lineup. Every Film Review connection
+  is deliberately generated with one valid team-season answer; a team-season
+  cannot repeat within its puzzle. The browser autocomplete only offers the
+  current pair's valid team-season answer(s), and supports typing a team plus
+  season directly.
+  The generator ranks actual career games above recency, prefers modern players
+  for the first two cards, and intentionally gets more difficult later in a
+  lineup. League display names are preferred over legal first names so common
+  forms such as Geno Smith and C.J. Mosley remain correct.
 - **Division Rivalry**: online two-player alternating lineup. 20-second turns,
   Rule B team strikes, matchmaking, challenge codes, friends, rematches,
   requeueing, ELO, and profile statistics.

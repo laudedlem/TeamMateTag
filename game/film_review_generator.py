@@ -85,10 +85,13 @@ def _photo_bonus(sport: str, provider: str | None) -> int:
 
 def _player_score(sport: str, career_games: int, teammate_count: int, final_year: int | None, provider: str | None) -> int:
     final_year = final_year or 2000
-    recency = max(0, min(2026, final_year) - 2015) * 90
-    current = 500 if final_year >= 2024 else 0
-    modern = 250 if final_year >= 2020 else 0
-    return int(career_games or 0) + int(teammate_count or 0) * 4 + recency + current + modern + _photo_bonus(sport, provider)
+    # Film Review should open with recognizable players.  The runtime catalog's
+    # searchable career count is not equally reliable for every sport, so this
+    # score receives the curated career-games value from sport_player_traits.
+    recency = max(0, min(2026, final_year) - 2015) * 30
+    current = 250 if final_year >= 2024 else 0
+    modern = 125 if final_year >= 2020 else 0
+    return int(career_games or 0) * 3 + int(teammate_count or 0) * 2 + recency + current + modern + _photo_bonus(sport, provider)
 
 
 def _recency_score_sql() -> str:
@@ -112,14 +115,14 @@ def _choice_window(slot_index: int, total_slots: int, choices_len: int) -> int:
 
 
 def _early_choice_floor(sport: str, slot_index: int) -> int:
-    if slot_index > 3:
+    # The score combines real career games, a modest recent-player bonus, and
+    # headshot reliability. Early cards should be familiar; later slots can
+    # become more challenging without turning the opening link into a deep cut.
+    if slot_index > 5:
         return 0
-    return {
-        "baseball": 1350,
-        "basketball": 1350,
-        "hockey": 1550,
-        "football": 1300,
-    }.get(sport, 0)
+    early = {"baseball": 2300, "basketball": 2250, "hockey": 2300, "football": 1300}
+    middle = {"baseball": 1800, "basketball": 1650, "hockey": 1950, "football": 1050}
+    return (early if slot_index <= 2 else middle).get(sport, 0)
 
 
 def lineup_slots(sport: str, unit: str | None = None) -> tuple[str, ...]:
@@ -140,10 +143,10 @@ def _eligible(conn: sqlite3.Connection, sport: str, slot: str) -> dict[str, int]
     if slot == "ANY":
         return {row[0]: row[1] for row in conn.execute(f"""
             SELECT p.player_id,
-                   (s.career_games + s.teammate_count * 4
-                    + CASE WHEN p.final_year >= 2024 THEN 500 ELSE 0 END
-                    + CASE WHEN p.final_year >= 2020 THEN 250 ELSE 0 END
-                    + ({recency_sql}) * 90
+                   (COALESCE(t.career_games, s.career_games) * 3 + s.teammate_count * 2
+                    + CASE WHEN p.final_year >= 2024 THEN 250 ELSE 0 END
+                    + CASE WHEN p.final_year >= 2020 THEN 125 ELSE 0 END
+                    + ({recency_sql}) * 30
                     + CASE
                         WHEN {provider_select} IN ({",".join("?" for _ in STABLE_HEADSHOT_PROVIDERS.get(sport, set())) or "NULL"}) THEN 600
                         WHEN {provider_select} IN ({",".join("?" for _ in FALLBACK_HEADSHOT_PROVIDERS)}) THEN -450
@@ -151,6 +154,7 @@ def _eligible(conn: sqlite3.Connection, sport: str, slot: str) -> dict[str, int]
                       END) AS quality_score
             FROM sport_players p JOIN sport_players_searchable s
               ON s.sport_id=p.sport_id AND s.player_id=p.player_id
+            LEFT JOIN sport_player_traits t ON t.sport_id=p.sport_id AND t.player_id=p.player_id
             {headshot_join}
             WHERE p.sport_id=? AND s.career_games>=? AND p.final_year>=?
               {headshot_filter}
@@ -160,10 +164,10 @@ def _eligible(conn: sqlite3.Connection, sport: str, slot: str) -> dict[str, int]
     placeholders = ",".join("?" for _ in expected)
     return {row[0]: row[1] for row in conn.execute(
         f"""SELECT DISTINCT pp.player_id,
-                    (s.career_games + s.teammate_count * 4
-                     + CASE WHEN p.final_year >= 2024 THEN 500 ELSE 0 END
-                     + CASE WHEN p.final_year >= 2020 THEN 250 ELSE 0 END
-                     + ({recency_sql}) * 90
+                    (COALESCE(t.career_games, s.career_games) * 3 + s.teammate_count * 2
+                     + CASE WHEN p.final_year >= 2024 THEN 250 ELSE 0 END
+                     + CASE WHEN p.final_year >= 2020 THEN 125 ELSE 0 END
+                     + ({recency_sql}) * 30
                      + CASE
                          WHEN {provider_select} IN ({",".join("?" for _ in STABLE_HEADSHOT_PROVIDERS.get(sport, set())) or "NULL"}) THEN 600
                          WHEN {provider_select} IN ({",".join("?" for _ in FALLBACK_HEADSHOT_PROVIDERS)}) THEN -450
@@ -172,6 +176,7 @@ def _eligible(conn: sqlite3.Connection, sport: str, slot: str) -> dict[str, int]
              FROM sport_player_positions pp
              JOIN sport_players p ON p.sport_id=pp.sport_id AND p.player_id=pp.player_id
              JOIN sport_players_searchable s ON s.sport_id=pp.sport_id AND s.player_id=pp.player_id
+             LEFT JOIN sport_player_traits t ON t.sport_id=p.sport_id AND t.player_id=p.player_id
              {headshot_join}
              WHERE pp.sport_id=? AND pp.position IN ({placeholders})
                AND s.career_games>=? AND p.final_year>=?
@@ -250,19 +255,16 @@ def _candidate_links(conn: sqlite3.Connection, sport: str, player_id: str,
     """, (sport, player_id, player_id, modern_final_year))
     by_candidate: dict[str, list[tuple[str, int]]] = {}
     for candidate, team_id, season in rows:
-        if (candidate in eligible and candidate not in used_players
-                and (team_id, season) not in used_links):
+        if candidate in eligible and candidate not in used_players:
             by_candidate.setdefault(candidate, []).append((team_id, season))
-    # A single shared team-year makes a clean daily puzzle. Retain broader
-    # overlaps as a fallback so position-constrained lineups remain feasible.
-    unique = [(candidate, links[0]) for candidate, links in by_candidate.items() if len(links) == 1]
-    if unique:
-        return sorted(unique, key=lambda item: eligible[item[0]], reverse=True)
-    return sorted(
-        [(candidate, link) for candidate, links in by_candidate.items() for link in links],
-        key=lambda item: eligible[item[0]],
-        reverse=True,
-    )
+    # Film Review has one answer per link. Multi-season connections belong in
+    # the other modes, where naming any valid teammate season is intentional.
+    unique = [
+        (candidate, links[0])
+        for candidate, links in by_candidate.items()
+        if len(links) == 1 and links[0] not in used_links
+    ]
+    return sorted(unique, key=lambda item: eligible[item[0]], reverse=True)
 
 
 def _pair_key(first: str, second: str) -> tuple[str, str]:
@@ -281,6 +283,14 @@ def generate(conn: sqlite3.Connection, sport: str, puzzle_day: date | None = Non
     missing = [slot for slot in set(slots) if not pools[slot]]
     if missing:
         raise ValueError(f"{sport} is missing exact position data for: {', '.join(sorted(missing))}")
+    # The first connection is the on-ramp to a daily puzzle. Keep both visible
+    # players in the modern era where the current player base is most fluent.
+    recent_players = {
+        row[0] for row in conn.execute(
+            "SELECT player_id FROM sport_players WHERE sport_id=? AND final_year>=?",
+            (sport, 2016),
+        ).fetchall()
+    }
     rng = random.Random(f"{sport}:{puzzle_day.isoformat()}:{unit or ''}:{seed_suffix}")
     banned_opening_players = banned_opening_players or set()
     banned_adjacent_pairs = banned_adjacent_pairs or set()
@@ -289,8 +299,14 @@ def generate(conn: sqlite3.Connection, sport: str, puzzle_day: date | None = Non
         starters = [
             player_id
             for player_id in sorted(pools[slots[0]], key=pools[slots[0]].get, reverse=True)
-            if player_id not in banned_opening_players
+            if player_id not in banned_opening_players and player_id in recent_players
         ]
+        if not starters:
+            starters = [
+                player_id
+                for player_id in sorted(pools[slots[0]], key=pools[slots[0]].get, reverse=True)
+                if player_id not in banned_opening_players
+            ]
         if not starters:
             starters = sorted(pools[slots[0]], key=pools[slots[0]].get, reverse=True)
         deck = [rng.choice(starters[:min(5, len(starters))])]
@@ -302,6 +318,7 @@ def generate(conn: sqlite3.Connection, sport: str, puzzle_day: date | None = Non
                 item for item in _candidate_links(conn, sport, deck[-1], pools[slot], used_players, used_links)
                 if _pair_key(deck[-1], item[0]) not in banned_adjacent_pairs
                    and not (slot_index == 1 and item[0] in banned_opening_players)
+                   and not (slot_index == 1 and item[0] not in recent_players)
             ]
             preferred_floor = _early_choice_floor(sport, slot_index)
             if preferred_floor:
