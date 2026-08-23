@@ -1299,8 +1299,12 @@ button.secondary:hover { border-color: var(--accent); color: var(--accent); }
 /* ---------- Film Review specific ---------- */
 .fr-stats {
   font-family: ui-monospace, 'SF Mono', Consolas, monospace;
-  font-size: 0.95rem;
+  font-size: 1.2rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1;
   color: var(--text-muted);
+  white-space: nowrap;
 }
 
 .fr-stats .stat-hit { color: var(--good); font-weight: 700; }
@@ -1356,7 +1360,8 @@ button.secondary:hover { border-color: var(--accent); color: var(--accent); }
 
 .fr-stats .stat-sep {
   color: var(--text-dim);
-  font-weight: 400;
+  font-weight: 800;
+  margin: 0 0.1rem;
 }
 
 .exit-btn {

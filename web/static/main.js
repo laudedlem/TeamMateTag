@@ -2542,8 +2542,8 @@ function renderFrGame(initialRender) {
 function renderFrFeedback(g) {
   if (!g) return '';
   if (g.outcome === 'invalid') {
-    const seasonCopy = usesSplitSeasonInput() ? 'the full starting year, like 2020' : 'a 4-digit year';
-    return `<span class="bad">Enter both a team and ${seasonCopy}.</span>`;
+    const seasonCopy = usesSplitSeasonInput() ? 'the Full Starting Year, like 2020' : 'a 4-Digit Year';
+    return `<span class="bad">Enter both a Team and ${seasonCopy}.</span>`;
   }
   if (g.outcome === 'hit') {
     const m = g.matched && g.matched[0];
@@ -2551,13 +2551,13 @@ function renderFrFeedback(g) {
     return `<span class="ok">${frTerms().hit}${escapeHtml(detail)}.</span>`;
   }
   if (g.outcome === 'foul') {
-    return `<span class="burn">${frTerms().foul}. One of team or year is right. Try again.</span>`;
+    return `<span class="burn">${frTerms().foul}. One of Team or Year is Right. Try Again.</span>`;
   }
   if (g.outcome === 'strike') {
     if (g.converted_from_foul) {
-      return `<span class="bad">${frTerms().strike}. Another ${frTerms().foul.toLowerCase()} in the same streak counts as a ${frTerms().strike.toLowerCase()}.</span>`;
+      return `<span class="bad">${frTerms().strike}. Another ${titleCase(frTerms().foul)} in the same Streak counts as a ${titleCase(frTerms().strike)}.</span>`;
     }
-    return `<span class="bad">${frTerms().strike}. Neither team nor year is right.</span>`;
+    return `<span class="bad">${frTerms().strike}. Neither Team nor Year is Right.</span>`;
   }
   return '';
 }
@@ -2645,7 +2645,7 @@ function sportTermsForRules(sport = CURRENT_SPORT || 'baseball') {
     baseball: { starter: 'Leadoff', out: 'Struck Out', hit: 'Hit', foul: 'Foul', strike: 'Strike', strikes: 'Strikes', partial: 'Foul' },
     basketball: { starter: 'Tipoff', out: 'Fouled Out', hit: 'Bucket', foul: 'Rim Out', strike: 'Foul', strikes: 'Fouls', partial: 'Rim Out' },
     football: { starter: 'Snapper', out: 'Punted', hit: 'Completion', foul: 'Tipped Pass', strike: 'Turnover', strikes: 'Turnovers', partial: 'Tipped Pass' },
-    hockey: { starter: 'Faceoff', out: 'Game Misconduct', hit: 'Goal', foul: 'Offside', strike: 'Penalty', strikes: 'Penalties', partial: 'Offside' },
+    hockey: { starter: 'Faceoff', out: 'Game Misconduct', hit: 'Goal', foul: 'Icing', strike: 'Penalty', strikes: 'Penalties', partial: 'Icing' },
   })[sport] || sportTermsForRules('baseball');
 }
 
@@ -2797,8 +2797,8 @@ function sharedRulesHtml() {
             <tr><td>Leadoff</td><td>Tipoff</td><td>Snapper</td><td>Faceoff</td><td>The First Player in a Lineup.</td></tr>
             <tr><td>Struck Out</td><td>Fouled Out</td><td>Punted</td><td>Game Misconduct</td><td>The Same Team-Season used 3 Times. TeamMates from that Team-Season can no longer be used.</td></tr>
             <tr><td>Hit</td><td>Bucket</td><td>Completion</td><td>Goal</td><td>Correct Film Review Link.</td></tr>
-            <tr><td>Foul</td><td>Rim Out</td><td>Tipped Pass</td><td>Offside</td><td>Correct Film Review Team OR Year. 2 in a row is a Miss.</td></tr>
-            <tr><td>Strike</td><td>Foul</td><td>Turnover</td><td>Penalty</td><td>Missed Film Review Link. 3 Misses and you're Benched.</td></tr>
+            <tr><td>Foul</td><td>Rim Out</td><td>Tipped Pass</td><td>Icing</td><td>Correct Film Review Team OR Year. 2 in a Row is a Miss.</td></tr>
+            <tr><td>Strike</td><td>Foul</td><td>Turnover</td><td>Penalty</td><td>Missed Film Review Link. 3 Misses and You are Benched.</td></tr>
           </tbody>
         </table>
       </section>
@@ -2874,11 +2874,11 @@ async function loadFrArchive() {
 function frTeamPlaceholder() {
   if (usesConsolidatedFrAnswerInput()) {
     return ({
-      baseball: 'Team + year (e.g., Chicago Cubs 2016)',
-      basketball: 'Team + season (e.g., Chicago Bulls 2020-21)',
-      hockey: 'Team + season (e.g., Chicago Blackhawks 2020-21)',
-      football: 'Team + season (e.g., Chicago Bears 2020-21)',
-    })[CURRENT_SPORT] || 'Team + season';
+      baseball: 'Team + Year (e.g., Chicago Cubs 2016)',
+      basketball: 'Team + Season (e.g., Chicago Bulls 2020-21)',
+      hockey: 'Team + Season (e.g., Chicago Blackhawks 2020-21)',
+      football: 'Team + Season (e.g., Chicago Bears 2020-21)',
+    })[CURRENT_SPORT] || 'Team + Season';
   }
   return ({
     baseball: 'Team (e.g., Chicago Cubs)',
@@ -2890,11 +2890,15 @@ function frTeamPlaceholder() {
 
 function frTerms() {
   return ({
-    baseball: { hit: 'HIT', foul: 'FOUL', strike: 'STRIKE', strikePlural: 'strikes', hitShort: 'H', foulShort: 'F', strikeShort: 'K' },
-    basketball: { hit: 'BUCKET', foul: 'RIM OUT', strike: 'TURNOVER', strikePlural: 'turnovers', hitShort: 'B', foulShort: 'R', strikeShort: 'T' },
-    hockey: { hit: 'GOAL', foul: 'OFFSIDE', strike: 'PENALTY', strikePlural: 'penalties', hitShort: 'G', foulShort: 'O', strikeShort: 'P' },
-    football: { hit: 'COMPLETION', foul: 'INCOMPLETION', strike: 'TURNOVER', strikePlural: 'turnovers', hitShort: 'C', foulShort: 'I', strikeShort: 'T' },
+    baseball: { hit: 'HIT', foul: 'FOUL', strike: 'STRIKE', strikePlural: 'Strikes', hitShort: 'H', foulShort: 'F', strikeShort: 'K' },
+    basketball: { hit: 'BUCKET', foul: 'RIM OUT', strike: 'TURNOVER', strikePlural: 'Turnovers', hitShort: 'B', foulShort: 'R', strikeShort: 'T' },
+    hockey: { hit: 'GOAL', foul: 'ICING', strike: 'PENALTY', strikePlural: 'Penalties', hitShort: 'G', foulShort: 'I', strikeShort: 'P' },
+    football: { hit: 'COMPLETION', foul: 'INCOMPLETION', strike: 'TURNOVER', strikePlural: 'Turnovers', hitShort: 'C', foulShort: 'I', strikeShort: 'T' },
   })[frGame?.sport || CURRENT_SPORT || 'baseball'];
+}
+
+function titleCase(value) {
+  return String(value || '').toLowerCase().replace(/\b[a-z]/g, char => char.toUpperCase());
 }
 
 function frBoardRole(sport, unit, slot, index) {
@@ -2941,9 +2945,9 @@ function frBoardPlacement(sport, unit, slot, index) {
       11: { x: 9, y: 87.5, zone: 'sideline', label: 'BN' },
     },
     hockey: {
-      0: { x: 29.5, y: 50, zone: 'surface', label: 'LW' },
+      0: { x: 27.5, y: 48, zone: 'surface', label: 'LW' },
       2: { x: 58.5, y: 63, zone: 'surface', label: 'C' },
-      4: { x: 87.5, y: 50, zone: 'surface', label: 'RW' },
+      4: { x: 89.5, y: 48, zone: 'surface', label: 'RW' },
       6: { x: 44, y: 28, zone: 'surface', label: 'LD' },
       8: { x: 73, y: 28, zone: 'surface', label: 'RD' },
       10: { x: 58.5, y: 86, zone: 'surface', label: 'G' },
@@ -3033,12 +3037,12 @@ function frSurfaceArt(sport) {
         <path class="fr-hockey-center" d="M 19 3 H 98" />
         <path class="fr-hockey-icing" d="M 19 78 H 98" />
         <path class="fr-hockey-blue" d="M 19 17 H 98" />
-        <ellipse class="fr-hockey-dot" cx="39" cy="10" rx="0.95" ry="1.4" />
-        <ellipse class="fr-hockey-dot" cx="78" cy="10" rx="0.95" ry="1.4" />
-        <ellipse class="fr-hockey-faceoff" cx="39" cy="54" rx="6.8" ry="10" />
-        <ellipse class="fr-hockey-faceoff" cx="78" cy="54" rx="6.8" ry="10" />
-        <ellipse class="fr-hockey-dot" cx="39" cy="54" rx="1" ry="1.5" />
-        <ellipse class="fr-hockey-dot" cx="78" cy="54" rx="1" ry="1.5" />
+        <ellipse class="fr-hockey-dot" cx="39" cy="10" rx="1.35" ry="2" />
+        <ellipse class="fr-hockey-dot" cx="78" cy="10" rx="1.35" ry="2" />
+        <ellipse class="fr-hockey-faceoff" cx="39" cy="54" rx="8.2" ry="12" />
+        <ellipse class="fr-hockey-faceoff" cx="78" cy="54" rx="8.2" ry="12" />
+        <ellipse class="fr-hockey-dot" cx="39" cy="54" rx="1.45" ry="2.15" />
+        <ellipse class="fr-hockey-dot" cx="78" cy="54" rx="1.45" ry="2.15" />
         <path class="fr-hockey-crease" d="M 50 78 Q 58.5 66 67 78" />
       </svg>`;
   }

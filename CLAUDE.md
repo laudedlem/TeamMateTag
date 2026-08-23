@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.3.75`
+- Current display version: `0.3.76`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -24,6 +24,14 @@ changes. It is the concise source of truth for another coding assistant.
   migration run, then remove it again.
 
 ## Current user experience
+
+Update, 2026-08-23 (0.3.76): finished the latest Film Review polish pass. The
+hockey rink now uses larger faceoff circles and larger faceoff dots, with
+`LW`/`RW` shifted outward/upward so the widgets no longer block the faceoff
+dots. Hockey Film Review feedback and rules now use `Icing` / `ICING` with the
+short `I` stat instead of Offside, Film Review prompt/feedback copy uses the
+worksheet capitalization style, and the compact `0G | 1I | 0P` stat line is
+larger in the search card across sports.
 
 Update, 2026-08-23 (0.3.75): aligned the hockey Film Review neutral-zone dots
 with the offensive-zone faceoff dots by moving the top dots outward to the same
