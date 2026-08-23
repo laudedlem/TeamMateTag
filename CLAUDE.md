@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.3.31`
+- Current display version: `0.3.32`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -93,6 +93,12 @@ Update, 2026-08-22 (0.3.31): player cards now receive structured team stints
 tenures and an all-four-sport primary-color catalog to render card background
 blends. It applies automatically to current and future players as their data
 changes, with a muted fallback for unrecognized historical/special teams.
+
+Update, 2026-08-22 (0.3.32): one-season cross-sport card stints display the
+single calendar year rather than a full league-season span. Team stints are
+plain side-aligned text rather than pills, player names are kept on one line,
+and Playoffs' in-game Win Condition and Powerups widgets have a denser mobile
+layout. Film Review archive actions close the archive when selected.
 - **Division Rivalry**: online two-player alternating lineup. 20-second turns,
   Rule B team strikes, matchmaking, challenge codes, friends, rematches,
   requeueing, ELO, and profile statistics.

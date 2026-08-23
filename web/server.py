@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.3.31"
+APP_VERSION = "0.3.32"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -3625,7 +3625,7 @@ def _sport_cards(conn, sport: str, player_ids: list[str]) -> dict[str, dict]:
         team_stints = []
         for (team_id, team), ranges in teams_by_player.get(player_id, {}).items():
             years = ", ".join(
-                _sport_team_span_label(sport, a, b)
+                str(a) if a == b else _sport_team_span_label(sport, a, b)
                 for a, b in ranges
             )
             teams.append(f"{team} {years}")

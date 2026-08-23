@@ -5312,3 +5312,108 @@ body[data-mode-hub="film"] .fr-hub-archive-select {
     width: calc(100% - 1.4rem);
   }
 }
+
+/* 0.3.31: clean team-stint typography and compact Playoffs widgets. */
+.game-main .player-card.has-team-columns {
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 250px) minmax(0, 1fr);
+}
+
+.card-team-column {
+  gap: 0.32rem;
+  font-size: 0.9rem;
+}
+
+.card-team-column li {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.card-team-column.left {
+  justify-items: start;
+  text-align: left;
+}
+
+.card-team-column.right {
+  justify-items: end;
+  text-align: right;
+}
+
+.game-main .player-info .name {
+  max-width: 100%;
+  overflow: visible;
+  white-space: nowrap;
+}
+
+.game-main .connection-bar {
+  min-height: 3.5rem;
+}
+
+.game-main .connection-seasons {
+  width: 100%;
+}
+
+.powerup-panel,
+.win-panel {
+  gap: 0.5rem;
+}
+
+.win-box,
+.powerup-box {
+  padding: 0.58rem 0.62rem;
+  border-color: color-mix(in srgb, var(--mode-playoffs) 38%, var(--border));
+  background: rgba(255, 216, 79, 0.07);
+}
+
+.powerup-panel > summary {
+  color: #ffe49a;
+  border-color: color-mix(in srgb, var(--mode-playoffs) 55%, var(--border));
+  background: rgba(255, 216, 79, 0.12);
+}
+
+.powerup-list {
+  gap: 0.36rem;
+}
+
+.powerup-chip {
+  padding: 0.42rem 0.55rem;
+}
+
+@media (max-width: 640px) {
+  .game-main .player-card.has-team-columns {
+    grid-template-columns: minmax(0, 1fr) minmax(135px, 154px) minmax(0, 1fr);
+  }
+
+  .card-team-column {
+    font-size: 0.66rem;
+    line-height: 1.16;
+  }
+
+  .game-main .player-info .name {
+    font-size: clamp(0.82rem, 3.8vw, 1rem);
+  }
+
+  .game-main .player-card.has-team-columns .headshot {
+    width: 88px;
+    height: 88px;
+  }
+
+  .win-panel,
+  .powerup-panel[open] {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .powerup-panel[open] > summary {
+    grid-column: 1 / -1;
+  }
+
+  .powerup-name {
+    font-size: 0.82rem;
+  }
+
+  .powerup-box-label,
+  .win-box .powerup-box-label {
+    font-size: 0.62rem;
+  }
+}
