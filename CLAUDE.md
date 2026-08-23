@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.3.81`
+- Current display version: `0.3.82`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -24,6 +24,12 @@ changes. It is the concise source of truth for another coding assistant.
   migration run, then remove it again.
 
 ## Current user experience
+
+Update, 2026-08-23 (0.3.82): final small Football Film Review spacing polish.
+Moved SLOT and TE upward to clear the offensive tackles, tucked outside WRs
+inward from the sidelines, moved defensive backs inward so larger widgets do
+not clip the sideline, widened safeties to stay between CB and OLB lanes, and
+enlarged football widgets/headshots again while preserving two-line name room.
 
 Update, 2026-08-23 (0.3.81): refined Football Film Review spacing again.
 Offense keeps the RB high while moving QB, receivers, tight end, slot, and OL
