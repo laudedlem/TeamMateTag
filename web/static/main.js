@@ -812,7 +812,7 @@ function renderFriends() {
   }
   const pendingCount = (friendsData.incoming_requests?.length || 0) + (friendsData.incoming_challenges?.length || 0);
   if (els.friendsOpenBtn) els.friendsOpenBtn.textContent = pendingCount > 0 ? `Friends (${pendingCount})` : 'Friends';
-  els.friendsStatus.textContent = 'Add Friends by Username or Email. Friend Challenges start Division Rivalry right away.';
+  els.friendsStatus.textContent = 'Add Friends by Username or Email.';
   renderSimpleList(
     els.incomingRequestsList,
     friendsData.incoming_requests,
@@ -1317,7 +1317,7 @@ async function startFr(unit = null, options = {}) {
   closeTeamAutocomplete();
   els.frTeamInput.value = '';
   clearFrSeasonInputs();
-  frBoardCollapsed = null;
+  frBoardCollapsed = true;
   configureFrSeasonInputs();
   showScreen('fr-game');
   renderLoadingFilmReview();
@@ -1859,6 +1859,15 @@ function powerupLockedLabel() {
   return 'Ready';
 }
 
+function powerupActivationText(move) {
+  const powerups = game?.powerups?.your_powerups || [];
+  const powerup = powerups.find((item) => item.key === move?.powerup_key);
+  const label = move?.powerup_label || powerup?.label || 'Powerup';
+  const description = gameCopyStyle(powerup?.description || '');
+  if (description) return `${label} Activated. ${description}`;
+  return gameCopyStyle(move?.message || `${label} Activated.`);
+}
+
 function powerupButtonHtml(powerup, disabled, stateLabel = 'Ready') {
   const classes = ['powerup-chip', 'powerup-' + powerupClass(powerup.key)];
   if (powerup.used) classes.push('used');
@@ -2380,7 +2389,7 @@ function renderMoveFeedback(m, g) {
   if (!m) return '';
   if (m.outcome === 'timeout') return '<span class="bad">Time Expired.</span>';
   if (m.outcome === 'powerup_activated') {
-    return `<span class="ok">${escapeHtml(m.message || `${m.powerup_label} Activated.`)}</span>`;
+    return `<span class="ok">${escapeHtml(powerupActivationText(m))}</span>`;
   }
 
   const name = m.display_name
@@ -2856,6 +2865,7 @@ async function loadFrArchive() {
           return;
         }
         frGame = result;
+        frBoardCollapsed = true;
         hideFrSummaryBanner();
         renderFrGame(true);
       } else if (action === 'review') {
@@ -2867,6 +2877,7 @@ async function loadFrArchive() {
           return;
         }
         frGame = result;
+        frBoardCollapsed = true;
         hideFrSummaryBanner();
         renderFrGame(true);
         showFrSummaryBanner();
@@ -3076,7 +3087,7 @@ function renderFrLineupBoard() {
   const earnedCount = frGame.finished
     ? (frGame.won ? slots.length : Math.min(slots.length, frGame.earned_count || ((frGame.stats?.hits || 0) + 2)))
     : 0;
-  const collapsed = frBoardCollapsed ?? false;
+  const collapsed = frBoardCollapsed ?? true;
   els.frLineupBoard.className = `fr-lineup-board sport-${sport} unit-${unit} ${collapsed ? 'collapsed' : ''}`;
   const surfaceLabel = frSurfaceLabel(sport, unit);
   els.frLineupBoard.innerHTML = `

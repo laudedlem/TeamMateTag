@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.3.85`
+- Current display version: `0.3.86`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -24,6 +24,17 @@ changes. It is the concise source of truth for another coding assistant.
   migration run, then remove it again.
 
 ## Current user experience
+
+Update, 2026-08-23 (0.3.86): continued the broad polish pass. Profile and
+Friends now use a wider dashboard layout with stronger stat cards, request
+sections, friend rows, and leaderboard rows. The stale Friends line that said
+friend challenges start Division Rivalry right away was replaced with neutral
+add-friend copy. Film Review archive helper text was removed, in-game archive
+rows now share the same subdued status treatment as the hub, and Film Review
+lineup graphics collapse by default each time a review is opened or resumed.
+Playoffs powerups now use a full-width centered summary button, a wider usable
+powerup grid, a smaller opponent strip, and activation feedback that reminds the
+player what the chosen powerup does.
 
 Update, 2026-08-23 (0.3.85): hid Privacy and Terms from visible footers while
 leaving their routes/templates available for later. Completed the next broad UI

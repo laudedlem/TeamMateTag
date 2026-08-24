@@ -8362,3 +8362,290 @@ body.headshot-audit-page .audit-status-pill {
     grid-column: 1 / -1;
   }
 }
+
+/* 0.3.86 profile, archive, and Playoffs control refinements. */
+.profile-screen-card {
+  max-width: 980px;
+  overflow: hidden;
+  position: relative;
+}
+
+.profile-screen-card::before {
+  background:
+    linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--sport-accent, var(--accent)) 72%, #ffffff), transparent);
+  content: "";
+  height: 4px;
+  left: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
+}
+
+.profile-screen-card > h2 {
+  font-size: clamp(1.7rem, 3vw, 2.3rem);
+  margin-bottom: 0.25rem;
+}
+
+#profile-screen-name,
+#friends-status {
+  color: color-mix(in srgb, var(--accent) 58%, #ffffff);
+  font-size: 0.98rem;
+  font-weight: 850;
+}
+
+.profile-sport-picker {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  color: color-mix(in srgb, var(--text-muted) 78%, #ffffff);
+  font-weight: 900;
+  padding: 0.48rem 0.58rem;
+}
+
+.profile-sport-picker select {
+  min-height: 2.2rem;
+}
+
+.profile-detail-grid {
+  align-items: stretch;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.profile-detail {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent) 14%, transparent), transparent 56%),
+    rgba(255, 255, 255, 0.058);
+  min-height: 6.15rem;
+}
+
+.profile-detail:nth-child(3),
+.profile-detail:nth-child(4) {
+  border-top-color: color-mix(in srgb, var(--good) 58%, rgba(255, 255, 255, 0.18));
+}
+
+.profile-detail:nth-child(5),
+.profile-detail:nth-child(6) {
+  border-top-color: color-mix(in srgb, var(--burn) 62%, rgba(255, 255, 255, 0.18));
+}
+
+.profile-detail:nth-child(7) {
+  grid-column: 1 / -1;
+  min-height: 4.8rem;
+}
+
+.profile-detail-label {
+  min-height: 1.55rem;
+}
+
+.profile-detail strong {
+  display: block;
+  font-size: clamp(1.18rem, 2.2vw, 1.55rem);
+  line-height: 1.12;
+  overflow-wrap: anywhere;
+}
+
+.leaderboard-card {
+  max-width: none;
+}
+
+.leaderboard-list {
+  display: grid;
+  gap: 0.4rem;
+  list-style-position: inside;
+  padding-left: 0;
+}
+
+.leaderboard-list li {
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  font-weight: 800;
+  padding: 0.45rem 0.58rem;
+}
+
+#friends-screen .challenge-row {
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  display: grid;
+  gap: 0.55rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  margin-top: 0.8rem;
+  padding: 0.58rem;
+}
+
+#friends-screen .profile-detail-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+#friends-screen .profile-detail {
+  min-height: 8.75rem;
+}
+
+#friends-screen .profile-detail:nth-child(3),
+#friends-screen .profile-detail:nth-child(4) {
+  background:
+    linear-gradient(135deg, rgba(255, 216, 79, 0.12), transparent 54%),
+    rgba(255, 255, 255, 0.058);
+}
+
+#friends-screen .profile-detail:nth-child(5),
+#friends-screen .profile-detail:nth-child(6) {
+  min-height: 10rem;
+}
+
+.friend-row {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.friend-name {
+  color: var(--text);
+  font-size: 0.96rem;
+  font-weight: 900;
+}
+
+.friend-sub {
+  color: color-mix(in srgb, var(--text-muted) 82%, #ffffff);
+  font-weight: 750;
+}
+
+.fr-hub-archive-select option.fr-option-today,
+.fr-hub-archive-select option.fr-option-new,
+.fr-hub-archive-select option.fr-option-won,
+.fr-hub-archive-select option.fr-option-completed,
+.fr-hub-archive-select option.fr-option-in_progress,
+.fr-hub-archive-select option.fr-option-lost,
+.fr-hub-archive-select option.fr-option-failed,
+.fr-hub-archive-select option.fr-option-unseen {
+  color: var(--text);
+}
+
+.fr-today-status.new,
+.fr-today-status.unseen,
+.fr-today-status.won,
+.fr-today-status.lost,
+.fr-today-status.in_progress {
+  color: var(--text);
+}
+
+.fr-archive-day.won,
+.fr-archive-day.lost,
+.fr-archive-day.in_progress,
+.fr-archive-day.unseen {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--fr-status-color, var(--accent)) 15%, transparent), transparent 52%),
+    rgba(255, 255, 255, 0.048);
+  border-color: rgba(255, 255, 255, 0.14);
+  border-left-color: var(--fr-status-color, rgba(255, 255, 255, 0.22));
+}
+
+.fr-archive-day.won { --fr-status-color: var(--good); }
+.fr-archive-day.lost { --fr-status-color: var(--bad); }
+.fr-archive-day.in_progress { --fr-status-color: var(--accent); }
+.fr-archive-day.unseen { --fr-status-color: color-mix(in srgb, var(--text-muted) 70%, #ffffff); }
+
+.fr-archive-day .fr-archive-action {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.16);
+  color: var(--text);
+}
+
+.fr-archive-day .fr-archive-action:hover {
+  border-color: color-mix(in srgb, var(--fr-status-color, var(--accent)) 70%, #ffffff);
+}
+
+.fr-lineup-board.collapsed .fr-board-toggle {
+  margin-bottom: 0;
+}
+
+.powerup-panel {
+  margin-inline: auto;
+  width: 100%;
+}
+
+.powerup-panel > summary {
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.98rem;
+  font-weight: 950;
+  justify-content: center;
+  min-height: 3rem;
+  text-align: center;
+}
+
+.powerup-panel > summary::marker {
+  color: color-mix(in srgb, var(--accent) 74%, #ffffff);
+}
+
+.powerup-panel > summary span,
+.powerup-panel > summary small {
+  background: rgba(255, 255, 255, 0.09);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  color: color-mix(in srgb, var(--accent) 72%, #ffffff);
+  font-size: 0.76rem;
+  line-height: 1;
+  padding: 0.32rem 0.5rem;
+}
+
+.powerup-panel > summary small {
+  color: color-mix(in srgb, var(--text-muted) 78%, #ffffff);
+}
+
+.powerup-panel[open] {
+  align-items: start;
+  grid-template-columns: minmax(0, 3.2fr) minmax(11rem, 1fr);
+}
+
+.powerup-box {
+  align-content: start;
+  display: grid;
+  gap: 0.48rem;
+}
+
+.powerup-box-label,
+.powerup-name {
+  text-align: center;
+}
+
+.powerup-list {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.powerup-chip {
+  min-height: 2.9rem;
+  padding: 0.54rem 0.5rem;
+}
+
+.powerup-label {
+  font-size: 0.78rem;
+  line-height: 1.05;
+}
+
+.powerup-state {
+  font-size: 0.66rem;
+  line-height: 1;
+}
+
+.powerup-box:nth-of-type(2) .powerup-list {
+  justify-content: center;
+}
+
+@media (max-width: 820px) {
+  .profile-detail-grid,
+  #friends-screen .profile-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  #friends-screen .challenge-row {
+    grid-template-columns: 1fr;
+  }
+
+  .powerup-panel[open] {
+    grid-template-columns: 1fr;
+  }
+
+  .powerup-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
