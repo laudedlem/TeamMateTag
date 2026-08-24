@@ -9140,3 +9140,53 @@ body.headshot-audit-page .audit-status-pill {
   margin-top: auto;
   text-align: left;
 }
+
+/* 0.3.95: improve readable text over colorful homepage tiles. */
+.home-root .home-launch-tile,
+.home-root .mode-hub-card.home-launch-tile {
+  padding-right: 5.9rem;
+}
+
+.home-root .home-launch-tile .sport-tile-name,
+.home-root .home-launch-tile .sport-tile-status {
+  max-width: calc(100% - 0.2rem);
+  overflow-wrap: normal;
+  text-shadow:
+    -1px -1px 0 rgba(0, 0, 0, 0.54),
+    1px -1px 0 rgba(0, 0, 0, 0.54),
+    -1px 1px 0 rgba(0, 0, 0, 0.54),
+    1px 1px 0 rgba(0, 0, 0, 0.54),
+    0 2px 7px rgba(0, 0, 0, 0.42);
+}
+
+.home-root .home-launch-tile .sport-tile-status {
+  font-size: 0.78rem;
+  line-height: 1.08;
+}
+
+.home-root .home-tile-yellow .sport-tile-status {
+  max-width: 7.4rem;
+}
+
+.home-root .home-tile-icon,
+.home-root .sport-tile .home-tile-icon,
+.home-root .mode-hub-card .home-tile-icon {
+  right: 0.7rem;
+  width: 3.9rem;
+  height: 3.9rem;
+}
+
+@media (max-width: 560px) {
+  .home-root .home-launch-tile,
+  .home-root .mode-hub-card.home-launch-tile {
+    padding-right: 4.85rem;
+  }
+
+  .home-root .home-tile-icon,
+  .home-root .sport-tile .home-tile-icon,
+  .home-root .mode-hub-card .home-tile-icon {
+    right: 0.55rem;
+    width: 3.25rem;
+    height: 3.25rem;
+  }
+}

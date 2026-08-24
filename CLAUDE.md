@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.3.94`
+- Current display version: `0.3.95`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -24,6 +24,12 @@ changes. It is the concise source of truth for another coding assistant.
   migration run, then remove it again.
 
 ## Current user experience
+
+Update, 2026-08-23 (0.3.95): improved root homepage launch tile readability.
+Added black outline-style shadows to the white tile labels/status text, reduced
+status copy size slightly, moved the icon area farther right, added more
+right-side text padding, and constrained the Playoffs status so `Powerups and
+Win Conditions` can wrap cleanly instead of overlapping its icon.
 
 Update, 2026-08-23 (0.3.94): restored the root homepage launch tile status
 copy, such as `Hit the Field`, to the bottom-left of each button after the
