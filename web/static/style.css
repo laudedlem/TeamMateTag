@@ -9129,3 +9129,14 @@ body.headshot-audit-page .audit-status-pill {
     inset 0 -18px 34px rgba(0, 0, 0, 0.12),
     0 24px 50px color-mix(in srgb, var(--home-tile-color) 28%, rgba(0, 0, 0, 0.26));
 }
+
+/* 0.3.94: restore home tile status text to the bottom-left. */
+.home-root .home-launch-tile {
+  align-items: flex-start;
+}
+
+.home-root .home-launch-tile .sport-tile-status {
+  align-self: flex-start;
+  margin-top: auto;
+  text-align: left;
+}

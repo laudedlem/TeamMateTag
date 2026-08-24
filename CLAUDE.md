@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.3.93`
+- Current display version: `0.3.94`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -24,6 +24,10 @@ changes. It is the concise source of truth for another coding assistant.
   migration run, then remove it again.
 
 ## Current user experience
+
+Update, 2026-08-23 (0.3.94): restored the root homepage launch tile status
+copy, such as `Hit the Field`, to the bottom-left of each button after the
+recent smoky tile styling accidentally centered/moved it.
 
 Update, 2026-08-23 (0.3.93): adjusted the root homepage launch tiles after
 playtesting the smoky background. The tiles now keep the smoky style but use
