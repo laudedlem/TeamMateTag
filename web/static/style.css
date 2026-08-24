@@ -9232,3 +9232,80 @@ body.headshot-audit-page .audit-status-pill {
     font-size: 0.82rem;
   }
 }
+
+/* 0.3.98: larger homepage tile text and icons without overlap. */
+.home-root .home-launch-tile,
+.home-root .mode-hub-card.home-launch-tile {
+  min-height: 168px;
+  padding-right: 6.8rem;
+}
+
+.home-root .home-launch-tile .sport-tile-name {
+  font-size: clamp(1.68rem, 3.75vw, 2.32rem);
+  line-height: 0.98;
+  max-width: calc(100% - 0.35rem);
+}
+
+.home-root .home-modes-grid .home-launch-tile .sport-tile-name {
+  font-size: clamp(1.48rem, 3.25vw, 2.05rem);
+}
+
+.home-root .home-launch-tile .sport-tile-status {
+  font-size: clamp(1rem, 2.08vw, 1.2rem);
+  line-height: 1.04;
+  max-width: calc(100% - 0.35rem);
+}
+
+.home-root .home-tile-yellow .sport-tile-status {
+  max-width: 8.15rem;
+}
+
+.home-root .home-tile-icon,
+.home-root .sport-tile .home-tile-icon,
+.home-root .mode-hub-card .home-tile-icon {
+  height: 4.65rem;
+  right: 0.8rem;
+  width: 4.65rem;
+}
+
+.home-root .home-tile-icon svg,
+.home-root .sport-tile .home-tile-icon svg,
+.home-root .mode-hub-card .home-tile-icon svg {
+  height: 2.65rem;
+  width: 2.65rem;
+}
+
+@media (max-width: 760px) {
+  .home-root .home-launch-tile,
+  .home-root .mode-hub-card.home-launch-tile {
+    min-height: 156px;
+    padding-right: 5.75rem;
+  }
+
+  .home-root .home-launch-tile .sport-tile-name {
+    font-size: 1.48rem;
+  }
+
+  .home-root .home-modes-grid .home-launch-tile .sport-tile-name {
+    font-size: 1.32rem;
+  }
+
+  .home-root .home-launch-tile .sport-tile-status {
+    font-size: 0.9rem;
+  }
+
+  .home-root .home-tile-icon,
+  .home-root .sport-tile .home-tile-icon,
+  .home-root .mode-hub-card .home-tile-icon {
+    height: 3.8rem;
+    right: 0.62rem;
+    width: 3.8rem;
+  }
+
+  .home-root .home-tile-icon svg,
+  .home-root .sport-tile .home-tile-icon svg,
+  .home-root .mode-hub-card .home-tile-icon svg {
+    height: 2.2rem;
+    width: 2.2rem;
+  }
+}
