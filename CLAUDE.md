@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.3.90`
+- Current display version: `0.3.91`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -24,6 +24,12 @@ changes. It is the concise source of truth for another coding assistant.
   migration run, then remove it again.
 
 ## Current user experience
+
+Update, 2026-08-23 (0.3.91): adjusted the root homepage launch tiles again
+after playtesting. The 0.3.90 version was too bright, moved the status text into
+a pill, and made the icons too heavy. The final cascade now uses smoky color
+surfaces with a thicker border, restores the lighter icon line weight, and lets
+the lower status text sit naturally again.
 
 Update, 2026-08-23 (0.3.90): corrected the root homepage launch tile polish
 after playtesting. Version 0.3.89 made the eight main buttons too smoky and

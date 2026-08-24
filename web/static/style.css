@@ -8988,3 +8988,77 @@ body.headshot-audit-page .audit-status-pill {
   color: #ffffff;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.36);
 }
+
+/* 0.3.91: smoky-color homepage tiles with sturdy borders and lighter icons. */
+.home-root .home-launch-tile,
+.home-root .mode-hub-card.home-launch-tile {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--home-tile-color) 54%, rgba(13, 19, 30, 0.96)), rgba(13, 19, 30, 0.9) 70%),
+    repeating-linear-gradient(135deg, color-mix(in srgb, var(--home-tile-color) 16%, transparent) 0 2px, transparent 2px 11px);
+  border: 2px solid color-mix(in srgb, var(--home-tile-color) 62%, rgba(255, 255, 255, 0.28));
+  border-bottom-color: color-mix(in srgb, var(--home-tile-color) 46%, rgba(255, 255, 255, 0.14));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -18px 36px rgba(0, 0, 0, 0.18),
+    0 15px 32px rgba(0, 0, 0, 0.25);
+}
+
+.home-root .home-launch-tile::before,
+.home-root .mode-hub-card.home-launch-tile::before {
+  background: color-mix(in srgb, var(--home-tile-color) 74%, rgba(255, 255, 255, 0.32));
+  height: 4px;
+}
+
+.home-root .home-launch-tile::after,
+.home-root .mode-hub-card.home-launch-tile::after {
+  background:
+    linear-gradient(120deg, rgba(255, 255, 255, 0.11), transparent 38%),
+    radial-gradient(circle at 88% 16%, color-mix(in srgb, var(--home-tile-color) 24%, transparent), transparent 36%);
+  opacity: 0.72;
+}
+
+.home-root .home-launch-tile:hover,
+.home-root .mode-hub-card.home-launch-tile:hover {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--home-tile-color) 62%, rgba(15, 22, 34, 0.94)), rgba(14, 20, 31, 0.9) 70%),
+    repeating-linear-gradient(135deg, color-mix(in srgb, var(--home-tile-color) 20%, transparent) 0 2px, transparent 2px 11px);
+  border-color: color-mix(in srgb, var(--home-tile-color) 72%, rgba(255, 255, 255, 0.34));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -18px 36px rgba(0, 0, 0, 0.16),
+    0 22px 48px color-mix(in srgb, var(--home-tile-color) 24%, rgba(0, 0, 0, 0.3));
+}
+
+.home-root .home-tile-icon,
+.home-root .sport-tile .home-tile-icon,
+.home-root .mode-hub-card .home-tile-icon {
+  background: rgba(8, 13, 22, 0.26);
+  border: 1px solid color-mix(in srgb, var(--home-tile-color) 42%, rgba(255, 255, 255, 0.26));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 8px 16px rgba(0, 0, 0, 0.2);
+}
+
+.home-root .home-tile-icon svg,
+.home-root .sport-tile .home-tile-icon svg,
+.home-root .mode-hub-card .home-tile-icon svg {
+  color: #f8fafc;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.26));
+  stroke-width: 2;
+}
+
+.home-root .home-launch-tile .sport-tile-name {
+  color: #f8fafc;
+  text-shadow: 0 1px 7px rgba(0, 0, 0, 0.34);
+}
+
+.home-root .home-launch-tile .sport-tile-status {
+  align-self: center;
+  background: transparent;
+  border: 0;
+  color: rgba(248, 250, 252, 0.84);
+  margin-top: 0;
+  padding: 0;
+  text-shadow: 0 1px 5px rgba(0, 0, 0, 0.3);
+  width: auto;
+}
