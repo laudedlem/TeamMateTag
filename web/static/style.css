@@ -9097,3 +9097,35 @@ body.headshot-audit-page .audit-status-pill {
     inset 0 -20px 38px rgba(0, 0, 0, 0.16),
     0 22px 48px color-mix(in srgb, var(--home-tile-color) 26%, rgba(0, 0, 0, 0.3));
 }
+
+/* 0.3.93: brighter smoky homepage tiles with thicker colored borders. */
+.home-root .home-launch-tile,
+.home-root .mode-hub-card.home-launch-tile {
+  background:
+    radial-gradient(ellipse at 18% 14%, color-mix(in srgb, var(--home-tile-color) 68%, #ffffff 12%), transparent 44%),
+    radial-gradient(ellipse at 78% 86%, color-mix(in srgb, var(--home-tile-color) 42%, #071018 28%), transparent 54%),
+    linear-gradient(135deg, color-mix(in srgb, var(--home-tile-color) 42%, rgba(18, 25, 38, 0.9)), rgba(18, 25, 38, 0.78) 72%);
+  border: 3px solid color-mix(in srgb, var(--home-tile-color) 76%, rgba(255, 255, 255, 0.34));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    inset 0 -18px 34px rgba(0, 0, 0, 0.14),
+    0 16px 34px rgba(0, 0, 0, 0.24);
+}
+
+.home-root .home-launch-tile::before,
+.home-root .mode-hub-card.home-launch-tile::before {
+  height: 5px;
+}
+
+.home-root .home-launch-tile:hover,
+.home-root .mode-hub-card.home-launch-tile:hover {
+  background:
+    radial-gradient(ellipse at 18% 14%, color-mix(in srgb, var(--home-tile-color) 78%, #ffffff 14%), transparent 44%),
+    radial-gradient(ellipse at 78% 86%, color-mix(in srgb, var(--home-tile-color) 48%, #071018 22%), transparent 54%),
+    linear-gradient(135deg, color-mix(in srgb, var(--home-tile-color) 50%, rgba(18, 25, 38, 0.88)), rgba(18, 25, 38, 0.76) 72%);
+  border: 4px solid color-mix(in srgb, var(--home-tile-color) 86%, rgba(255, 255, 255, 0.4));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.24),
+    inset 0 -18px 34px rgba(0, 0, 0, 0.12),
+    0 24px 50px color-mix(in srgb, var(--home-tile-color) 28%, rgba(0, 0, 0, 0.26));
+}
