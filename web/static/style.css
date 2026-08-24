@@ -8649,3 +8649,90 @@ body.headshot-audit-page .audit-status-pill {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* 0.3.87: make open Playoffs powerups use the full turn-card width. */
+.powerup-panel[open] {
+  column-gap: 0.6rem;
+  display: grid;
+  grid-template-columns: 1fr;
+  row-gap: 0.58rem;
+}
+
+.powerup-panel[open] .powerup-box:first-of-type {
+  width: 100%;
+}
+
+.powerup-panel[open] .powerup-box:nth-of-type(2) {
+  align-items: center;
+  display: grid;
+  gap: 0.42rem;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  padding-block: 0.46rem;
+}
+
+.powerup-panel[open] .powerup-box:nth-of-type(2) .powerup-list {
+  justify-content: flex-start;
+  min-width: 0;
+}
+
+.powerup-panel[open] .powerup-box:nth-of-type(2) .powerup-box-label,
+.powerup-panel[open] .powerup-box:nth-of-type(2) .powerup-name {
+  margin: 0;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.powerup-panel[open] #your-powerup-desc.powerup-list {
+  gap: 0.58rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  width: 100%;
+}
+
+.powerup-panel[open] #your-powerup-desc .powerup-chip {
+  align-content: center;
+  display: grid;
+  gap: 0.2rem;
+  grid-template-columns: auto minmax(0, 1fr);
+  min-height: 3.65rem;
+  padding: 0.62rem 0.7rem;
+  text-align: left;
+}
+
+.powerup-panel[open] #your-powerup-desc .powerup-icon {
+  grid-row: 1 / 3;
+  height: 1.8rem;
+  width: 1.8rem;
+}
+
+.powerup-panel[open] #your-powerup-desc .powerup-label {
+  font-size: 0.9rem;
+  line-height: 1.08;
+  overflow: visible;
+  white-space: normal;
+}
+
+.powerup-panel[open] #your-powerup-desc .powerup-state {
+  font-size: 0.72rem;
+  line-height: 1;
+  white-space: normal;
+}
+
+@media (max-width: 900px) {
+  .powerup-panel[open] #your-powerup-desc.powerup-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .powerup-panel[open] .powerup-box:nth-of-type(2) {
+    grid-template-columns: 1fr;
+  }
+
+  .powerup-panel[open] .powerup-box:nth-of-type(2) .powerup-box-label,
+  .powerup-panel[open] .powerup-box:nth-of-type(2) .powerup-name {
+    text-align: center;
+    white-space: normal;
+  }
+
+  .powerup-panel[open] .powerup-box:nth-of-type(2) .powerup-list {
+    justify-content: center;
+  }
+}
