@@ -140,6 +140,36 @@ CREATE TABLE IF NOT EXISTS data_provenance (
     UNIQUE NULLS NOT DISTINCT (source, season)
 );
 
+-- Daily MLB live-data imports. These game-level staging rows let the current
+-- season be rerun safely without double-counting appearances.
+CREATE TABLE IF NOT EXISTS mlb_live_game_imports (
+    game_pk     INTEGER PRIMARY KEY,
+    game_date   DATE NOT NULL,
+    season      INTEGER NOT NULL,
+    status      TEXT NOT NULL,
+    row_count   INTEGER NOT NULL DEFAULT 0,
+    imported_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS mlb_live_player_games (
+    game_pk       INTEGER NOT NULL REFERENCES mlb_live_game_imports(game_pk)
+                  ON DELETE CASCADE,
+    game_date     DATE NOT NULL,
+    season        INTEGER NOT NULL,
+    player_id     TEXT NOT NULL REFERENCES players(player_id),
+    team_id       TEXT NOT NULL,
+    games_total   INTEGER NOT NULL DEFAULT 1,
+    games_pitched INTEGER NOT NULL DEFAULT 0,
+    games_batted  INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (game_pk, player_id, team_id),
+    FOREIGN KEY (team_id, season) REFERENCES teams(team_id, season)
+);
+
+CREATE INDEX IF NOT EXISTS idx_mlb_live_player_games_rollup
+    ON mlb_live_player_games(season, player_id, team_id);
+CREATE INDEX IF NOT EXISTS idx_mlb_live_player_games_date
+    ON mlb_live_player_games(game_date DESC);
+
 -- ============================================================
 -- USER-REPORTED ERRORS
 -- ============================================================

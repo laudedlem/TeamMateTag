@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.3.98`
+- Current display version: `0.4.00`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -24,6 +24,18 @@ changes. It is the concise source of truth for another coding assistant.
   migration run, then remove it again.
 
 ## Current user experience
+
+Update, 2026-08-23 (0.4.00): started the live-season data foundation. Added
+`scripts/update_mlb_live_data.py`, a production Postgres MLB importer that uses
+the free public MLB Stats API schedule and boxscore feeds to store idempotent
+game-level appearance rows, roll them into `appearances`, refresh current-season
+player stints from actual game dates, and add new `mlbam_<id>` players to search.
+Added `mlb_live_game_imports` / `mlb_live_player_games` to the Postgres schema,
+documented the multi-sport data plan in `docs/live_season_data_plan.md`, and
+added a daily/manual GitHub Actions workflow for the MLB updater. Production was
+seeded for 2026 season-to-date on 2026-08-23: 2,326 unique MLB games, 74,602
+player-game rows, 4,068 current-season player/team appearance rows, and 3,475
+searchable live players.
 
 Update, 2026-08-23 (0.3.98): scaled the root homepage launch tiles up again.
 Sport/mode names, bottom status copy, tile heights, and icons are larger, with
