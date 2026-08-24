@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.3.91`
+- Current display version: `0.3.92`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -24,6 +24,11 @@ changes. It is the concise source of truth for another coding assistant.
   migration run, then remove it again.
 
 ## Current user experience
+
+Update, 2026-08-23 (0.3.92): corrected the root homepage launch tile texture
+again. Removed the diagonal/repeating texture entirely and replaced it with a
+soft smoky color wash. Colored borders remain, and hover now thickens the border
+to make the selected tile feel more active without changing text/icon placement.
 
 Update, 2026-08-23 (0.3.91): adjusted the root homepage launch tiles again
 after playtesting. The 0.3.90 version was too bright, moved the status text into

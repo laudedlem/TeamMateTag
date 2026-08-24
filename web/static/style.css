@@ -9062,3 +9062,38 @@ body.headshot-audit-page .audit-status-pill {
   text-shadow: 0 1px 5px rgba(0, 0, 0, 0.3);
   width: auto;
 }
+
+/* 0.3.92: remove diagonal texture; keep smoky color and stronger hover borders. */
+.home-root .home-launch-tile,
+.home-root .mode-hub-card.home-launch-tile {
+  background:
+    radial-gradient(ellipse at 22% 16%, color-mix(in srgb, var(--home-tile-color) 48%, transparent), transparent 48%),
+    radial-gradient(ellipse at 86% 86%, color-mix(in srgb, var(--home-tile-color) 24%, transparent), transparent 54%),
+    linear-gradient(135deg, color-mix(in srgb, var(--home-tile-color) 30%, rgba(13, 19, 30, 0.98)), rgba(13, 19, 30, 0.94) 68%);
+  border: 2px solid color-mix(in srgb, var(--home-tile-color) 66%, rgba(255, 255, 255, 0.3));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.15),
+    inset 0 -20px 38px rgba(0, 0, 0, 0.18),
+    0 15px 32px rgba(0, 0, 0, 0.25);
+}
+
+.home-root .home-launch-tile::after,
+.home-root .mode-hub-card.home-launch-tile::after {
+  background:
+    radial-gradient(ellipse at 50% 50%, rgba(255, 255, 255, 0.08), transparent 58%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(0, 0, 0, 0.12));
+  opacity: 0.7;
+}
+
+.home-root .home-launch-tile:hover,
+.home-root .mode-hub-card.home-launch-tile:hover {
+  background:
+    radial-gradient(ellipse at 22% 16%, color-mix(in srgb, var(--home-tile-color) 58%, transparent), transparent 48%),
+    radial-gradient(ellipse at 86% 86%, color-mix(in srgb, var(--home-tile-color) 30%, transparent), transparent 54%),
+    linear-gradient(135deg, color-mix(in srgb, var(--home-tile-color) 38%, rgba(14, 20, 31, 0.98)), rgba(13, 19, 30, 0.94) 68%);
+  border: 3px solid color-mix(in srgb, var(--home-tile-color) 78%, rgba(255, 255, 255, 0.38));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -20px 38px rgba(0, 0, 0, 0.16),
+    0 22px 48px color-mix(in srgb, var(--home-tile-color) 26%, rgba(0, 0, 0, 0.3));
+}
