@@ -8818,3 +8818,103 @@ body.headshot-audit-page .audit-status-pill {
 .powerup-panel[open] .powerup-box:nth-of-type(2) .powerup-list {
   justify-content: center;
 }
+
+/* 0.3.89: richer root-home launch tiles using the current site aesthetic. */
+.home-root .home-launch-tile,
+.home-root .mode-hub-card.home-launch-tile {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--home-tile-color) 24%, transparent), transparent 42%),
+    linear-gradient(315deg, rgba(255, 255, 255, 0.08), transparent 54%),
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.045) 0 1px, transparent 1px 9px),
+    rgba(14, 20, 31, 0.88);
+  border: 1px solid color-mix(in srgb, var(--home-tile-color) 48%, rgba(255, 255, 255, 0.16));
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+  border-left: 0;
+  border-radius: 8px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -22px 42px rgba(0, 0, 0, 0.18),
+    0 16px 34px rgba(0, 0, 0, 0.24);
+  overflow: hidden;
+  position: relative;
+}
+
+.home-root .home-launch-tile::before,
+.home-root .mode-hub-card.home-launch-tile::before {
+  background:
+    linear-gradient(90deg, var(--home-tile-color), color-mix(in srgb, var(--home-tile-color) 38%, #ffffff), transparent);
+  content: "";
+  height: 5px;
+  left: 0;
+  opacity: 0.98;
+  position: absolute;
+  right: 0;
+  top: 0;
+}
+
+.home-root .home-launch-tile::after,
+.home-root .mode-hub-card.home-launch-tile::after {
+  background:
+    radial-gradient(circle at 18% 18%, color-mix(in srgb, var(--home-tile-color) 38%, transparent), transparent 36%),
+    linear-gradient(120deg, transparent 0 58%, rgba(255, 255, 255, 0.08) 58% 59%, transparent 59%);
+  bottom: 0;
+  content: "";
+  left: 0;
+  opacity: 0.72;
+  pointer-events: none;
+  position: absolute;
+  right: 0;
+  top: 0;
+}
+
+.home-root .home-launch-tile > *,
+.home-root .mode-hub-card.home-launch-tile > * {
+  position: relative;
+  z-index: 1;
+}
+
+.home-root .home-launch-tile:hover,
+.home-root .mode-hub-card.home-launch-tile:hover {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--home-tile-color) 31%, transparent), transparent 43%),
+    linear-gradient(315deg, rgba(255, 255, 255, 0.1), transparent 55%),
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.052) 0 1px, transparent 1px 9px),
+    rgba(18, 25, 38, 0.94);
+  border-color: color-mix(in srgb, var(--home-tile-color) 68%, rgba(255, 255, 255, 0.22));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -22px 42px rgba(0, 0, 0, 0.16),
+    0 24px 54px color-mix(in srgb, var(--home-tile-color) 28%, rgba(0, 0, 0, 0.34));
+  transform: translateY(-3px);
+}
+
+.home-root .home-tile-icon,
+.home-root .sport-tile .home-tile-icon,
+.home-root .mode-hub-card .home-tile-icon {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--home-tile-color) 34%, rgba(255, 255, 255, 0.1)), rgba(255, 255, 255, 0.055));
+  border: 1px solid color-mix(in srgb, var(--home-tile-color) 56%, rgba(255, 255, 255, 0.2));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 10px 24px color-mix(in srgb, var(--home-tile-color) 18%, rgba(0, 0, 0, 0.22));
+}
+
+.home-root .home-launch-tile .sport-tile-name {
+  color: #f8fafc;
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.36);
+}
+
+.home-root .home-launch-tile .sport-tile-status {
+  background: rgba(255, 255, 255, 0.075);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 999px;
+  color: color-mix(in srgb, var(--home-tile-color) 42%, #ffffff);
+  display: inline-flex;
+  font-weight: 900;
+  justify-content: center;
+  line-height: 1.05;
+  margin-top: 0.18rem;
+  max-width: 100%;
+  padding: 0.34rem 0.56rem;
+  width: fit-content;
+}

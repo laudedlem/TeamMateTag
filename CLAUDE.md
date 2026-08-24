@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.3.88`
+- Current display version: `0.3.89`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -24,6 +24,12 @@ changes. It is the concise source of truth for another coding assistant.
   migration run, then remove it again.
 
 ## Current user experience
+
+Update, 2026-08-23 (0.3.89): polished the eight root homepage launch tiles.
+The existing sport/mode color identities are preserved, but the flat color-block
+feel has been replaced with smoky layered surfaces, a colored top edge, subtle
+diagonal texture, stronger borders, improved hover glow, and icon/status
+treatments that better match the newer game/profile/film aesthetics.
 
 Update, 2026-08-23 (0.3.88): refined the Playoffs powerup deck again. The
 dropdown summary is centered and no longer leaves the label awkwardly left
