@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.3.96`
+- Current display version: `0.3.97`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -24,6 +24,10 @@ changes. It is the concise source of truth for another coding assistant.
   migration run, then remove it again.
 
 ## Current user experience
+
+Update, 2026-08-23 (0.3.97): enlarged the bottom status/description copy on
+the eight root homepage launch tiles and changed the Playoffs tile status to an
+explicit three-line stack: `Powerups`, `and Win`, `Conditions`.
 
 Update, 2026-08-23 (0.3.96): enlarged the primary sport/mode names on the root
 homepage launch tiles so they take up more of each button while preserving the

@@ -9211,3 +9211,24 @@ body.headshot-audit-page .audit-status-pill {
     font-size: 1.18rem;
   }
 }
+
+/* 0.3.97: larger home tile status copy and stacked Playoffs status. */
+.home-root .home-launch-tile .sport-tile-status {
+  font-size: clamp(0.9rem, 1.85vw, 1.08rem);
+  line-height: 1.08;
+}
+
+.home-root .home-launch-tile .sport-tile-status.home-status-stack {
+  display: grid;
+  gap: 0.02rem;
+}
+
+.home-root .home-launch-tile .sport-tile-status.home-status-stack span {
+  display: block;
+}
+
+@media (max-width: 560px) {
+  .home-root .home-launch-tile .sport-tile-status {
+    font-size: 0.82rem;
+  }
+}
