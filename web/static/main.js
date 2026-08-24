@@ -1871,6 +1871,7 @@ function powerupActivationText(move) {
 function powerupButtonHtml(powerup, disabled, stateLabel = 'Ready') {
   const classes = ['powerup-chip', 'powerup-' + powerupClass(powerup.key)];
   if (powerup.used) classes.push('used');
+  const description = gameCopyStyle(powerup.description || '');
   return `<button
     type="button"
     class="${classes.join(' ')}"
@@ -1878,6 +1879,7 @@ function powerupButtonHtml(powerup, disabled, stateLabel = 'Ready') {
     ${disabled ? 'disabled' : ''}>
       ${powerupIconHtml(powerup.key)}
       <span class="powerup-label">${escapeHtml(powerup.label || powerup.key)}</span>
+      <span class="powerup-desc">${escapeHtml(description)}</span>
       <span class="powerup-state">${powerup.used ? 'Used' : escapeHtml(stateLabel)}</span>
     </button>`;
 }
@@ -2140,13 +2142,14 @@ function renderPowerups() {
   const oppUnused = opp.filter((powerup) => !powerup.used).length;
   const summary = els.powerupPanel.querySelector('summary');
   if (summary) {
-    summary.innerHTML = `Powerups <span>${unused} Unused</span> <small>${oppUnused} Opponent</small>`;
+    summary.innerHTML = `<span class="powerup-summary-main">Powerups</span><span>${unused} Unused</span><small>${oppUnused} Opponent</small>`;
   }
   const buttonsDisabled = !game.your_turn || game.finished || !!game.powerups.turn_powerup_used || (game.countdown_seconds_remaining || 0) > 0;
   const buttonState = powerupLockedLabel();
-  els.yourPowerupName.textContent = game.your_turn
+  const availability = game.your_turn
     ? (game.powerups.turn_powerup_used ? 'Powerup Used This Turn' : 'One Use Each Game')
     : ((game.countdown_seconds_remaining || 0) > 0 ? 'Powerups Open After the First Play' : 'Available On Your Turn');
+  els.yourPowerupName.textContent = `Your Powerups - ${availability}`;
   els.oppPowerupName.textContent = 'Opponent Powerups';
   els.yourPowerupDesc.innerHTML = your.length
     ? your.map((powerup) => powerupButtonHtml(powerup, buttonsDisabled || powerup.used, buttonState)).join('')

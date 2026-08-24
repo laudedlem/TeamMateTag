@@ -8736,3 +8736,85 @@ body.headshot-audit-page .audit-status-pill {
     justify-content: center;
   }
 }
+
+/* 0.3.88: centered Playoffs powerup deck with descriptions in each button. */
+.powerup-panel > summary {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto 1fr;
+  justify-items: center;
+  list-style: none;
+  width: 100%;
+}
+
+.powerup-panel > summary::-webkit-details-marker {
+  display: none;
+}
+
+.powerup-panel > summary .powerup-summary-main {
+  grid-column: 2;
+}
+
+.powerup-panel[open] .powerup-box:first-of-type {
+  grid-template-columns: 1fr;
+  justify-items: center;
+}
+
+.powerup-panel[open] .powerup-box:first-of-type .powerup-box-label {
+  display: none;
+}
+
+.powerup-panel[open] .powerup-box:first-of-type .powerup-name {
+  color: color-mix(in srgb, var(--accent) 74%, #ffffff);
+  font-size: 0.9rem;
+  font-weight: 950;
+  text-align: center;
+}
+
+.powerup-panel[open] #your-powerup-desc.powerup-list {
+  justify-self: stretch;
+}
+
+.powerup-panel[open] #your-powerup-desc .powerup-chip {
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto;
+  min-height: 4.85rem;
+}
+
+.powerup-panel[open] #your-powerup-desc .powerup-icon {
+  align-self: center;
+  grid-row: 1 / 4;
+}
+
+.powerup-panel[open] #your-powerup-desc .powerup-desc {
+  color: color-mix(in srgb, var(--text) 82%, var(--text-muted));
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 750;
+  line-height: 1.08;
+  min-width: 0;
+  white-space: normal;
+}
+
+.powerup-panel[open] #your-powerup-desc .powerup-state {
+  color: color-mix(in srgb, var(--accent) 70%, #ffffff);
+  font-weight: 950;
+}
+
+.powerup-panel[open] .powerup-box:nth-of-type(2) {
+  grid-template-columns: auto minmax(0, auto);
+  justify-content: center;
+  justify-items: center;
+  text-align: center;
+}
+
+.powerup-panel[open] .powerup-box:nth-of-type(2) .powerup-box-label {
+  display: none;
+}
+
+.powerup-panel[open] .powerup-box:nth-of-type(2) .powerup-name {
+  text-align: center;
+}
+
+.powerup-panel[open] .powerup-box:nth-of-type(2) .powerup-list {
+  justify-content: center;
+}

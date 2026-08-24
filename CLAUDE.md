@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.3.87`
+- Current display version: `0.3.88`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -24,6 +24,13 @@ changes. It is the concise source of truth for another coding assistant.
   migration run, then remove it again.
 
 ## Current user experience
+
+Update, 2026-08-23 (0.3.88): refined the Playoffs powerup deck again. The
+dropdown summary is centered and no longer leaves the label awkwardly left
+aligned, the separate `One Use Each Game` row was folded into the `Your
+Powerups` line, each usable powerup button now includes a short description of
+what it does, and the opponent powerup scouting strip is centered under the
+usable controls.
 
 Update, 2026-08-23 (0.3.87): tightened the Playoffs powerup panel again after
 playtesting. When opened, Your Powerups now span the full turn-card width as a
