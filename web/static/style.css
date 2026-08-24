@@ -9190,3 +9190,24 @@ body.headshot-audit-page .audit-status-pill {
     height: 3.25rem;
   }
 }
+
+/* 0.3.96: larger homepage sport/mode names. */
+.home-root .home-launch-tile .sport-tile-name {
+  font-size: clamp(1.45rem, 3.3vw, 2rem);
+  line-height: 1.02;
+  max-width: calc(100% - 0.25rem);
+}
+
+.home-root .home-modes-grid .home-launch-tile .sport-tile-name {
+  font-size: clamp(1.34rem, 3vw, 1.82rem);
+}
+
+@media (max-width: 560px) {
+  .home-root .home-launch-tile .sport-tile-name {
+    font-size: 1.28rem;
+  }
+
+  .home-root .home-modes-grid .home-launch-tile .sport-tile-name {
+    font-size: 1.18rem;
+  }
+}
