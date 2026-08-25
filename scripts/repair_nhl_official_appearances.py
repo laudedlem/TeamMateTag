@@ -254,6 +254,7 @@ def main() -> None:
     parser.add_argument("--season-through", type=int, default=9999, help="Only inspect/repair official seasons through this start year")
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--sleep", type=float, default=0.04)
+    parser.add_argument("--progress-every", type=int, default=25, help="Print cumulative progress every N players")
     args = parser.parse_args()
 
     if not os.environ.get("DATABASE_URL"):
@@ -337,7 +338,7 @@ def main() -> None:
                     extra_pairs += len(extra)
                     if len(samples) < 20:
                         samples.append((player_id, name, missing[:8], extra[:8]))
-                if index % 100 == 0:
+                if args.progress_every and index % args.progress_every == 0:
                     print(f"checked {index:,}/{len(players):,}; bad players {bad_players:,}", flush=True)
                 time.sleep(args.sleep)
         print(
@@ -363,14 +364,23 @@ def main() -> None:
                     season_through=args.season_through,
                 )
             except Exception as exc:
-                print(f"ERROR {player_id} {name}: {exc}", file=sys.stderr)
+                print(f"ERROR {player_id} {name}: {exc}", file=sys.stderr, flush=True)
                 continue
             rows_total += rows
             repaired += int(rows > 0)
-            if index % 25 == 0 or rows:
-                print(f"{index:,}/{len(players):,} {player_id} {name}: {rows} official rows")
+            if args.progress_every and (index % args.progress_every == 0 or rows):
+                print(
+                    f"{index:,}/{len(players):,} {player_id} {name}: "
+                    f"{rows} official rows; cumulative repaired {repaired:,}; "
+                    f"cumulative rows {rows_total:,}",
+                    flush=True,
+                )
             time.sleep(args.sleep)
-    print(f"Repaired {repaired:,}/{len(players):,} NHL players; upserted {rows_total:,} official appearance rows.")
+    print(
+        f"Repaired {repaired:,}/{len(players):,} NHL players; "
+        f"upserted {rows_total:,} official appearance rows.",
+        flush=True,
+    )
 
 
 if __name__ == "__main__":

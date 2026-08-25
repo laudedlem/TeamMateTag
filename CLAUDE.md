@@ -44,7 +44,8 @@ A longer production repair sweep for active players began and repaired roughly
 155 players before being stopped because it was too slow for an interactive
 turn. Continue with a controlled/background run of:
 `python scripts/repair_nhl_official_appearances.py --all --min-final-year 2025
---season-since 2020 --season-through 2024 --sleep 0.01`, then rerun the matching
+--season-since 2020 --season-through 2024 --sleep 0.01 --progress-every 25`,
+then rerun the matching
 `--audit` command to confirm remaining differences. Keep `season-through 2024`
 so the 2025-26 live updater remains the source of truth for current-season rows.
 
