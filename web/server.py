@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.4.02"
+APP_VERSION = "0.4.03"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -3521,13 +3521,13 @@ def _sport_team_span_label(sport: str, start: int, end: int) -> str:
     if start == end:
         return _sport_season_label(sport, start)
     if _cross_year_season_sports(sport):
-        return f"{start}-{end + 1}"
+        return f"{start}-{str(end + 1)[-2:]}"
     return f"{start}-{end}"
 
 
 def _sport_card_stint_label(sport: str, start: int, end: int) -> str:
     if start == end:
-        return str(start)
+        return _sport_season_label(sport, start)
     return _sport_team_span_label(sport, start, end)
 
 

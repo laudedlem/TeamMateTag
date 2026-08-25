@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.4.02`
+- Current display version: `0.4.03`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -24,6 +24,15 @@ changes. It is the concise source of truth for another coding assistant.
   migration run, then remove it again.
 
 ## Current user experience
+
+Update, 2026-08-25 (0.4.03): corrected cross-year sport player-card stint
+labels. Hockey, Basketball, and Football cards now show single seasons as
+`2025-26` instead of `2025`, and multi-season ranges as compact season spans
+like `2007-20` instead of `2007-2020`. This fixes confusing cards such as
+Jonathan Toews showing `Winnipeg Jets 2025` even though the underlying stint
+ran from 2025-10-09 through 2026-04-16. Toews' Blackhawks comma/gap remains
+intentional because NHL's player landing data has Chicago rows for 2019-20 and
+2021-22, but no 2020-21 regular-season row.
 
 Update, 2026-08-25 (0.4.02): removed All-Star/exhibition team memberships from
 production data and added guardrails so they do not return. MLB live imports now
