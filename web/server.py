@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.4.05"
+APP_VERSION = "0.4.06"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -7002,6 +7002,8 @@ def bp_new():
     ensure_runtime_schema()
     data = request.get_json(silent=True) or {}
     guest_id = (data.get("guest_id") or "").strip() or None
+    if not _valid_uuid_text(guest_id):
+        guest_id = None
     turn_seconds = float(data.get("turn_seconds") or APP_TURN_SECONDS)
     with db() as conn:
         seed = data.get("seed") or _manager_seed_for_day(conn, "baseball")
@@ -7181,6 +7183,8 @@ def sport_bp_new(sport: str):
         return jsonify({"error": "unsupported sport"}), 404
     data = request.get_json(silent=True) or {}
     guest_id = (data.get("guest_id") or "").strip() or None
+    if not _valid_uuid_text(guest_id):
+        guest_id = None
     with db() as conn:
         if guest_id and not conn.execute("SELECT 1 FROM guests WHERE guest_id=%s", (guest_id,)).fetchone():
             guest_id = None

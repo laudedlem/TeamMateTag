@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.4.05`
+- Current display version: `0.4.06`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -24,6 +24,12 @@ changes. It is the concise source of truth for another coding assistant.
   migration run, then remove it again.
 
 ## Current user experience
+
+Update, 2026-08-25 (0.4.06): fixed Manager Mode startup freezing when a browser
+sent an invalid/stale `guest_id`. Baseball and sport Manager new-game endpoints
+now validate guest ids before querying UUID columns; invalid values are ignored
+and the game starts anonymously instead of returning a 500 that leaves the
+loading card disabled.
 
 Update, 2026-08-25 (0.4.05): changed player-card team-stint row ordering.
 Card backgrounds still use the top three teams by games, but the visible stint
