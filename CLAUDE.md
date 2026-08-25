@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.4.07`
+- Current display version: `0.4.08`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -24,6 +24,19 @@ changes. It is the concise source of truth for another coding assistant.
   migration run, then remove it again.
 
 ## Current user experience
+
+Update, 2026-08-25 (0.4.08): fixed a Hockey Manager Mode data miss surfaced
+by Quinton Byfield -> Pierre-Luc Dubois. Production had Byfield on `LAK 2023`
+but incorrectly had Dubois on Washington for 2023/2024 due older hockey source
+rows; targeted official NHL repair now gives Dubois `Los Angeles Kings 2023-24`
+and `Washington Capitals 2024-26`, and the actual production move validates as
+`valid` with `Los Angeles Kings 2023-24`. Added
+`scripts/repair_nhl_official_appearances.py`, which repairs NHL appearances and
+strict stint ranges from the free official NHL player landing/game-log APIs for
+targeted players or broader future sweeps. Player-card/search career ranges now
+display cross-year sports through the ending calendar year, so active 2025-26
+Hockey/Basketball/Football players show `2026` instead of stopping at stored
+season key `2025`.
 
 Update, 2026-08-25 (0.4.07): fixed the remaining Manager Mode startup freeze
 introduced by the 0.4.05 player-card stint ordering change. The card renderer

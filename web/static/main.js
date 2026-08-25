@@ -208,6 +208,7 @@ const SPORT_START_LABELS = {
   football: 'Snapper',
   hockey: 'Faceoff',
 };
+const CROSS_YEAR_CAREER_SPORTS = new Set(['basketball', 'football', 'hockey']);
 
 function normalize(value) {
   return String(value || '')
@@ -2666,8 +2667,13 @@ async function loadFrAnswers() {
 
 function formatYears(debut, final) {
   if (debut == null) return '';
-  if (final == null) return `${debut}-`;
-  return debut === final ? `${debut}` : `${debut}-${final}`;
+  const displayDebut = Number(debut) || debut;
+  if (final == null) return `${displayDebut}-`;
+  const numericFinal = Number(final);
+  const displayFinal = CROSS_YEAR_CAREER_SPORTS.has(CURRENT_SPORT) && Number.isFinite(numericFinal)
+    ? numericFinal + 1
+    : final;
+  return String(displayDebut) === String(displayFinal) ? `${displayDebut}` : `${displayDebut}-${displayFinal}`;
 }
 
 function seasonText(item) {
