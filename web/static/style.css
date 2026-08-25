@@ -6012,6 +6012,35 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
   background: rgba(255, 255, 255, 0.035);
 }
 
+.feedback-more-button {
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.72rem;
+  border-style: dashed;
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.feedback-more-button:hover,
+.feedback-more-button:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+  outline: none;
+}
+
+.feedback-season-extra-row {
+  display: flex;
+  flex-basis: 100%;
+  flex-wrap: wrap;
+  gap: 0.28rem;
+  justify-content: center;
+  margin-top: 0.12rem;
+}
+
+.feedback-season-pill.extra {
+  background: rgba(255, 255, 255, 0.045);
+}
+
 #out-section {
   text-align: center;
 }

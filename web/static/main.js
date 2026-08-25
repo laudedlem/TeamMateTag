@@ -183,6 +183,8 @@ let activeTimerKey = '';
 let animateNewestCard = false;
 let referenceSport = 'baseball';
 let launchReturnPath = '';
+let feedbackExpandedKey = '';
+let feedbackRenderedKey = '';
 
 let acItems = [];
 let acHighlight = -1;
@@ -1973,7 +1975,7 @@ function renderMpGame() {
   renderWinConditions();
   renderPowerups();
 
-  els.feedback.innerHTML = renderMoveFeedback(game.last_move, game);
+  renderMoveFeedbackInto(els.feedback, game.last_move, game);
   renderCardStack(game.chain, game.strikes, true, animateNewestCard);
   renderLineup(game.chain);
   renderOut(game.strikes);
@@ -2116,7 +2118,7 @@ function renderBpGame() {
   setGuessDisabled(game.finished || (game.countdown_seconds_remaining || 0) > 0);
   els.guessInput.placeholder = 'Type a Name (First or Last)...';
 
-  els.feedback.innerHTML = renderMoveFeedback(game.last_move, game);
+  renderMoveFeedbackInto(els.feedback, game.last_move, game);
   renderCardStack(game.chain, game.strikes, true, animateNewestCard);
   renderLineup(game.chain);
   renderOut(game.strikes);
@@ -2402,12 +2404,19 @@ function renderMoveFeedback(m, g) {
     ? ` <span class="muted-inline">(Auto-Picked from ${m.ambiguous_count} Matches. Try the Dropdown to be Specific.)</span>`
     : '';
   const outTerm = ({ baseball: 'STRUCK OUT', basketball: 'FOULED OUT', hockey: 'GAME MISCONDUCT', football: 'PUNTED' })[CURRENT_SPORT] || 'OUT';
+  const moveKey = feedbackMoveKey(m, g);
   const seasonPills = (items) => {
-    const visible = (items || []).slice(0, 4);
-    const hidden = Math.max(0, (items || []).length - visible.length);
+    const allItems = items || [];
+    const visible = allItems.slice(0, 4);
+    const hiddenItems = allItems.slice(visible.length);
+    const hidden = hiddenItems.length;
+    const expanded = moveKey && feedbackExpandedKey === moveKey;
+    const pillHtml = (s, extraClass = '') =>
+      `<span class="season-pill feedback-season-pill${extraClass}">${escapeHtml(s.team_name)} ${escapeHtml(seasonText(s))}</span>`;
     return visible.map((s) =>
-      `<span class="season-pill feedback-season-pill">${escapeHtml(s.team_name)} ${escapeHtml(seasonText(s))}</span>`
-    ).join(' ') + (hidden ? ` <span class="season-pill feedback-season-pill more">+${hidden} more</span>` : '');
+      pillHtml(s)
+    ).join(' ') + (hidden ? ` <button class="season-pill feedback-season-pill feedback-more-button" type="button" data-feedback-more aria-expanded="${expanded ? 'true' : 'false'}">${expanded ? 'Hide' : `+${hidden} More`}</button>` : '') +
+      (expanded && hidden ? `<span class="feedback-season-extra-row">${hiddenItems.map((s) => pillHtml(s, ' extra')).join(' ')}</span>` : '');
   };
 
   switch (m.outcome) {
@@ -2419,8 +2428,8 @@ function renderMoveFeedback(m, g) {
         })
         .map((s) => `${s.team_name} ${seasonText(s)}`).join(', ');
       const lead = m.move_via_powerup
-        ? `${escapeHtml(m.powerup_label || 'Powerup')}: ${name}${ambig}. Linked Through`
-        : `${name}${ambig}. TeamMates on`;
+        ? `${escapeHtml(m.powerup_label || 'Powerup')}: ${name}${ambig}. Linked Through:`
+        : `${name}${ambig}. TeamMates on:`;
       const winNote = m.win_condition_hit
         ? `<br><span class="ok">${escapeHtml(m.win_condition_label)}: ${m.win_condition_progress}/${m.win_condition_target}</span>`
         : '';
@@ -2453,6 +2462,33 @@ function renderMoveFeedback(m, g) {
     default:
       return '';
   }
+}
+
+function feedbackMoveKey(m, g) {
+  if (!m || m.outcome !== 'valid') return '';
+  return [
+    currentMode,
+    g?.game_id || '',
+    g?.chain?.length || 0,
+    m.display_name || '',
+    (m.shared_seasons || []).map((s) => `${s.team_id}:${s.season}`).join('|'),
+  ].join('::');
+}
+
+function renderMoveFeedbackInto(target, move, state) {
+  if (!target) return;
+  const key = feedbackMoveKey(move, state);
+  if (key !== feedbackRenderedKey) {
+    feedbackExpandedKey = '';
+    feedbackRenderedKey = key;
+  }
+  target.innerHTML = renderMoveFeedback(move, state);
+  target.querySelectorAll('[data-feedback-more]').forEach((button) => {
+    button.addEventListener('click', () => {
+      feedbackExpandedKey = feedbackExpandedKey === key ? '' : key;
+      renderMoveFeedbackInto(target, move, state);
+    });
+  });
 }
 
 async function frSubmit(e) {

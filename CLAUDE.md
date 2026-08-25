@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.4.03`
+- Current display version: `0.4.04`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -24,6 +24,15 @@ changes. It is the concise source of truth for another coding assistant.
   migration run, then remove it again.
 
 ## Current user experience
+
+Update, 2026-08-25 (0.4.04): improved Manager Mode correct-guess feedback
+across sports. Valid moves now say `TeamMates on:` with the requested colon.
+When a link has more than four shared team-seasons, the old static `+x more`
+pill is now a clickable `+x More` button. Toggling it expands the feedback area
+with an additional row of the hidden shared team-seasons; clicking again hides
+them. The expanded row resets automatically on the next rendered move so the
+search/feedback card returns to its compact height after the next player is
+played.
 
 Update, 2026-08-25 (0.4.03): corrected cross-year sport player-card stint
 labels. Hockey, Basketball, and Football cards now show single seasons as
