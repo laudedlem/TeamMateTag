@@ -8,18 +8,23 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 DATABASE = ROOT / "db" / "teammatetag_local.sqlite"
 
+NBA_EXHIBITION_SQL = """
+    lower(replace(name, '-', ' ')) LIKE '%all star%'
+    OR lower(replace(name, '-', ' ')) LIKE '%rising star%'
+    OR lower(name) = 'world'
+    OR lower(name) IN ('ogs', 'stripes')
+    OR lower(name) LIKE 'team %'
+"""
+
 
 def main() -> None:
     conn = sqlite3.connect(DATABASE)
     try:
         # Exhibition selections are not NBA franchise memberships.
-        conn.execute("""DELETE FROM sport_appearances WHERE sport_id = 'basketball' AND team_id IN (
-            SELECT team_id FROM sport_teams WHERE sport_id = 'basketball' AND (
-              lower(name) LIKE '%all star%' OR lower(name) LIKE '%all-stars%' OR lower(name) LIKE '%rising stars%' OR lower(name) = 'world'
-            ))""")
-        conn.execute("""DELETE FROM sport_teams WHERE sport_id = 'basketball' AND (
-            lower(name) LIKE '%all star%' OR lower(name) LIKE '%all-stars%' OR lower(name) LIKE '%rising stars%' OR lower(name) = 'world'
+        conn.execute(f"""DELETE FROM sport_appearances WHERE sport_id = 'basketball' AND team_id IN (
+            SELECT team_id FROM sport_teams WHERE sport_id = 'basketball' AND ({NBA_EXHIBITION_SQL})
         )""")
+        conn.execute(f"""DELETE FROM sport_teams WHERE sport_id = 'basketball' AND ({NBA_EXHIBITION_SQL})""")
 
         # nflverse exposes an ESPN ID that works with ESPN's player headshots.
         nfl_images = {}

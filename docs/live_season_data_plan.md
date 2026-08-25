@@ -18,6 +18,8 @@ the same pattern to NHL regular-season game logs from the public NHL web API.
   with stable `mlbam_<id>` ids and searchable names.
 - `.github/workflows/update-mlb-live-data.yml` runs the updater daily and can
   be triggered manually with an optional season-to-date backfill.
+- MLB live imports request/filter regular-season games only. All-Star or other
+  exhibition team memberships are not valid teammate-tag team memberships.
 - `scripts/update_nhl_live_data.py` pulls completed NHL regular-season games
   from `https://api-web.nhle.com/v1`.
 - The NHL import stores game-level player rows in generic
@@ -26,6 +28,8 @@ the same pattern to NHL regular-season game logs from the public NHL web API.
   `sport_player_season_traits`, positions, and search rows.
 - `.github/workflows/update-nhl-live-data.yml` runs the NHL updater daily and
   can be triggered manually with an optional season-to-date backfill.
+- `scripts/remove_exhibition_memberships.py` removes any production
+  All-Star/exhibition rows that entered before the filters existed.
 
 ## Operator setup
 
@@ -47,9 +51,9 @@ python scripts/update_nhl_live_data.py --season 2025 --backfill-days 3
 The first production run for a season automatically expands to season-to-date
 if no game imports exist yet.
 
-The 2026 production season-to-date seed was run on 2026-08-23. Supabase held
-2,326 unique MLB games, 74,602 player-game rows, 4,068 current-season
-player/team appearance rows, and 3,475 searchable live players after the run.
+The 2026 production season-to-date seed was run on 2026-08-23 and cleaned on
+2026-08-25 to remove the MLB All-Star Game. Supabase held 2,318 unique MLB
+regular-season games and 74,541 player-game rows after the cleanup.
 
 The 2025-26 NHL production season-to-date seed was run on 2026-08-25.
 Supabase held 1,312 unique NHL regular-season games, 49,998 player-game rows,

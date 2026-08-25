@@ -277,8 +277,10 @@ def load_nba(conn: sqlite3.Connection, raw: Path) -> None:
                 name = (row.get("athlete_display_name") or "").strip()
                 if not athlete_id or not team_id or not name: continue
                 pid = f"nba:{athlete_id}"
-                played.add((pid, team_id))
                 team_name = (row.get("team_display_name") or row.get("team_name") or team_id).strip()
+                if is_nba_exhibition_team(team_name):
+                    continue
+                played.add((pid, team_id))
                 teams[(team_id, season)] = (team_id, team_name)
                 bits = name.rsplit(" ", 1)
                 players[pid] = (athlete_id, name, bits[0] if len(bits) > 1 else None,
@@ -289,6 +291,17 @@ def load_nba(conn: sqlite3.Connection, raw: Path) -> None:
         provenance.append(("sportsdataverse_espn_nba_player_boxscores", season, NBA_URL.format(season=season), row_count))
         print(f"nba source {season}: {len(played):,} player-team-seasons")
     write_sport(conn, "basketball", "Basketball", "NBA", players, teams, appearances, provenance)
+
+
+def is_nba_exhibition_team(name: str) -> bool:
+    label = " ".join((name or "").lower().replace("-", " ").split())
+    return (
+        "all star" in label
+        or "rising star" in label
+        or label == "world"
+        or label in {"ogs", "stripes"}
+        or label.startswith("team ")
+    )
 
 
 def get_with_retries(url: str, timeout: int = 45, attempts: int = 5) -> requests.Response | None:

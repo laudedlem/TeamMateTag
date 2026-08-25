@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.4.01`
+- Current display version: `0.4.02`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -24,6 +24,19 @@ changes. It is the concise source of truth for another coding assistant.
   migration run, then remove it again.
 
 ## Current user experience
+
+Update, 2026-08-25 (0.4.02): removed All-Star/exhibition team memberships from
+production data and added guardrails so they do not return. MLB live imports now
+request/filter regular-season games only, fixing cases like Mike Trout showing
+`American League All-Stars 2026`. NBA local builders, cleanup, Kaggle import,
+and cross-sport migration now exclude All-Star/Rising Stars/`Team ...`/World/
+OGs/Stripes exhibition teams, fixing cases like Matas Buzelis showing `Team
+Vince 2025`. Ran `scripts/remove_exhibition_memberships.py` against production:
+removed 61 Baseball exhibition appearances from 2 team-seasons, 1 MLB live
+exhibition game, and 29 cross-sport exhibition appearances from 12 team-seasons.
+Verification found no remaining exhibition memberships matching those patterns;
+Mike Trout 2026 showed only `Los Angeles Angels`, and Matas Buzelis 2025 showed
+only `Chicago Bulls`.
 
 Update, 2026-08-25 (0.4.01): confirmed MLB live data is set up for automatic
 daily GitHub Actions updates via `.github/workflows/update-mlb-live-data.yml`

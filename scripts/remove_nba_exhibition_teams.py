@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Remove non-franchise NBA exhibition teams from the runtime source catalog."""
+"""Remove non-franchise NBA exhibition teams from the local source catalog."""
 from __future__ import annotations
 
 import sqlite3
@@ -8,16 +8,20 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 DATABASE = ROOT / "db" / "teammatetag_local.sqlite"
-NAMES = ("All-Star Giannis", "All-Star LeBron", "OGs", "Stripes")
+EXHIBITION_SQL = """
+    lower(replace(name, '-', ' ')) LIKE '%all star%'
+    OR lower(replace(name, '-', ' ')) LIKE '%rising star%'
+    OR lower(name) = 'world'
+    OR lower(name) IN ('ogs', 'stripes')
+    OR lower(name) LIKE 'team %'
+"""
 
 
 def main() -> None:
     with sqlite3.connect(DATABASE) as conn:
-        placeholders = ", ".join("?" for _ in NAMES)
         team_rows = conn.execute(
             f"""SELECT team_id, season FROM sport_teams
-                 WHERE sport_id='basketball' AND name IN ({placeholders})""",
-            NAMES,
+                 WHERE sport_id='basketball' AND ({EXHIBITION_SQL})"""
         ).fetchall()
         for team_id, season in team_rows:
             conn.execute(
@@ -25,8 +29,7 @@ def main() -> None:
                 (team_id, season),
             )
         conn.execute(
-            f"DELETE FROM sport_teams WHERE sport_id='basketball' AND name IN ({placeholders})",
-            NAMES,
+            f"DELETE FROM sport_teams WHERE sport_id='basketball' AND ({EXHIBITION_SQL})",
         )
     print(f"Removed {len(team_rows)} NBA exhibition team-seasons.")
 

@@ -31,7 +31,15 @@ ROOT = Path(__file__).resolve().parent.parent
 SOURCE = ROOT / "db" / "teammatetag_local.sqlite"
 SCHEMA = ROOT / "db" / "cross_sport_schema_postgres.sql"
 SPORTS = ("basketball", "football", "hockey")
-EXCLUDED_BASKETBALL_TEAM_NAMES = ("All-Star Giannis", "All-Star LeBron", "OGs", "Stripes")
+EXHIBITION_TEAM_SQL = """
+(
+    replace(lower(source.name), '-', ' ') LIKE '%all star%'
+    OR replace(lower(source.name), '-', ' ') LIKE '%rising star%'
+    OR lower(source.name) = 'world'
+    OR (source.sport_id = 'basketball' AND lower(source.name) IN ('ogs', 'stripes'))
+    OR (source.sport_id = 'basketball' AND lower(source.name) LIKE 'team %')
+)
+"""
 TABLES = (
     ("sport_franchises", ("sport_id", "franchise_id", "name")),
     ("sport_teams", ("sport_id", "team_id", "season", "franchise_id", "name")),
@@ -59,14 +67,20 @@ def copy_rows(src: sqlite3.Connection, dst: psycopg.Connection, table: str, colu
         )"""
     exclusion = ""
     if table == "sport_teams":
-        exclusion = " AND NOT (source.sport_id='basketball' AND source.name IN (?, ?, ?, ?))"
+        exclusion = f" AND NOT {EXHIBITION_TEAM_SQL}"
     elif table == "sport_appearances":
         exclusion = """ AND NOT EXISTS (
             SELECT 1 FROM sport_teams AS team WHERE team.sport_id=source.sport_id
               AND team.team_id=source.team_id AND team.season=source.season
-              AND team.sport_id='basketball' AND team.name IN (?, ?, ?, ?)
+              AND (
+                  replace(lower(team.name), '-', ' ') LIKE '%all star%'
+                  OR replace(lower(team.name), '-', ' ') LIKE '%rising star%'
+                  OR lower(team.name) = 'world'
+                  OR (team.sport_id = 'basketball' AND lower(team.name) IN ('ogs', 'stripes'))
+                  OR (team.sport_id = 'basketball' AND lower(team.name) LIKE 'team %')
+              )
         )"""
-    params = SPORTS + (EXCLUDED_BASKETBALL_TEAM_NAMES if exclusion else ())
+    params = SPORTS
     rows = src.execute(
         f"SELECT {', '.join('source.' + column for column in columns)} FROM {source_table} "
         f"WHERE source.sport_id IN ({placeholders}){canonical_only}{exclusion}",

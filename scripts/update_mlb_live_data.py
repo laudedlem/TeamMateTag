@@ -123,6 +123,7 @@ def scheduled_games(start: date, end: date) -> list[dict[str, Any]]:
         "/schedule",
         {
             "sportId": 1,
+            "gameTypes": "R",
             "startDate": start.isoformat(),
             "endDate": end.isoformat(),
             "hydrate": "team",
@@ -131,7 +132,7 @@ def scheduled_games(start: date, end: date) -> list[dict[str, Any]]:
     games: list[dict[str, Any]] = []
     for day in data.get("dates", []):
         games.extend(day.get("games", []))
-    return [game for game in games if is_final_game(game)]
+    return [game for game in games if game.get("gameType") == "R" and is_final_game(game)]
 
 
 def team_id(team: dict[str, Any]) -> str:

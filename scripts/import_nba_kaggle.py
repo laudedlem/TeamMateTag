@@ -48,6 +48,17 @@ def nba_season(row: dict) -> int | None:
     return year - 1 if month <= 6 else year
 
 
+def is_nba_exhibition_team(name: str) -> bool:
+    label = " ".join((name or "").lower().replace("-", " ").split())
+    return (
+        "all star" in label
+        or "rising star" in label
+        or label == "world"
+        or label in {"ogs", "stripes"}
+        or label.startswith("team ")
+    )
+
+
 def main() -> None:
     stats_path = SOURCE_DIR / "PlayerStatistics.csv"
     players_path = SOURCE_DIR / "Players.csv"
@@ -95,6 +106,8 @@ def main() -> None:
             if position:
                 positions[pid][position.upper()] += 1
             team_name = " ".join(part for part in (field(row, "playerteamCity"), field(row, "playerteamName")) if part)
+            if is_nba_exhibition_team(team_name or team):
+                continue
             teams[(team, season)] = (team, team_name or team)
             appearances[(pid, team, season)] = 1
 
