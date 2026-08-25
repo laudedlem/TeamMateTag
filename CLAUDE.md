@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.4.00`
+- Current display version: `0.4.01`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -24,6 +24,21 @@ changes. It is the concise source of truth for another coding assistant.
   migration run, then remove it again.
 
 ## Current user experience
+
+Update, 2026-08-25 (0.4.01): confirmed MLB live data is set up for automatic
+daily GitHub Actions updates via `.github/workflows/update-mlb-live-data.yml`
+at `10:20 UTC`, using the repo `DATABASE_URL` secret. Added the matching NHL
+live-data foundation: `scripts/update_nhl_live_data.py`, generic cross-sport
+live staging tables (`sport_live_game_imports` / `sport_live_player_games`),
+and `.github/workflows/update-nhl-live-data.yml` scheduled daily at `10:45 UTC`.
+The NHL importer uses the free public NHL web API schedule and gamecenter
+boxscore feeds, imports only completed regular-season games, excludes goalies
+with `00:00` TOI, refreshes hockey `sport_appearances`, strict game-date
+stints, current-season goals/assists/points traits, positions, and search rows.
+Production was seeded for the 2025-26 NHL season on 2026-08-25: 1,312 unique
+regular-season games, 49,998 player-game rows, 1,123 live player/team
+appearance pairs, 1,038 current-season trait rows, and 1,038 searchable live
+players.
 
 Update, 2026-08-23 (0.4.00): started the live-season data foundation. Added
 `scripts/update_mlb_live_data.py`, a production Postgres MLB importer that uses

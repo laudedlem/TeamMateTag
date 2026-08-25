@@ -204,6 +204,47 @@ CREATE TABLE IF NOT EXISTS sport_data_provenance (
     PRIMARY KEY (sport_id, source, season)
 );
 
+-- Daily game-level live imports for non-baseball sports. These rows let each
+-- sport updater rerun recent days safely, then roll up into sport_appearances
+-- and sport_player_season_traits.
+CREATE TABLE IF NOT EXISTS sport_live_game_imports (
+    sport_id    TEXT NOT NULL REFERENCES sports(sport_id),
+    game_id     TEXT NOT NULL,
+    game_date   DATE NOT NULL,
+    season      INTEGER NOT NULL,
+    status      TEXT NOT NULL,
+    source      TEXT NOT NULL,
+    row_count   INTEGER NOT NULL DEFAULT 0,
+    imported_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (sport_id, game_id)
+);
+
+CREATE TABLE IF NOT EXISTS sport_live_player_games (
+    sport_id     TEXT NOT NULL,
+    game_id      TEXT NOT NULL,
+    game_date    DATE NOT NULL,
+    season       INTEGER NOT NULL,
+    player_id    TEXT NOT NULL,
+    team_id      TEXT NOT NULL,
+    position     TEXT,
+    games_total  INTEGER NOT NULL DEFAULT 1,
+    goals        INTEGER NOT NULL DEFAULT 0,
+    assists      INTEGER NOT NULL DEFAULT 0,
+    points       INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (sport_id, game_id, player_id, team_id),
+    FOREIGN KEY (sport_id, game_id)
+        REFERENCES sport_live_game_imports(sport_id, game_id) ON DELETE CASCADE,
+    FOREIGN KEY (sport_id, player_id)
+        REFERENCES sport_players(sport_id, player_id),
+    FOREIGN KEY (sport_id, team_id, season)
+        REFERENCES sport_teams(sport_id, team_id, season)
+);
+
+CREATE INDEX IF NOT EXISTS idx_sport_live_player_games_rollup
+    ON sport_live_player_games(sport_id, season, player_id, team_id);
+CREATE INDEX IF NOT EXISTS idx_sport_live_player_games_date
+    ON sport_live_player_games(sport_id, game_date DESC);
+
 -- Runtime-only Playoffs data. Historical source observations and unresolved
 -- identity records deliberately remain in the local curation database.
 CREATE TABLE IF NOT EXISTS sport_player_traits (

@@ -1,0 +1,47 @@
+name: Update NHL Live Data
+
+on:
+  workflow_dispatch:
+    inputs:
+      season:
+        description: NHL season start year, e.g. 2025 for 2025-26
+        required: false
+        type: string
+      season_to_date:
+        description: Backfill from September 1 through today
+        required: false
+        default: false
+        type: boolean
+  schedule:
+    # After most West Coast NHL games are final.
+    - cron: "45 10 * * *"
+
+jobs:
+  update-nhl-live-data:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "psycopg[binary]" requests python-dotenv
+
+      - name: Update current NHL appearances
+        shell: bash
+        run: |
+          args=()
+          if [[ -n "${{ inputs.season }}" ]]; then
+            args+=(--season "${{ inputs.season }}")
+          fi
+          if [[ "${{ inputs.season_to_date }}" == "true" ]]; then
+            args+=(--season-to-date)
+          fi
+          python scripts/update_nhl_live_data.py "${args[@]}"
