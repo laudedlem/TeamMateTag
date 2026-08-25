@@ -7,6 +7,8 @@ import os
 import sys
 import time
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -36,6 +38,16 @@ SPORT_ID = "hockey"
 SOURCE = "nhl_official_player_landing"
 API = "https://api-web.nhle.com/v1/player/{}/landing"
 GAME_LOG_API = "https://api-web.nhle.com/v1/player/{}/game-log/{}/2"
+
+
+@dataclass(frozen=True)
+class OfficialRepair:
+    player_id: str
+    external_id: str
+    name: str
+    rows: list[tuple[str, str, int, int]]
+    stints: dict[tuple[str, int], tuple[int, int, str, str]]
+    error: str | None = None
 
 TEAM_ID_BY_NAME = {name.lower(): team_id for team_id, name in NHL_TEAM_NAMES.items()}
 TEAM_ID_BY_NAME.update(
@@ -118,18 +130,34 @@ def game_log_stints(external_id: str, seasons: set[int]) -> dict[tuple[str, int]
     return stints
 
 
-def repair_player(
+def fetch_repair(
+    player_id: str,
+    external_id: str,
+    name: str,
+    season_since: int,
+    season_through: int,
+) -> OfficialRepair:
+    try:
+        rows = official_rows(external_id, season_since=season_since, season_through=season_through)
+        seasons = {season for _, _, season, _ in rows}
+        stints = game_log_stints(external_id, seasons) if seasons else {}
+        return OfficialRepair(player_id, external_id, name, rows, stints)
+    except Exception as exc:
+        return OfficialRepair(player_id, external_id, name, [], {}, str(exc))
+
+
+def apply_repair(
     conn: "psycopg.Connection",
     player_id: str,
     external_id: str,
+    rows: list[tuple[str, str, int, int]],
+    stints: dict[tuple[str, int], tuple[int, int, str, str]],
     season_since: int = 0,
     season_through: int = 9999,
 ) -> tuple[int, int]:
-    rows = official_rows(external_id, season_since=season_since, season_through=season_through)
     if not rows:
         return 0, 0
     seasons = {season for _, _, season, _ in rows}
-    stints = game_log_stints(external_id, seasons)
     min_season = min(seasons)
     max_season = max(seasons)
     with conn.cursor() as cur:
@@ -243,6 +271,19 @@ def repair_player(
     return len(rows), len(seasons)
 
 
+def repair_player(
+    conn: "psycopg.Connection",
+    player_id: str,
+    external_id: str,
+    season_since: int = 0,
+    season_through: int = 9999,
+) -> tuple[int, int]:
+    payload = fetch_repair(player_id, external_id, "", season_since, season_through)
+    if payload.error:
+        raise RuntimeError(payload.error)
+    return apply_repair(conn, player_id, external_id, payload.rows, payload.stints, season_since, season_through)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--player-id", action="append", default=[], help="Internal player id, e.g. nhl:8479400")
@@ -255,6 +296,7 @@ def main() -> None:
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--sleep", type=float, default=0.04)
     parser.add_argument("--progress-every", type=int, default=25, help="Print cumulative progress every N players")
+    parser.add_argument("--workers", type=int, default=1, help="Parallel NHL API fetch workers; DB writes remain sequential")
     args = parser.parse_args()
 
     if not os.environ.get("DATABASE_URL"):
@@ -351,34 +393,76 @@ def main() -> None:
             print(f"SAMPLE {player_id} {name}: missing={missing} extra={extra}", flush=True)
         return
 
-    repaired = 0
-    rows_total = 0
+    repaired = errors = 0
+    rows_total = seasons_total = 0
+
+    def record_progress(index: int, total: int, payload: OfficialRepair, rows: int, seasons: int) -> None:
+        nonlocal repaired, rows_total, seasons_total
+        rows_total += rows
+        seasons_total += seasons
+        repaired += int(rows > 0)
+        if args.progress_every and (index % args.progress_every == 0 or rows):
+            print(
+                f"{index:,}/{total:,} {payload.player_id} {payload.name}: "
+                f"{rows} official rows across {seasons} seasons; "
+                f"cumulative repaired {repaired:,}; cumulative rows {rows_total:,}; "
+                f"cumulative seasons {seasons_total:,}",
+                flush=True,
+            )
+
+    total_players = len(players)
     with psycopg.connect(os.environ["DATABASE_URL"], autocommit=True, prepare_threshold=None) as conn:
-        for index, (player_id, external_id, name) in enumerate(players, 1):
-            try:
-                rows, _seasons = repair_player(
+        if args.workers <= 1:
+            for index, (player_id, external_id, name) in enumerate(players, 1):
+                payload = fetch_repair(player_id, str(external_id), name, args.season_since, args.season_through)
+                if payload.error:
+                    errors += 1
+                    print(f"ERROR {player_id} {name}: {payload.error}", file=sys.stderr, flush=True)
+                    continue
+                rows, seasons = apply_repair(
                     conn,
                     player_id,
                     str(external_id),
+                    payload.rows,
+                    payload.stints,
                     season_since=args.season_since,
                     season_through=args.season_through,
                 )
-            except Exception as exc:
-                print(f"ERROR {player_id} {name}: {exc}", file=sys.stderr, flush=True)
-                continue
-            rows_total += rows
-            repaired += int(rows > 0)
-            if args.progress_every and (index % args.progress_every == 0 or rows):
-                print(
-                    f"{index:,}/{len(players):,} {player_id} {name}: "
-                    f"{rows} official rows; cumulative repaired {repaired:,}; "
-                    f"cumulative rows {rows_total:,}",
-                    flush=True,
-                )
-            time.sleep(args.sleep)
+                record_progress(index, total_players, payload, rows, seasons)
+                time.sleep(args.sleep)
+        else:
+            with ThreadPoolExecutor(max_workers=max(1, args.workers)) as pool:
+                futures = [
+                    pool.submit(
+                        fetch_repair,
+                        player_id,
+                        str(external_id),
+                        name,
+                        args.season_since,
+                        args.season_through,
+                    )
+                    for player_id, external_id, name in players
+                ]
+                for index, future in enumerate(as_completed(futures), 1):
+                    payload = future.result()
+                    if payload.error:
+                        errors += 1
+                        print(f"ERROR {payload.player_id} {payload.name}: {payload.error}", file=sys.stderr, flush=True)
+                        continue
+                    rows, seasons = apply_repair(
+                        conn,
+                        payload.player_id,
+                        payload.external_id,
+                        payload.rows,
+                        payload.stints,
+                        season_since=args.season_since,
+                        season_through=args.season_through,
+                    )
+                    record_progress(index, total_players, payload, rows, seasons)
     print(
-        f"Repaired {repaired:,}/{len(players):,} NHL players; "
-        f"upserted {rows_total:,} official appearance rows.",
+        f"Repaired {repaired:,}/{total_players:,} NHL players; "
+        f"upserted {rows_total:,} official appearance rows across {seasons_total:,} player-seasons; "
+        f"errors {errors:,}.",
         flush=True,
     )
 

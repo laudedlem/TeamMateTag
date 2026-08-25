@@ -48,6 +48,10 @@ turn. Continue with a controlled/background run of:
 then rerun the matching
 `--audit` command to confirm remaining differences. Keep `season-through 2024`
 so the 2025-26 live updater remains the source of truth for current-season rows.
+The repair script now supports `--workers` for parallel official NHL API fetches
+with sequential DB writes. For the broader 2000-to-now eligibility sweep, use a
+background run with `--season-since 2000 --season-through 2025 --workers 8` and
+monitor its log; lower workers to 4 if NHL throttles or network errors rise.
 
 Update, 2026-08-25 (0.4.07): fixed the remaining Manager Mode startup freeze
 introduced by the 0.4.05 player-card stint ordering change. The card renderer
