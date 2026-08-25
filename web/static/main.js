@@ -2252,7 +2252,10 @@ function playerTeamRows(player) {
       a.end - b.end ||
       a.index - b.index
     )
-    .flatMap((stint) => stint.labels.length ? stint.labels : [])
+    .flatMap((stint) => {
+      if (Array.isArray(stint.labels)) return stint.labels;
+      return stint.label ? [stint.label] : [];
+    })
     .filter(Boolean);
   return chronological.length ? chronological : (player.teams || []);
 }

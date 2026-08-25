@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.4.06`
+- Current display version: `0.4.07`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -24,6 +24,13 @@ changes. It is the concise source of truth for another coding assistant.
   migration run, then remove it again.
 
 ## Current user experience
+
+Update, 2026-08-25 (0.4.07): fixed the remaining Manager Mode startup freeze
+introduced by the 0.4.05 player-card stint ordering change. The card renderer
+now accepts both single `label` stints and array `labels` stints, so drawing the
+first Manager card no longer throws `Cannot read properties of undefined
+(reading 'length')`. This restores the opening countdown, timer, and guess input
+across Baseball, Basketball, Hockey, and Football Manager Mode.
 
 Update, 2026-08-25 (0.4.06): fixed Manager Mode startup freezing when a browser
 sent an invalid/stale `guest_id`. Baseball and sport Manager new-game endpoints
