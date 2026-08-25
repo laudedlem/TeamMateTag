@@ -37,6 +37,16 @@ targeted players or broader future sweeps. Player-card/search career ranges now
 display cross-year sports through the ending calendar year, so active 2025-26
 Hockey/Basketball/Football players show `2026` instead of stopping at stored
 season key `2025`.
+Follow-up audit showed the issue is not isolated: a bounded sample of active
+hockey players (`--min-final-year 2025 --season-since 2020 --season-through
+2024 --limit 25`) found 10/25 with official NHL team-season set differences.
+A longer production repair sweep for active players began and repaired roughly
+155 players before being stopped because it was too slow for an interactive
+turn. Continue with a controlled/background run of:
+`python scripts/repair_nhl_official_appearances.py --all --min-final-year 2025
+--season-since 2020 --season-through 2024 --sleep 0.01`, then rerun the matching
+`--audit` command to confirm remaining differences. Keep `season-through 2024`
+so the 2025-26 live updater remains the source of truth for current-season rows.
 
 Update, 2026-08-25 (0.4.07): fixed the remaining Manager Mode startup freeze
 introduced by the 0.4.05 player-card stint ordering change. The card renderer

@@ -76,7 +76,11 @@ def season_start(raw_season: Any) -> int | None:
         return None
 
 
-def official_rows(external_id: str) -> list[tuple[str, str, int, int]]:
+def official_rows(
+    external_id: str,
+    season_since: int = 0,
+    season_through: int = 9999,
+) -> list[tuple[str, str, int, int]]:
     payload = get_json(API.format(external_id))
     rows: list[tuple[str, str, int, int]] = []
     for item in payload.get("seasonTotals", []) or []:
@@ -86,7 +90,7 @@ def official_rows(external_id: str) -> list[tuple[str, str, int, int]]:
         season = season_start(item.get("season"))
         team_name = localized(item.get("teamName")).strip()
         team_id = TEAM_ID_BY_NAME.get(team_name.lower())
-        if not team_id or not season or games <= 0:
+        if not team_id or not season or season < season_since or season > season_through or games <= 0:
             continue
         rows.append((team_id, team_name, season, games))
     return rows
@@ -114,8 +118,14 @@ def game_log_stints(external_id: str, seasons: set[int]) -> dict[tuple[str, int]
     return stints
 
 
-def repair_player(conn: "psycopg.Connection", player_id: str, external_id: str) -> tuple[int, int]:
-    rows = official_rows(external_id)
+def repair_player(
+    conn: "psycopg.Connection",
+    player_id: str,
+    external_id: str,
+    season_since: int = 0,
+    season_through: int = 9999,
+) -> tuple[int, int]:
+    rows = official_rows(external_id, season_since=season_since, season_through=season_through)
     if not rows:
         return 0, 0
     seasons = {season for _, _, season, _ in rows}
@@ -148,9 +158,18 @@ def repair_player(conn: "psycopg.Connection", player_id: str, external_id: str) 
             DELETE FROM sport_appearances
              WHERE sport_id = %s
                AND player_id = %s
-               AND season = ANY(%s)
+               AND season BETWEEN %s AND %s
             """,
-            (SPORT_ID, player_id, sorted(seasons)),
+            (SPORT_ID, player_id, season_since or min_season, season_through),
+        )
+        cur.execute(
+            """
+            DELETE FROM sport_player_stints
+             WHERE sport_id = %s
+               AND player_id = %s
+               AND season BETWEEN %s AND %s
+            """,
+            (SPORT_ID, player_id, season_since or min_season, season_through),
         )
         cur.executemany(
             """
@@ -229,27 +248,39 @@ def main() -> None:
     parser.add_argument("--player-id", action="append", default=[], help="Internal player id, e.g. nhl:8479400")
     parser.add_argument("--external-id", action="append", default=[], help="NHL numeric player id, e.g. 8479400")
     parser.add_argument("--all", action="store_true", help="Repair every hockey player with an external id")
+    parser.add_argument("--audit", action="store_true", help="Only report production rows that differ from official NHL team-season rows")
+    parser.add_argument("--min-final-year", type=int, default=0, help="Only inspect players whose stored final_year is this recent")
+    parser.add_argument("--season-since", type=int, default=0, help="Only inspect/repair official seasons from this start year onward")
+    parser.add_argument("--season-through", type=int, default=9999, help="Only inspect/repair official seasons through this start year")
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--sleep", type=float, default=0.04)
     args = parser.parse_args()
 
     if not os.environ.get("DATABASE_URL"):
         raise SystemExit("DATABASE_URL is required")
-    if not (args.all or args.player_id or args.external_id):
-        raise SystemExit("Use --all, --player-id, or --external-id")
+    if not (args.all or args.player_id or args.external_id or args.audit):
+        raise SystemExit("Use --all, --audit, --player-id, or --external-id")
 
     with psycopg.connect(os.environ["DATABASE_URL"], autocommit=True, prepare_threshold=None) as conn:
         with conn.cursor() as cur:
-            clauses = []
+            target_clauses = []
+            where_clauses = []
             params: list[Any] = [SPORT_ID]
             if not args.all:
                 if args.player_id:
-                    clauses.append("player_id = ANY(%s)")
+                    target_clauses.append("player_id = ANY(%s)")
                     params.append(args.player_id)
                 if args.external_id:
-                    clauses.append("external_id = ANY(%s)")
+                    target_clauses.append("external_id = ANY(%s)")
                     params.append(args.external_id)
-            where = " AND (" + " OR ".join(clauses) + ")" if clauses else ""
+                if target_clauses:
+                    where_clauses.append("(" + " OR ".join(target_clauses) + ")")
+                elif not args.audit:
+                    where_clauses.append("false")
+            if args.min_final_year:
+                where_clauses.append("final_year >= %s")
+                params.append(args.min_final_year)
+            where = " AND " + " AND ".join(where_clauses) if where_clauses else ""
             cur.execute(
                 f"""
                 SELECT player_id, external_id, display_name
@@ -265,12 +296,72 @@ def main() -> None:
     if args.limit:
         players = players[: args.limit]
 
+    if args.audit:
+        missing_players = extra_players = bad_players = 0
+        missing_pairs = extra_pairs = 0
+        samples = []
+        with psycopg.connect(os.environ["DATABASE_URL"], autocommit=True, prepare_threshold=None) as conn:
+            for index, (player_id, external_id, name) in enumerate(players, 1):
+                try:
+                    official = {
+                        (season, team_id)
+                        for team_id, _team_name, season, _games in official_rows(
+                            str(external_id),
+                            season_since=args.season_since,
+                            season_through=args.season_through,
+                        )
+                    }
+                except Exception as exc:
+                    print(f"ERROR {player_id} {name}: {exc}", file=sys.stderr, flush=True)
+                    continue
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        SELECT season, team_id
+                          FROM sport_appearances
+                         WHERE sport_id = %s
+                           AND player_id = %s
+                           AND season >= %s
+                           AND season <= %s
+                        """,
+                        (SPORT_ID, player_id, args.season_since, args.season_through),
+                    )
+                    current = set(cur.fetchall())
+                missing = sorted(official - current)
+                extra = sorted(current - official)
+                if missing or extra:
+                    bad_players += 1
+                    missing_players += int(bool(missing))
+                    extra_players += int(bool(extra))
+                    missing_pairs += len(missing)
+                    extra_pairs += len(extra)
+                    if len(samples) < 20:
+                        samples.append((player_id, name, missing[:8], extra[:8]))
+                if index % 100 == 0:
+                    print(f"checked {index:,}/{len(players):,}; bad players {bad_players:,}", flush=True)
+                time.sleep(args.sleep)
+        print(
+            f"Audit complete: {bad_players:,}/{len(players):,} players differ; "
+            f"{missing_players:,} have missing rows, {extra_players:,} have extra rows; "
+            f"{missing_pairs:,} missing pairs, {extra_pairs:,} extra pairs.",
+            flush=True,
+        )
+        for player_id, name, missing, extra in samples:
+            print(f"SAMPLE {player_id} {name}: missing={missing} extra={extra}", flush=True)
+        return
+
     repaired = 0
     rows_total = 0
     with psycopg.connect(os.environ["DATABASE_URL"], autocommit=True, prepare_threshold=None) as conn:
         for index, (player_id, external_id, name) in enumerate(players, 1):
             try:
-                rows, _seasons = repair_player(conn, player_id, str(external_id))
+                rows, _seasons = repair_player(
+                    conn,
+                    player_id,
+                    str(external_id),
+                    season_since=args.season_since,
+                    season_through=args.season_through,
+                )
             except Exception as exc:
                 print(f"ERROR {player_id} {name}: {exc}", file=sys.stderr)
                 continue
