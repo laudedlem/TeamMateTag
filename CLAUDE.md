@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.4.04`
+- Current display version: `0.4.05`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -24,6 +24,12 @@ changes. It is the concise source of truth for another coding assistant.
   migration run, then remove it again.
 
 ## Current user experience
+
+Update, 2026-08-25 (0.4.05): changed player-card team-stint row ordering.
+Card backgrounds still use the top three teams by games, but the visible stint
+labels now read chronologically: the left column fills from oldest to newest
+first, then any remaining teams continue down the right column. This removes the
+back-and-forth/non-chronological feel on well-traveled player cards.
 
 Update, 2026-08-25 (0.4.04): improved Manager Mode correct-guess feedback
 across sports. Valid moves now say `TeamMates on:` with the requested colon.

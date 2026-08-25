@@ -2240,10 +2240,21 @@ function sortedPlayerStints(stints) {
 }
 
 function playerTeamRows(player) {
-  const ranked = sortedPlayerStints(player.team_stints)
+  const chronological = (player.team_stints || [])
+    .map((stint, index) => ({
+      ...stint,
+      start: Number(stint.start || 9999),
+      end: Number(stint.end || stint.start || 9999),
+      index,
+    }))
+    .sort((a, b) =>
+      a.start - b.start ||
+      a.end - b.end ||
+      a.index - b.index
+    )
     .flatMap((stint) => stint.labels.length ? stint.labels : [])
     .filter(Boolean);
-  return ranked.length ? ranked : (player.teams || []);
+  return chronological.length ? chronological : (player.teams || []);
 }
 
 function fitPlayerName(nameEl) {
