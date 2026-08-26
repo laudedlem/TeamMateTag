@@ -95,6 +95,14 @@ Recommended background run:
 --season-end 2025 --workers 1 --request-sleep 2.5 --progress-every 100`.
 The script is resumable via local response cache, skips already stored games,
 has a lock file, and supports `--game-id` for targeted proof tests.
+On 2026-08-26 the builder was adjusted after a long run appeared frozen at
+roughly 11,200 logged boxscores while the response cache continued advancing.
+The importer now uses a bounded rolling queue instead of submitting every
+pending boxscore to the executor at once, so completed games are committed and
+logged steadily. If an older run is still stuck with cache files growing but DB
+counts/log output not moving, stop it, remove the stale
+`raw/nhl_game_teammates/cache/build.lock` if present, pull `main`, and restart;
+already cached responses and already stored games will be reused.
 
 Update, 2026-08-25 (0.4.08): fixed a Hockey Manager Mode data miss surfaced
 by Quinton Byfield -> Pierre-Luc Dubois. Production had Byfield on `LAK 2023`

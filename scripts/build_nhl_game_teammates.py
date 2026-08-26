@@ -15,7 +15,7 @@ import sqlite3
 import sys
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -452,14 +452,43 @@ def fetch_and_store_games(
     appearances = 0
     started_at = time.monotonic()
     try:
-        with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
-            futures = [pool.submit(parse_boxscore, game.game_id, cache_dir) for game in pending]
-            for index, future in enumerate(as_completed(futures), 1):
-                payload, rows = future.result()
-                upsert_game(conn, payload, rows)
-                stored += int(bool(rows))
-                appearances += len(rows)
-                if progress_every and index % progress_every == 0:
+        max_workers = max(1, workers)
+        max_in_flight = min(len(pending), max(max_workers, max_workers * 4))
+        pending_iter = iter(pending)
+        next_progress = progress_every
+
+        with ThreadPoolExecutor(max_workers=max_workers) as pool:
+            in_flight = {}
+
+            def submit_next() -> bool:
+                try:
+                    game = next(pending_iter)
+                except StopIteration:
+                    return False
+                in_flight[pool.submit(parse_boxscore, game.game_id, cache_dir)] = game
+                return True
+
+            for _ in range(max_in_flight):
+                submit_next()
+
+            index = 0
+            while in_flight:
+                done, _ = wait(in_flight, return_when=FIRST_COMPLETED)
+                for future in done:
+                    game = in_flight.pop(future)
+                    try:
+                        payload, rows = future.result()
+                    except Exception as exc:
+                        conn.commit()
+                        raise RuntimeError(f"failed to import NHL boxscore {game.game_id}") from exc
+
+                    upsert_game(conn, payload, rows)
+                    stored += int(bool(rows))
+                    appearances += len(rows)
+                    index += 1
+                    submit_next()
+
+                if progress_every and index >= next_progress:
                     conn.commit()
                     elapsed = max(0.001, time.monotonic() - started_at)
                     per_hour = index / elapsed * 3600
@@ -470,6 +499,8 @@ def fetch_and_store_games(
                         f"appearances {appearances:,}; rate {per_hour:,.0f}/hr; eta {eta_hours:.1f}h",
                         flush=True,
                     )
+                    while next_progress <= index:
+                        next_progress += progress_every
         conn.commit()
     finally:
         conn.close()
