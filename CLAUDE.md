@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.4.09`
+- Current display version: `0.4.10`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -25,13 +25,14 @@ changes. It is the concise source of truth for another coding assistant.
 
 ## Current user experience
 
-Update, 2026-08-25 (0.4.09): swapped the active site-wide font again using the
-user-provided `Carter_One,Sour_Gummy.zip` package. Removed the previous
-`web/static/fonts/lt-karaoke-body/` assets, added
-`web/static/fonts/sour-gummy/` and `web/static/fonts/carter-one/`, and changed
-all active global CSS font stacks from LT Karaoke Body to Sour Gummy with
-Carter One as the bundled fallback. Bumped the visible app version to `0.4.09`
-so static CSS cache busting picks up the font change.
+Update, 2026-08-25 (0.4.10): kept Sour Gummy as the site personality font but
+replaced the numeric glyphs with the user-provided Atkinson Hyperlegible Mono
+package. Removed the mistakenly bundled `web/static/fonts/carter-one/` assets,
+added `web/static/fonts/atkinson-hyperlegible-mono/`, and changed the active
+global CSS stack to `TeamMateTag Font`, a `unicode-range` composite where
+digits `0-9` come from Atkinson and non-digits come from Sour Gummy. Existing
+monospace UI snippets now prefer Atkinson too. Bumped the visible app version
+to `0.4.10` so static CSS cache busting picks up the number-font change.
 
 Update, 2026-08-25 (data tooling): started the local-first game-level teammate
 proof project, beginning with Hockey. Added

@@ -45,7 +45,8 @@ html, body {
   padding: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: "Sour Gummy", "Carter One", "Aptos Display", "Inter", "SF Pro Display", "Segoe UI", system-ui, sans-serif;
+  font-family: "TeamMateTag Font", "Sour Gummy", "Atkinson Hyperlegible Mono", "Aptos Display", "Inter", "SF Pro Display", "Segoe UI", system-ui, sans-serif;
+  font-variant-numeric: slashed-zero;
   line-height: 1.4;
   min-height: 100vh;
 }
@@ -1298,7 +1299,7 @@ button.secondary:hover { border-color: var(--accent); color: var(--accent); }
 
 /* ---------- Film Review specific ---------- */
 .fr-stats {
-  font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+  font-family: "Atkinson Hyperlegible Mono", ui-monospace, "SF Mono", Consolas, monospace;
   font-size: 1.2rem;
   font-weight: 800;
   letter-spacing: 0;
@@ -1346,7 +1347,7 @@ button.secondary:hover { border-color: var(--accent); color: var(--accent); }
   min-width: 3.2rem;
   color: var(--text-muted);
   font-weight: 700;
-  font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+  font-family: "Atkinson Hyperlegible Mono", ui-monospace, "SF Mono", Consolas, monospace;
 }
 
 
@@ -1516,7 +1517,7 @@ button.secondary:hover { border-color: var(--accent); color: var(--accent); }
 }
 
 .timer {
-  font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+  font-family: "Atkinson Hyperlegible Mono", ui-monospace, "SF Mono", Consolas, monospace;
   font-size: 1.8rem;
   font-weight: 700;
   color: var(--bad);
@@ -1584,7 +1585,7 @@ button.secondary:hover { border-color: var(--accent); color: var(--accent); }
 .autocomplete-list .ac-years {
   color: var(--text-muted);
   font-size: 0.85rem;
-  font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+  font-family: "Atkinson Hyperlegible Mono", ui-monospace, "SF Mono", Consolas, monospace;
 }
 
 .feedback {
@@ -1702,7 +1703,7 @@ button.secondary:hover { border-color: var(--accent); color: var(--accent); }
 
 .fr-board-role {
   color: var(--accent);
-  font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+  font-family: "Atkinson Hyperlegible Mono", ui-monospace, "SF Mono", Consolas, monospace;
   font-size: 0.72rem;
   font-weight: 700;
 }
@@ -1823,7 +1824,7 @@ button.secondary:hover { border-color: var(--accent); color: var(--accent); }
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   border-radius: 999px;
-  font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+  font-family: "Atkinson Hyperlegible Mono", ui-monospace, "SF Mono", Consolas, monospace;
   font-size: 0.78rem;
   color: var(--text-muted);
 }
@@ -1915,7 +1916,7 @@ button.secondary:hover { border-color: var(--accent); color: var(--accent); }
 .player-info .years {
   font-size: 0.85rem;
   color: var(--text-muted);
-  font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+  font-family: "Atkinson Hyperlegible Mono", ui-monospace, "SF Mono", Consolas, monospace;
   margin-top: 2px;
 }
 
@@ -2023,7 +2024,7 @@ button.secondary:hover { border-color: var(--accent); color: var(--accent); }
   padding: 0;
   list-style: none;
   font-size: 0.85rem;
-  font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+  font-family: "Atkinson Hyperlegible Mono", ui-monospace, "SF Mono", Consolas, monospace;
 }
 
 .out-list li {
@@ -2375,7 +2376,43 @@ ul.glossary b {
   }
 }
 
-/* 0.4.09 Sour Gummy / Carter One font trial. */
+/* 0.4.10 Sour Gummy with Atkinson Hyperlegible Mono numerals. */
+@font-face {
+  font-family: "TeamMateTag Font";
+  src: url("/static/fonts/atkinson-hyperlegible-mono/AtkinsonHyperlegibleMono-VariableFont_wght.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0030-0039;
+}
+
+@font-face {
+  font-family: "TeamMateTag Font";
+  src: url("/static/fonts/atkinson-hyperlegible-mono/AtkinsonHyperlegibleMono-Italic-VariableFont_wght.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+  unicode-range: U+0030-0039;
+}
+
+@font-face {
+  font-family: "TeamMateTag Font";
+  src: url("/static/fonts/sour-gummy/SourGummy-VariableFont_wdth,wght.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-002F, U+003A-10FFFF;
+}
+
+@font-face {
+  font-family: "TeamMateTag Font";
+  src: url("/static/fonts/sour-gummy/SourGummy-Italic-VariableFont_wdth,wght.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+  unicode-range: U+0000-002F, U+003A-10FFFF;
+}
+
 @font-face {
   font-family: "Sour Gummy";
   src: url("/static/fonts/sour-gummy/SourGummy-VariableFont_wdth,wght.ttf") format("truetype");
@@ -2393,16 +2430,25 @@ ul.glossary b {
 }
 
 @font-face {
-  font-family: "Carter One";
-  src: url("/static/fonts/carter-one/CarterOne-Regular.ttf") format("truetype");
-  font-weight: 400;
+  font-family: "Atkinson Hyperlegible Mono";
+  src: url("/static/fonts/atkinson-hyperlegible-mono/AtkinsonHyperlegibleMono-VariableFont_wght.ttf") format("truetype");
+  font-weight: 100 900;
   font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Atkinson Hyperlegible Mono";
+  src: url("/static/fonts/atkinson-hyperlegible-mono/AtkinsonHyperlegibleMono-Italic-VariableFont_wght.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: italic;
   font-display: swap;
 }
 
 html,
 body {
-  font-family: "Sour Gummy", "Carter One", "Aptos Display", "Inter", "SF Pro Display", "Segoe UI", system-ui, sans-serif;
+  font-family: "TeamMateTag Font", "Sour Gummy", "Atkinson Hyperlegible Mono", "Aptos Display", "Inter", "SF Pro Display", "Segoe UI", system-ui, sans-serif;
+  font-variant-numeric: slashed-zero;
 }
 
 .home-root {
@@ -2671,7 +2717,7 @@ body {
 
 html,
 body {
-  font-family: "Sour Gummy", "Carter One", "Aptos Display", "Inter", "SF Pro Display", "Segoe UI", system-ui, sans-serif;
+  font-family: "TeamMateTag Font", "Sour Gummy", "Atkinson Hyperlegible Mono", "Aptos Display", "Inter", "SF Pro Display", "Segoe UI", system-ui, sans-serif;
 }
 
 .home-root {
@@ -3917,10 +3963,10 @@ select:focus {
   }
 }
 
-/* 0.4.09 active global font override. */
+/* 0.4.10 active global font override. */
 html,
 body {
-  font-family: "Sour Gummy", "Carter One", "Aptos Display", "Inter", "SF Pro Display", "Segoe UI", system-ui, sans-serif;
+  font-family: "TeamMateTag Font", "Sour Gummy", "Atkinson Hyperlegible Mono", "Aptos Display", "Inter", "SF Pro Display", "Segoe UI", system-ui, sans-serif;
 }
 
 /* 0.3.09: keep the main shell restrained; color belongs inside focused panels. */
@@ -4812,7 +4858,7 @@ textarea,
 .player-info .career,
 .player-info .teams,
 .feedback-timer {
-  font-family: "Sour Gummy", "Carter One", "Aptos Display", "Inter", "SF Pro Display", "Segoe UI", system-ui, sans-serif;
+  font-family: "TeamMateTag Font", "Sour Gummy", "Atkinson Hyperlegible Mono", "Aptos Display", "Inter", "SF Pro Display", "Segoe UI", system-ui, sans-serif;
 }
 
 .account-tray-action {
@@ -6451,7 +6497,7 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
 
 .fr-board-role {
   color: rgba(255, 255, 255, 0.78);
-  font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+  font-family: "Atkinson Hyperlegible Mono", ui-monospace, "SF Mono", Consolas, monospace;
   font-size: 0.66rem;
   font-weight: 900;
   line-height: 1;
