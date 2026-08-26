@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.4.13`
+- Current display version: `0.4.14`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -24,6 +24,16 @@ changes. It is the concise source of truth for another coding assistant.
   migration run, then remove it again.
 
 ## Current user experience
+
+Update, 2026-08-25 (0.4.14): corrected the Atkinson numeric font again after
+playtesting showed the prior `zero.zero` glyph was a dotted zero, not the
+desired slashed zero. Generated new custom static semibold font files
+`AtkinsonHyperlegibleMono-TMTSlashedNumbers.ttf` and
+`AtkinsonHyperlegibleMono-TMTSlashedNumbersItalic.ttf` by drawing a diagonal
+slash into both the normal `zero` and `zero.zero` glyphs, then updated CSS to
+load those files for all numeric UI. Removed the earlier
+`AtkinsonHyperlegibleMono-TMTNumbers*` files to avoid the dotted-zero variant.
+Bumped visible app version to `0.4.14`.
 
 Update, 2026-08-25 (0.4.13): made the Atkinson numeric swap robust by creating
 custom local Atkinson font files where the normal `0` codepoint maps directly

@@ -2380,7 +2380,7 @@ ul.glossary b {
 /* 0.4.10 Sour Gummy with Atkinson Hyperlegible Mono numerals. */
 @font-face {
   font-family: "TeamMateTag Font";
-  src: url("/static/fonts/atkinson-hyperlegible-mono/AtkinsonHyperlegibleMono-TMTNumbers.ttf") format("truetype");
+  src: url("/static/fonts/atkinson-hyperlegible-mono/AtkinsonHyperlegibleMono-TMTSlashedNumbers.ttf") format("truetype");
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
@@ -2389,7 +2389,7 @@ ul.glossary b {
 
 @font-face {
   font-family: "TeamMateTag Font";
-  src: url("/static/fonts/atkinson-hyperlegible-mono/AtkinsonHyperlegibleMono-TMTNumbersItalic.ttf") format("truetype");
+  src: url("/static/fonts/atkinson-hyperlegible-mono/AtkinsonHyperlegibleMono-TMTSlashedNumbersItalic.ttf") format("truetype");
   font-weight: 100 900;
   font-style: italic;
   font-display: swap;
@@ -2432,7 +2432,7 @@ ul.glossary b {
 
 @font-face {
   font-family: "Atkinson Hyperlegible Mono";
-  src: url("/static/fonts/atkinson-hyperlegible-mono/AtkinsonHyperlegibleMono-TMTNumbers.ttf") format("truetype");
+  src: url("/static/fonts/atkinson-hyperlegible-mono/AtkinsonHyperlegibleMono-TMTSlashedNumbers.ttf") format("truetype");
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
@@ -2440,7 +2440,7 @@ ul.glossary b {
 
 @font-face {
   font-family: "Atkinson Hyperlegible Mono";
-  src: url("/static/fonts/atkinson-hyperlegible-mono/AtkinsonHyperlegibleMono-TMTNumbersItalic.ttf") format("truetype");
+  src: url("/static/fonts/atkinson-hyperlegible-mono/AtkinsonHyperlegibleMono-TMTSlashedNumbersItalic.ttf") format("truetype");
   font-weight: 100 900;
   font-style: italic;
   font-display: swap;
