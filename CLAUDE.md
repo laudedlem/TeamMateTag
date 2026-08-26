@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.4.10`
+- Current display version: `0.4.11`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -24,6 +24,13 @@ changes. It is the concise source of truth for another coding assistant.
   migration run, then remove it again.
 
 ## Current user experience
+
+Update, 2026-08-25 (0.4.11): adjusted CSS line-height and small vertical
+padding for the new Sour Gummy/Atkinson font pairing so text does not sit low
+or get clipped in tight UI. Player-card names, launch-tile names/status text,
+Film Review tile labels, hub headings, start-card headings, and modal headings
+now get extra vertical breathing room while preserving the one-line player-card
+name rule. Bumped the visible app version to `0.4.11`.
 
 Update, 2026-08-25 (0.4.10): kept Sour Gummy as the site personality font but
 replaced the numeric glyphs with the user-provided Atkinson Hyperlegible Mono
