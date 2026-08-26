@@ -45,7 +45,7 @@ html, body {
   padding: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-family: "Sour Gummy", "Carter One", "Aptos Display", "Inter", "SF Pro Display", "Segoe UI", system-ui, sans-serif;
   line-height: 1.4;
   min-height: 100vh;
 }
@@ -2375,42 +2375,34 @@ ul.glossary b {
   }
 }
 
-/* 0.3.05 LT Karaoke Body font trial. */
+/* 0.4.09 Sour Gummy / Carter One font trial. */
 @font-face {
-  font-family: "LT Karaoke Body";
-  src: url("/static/fonts/lt-karaoke-body/LTKaraokeBody-Regular.ttf") format("truetype");
+  font-family: "Sour Gummy";
+  src: url("/static/fonts/sour-gummy/SourGummy-VariableFont_wdth,wght.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Sour Gummy";
+  src: url("/static/fonts/sour-gummy/SourGummy-Italic-VariableFont_wdth,wght.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Carter One";
+  src: url("/static/fonts/carter-one/CarterOne-Regular.ttf") format("truetype");
   font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "LT Karaoke Body";
-  src: url("/static/fonts/lt-karaoke-body/LTKaraokeBody-Medium.ttf") format("truetype");
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "LT Karaoke Body";
-  src: url("/static/fonts/lt-karaoke-body/LTKaraokeBody-Bold.ttf") format("truetype");
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "LT Karaoke Body";
-  src: url("/static/fonts/lt-karaoke-body/LTKaraokeBody-Bold.ttf") format("truetype");
-  font-weight: 900;
   font-style: normal;
   font-display: swap;
 }
 
 html,
 body {
-  font-family: "LT Karaoke Body", "Aptos Display", "Inter", "SF Pro Display", "Segoe UI", system-ui, sans-serif;
+  font-family: "Sour Gummy", "Carter One", "Aptos Display", "Inter", "SF Pro Display", "Segoe UI", system-ui, sans-serif;
 }
 
 .home-root {
@@ -2679,7 +2671,7 @@ body {
 
 html,
 body {
-  font-family: "LT Karaoke Body", "Aptos Display", "Inter", "SF Pro Display", "Segoe UI", system-ui, sans-serif;
+  font-family: "Sour Gummy", "Carter One", "Aptos Display", "Inter", "SF Pro Display", "Segoe UI", system-ui, sans-serif;
 }
 
 .home-root {
@@ -3925,10 +3917,10 @@ select:focus {
   }
 }
 
-/* 0.3.05 active global font override. */
+/* 0.4.09 active global font override. */
 html,
 body {
-  font-family: "LT Karaoke Body", "Aptos Display", "Inter", "SF Pro Display", "Segoe UI", system-ui, sans-serif;
+  font-family: "Sour Gummy", "Carter One", "Aptos Display", "Inter", "SF Pro Display", "Segoe UI", system-ui, sans-serif;
 }
 
 /* 0.3.09: keep the main shell restrained; color belongs inside focused panels. */
@@ -4820,7 +4812,7 @@ textarea,
 .player-info .career,
 .player-info .teams,
 .feedback-timer {
-  font-family: "LT Karaoke Body", "Aptos Display", "Inter", "SF Pro Display", "Segoe UI", system-ui, sans-serif;
+  font-family: "Sour Gummy", "Carter One", "Aptos Display", "Inter", "SF Pro Display", "Segoe UI", system-ui, sans-serif;
 }
 
 .account-tray-action {
