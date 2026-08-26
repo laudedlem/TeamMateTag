@@ -6,6 +6,7 @@ import argparse
 import os
 import sys
 import time
+import unicodedata
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
@@ -49,22 +50,39 @@ class OfficialRepair:
     stints: dict[tuple[str, int], tuple[int, int, str, str]]
     error: str | None = None
 
-TEAM_ID_BY_NAME = {name.lower(): team_id for team_id, name in NHL_TEAM_NAMES.items()}
+
+@dataclass(frozen=True)
+class RowDiff:
+    missing: list[tuple[int, str]]
+    extra: list[tuple[int, str]]
+
+    @property
+    def changed(self) -> bool:
+        return bool(self.missing or self.extra)
+
+def team_name_key(value: str) -> str:
+    return "".join(
+        char for char in unicodedata.normalize("NFD", value or "")
+        if unicodedata.category(char) != "Mn"
+    ).lower()
+
+
+TEAM_ID_BY_NAME = {team_name_key(name): team_id for team_id, name in NHL_TEAM_NAMES.items()}
 TEAM_ID_BY_NAME.update(
     {
-        "arizona coyotes": "ARI",
-        "atlanta flames": "AFM",
-        "atlanta thrashers": "ATL",
-        "california golden seals": "CLR",
-        "cleveland barons": "CLE",
-        "colorado rockies": "COR",
-        "hartford whalers": "HFD",
-        "minnesota north stars": "MNS",
-        "phoenix coyotes": "PHX",
-        "quebec nordiques": "QUE",
-        "utah hockey club": "UTA",
-        "utah mammoth": "UTA",
-        "winnipeg jets": "WPG",
+        team_name_key("arizona coyotes"): "ARI",
+        team_name_key("atlanta flames"): "AFM",
+        team_name_key("atlanta thrashers"): "ATL",
+        team_name_key("california golden seals"): "CLR",
+        team_name_key("cleveland barons"): "CLE",
+        team_name_key("colorado rockies"): "COR",
+        team_name_key("hartford whalers"): "HFD",
+        team_name_key("minnesota north stars"): "MNS",
+        team_name_key("phoenix coyotes"): "PHX",
+        team_name_key("quebec nordiques"): "QUE",
+        team_name_key("utah hockey club"): "UTA",
+        team_name_key("utah mammoth"): "UTA",
+        team_name_key("winnipeg jets"): "WPG",
     }
 )
 
@@ -101,7 +119,7 @@ def official_rows(
         games = int(item.get("gamesPlayed") or 0)
         season = season_start(item.get("season"))
         team_name = localized(item.get("teamName")).strip()
-        team_id = TEAM_ID_BY_NAME.get(team_name.lower())
+        team_id = TEAM_ID_BY_NAME.get(team_name_key(team_name))
         if not team_id or not season or season < season_since or season > season_through or games <= 0:
             continue
         rows.append((team_id, team_name, season, games))
@@ -155,6 +173,8 @@ def fetch_repair(
 ) -> OfficialRepair:
     try:
         rows = official_rows(external_id, season_since=season_since, season_through=season_through)
+        if not rows:
+            return OfficialRepair(player_id, external_id, name, [], {}, "no official NHL regular-season rows in window")
         seasons = stint_seasons(rows, stint_mode)
         stints = game_log_stints(external_id, seasons) if seasons else {}
         return OfficialRepair(player_id, external_id, name, rows, stints)
@@ -301,6 +321,39 @@ def repair_player(
     return apply_repair(conn, player_id, external_id, payload.rows, payload.stints, season_since, season_through)
 
 
+def current_team_seasons(
+    conn: "psycopg.Connection",
+    player_id: str,
+    season_since: int,
+    season_through: int,
+) -> set[tuple[int, str]]:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT season, team_id
+              FROM sport_appearances
+             WHERE sport_id = %s
+               AND player_id = %s
+               AND season >= %s
+               AND season <= %s
+            """,
+            (SPORT_ID, player_id, season_since, season_through),
+        )
+        return set(cur.fetchall())
+
+
+def diff_repair_rows(
+    conn: "psycopg.Connection",
+    player_id: str,
+    rows: list[tuple[str, str, int, int]],
+    season_since: int,
+    season_through: int,
+) -> RowDiff:
+    official = {(season, team_id) for team_id, _team_name, season, _games in rows}
+    current = current_team_seasons(conn, player_id, season_since, season_through)
+    return RowDiff(missing=sorted(official - current), extra=sorted(current - official))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--player-id", action="append", default=[], help="Internal player id, e.g. nhl:8479400")
@@ -314,6 +367,7 @@ def main() -> None:
     parser.add_argument("--sleep", type=float, default=0.04)
     parser.add_argument("--progress-every", type=int, default=25, help="Print cumulative progress every N players")
     parser.add_argument("--workers", type=int, default=1, help="Parallel NHL API fetch workers; DB writes remain sequential")
+    parser.add_argument("--only-different", action="store_true", help="Skip DB rewrites when official and current team-season sets already match")
     parser.add_argument(
         "--stint-mode",
         choices=("multi-team", "all", "none"),
@@ -369,32 +423,17 @@ def main() -> None:
         with psycopg.connect(os.environ["DATABASE_URL"], autocommit=True, prepare_threshold=None) as conn:
             for index, (player_id, external_id, name) in enumerate(players, 1):
                 try:
-                    official = {
-                        (season, team_id)
-                        for team_id, _team_name, season, _games in official_rows(
-                            str(external_id),
-                            season_since=args.season_since,
-                            season_through=args.season_through,
-                        )
-                    }
+                    rows = official_rows(
+                        str(external_id),
+                        season_since=args.season_since,
+                        season_through=args.season_through,
+                    )
                 except Exception as exc:
                     print(f"ERROR {player_id} {name}: {exc}", file=sys.stderr, flush=True)
                     continue
-                with conn.cursor() as cur:
-                    cur.execute(
-                        """
-                        SELECT season, team_id
-                          FROM sport_appearances
-                         WHERE sport_id = %s
-                           AND player_id = %s
-                           AND season >= %s
-                           AND season <= %s
-                        """,
-                        (SPORT_ID, player_id, args.season_since, args.season_through),
-                    )
-                    current = set(cur.fetchall())
-                missing = sorted(official - current)
-                extra = sorted(current - official)
+                diff = diff_repair_rows(conn, player_id, rows, args.season_since, args.season_through)
+                missing = diff.missing
+                extra = diff.extra
                 if missing or extra:
                     bad_players += 1
                     missing_players += int(bool(missing))
@@ -416,19 +455,21 @@ def main() -> None:
             print(f"SAMPLE {player_id} {name}: missing={missing} extra={extra}", flush=True)
         return
 
-    repaired = errors = 0
+    repaired = changed_players = skipped = errors = 0
     rows_total = seasons_total = 0
 
-    def record_progress(index: int, total: int, payload: OfficialRepair, rows: int, seasons: int) -> None:
-        nonlocal repaired, rows_total, seasons_total
+    def record_progress(index: int, total: int, payload: OfficialRepair, rows: int, seasons: int, changed: bool) -> None:
+        nonlocal repaired, changed_players, rows_total, seasons_total
         rows_total += rows
         seasons_total += seasons
         repaired += int(rows > 0)
+        changed_players += int(changed)
         if args.progress_every and (index % args.progress_every == 0 or rows):
             print(
                 f"{index:,}/{total:,} {payload.player_id} {payload.name}: "
-                f"{rows} official rows across {seasons} seasons; "
-                f"cumulative repaired {repaired:,}; cumulative rows {rows_total:,}; "
+                f"{rows} official rows across {seasons} seasons; changed={changed}; "
+                f"cumulative changed {changed_players:,}; cumulative written players {repaired:,}; "
+                f"cumulative rows {rows_total:,}; "
                 f"cumulative seasons {seasons_total:,}",
                 flush=True,
             )
@@ -442,6 +483,16 @@ def main() -> None:
                     errors += 1
                     print(f"ERROR {player_id} {name}: {payload.error}", file=sys.stderr, flush=True)
                     continue
+                diff = diff_repair_rows(conn, player_id, payload.rows, args.season_since, args.season_through)
+                if args.only_different and not diff.changed:
+                    skipped += 1
+                    if args.progress_every and index % args.progress_every == 0:
+                        print(
+                            f"{index:,}/{total_players:,}; skipped unchanged {skipped:,}; "
+                            f"cumulative changed {changed_players:,}; errors {errors:,}",
+                            flush=True,
+                        )
+                    continue
                 rows, seasons = apply_repair(
                     conn,
                     player_id,
@@ -451,7 +502,7 @@ def main() -> None:
                     season_since=args.season_since,
                     season_through=args.season_through,
                 )
-                record_progress(index, total_players, payload, rows, seasons)
+                record_progress(index, total_players, payload, rows, seasons, diff.changed)
                 time.sleep(args.sleep)
         else:
             with ThreadPoolExecutor(max_workers=max(1, args.workers)) as pool:
@@ -473,6 +524,16 @@ def main() -> None:
                         errors += 1
                         print(f"ERROR {payload.player_id} {payload.name}: {payload.error}", file=sys.stderr, flush=True)
                         continue
+                    diff = diff_repair_rows(conn, payload.player_id, payload.rows, args.season_since, args.season_through)
+                    if args.only_different and not diff.changed:
+                        skipped += 1
+                        if args.progress_every and index % args.progress_every == 0:
+                            print(
+                                f"{index:,}/{total_players:,}; skipped unchanged {skipped:,}; "
+                                f"cumulative changed {changed_players:,}; errors {errors:,}",
+                                flush=True,
+                            )
+                        continue
                     rows, seasons = apply_repair(
                         conn,
                         payload.player_id,
@@ -482,9 +543,10 @@ def main() -> None:
                         season_since=args.season_since,
                         season_through=args.season_through,
                     )
-                    record_progress(index, total_players, payload, rows, seasons)
+                    record_progress(index, total_players, payload, rows, seasons, diff.changed)
     print(
         f"Repaired {repaired:,}/{total_players:,} NHL players; "
+        f"changed {changed_players:,}; skipped unchanged {skipped:,}; "
         f"upserted {rows_total:,} official appearance rows across {seasons_total:,} player-seasons; "
         f"errors {errors:,}.",
         flush=True,
