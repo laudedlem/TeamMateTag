@@ -130,16 +130,32 @@ def game_log_stints(external_id: str, seasons: set[int]) -> dict[tuple[str, int]
     return stints
 
 
+def stint_seasons(
+    rows: list[tuple[str, str, int, int]],
+    mode: str,
+) -> set[int]:
+    if mode == "none":
+        return set()
+    seasons = {season for _, _, season, _ in rows}
+    if mode == "all":
+        return seasons
+    teams_by_season: dict[int, set[str]] = defaultdict(set)
+    for team_id, _team_name, season, _games in rows:
+        teams_by_season[season].add(team_id)
+    return {season for season, team_ids in teams_by_season.items() if len(team_ids) > 1}
+
+
 def fetch_repair(
     player_id: str,
     external_id: str,
     name: str,
     season_since: int,
     season_through: int,
+    stint_mode: str,
 ) -> OfficialRepair:
     try:
         rows = official_rows(external_id, season_since=season_since, season_through=season_through)
-        seasons = {season for _, _, season, _ in rows}
+        seasons = stint_seasons(rows, stint_mode)
         stints = game_log_stints(external_id, seasons) if seasons else {}
         return OfficialRepair(player_id, external_id, name, rows, stints)
     except Exception as exc:
@@ -277,8 +293,9 @@ def repair_player(
     external_id: str,
     season_since: int = 0,
     season_through: int = 9999,
+    stint_mode: str = "multi-team",
 ) -> tuple[int, int]:
-    payload = fetch_repair(player_id, external_id, "", season_since, season_through)
+    payload = fetch_repair(player_id, external_id, "", season_since, season_through, stint_mode)
     if payload.error:
         raise RuntimeError(payload.error)
     return apply_repair(conn, player_id, external_id, payload.rows, payload.stints, season_since, season_through)
@@ -297,6 +314,12 @@ def main() -> None:
     parser.add_argument("--sleep", type=float, default=0.04)
     parser.add_argument("--progress-every", type=int, default=25, help="Print cumulative progress every N players")
     parser.add_argument("--workers", type=int, default=1, help="Parallel NHL API fetch workers; DB writes remain sequential")
+    parser.add_argument(
+        "--stint-mode",
+        choices=("multi-team", "all", "none"),
+        default="multi-team",
+        help="Fetch exact game-log stint dates for all seasons, only multi-team seasons, or none",
+    )
     args = parser.parse_args()
 
     if not os.environ.get("DATABASE_URL"):
@@ -414,7 +437,7 @@ def main() -> None:
     with psycopg.connect(os.environ["DATABASE_URL"], autocommit=True, prepare_threshold=None) as conn:
         if args.workers <= 1:
             for index, (player_id, external_id, name) in enumerate(players, 1):
-                payload = fetch_repair(player_id, str(external_id), name, args.season_since, args.season_through)
+                payload = fetch_repair(player_id, str(external_id), name, args.season_since, args.season_through, args.stint_mode)
                 if payload.error:
                     errors += 1
                     print(f"ERROR {player_id} {name}: {payload.error}", file=sys.stderr, flush=True)
@@ -440,6 +463,7 @@ def main() -> None:
                         name,
                         args.season_since,
                         args.season_through,
+                        args.stint_mode,
                     )
                     for player_id, external_id, name in players
                 ]

@@ -50,8 +50,13 @@ then rerun the matching
 so the 2025-26 live updater remains the source of truth for current-season rows.
 The repair script now supports `--workers` for parallel official NHL API fetches
 with sequential DB writes. For the broader 2000-to-now eligibility sweep, use a
-background run with `--season-since 2000 --season-through 2025 --workers 8` and
-monitor its log; lower workers to 4 if NHL throttles or network errors rise.
+background run with `--season-since 2000 --season-through 2025 --workers 8
+--stint-mode multi-team` and monitor its log; lower workers to 4 if NHL
+throttles or network errors rise. `--stint-mode multi-team` uses official
+season totals for every player-season and fetches exact game-log stint dates
+only for seasons where the player had multiple NHL teams, which is the efficient
+trade-link cleanup. Use `--stint-mode all` for the slowest/strictest full exact
+date rebuild.
 
 Update, 2026-08-25 (0.4.07): fixed the remaining Manager Mode startup freeze
 introduced by the 0.4.05 player-card stint ordering change. The card renderer
