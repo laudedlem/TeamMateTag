@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.4.14`
+- Current display version: `0.4.15`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -24,6 +24,17 @@ changes. It is the concise source of truth for another coding assistant.
   migration run, then remove it again.
 
 ## Current user experience
+
+Update, 2026-08-25 (0.4.15): corrected the Atkinson zero again after comparing
+the user-visible result with the actual Google Fonts build. The ZIP/GitHub
+variable font includes a `"zero"` OpenType alternate named `zero.zero`, but that
+alternate is a dotted zero; enabling it caused the wrong glyph. The hand-drawn
+custom slash was also too heavy. Replaced numeric font files with the four
+Google-served Atkinson Hyperlegible Mono TTFs
+(`AtkinsonHyperlegibleMono-Google-Regular/Bold/Italic/BoldItalic.ttf`), removed
+the experimental custom and variable Atkinson files from active assets, and
+removed `"zero"` feature forcing so the clean default Google slashed zero is
+used. Bumped visible app version to `0.4.15`.
 
 Update, 2026-08-25 (0.4.14): corrected the Atkinson numeric font again after
 playtesting showed the prior `zero.zero` glyph was a dotted zero, not the

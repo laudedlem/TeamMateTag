@@ -47,7 +47,6 @@ html, body {
   color: var(--text);
   font-family: "TeamMateTag Font", "Sour Gummy", "Atkinson Hyperlegible Mono", "Aptos Display", "Inter", "SF Pro Display", "Segoe UI", system-ui, sans-serif;
   font-variant-numeric: slashed-zero;
-  font-feature-settings: "zero" 1;
   line-height: 1.4;
   min-height: 100vh;
 }
@@ -2377,11 +2376,11 @@ ul.glossary b {
   }
 }
 
-/* 0.4.10 Sour Gummy with Atkinson Hyperlegible Mono numerals. */
+/* 0.4.15 Sour Gummy with Google-served Atkinson Hyperlegible Mono numerals. */
 @font-face {
   font-family: "TeamMateTag Font";
-  src: url("/static/fonts/atkinson-hyperlegible-mono/AtkinsonHyperlegibleMono-TMTSlashedNumbers.ttf") format("truetype");
-  font-weight: 100 900;
+  src: url("/static/fonts/atkinson-hyperlegible-mono/AtkinsonHyperlegibleMono-Google-Regular.ttf") format("truetype");
+  font-weight: 100 599;
   font-style: normal;
   font-display: swap;
   unicode-range: U+0030-0039;
@@ -2389,8 +2388,26 @@ ul.glossary b {
 
 @font-face {
   font-family: "TeamMateTag Font";
-  src: url("/static/fonts/atkinson-hyperlegible-mono/AtkinsonHyperlegibleMono-TMTSlashedNumbersItalic.ttf") format("truetype");
-  font-weight: 100 900;
+  src: url("/static/fonts/atkinson-hyperlegible-mono/AtkinsonHyperlegibleMono-Google-Italic.ttf") format("truetype");
+  font-weight: 100 599;
+  font-style: italic;
+  font-display: swap;
+  unicode-range: U+0030-0039;
+}
+
+@font-face {
+  font-family: "TeamMateTag Font";
+  src: url("/static/fonts/atkinson-hyperlegible-mono/AtkinsonHyperlegibleMono-Google-Bold.ttf") format("truetype");
+  font-weight: 600 900;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0030-0039;
+}
+
+@font-face {
+  font-family: "TeamMateTag Font";
+  src: url("/static/fonts/atkinson-hyperlegible-mono/AtkinsonHyperlegibleMono-Google-BoldItalic.ttf") format("truetype");
+  font-weight: 600 900;
   font-style: italic;
   font-display: swap;
   unicode-range: U+0030-0039;
@@ -2432,16 +2449,32 @@ ul.glossary b {
 
 @font-face {
   font-family: "Atkinson Hyperlegible Mono";
-  src: url("/static/fonts/atkinson-hyperlegible-mono/AtkinsonHyperlegibleMono-TMTSlashedNumbers.ttf") format("truetype");
-  font-weight: 100 900;
+  src: url("/static/fonts/atkinson-hyperlegible-mono/AtkinsonHyperlegibleMono-Google-Regular.ttf") format("truetype");
+  font-weight: 100 599;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
   font-family: "Atkinson Hyperlegible Mono";
-  src: url("/static/fonts/atkinson-hyperlegible-mono/AtkinsonHyperlegibleMono-TMTSlashedNumbersItalic.ttf") format("truetype");
-  font-weight: 100 900;
+  src: url("/static/fonts/atkinson-hyperlegible-mono/AtkinsonHyperlegibleMono-Google-Italic.ttf") format("truetype");
+  font-weight: 100 599;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Atkinson Hyperlegible Mono";
+  src: url("/static/fonts/atkinson-hyperlegible-mono/AtkinsonHyperlegibleMono-Google-Bold.ttf") format("truetype");
+  font-weight: 600 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Atkinson Hyperlegible Mono";
+  src: url("/static/fonts/atkinson-hyperlegible-mono/AtkinsonHyperlegibleMono-Google-BoldItalic.ttf") format("truetype");
+  font-weight: 600 900;
   font-style: italic;
   font-display: swap;
 }
@@ -2450,7 +2483,6 @@ html,
 body {
   font-family: "TeamMateTag Font", "Sour Gummy", "Atkinson Hyperlegible Mono", "Aptos Display", "Inter", "SF Pro Display", "Segoe UI", system-ui, sans-serif;
   font-variant-numeric: slashed-zero;
-  font-feature-settings: "zero" 1;
 }
 
 .home-root {
@@ -9418,7 +9450,7 @@ body[data-mode-hub="film"] .film-preview-player small,
   padding-block: 0.02em 0.08em;
 }
 
-/* 0.4.12: force Atkinson's clearer numerals, including its slashed-zero feature. */
+/* 0.4.15: use Google-served Atkinson numerals; do not enable the dotted zero alternate. */
 .timer,
 .fr-stats,
 .feedback-timer,
@@ -9434,5 +9466,5 @@ body[data-mode-hub="film"] .film-preview-player small,
 .fr-board-role {
   font-family: "Atkinson Hyperlegible Mono", "TeamMateTag Font", ui-monospace, "SF Mono", Consolas, monospace;
   font-variant-numeric: slashed-zero tabular-nums;
-  font-feature-settings: "zero" 1, "tnum" 1;
+  font-feature-settings: "tnum" 1;
 }
