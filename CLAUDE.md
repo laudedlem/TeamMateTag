@@ -25,6 +25,22 @@ changes. It is the concise source of truth for another coding assistant.
 
 ## Current user experience
 
+Update, 2026-08-25 (data tooling): started the local-first game-level teammate
+proof project, beginning with Hockey. Added
+`scripts/build_nhl_game_teammates.py`, which uses the free official NHL web API
+club season schedules plus gamecenter boxscores to cache completed
+regular-season games locally and build
+`raw/nhl_game_teammates/nhl_game_teammates.sqlite`. The local database stores
+actual player-game-team appearances with TOI greater than zero, then derives
+`nhl_teammate_game_proofs` where two players are teammates only if both appeared
+in the same regular-season game for the same team. This is the intended strict
+source for future Hockey gameplay validation and compact production imports.
+Recommended background run:
+`python -u scripts/build_nhl_game_teammates.py --season-start 2000
+--season-end 2025 --workers 1 --request-sleep 2.5 --progress-every 100`.
+The script is resumable via local response cache, skips already stored games,
+has a lock file, and supports `--game-id` for targeted proof tests.
+
 Update, 2026-08-25 (0.4.08): fixed a Hockey Manager Mode data miss surfaced
 by Quinton Byfield -> Pierre-Luc Dubois. Production had Byfield on `LAK 2023`
 but incorrectly had Dubois on Washington for 2023/2024 due older hockey source
