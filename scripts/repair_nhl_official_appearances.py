@@ -39,6 +39,8 @@ SPORT_ID = "hockey"
 SOURCE = "nhl_official_player_landing"
 API = "https://api-web.nhle.com/v1/player/{}/landing"
 GAME_LOG_API = "https://api-web.nhle.com/v1/player/{}/game-log/{}/2"
+MAX_HTTP_RETRIES = 6
+RETRY_BASE_SLEEP = 2.5
 
 
 @dataclass(frozen=True)
@@ -88,9 +90,26 @@ TEAM_ID_BY_NAME.update(
 
 
 def get_json(url: str) -> dict[str, Any]:
-    response = requests.get(url, timeout=30)
-    response.raise_for_status()
-    return response.json()
+    for attempt in range(MAX_HTTP_RETRIES + 1):
+        response = requests.get(url, timeout=30)
+        if response.status_code == 429 and attempt < MAX_HTTP_RETRIES:
+            retry_after = response.headers.get("Retry-After")
+            try:
+                delay = float(retry_after) if retry_after else RETRY_BASE_SLEEP * (attempt + 1)
+            except ValueError:
+                delay = RETRY_BASE_SLEEP * (attempt + 1)
+            delay = min(60.0, max(RETRY_BASE_SLEEP, delay))
+            print(f"RATE_LIMIT sleeping {delay:.1f}s for {url}", file=sys.stderr, flush=True)
+            time.sleep(delay)
+            continue
+        if 500 <= response.status_code < 600 and attempt < MAX_HTTP_RETRIES:
+            delay = min(45.0, RETRY_BASE_SLEEP * (attempt + 1))
+            print(f"SERVER_RETRY {response.status_code} sleeping {delay:.1f}s for {url}", file=sys.stderr, flush=True)
+            time.sleep(delay)
+            continue
+        response.raise_for_status()
+        return response.json()
+    raise RuntimeError(f"request failed after retries: {url}")
 
 
 def localized(value: Any) -> str:
@@ -174,7 +193,7 @@ def fetch_repair(
     try:
         rows = official_rows(external_id, season_since=season_since, season_through=season_through)
         if not rows:
-            return OfficialRepair(player_id, external_id, name, [], {}, "no official NHL regular-season rows in window")
+            return OfficialRepair(player_id, external_id, name, [], {})
         seasons = stint_seasons(rows, stint_mode)
         stints = game_log_stints(external_id, seasons) if seasons else {}
         return OfficialRepair(player_id, external_id, name, rows, stints)
@@ -455,7 +474,7 @@ def main() -> None:
             print(f"SAMPLE {player_id} {name}: missing={missing} extra={extra}", flush=True)
         return
 
-    repaired = changed_players = skipped = errors = 0
+    repaired = changed_players = skipped = skipped_no_rows = errors = 0
     rows_total = seasons_total = 0
 
     def record_progress(index: int, total: int, payload: OfficialRepair, rows: int, seasons: int, changed: bool) -> None:
@@ -483,12 +502,23 @@ def main() -> None:
                     errors += 1
                     print(f"ERROR {player_id} {name}: {payload.error}", file=sys.stderr, flush=True)
                     continue
+                if not payload.rows:
+                    skipped_no_rows += 1
+                    if args.progress_every and index % args.progress_every == 0:
+                        print(
+                            f"{index:,}/{total_players:,}; skipped unchanged {skipped:,}; "
+                            f"skipped no official rows {skipped_no_rows:,}; "
+                            f"cumulative changed {changed_players:,}; errors {errors:,}",
+                            flush=True,
+                        )
+                    continue
                 diff = diff_repair_rows(conn, player_id, payload.rows, args.season_since, args.season_through)
                 if args.only_different and not diff.changed:
                     skipped += 1
                     if args.progress_every and index % args.progress_every == 0:
                         print(
                             f"{index:,}/{total_players:,}; skipped unchanged {skipped:,}; "
+                            f"skipped no official rows {skipped_no_rows:,}; "
                             f"cumulative changed {changed_players:,}; errors {errors:,}",
                             flush=True,
                         )
@@ -524,12 +554,23 @@ def main() -> None:
                         errors += 1
                         print(f"ERROR {payload.player_id} {payload.name}: {payload.error}", file=sys.stderr, flush=True)
                         continue
+                    if not payload.rows:
+                        skipped_no_rows += 1
+                        if args.progress_every and index % args.progress_every == 0:
+                            print(
+                                f"{index:,}/{total_players:,}; skipped unchanged {skipped:,}; "
+                                f"skipped no official rows {skipped_no_rows:,}; "
+                                f"cumulative changed {changed_players:,}; errors {errors:,}",
+                                flush=True,
+                            )
+                        continue
                     diff = diff_repair_rows(conn, payload.player_id, payload.rows, args.season_since, args.season_through)
                     if args.only_different and not diff.changed:
                         skipped += 1
                         if args.progress_every and index % args.progress_every == 0:
                             print(
                                 f"{index:,}/{total_players:,}; skipped unchanged {skipped:,}; "
+                                f"skipped no official rows {skipped_no_rows:,}; "
                                 f"cumulative changed {changed_players:,}; errors {errors:,}",
                                 flush=True,
                             )
@@ -547,6 +588,7 @@ def main() -> None:
     print(
         f"Repaired {repaired:,}/{total_players:,} NHL players; "
         f"changed {changed_players:,}; skipped unchanged {skipped:,}; "
+        f"skipped no official rows {skipped_no_rows:,}; "
         f"upserted {rows_total:,} official appearance rows across {seasons_total:,} player-seasons; "
         f"errors {errors:,}.",
         flush=True,

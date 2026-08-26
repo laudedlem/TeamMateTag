@@ -61,6 +61,12 @@ multiple NHL teams, which is the efficient trade-link cleanup. Use
 `--stint-mode all` for the slowest/strictest full exact date rebuild. The script
 also normalizes accents in official team names such as `Montréal Canadiens` and
 skips players with no official rows in-window rather than deleting their data.
+After playtesting the command, the NHL API returned 429 rate limits quickly at
+8 workers and still returned a long `Retry-After` at 2 workers during the same
+throttle window. The script now retries/backs off on 429s and reports players
+with no official rows separately. For unattended repair, prefer a slower
+overnight command with `--workers 1 --sleep 0.35`; only raise workers after an
+audit/repair batch runs without 429s.
 
 Update, 2026-08-25 (0.4.07): fixed the remaining Manager Mode startup freeze
 introduced by the 0.4.05 player-card stint ordering change. The card renderer
