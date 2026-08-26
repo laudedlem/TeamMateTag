@@ -13,6 +13,7 @@ import json
 import os
 import sqlite3
 import sys
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
@@ -31,6 +32,8 @@ API = "https://api-web.nhle.com/v1"
 FINAL_STATES = {"OFF", "FINAL"}
 SOURCE = "nhl_api_web_gamecenter"
 REQUEST_SLEEP_SECONDS = 0.0
+REQUEST_LOCK = threading.Lock()
+LAST_REQUEST_AT = 0.0
 MAX_HTTP_RETRIES = 6
 
 # Current and recent/historical official NHL abbreviations needed since 2000.
@@ -94,12 +97,17 @@ def cache_json_path(cache_dir: Path, kind: str, key: str) -> Path:
 
 
 def get_json(url: str, cache_path: Path) -> dict[str, Any]:
-    global REQUEST_SLEEP_SECONDS
+    global LAST_REQUEST_AT, REQUEST_SLEEP_SECONDS
     if cache_path.exists():
         return json.loads(cache_path.read_text(encoding="utf-8"))
-    if REQUEST_SLEEP_SECONDS > 0:
-        time.sleep(REQUEST_SLEEP_SECONDS)
     for attempt in range(MAX_HTTP_RETRIES + 1):
+        if REQUEST_SLEEP_SECONDS > 0:
+            with REQUEST_LOCK:
+                now = time.monotonic()
+                wait = REQUEST_SLEEP_SECONDS - (now - LAST_REQUEST_AT)
+                if wait > 0:
+                    time.sleep(wait)
+                LAST_REQUEST_AT = time.monotonic()
         response = requests.get(url, timeout=30)
         if response.status_code == 404:
             payload: dict[str, Any] = {"_missing": True, "_url": url}
@@ -442,6 +450,7 @@ def fetch_and_store_games(
     print(f"games discovered {len(games):,}; already stored {len(existing):,}; pending {len(pending):,}", flush=True)
     stored = 0
     appearances = 0
+    started_at = time.monotonic()
     try:
         with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
             futures = [pool.submit(parse_boxscore, game.game_id, cache_dir) for game in pending]
@@ -452,9 +461,13 @@ def fetch_and_store_games(
                 appearances += len(rows)
                 if progress_every and index % progress_every == 0:
                     conn.commit()
+                    elapsed = max(0.001, time.monotonic() - started_at)
+                    per_hour = index / elapsed * 3600
+                    remaining = max(0, len(pending) - index)
+                    eta_hours = remaining / per_hour if per_hour else 0
                     print(
                         f"boxscores {index:,}/{len(pending):,}; stored games {stored:,}; "
-                        f"appearances {appearances:,}",
+                        f"appearances {appearances:,}; rate {per_hour:,.0f}/hr; eta {eta_hours:.1f}h",
                         flush=True,
                     )
         conn.commit()
