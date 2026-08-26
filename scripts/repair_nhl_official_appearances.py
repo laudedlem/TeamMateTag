@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import atexit
 import json
 import os
 import sys
@@ -41,6 +42,7 @@ SOURCE = "nhl_official_player_landing"
 API = "https://api-web.nhle.com/v1/player/{}/landing"
 GAME_LOG_API = "https://api-web.nhle.com/v1/player/{}/game-log/{}/2"
 CACHE_DIR = ROOT / "raw" / "nhl_official_repair"
+LOCK_PATH = CACHE_DIR / "repair.lock"
 MAX_HTTP_RETRIES = 6
 RETRY_BASE_SLEEP = 2.5
 
@@ -126,6 +128,30 @@ def localized(value: Any) -> str:
     if isinstance(value, dict):
         return str(value.get("default") or next(iter(value.values()), "") or "")
     return str(value or "")
+
+
+def acquire_lock(disabled: bool = False) -> None:
+    if disabled:
+        return
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    try:
+        fd = os.open(str(LOCK_PATH), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        raise SystemExit(
+            f"Another NHL repair appears to be running: {LOCK_PATH}\n"
+            "Stop the other process or delete the lock only after confirming no repair is active."
+        )
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        handle.write(str(os.getpid()))
+
+    def cleanup() -> None:
+        try:
+            if LOCK_PATH.read_text(encoding="utf-8").strip() == str(os.getpid()):
+                LOCK_PATH.unlink()
+        except OSError:
+            pass
+
+    atexit.register(cleanup)
 
 
 def season_start(raw_season: Any) -> int | None:
@@ -403,6 +429,7 @@ def main() -> None:
     parser.add_argument("--only-different", action="store_true", help="Skip DB rewrites when official and current team-season sets already match")
     parser.add_argument("--offset", type=int, default=0, help="Skip the first N selected players")
     parser.add_argument("--skip-provenance", action="store_true", help="Skip players already marked repaired for the requested season-through")
+    parser.add_argument("--no-lock", action="store_true", help="Allow multiple repair processes; not recommended for production writes")
     parser.add_argument(
         "--stint-mode",
         choices=("multi-team", "all", "none"),
@@ -415,6 +442,7 @@ def main() -> None:
         raise SystemExit("DATABASE_URL is required")
     if not (args.all or args.player_id or args.external_id or args.audit):
         raise SystemExit("Use --all, --audit, --player-id, or --external-id")
+    acquire_lock(disabled=args.audit or args.no_lock)
 
     with psycopg.connect(os.environ["DATABASE_URL"], autocommit=True, prepare_threshold=None) as conn:
         with conn.cursor() as cur:
