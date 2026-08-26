@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.4.11`
+- Current display version: `0.4.13`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -24,6 +24,24 @@ changes. It is the concise source of truth for another coding assistant.
   migration run, then remove it again.
 
 ## Current user experience
+
+Update, 2026-08-25 (0.4.13): made the Atkinson numeric swap robust by creating
+custom local Atkinson font files where the normal `0` codepoint maps directly
+to Atkinson's `zero.zero` glyph. CSS now loads
+`AtkinsonHyperlegibleMono-TMTNumbers.ttf` and
+`AtkinsonHyperlegibleMono-TMTNumbersItalic.ttf` for TeamMateTag numeric
+surfaces, so the slashed-zero appearance no longer depends on browser support
+for the `"zero"` OpenType feature. Bumped visible app version to `0.4.13`.
+
+Update, 2026-08-25 (0.4.12): forced Atkinson Hyperlegible Mono numerals more
+explicitly after playtesting showed zeros did not match the Google Fonts
+slashed-zero sample. Added global `font-feature-settings: "zero" 1` and a final
+numeric override for timers, Film Review stats, feedback timers, player-card
+career years, team-season stint labels, autocomplete years, lineup numbers,
+archive numbers, role labels, and the app version pill. These numeric surfaces
+now prefer Atkinson directly with `font-variant-numeric: slashed-zero
+tabular-nums` and `"zero"`/`"tnum"` OpenType features. Bumped visible app
+version to `0.4.12`.
 
 Update, 2026-08-25 (0.4.11): adjusted CSS line-height and small vertical
 padding for the new Sour Gummy/Atkinson font pairing so text does not sit low
