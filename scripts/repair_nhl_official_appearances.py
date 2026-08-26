@@ -45,6 +45,7 @@ CACHE_DIR = ROOT / "raw" / "nhl_official_repair"
 LOCK_PATH = CACHE_DIR / "repair.lock"
 MAX_HTTP_RETRIES = 6
 RETRY_BASE_SLEEP = 2.5
+REQUEST_SLEEP_SECONDS = 0.0
 
 
 @dataclass(frozen=True)
@@ -94,8 +95,11 @@ TEAM_ID_BY_NAME.update(
 
 
 def get_json(url: str, cache_path: Path | None = None) -> dict[str, Any]:
+    global REQUEST_SLEEP_SECONDS
     if cache_path and cache_path.exists():
         return json.loads(cache_path.read_text(encoding="utf-8"))
+    if REQUEST_SLEEP_SECONDS > 0:
+        time.sleep(REQUEST_SLEEP_SECONDS)
     for attempt in range(MAX_HTTP_RETRIES + 1):
         response = requests.get(url, timeout=30)
         if response.status_code == 429 and attempt < MAX_HTTP_RETRIES:
@@ -424,6 +428,7 @@ def main() -> None:
     parser.add_argument("--season-through", type=int, default=9999, help="Only inspect/repair official seasons through this start year")
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--sleep", type=float, default=0.04)
+    parser.add_argument("--request-sleep", type=float, default=0.0, help="Sleep before each uncached NHL API request")
     parser.add_argument("--progress-every", type=int, default=25, help="Print cumulative progress every N players")
     parser.add_argument("--workers", type=int, default=1, help="Parallel NHL API fetch workers; DB writes remain sequential")
     parser.add_argument("--only-different", action="store_true", help="Skip DB rewrites when official and current team-season sets already match")
@@ -437,6 +442,8 @@ def main() -> None:
         help="Fetch exact game-log stint dates for all seasons, only multi-team seasons, or none",
     )
     args = parser.parse_args()
+    global REQUEST_SLEEP_SECONDS
+    REQUEST_SLEEP_SECONDS = max(0.0, args.request_sleep)
 
     if not os.environ.get("DATABASE_URL"):
         raise SystemExit("DATABASE_URL is required")
