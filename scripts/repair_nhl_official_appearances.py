@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 import time
@@ -39,6 +40,7 @@ SPORT_ID = "hockey"
 SOURCE = "nhl_official_player_landing"
 API = "https://api-web.nhle.com/v1/player/{}/landing"
 GAME_LOG_API = "https://api-web.nhle.com/v1/player/{}/game-log/{}/2"
+CACHE_DIR = ROOT / "raw" / "nhl_official_repair"
 MAX_HTTP_RETRIES = 6
 RETRY_BASE_SLEEP = 2.5
 
@@ -89,7 +91,9 @@ TEAM_ID_BY_NAME.update(
 )
 
 
-def get_json(url: str) -> dict[str, Any]:
+def get_json(url: str, cache_path: Path | None = None) -> dict[str, Any]:
+    if cache_path and cache_path.exists():
+        return json.loads(cache_path.read_text(encoding="utf-8"))
     for attempt in range(MAX_HTTP_RETRIES + 1):
         response = requests.get(url, timeout=30)
         if response.status_code == 429 and attempt < MAX_HTTP_RETRIES:
@@ -99,16 +103,22 @@ def get_json(url: str) -> dict[str, Any]:
             except ValueError:
                 delay = RETRY_BASE_SLEEP * (attempt + 1)
             delay = min(60.0, max(RETRY_BASE_SLEEP, delay))
-            print(f"RATE_LIMIT sleeping {delay:.1f}s for {url}", file=sys.stderr, flush=True)
+            print(f"RATE_LIMIT sleeping {delay:.1f}s for {url}", flush=True)
             time.sleep(delay)
             continue
         if 500 <= response.status_code < 600 and attempt < MAX_HTTP_RETRIES:
             delay = min(45.0, RETRY_BASE_SLEEP * (attempt + 1))
-            print(f"SERVER_RETRY {response.status_code} sleeping {delay:.1f}s for {url}", file=sys.stderr, flush=True)
+            print(f"SERVER_RETRY {response.status_code} sleeping {delay:.1f}s for {url}", flush=True)
             time.sleep(delay)
             continue
         response.raise_for_status()
-        return response.json()
+        payload = response.json()
+        if cache_path:
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            tmp_path = cache_path.with_suffix(cache_path.suffix + ".tmp")
+            tmp_path.write_text(json.dumps(payload), encoding="utf-8")
+            tmp_path.replace(cache_path)
+        return payload
     raise RuntimeError(f"request failed after retries: {url}")
 
 
@@ -130,7 +140,7 @@ def official_rows(
     season_since: int = 0,
     season_through: int = 9999,
 ) -> list[tuple[str, str, int, int]]:
-    payload = get_json(API.format(external_id))
+    payload = get_json(API.format(external_id), CACHE_DIR / "landing" / f"{external_id}.json")
     rows: list[tuple[str, str, int, int]] = []
     for item in payload.get("seasonTotals", []) or []:
         if item.get("leagueAbbrev") != "NHL" or int(item.get("gameTypeId") or 0) != 2:
@@ -149,7 +159,11 @@ def game_log_stints(external_id: str, seasons: set[int]) -> dict[tuple[str, int]
     stints: dict[tuple[str, int], tuple[int, int, str, str]] = {}
     for season in sorted(seasons):
         try:
-            payload = get_json(GAME_LOG_API.format(external_id, f"{season}{season + 1}"))
+            season_id = f"{season}{season + 1}"
+            payload = get_json(
+                GAME_LOG_API.format(external_id, season_id),
+                CACHE_DIR / "game_log" / f"{external_id}_{season_id}.json",
+            )
         except requests.RequestException:
             continue
         dates_by_team: dict[str, list[str]] = defaultdict(list)
@@ -387,6 +401,8 @@ def main() -> None:
     parser.add_argument("--progress-every", type=int, default=25, help="Print cumulative progress every N players")
     parser.add_argument("--workers", type=int, default=1, help="Parallel NHL API fetch workers; DB writes remain sequential")
     parser.add_argument("--only-different", action="store_true", help="Skip DB rewrites when official and current team-season sets already match")
+    parser.add_argument("--offset", type=int, default=0, help="Skip the first N selected players")
+    parser.add_argument("--skip-provenance", action="store_true", help="Skip players already marked repaired for the requested season-through")
     parser.add_argument(
         "--stint-mode",
         choices=("multi-team", "all", "none"),
@@ -419,19 +435,32 @@ def main() -> None:
             if args.min_final_year:
                 where_clauses.append("final_year >= %s")
                 params.append(args.min_final_year)
+            if args.skip_provenance:
+                where_clauses.append(
+                    """
+                    NOT EXISTS (
+                        SELECT 1 FROM data_provenance dp
+                         WHERE dp.source = %s || p.external_id
+                           AND dp.season = %s
+                    )
+                    """
+                )
+                params.extend((f"{SOURCE}:", args.season_through))
             where = " AND " + " AND ".join(where_clauses) if where_clauses else ""
             cur.execute(
                 f"""
-                SELECT player_id, external_id, display_name
-                  FROM sport_players
-                 WHERE sport_id = %s
-                   AND external_id IS NOT NULL
+                SELECT p.player_id, p.external_id, p.display_name
+                  FROM sport_players p
+                 WHERE p.sport_id = %s
+                   AND p.external_id IS NOT NULL
                    {where}
-                 ORDER BY final_year DESC NULLS LAST, display_name
+                 ORDER BY p.final_year DESC NULLS LAST, p.display_name
                 """,
                 params,
             )
             players = cur.fetchall()
+    if args.offset:
+        players = players[args.offset:]
     if args.limit:
         players = players[: args.limit]
 
@@ -448,7 +477,7 @@ def main() -> None:
                         season_through=args.season_through,
                     )
                 except Exception as exc:
-                    print(f"ERROR {player_id} {name}: {exc}", file=sys.stderr, flush=True)
+                    print(f"ERROR {player_id} {name}: {exc}", flush=True)
                     continue
                 diff = diff_repair_rows(conn, player_id, rows, args.season_since, args.season_through)
                 missing = diff.missing
@@ -500,7 +529,7 @@ def main() -> None:
                 payload = fetch_repair(player_id, str(external_id), name, args.season_since, args.season_through, args.stint_mode)
                 if payload.error:
                     errors += 1
-                    print(f"ERROR {player_id} {name}: {payload.error}", file=sys.stderr, flush=True)
+                    print(f"ERROR {player_id} {name}: {payload.error}", flush=True)
                     continue
                 if not payload.rows:
                     skipped_no_rows += 1
@@ -552,7 +581,7 @@ def main() -> None:
                     payload = future.result()
                     if payload.error:
                         errors += 1
-                        print(f"ERROR {payload.player_id} {payload.name}: {payload.error}", file=sys.stderr, flush=True)
+                        print(f"ERROR {payload.player_id} {payload.name}: {payload.error}", flush=True)
                         continue
                     if not payload.rows:
                         skipped_no_rows += 1
