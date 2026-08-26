@@ -48,25 +48,24 @@ turn. Continue with a controlled/background run of:
 then rerun the matching
 `--audit` command to confirm remaining differences. Keep `season-through 2024`
 so the 2025-26 live updater remains the source of truth for current-season rows.
-The repair script now supports `--workers` for parallel official NHL API fetches
-with sequential DB writes. For the broader 2000-to-now eligibility sweep, use a
-background run with `--season-since 2000 --season-through 2025 --workers 8
---stint-mode multi-team --only-different` and monitor its log; lower workers to
-4 if NHL throttles or network errors rise. `--only-different` audits each
-player first and skips DB rewrites when official team-season rows already match,
-so progress distinguishes true changed players from rows merely rewritten.
-`--stint-mode multi-team` uses official season totals for every player-season
-and fetches exact game-log stint dates only for seasons where the player had
-multiple NHL teams, which is the efficient trade-link cleanup. Use
+The repair script supports local response caching under
+`raw/nhl_official_repair`, `--offset`, and `--skip-provenance`, so interrupted
+runs can resume instead of refetching completed players. For the broader
+2000-to-now eligibility sweep, use a slow/background run with `--season-since
+2000 --season-through 2025 --workers 1 --sleep 1.25 --stint-mode multi-team
+--only-different --skip-provenance` and monitor its log. `--only-different`
+audits each player first and skips DB rewrites when official team-season rows
+already match, so progress distinguishes true changed players from rows merely
+rewritten. `--stint-mode multi-team` uses official season totals for every
+player-season and fetches exact game-log stint dates only for seasons where the
+player had multiple NHL teams, which is the efficient trade-link cleanup. Use
 `--stint-mode all` for the slowest/strictest full exact date rebuild. The script
 also normalizes accents in official team names such as `Montréal Canadiens` and
 skips players with no official rows in-window rather than deleting their data.
-After playtesting the command, the NHL API returned 429 rate limits quickly at
-8 workers and still returned a long `Retry-After` at 2 workers during the same
-throttle window. The script now retries/backs off on 429s and reports players
-with no official rows separately. For unattended repair, prefer a slower
-overnight command with `--workers 1 --sleep 0.35`; only raise workers after an
-audit/repair batch runs without 429s.
+After playtesting, the NHL API returned long 429 `Retry-After` windows even at 2
+workers because the initial 8-worker attempt had already triggered throttling.
+Wait for the throttle window to cool down before restarting; only raise workers
+after a small batch runs without 429s.
 
 Update, 2026-08-25 (0.4.07): fixed the remaining Manager Mode startup freeze
 introduced by the 0.4.05 player-card stint ordering change. The card renderer
