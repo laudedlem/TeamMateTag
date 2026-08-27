@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.4.15`
+- Current display version: `0.4.16`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -24,6 +24,20 @@ changes. It is the concise source of truth for another coding assistant.
   migration run, then remove it again.
 
 ## Current user experience
+
+Update, 2026-08-27 (0.4.16): implemented strict Hockey teammate validation
+from the completed official NHL game-level proof database. Hockey links now use
+`sport_teammates` rows when `sport_teammate_stint_coverage.coverage_type` is
+`game_boxscore`, meaning two Hockey players count as teammates only when both
+appeared for the same NHL team in at least one completed regular-season
+boxscore with TOI greater than zero. Added
+`scripts/import_nhl_game_teammates_to_postgres.py` to copy the local proof DB
+into Supabase, map official `nhl:<id>` rows to canonical production Hockey
+players by player id or external id, mark strict coverage for season keys
+2000-2025, and refresh Hockey teammate counts. Film Review uses the same strict
+proof table through `_sport_link_allowed`; non-Hockey sports and Hockey dev DBs
+without `game_boxscore` coverage continue to fall back to existing appearance
+logic. Bumped visible app version to `0.4.16`.
 
 Update, 2026-08-25 (0.4.15): corrected the Atkinson zero again after comparing
 the user-visible result with the actual Google Fonts build. The ZIP/GitHub

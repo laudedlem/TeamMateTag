@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.4.15"
+APP_VERSION = "0.4.16"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -994,6 +994,29 @@ def ensure_runtime_schema():
                        updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
                        PRIMARY KEY (sport_id, season)
                    )"""
+            )
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS sport_teammates (
+                       sport_id TEXT NOT NULL,
+                       player_a_id TEXT NOT NULL,
+                       player_b_id TEXT NOT NULL,
+                       team_id TEXT NOT NULL,
+                       season INTEGER NOT NULL,
+                       PRIMARY KEY (sport_id, player_a_id, player_b_id, team_id, season),
+                       CHECK (player_a_id < player_b_id)
+                   )"""
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_sport_teammates_pair "
+                "ON sport_teammates(sport_id, player_a_id, player_b_id)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_sport_teammates_a "
+                "ON sport_teammates(sport_id, player_a_id)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_sport_teammates_b "
+                "ON sport_teammates(sport_id, player_b_id)"
             )
             conn.execute(
                 """INSERT INTO sport_teammate_exclusions
@@ -3571,6 +3594,25 @@ def _sport_link_allowed(conn, sport: str, first: str, second: str, team_id: str,
     ).fetchone()
     if excluded is not None:
         return False
+    if sport == "hockey":
+        strict_game_coverage = conn.execute(
+            """SELECT 1 FROM sport_teammate_stint_coverage
+                WHERE sport_id=%s AND season=%s AND strict <> 0
+                  AND coverage_type='game_boxscore'""",
+            (sport, season),
+        ).fetchone()
+        if strict_game_coverage is not None:
+            player_a_id, player_b_id = sorted((first, second))
+            return conn.execute(
+                """SELECT 1 FROM sport_teammates
+                    WHERE sport_id=%s
+                      AND player_a_id=%s
+                      AND player_b_id=%s
+                      AND team_id=%s
+                      AND season=%s
+                    LIMIT 1""",
+                (sport, player_a_id, player_b_id, team_id, season),
+            ).fetchone() is not None
     strict = conn.execute(
         """SELECT 1 FROM sport_teammate_stint_coverage
             WHERE sport_id=%s AND season=%s AND strict <> 0""",

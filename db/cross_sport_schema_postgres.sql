@@ -294,7 +294,6 @@ CREATE TABLE IF NOT EXISTS sport_player_season_traits (
 CREATE INDEX IF NOT EXISTS idx_sport_player_season_traits_lookup
     ON sport_player_season_traits(sport_id, player_id);
 
--- Do not populate sport_teammates. It is retained for compatibility with an
--- early schema draft, but the runtime derives a link from the two indexed
--- appearance rows. Materializing every roster pair wastes the free-tier
--- database budget without making gameplay faster.
+-- sport_teammates stays empty for sports that derive links from indexed
+-- appearance rows. Hockey uses it for compact strict game-level proof rows
+-- once sport_teammate_stint_coverage.coverage_type='game_boxscore' is present.
