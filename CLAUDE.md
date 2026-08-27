@@ -25,6 +25,45 @@ changes. It is the concise source of truth for another coding assistant.
 
 ## Current user experience
 
+Update, 2026-08-27 (Basketball strict proof investigation): started the
+Basketball game-level teammate-proof pass after Hockey was completed. Added
+`scripts/build_nba_game_teammates.py`, which can build a local
+`raw/nba_game_teammates/nba_game_teammates.sqlite` proof DB from the local
+NBA-ID `raw/nba_kaggle/PlayerStatistics.csv` by filtering to regular season,
+positive minutes, official NBA franchises, and same-game/same-team player
+pairs. First local build produced 31,181 regular-season games, 641,918
+positive-minute appearances, and 115,328 teammate/team-season proof rows.
+However, validation showed that this NBA-ID source is short for at least recent
+seasons (`2023` has 1,164 games and `2024` has 1,225 games), while the local
+SportsDataverse/ESPN `raw/nba/player_box_*.csv` files have expected recent
+regular-season counts (`2023` 1,230, `2024` 1,232, `2025` 1,231 after
+exhibition-team filtering). Do not import the NBA-ID proof DB to production as
+the final Basketball truth source without filling those gaps. Recommended next
+Basketball data path: use SportsDataverse/ESPN player boxscores for historical
+proofs because they are free, already local, daily-refreshed upstream during
+NBA season, and complete in recent seasons; then solve the ESPN-athlete-id to
+current TeamMateTag/NBA-id mapping or intentionally migrate Basketball runtime
+identities to ESPN IDs with matching ESPN headshots.
+Follow-up, 2026-08-27: added `scripts/audit_nba_espn_id_consistency.py` to
+compare ESPN athlete identities against NBA person IDs using normalized names
+plus season/team footprints. Initial 2002-2025 audit found 2,471 ESPN
+Basketball athletes, 2,486 NBA-ID source players, and wrote review artifacts
+under `raw/nba_identity/`: 1,640 auto-mapped by footprint, 703 auto-mapped by
+unique normalized name, and 128 still unmatched/alias-needed. Added
+`scripts/build_nba_espn_game_teammates.py` to build strict Basketball proofs
+from SportsDataverse/ESPN CSVs using the safe auto crosswalk only. Initial
+build produced 28,766 regular-season games, 587,656 mapped positive-minute
+appearances, and 103,048 teammate/team-season proof rows, while skipping 7,361
+played rows from unresolved ESPN identities. The unresolved list is saved at
+`raw/nba_game_teammates/nba_espn_unmapped_players.csv`; it includes real
+gameplay-relevant players such as Nene, Darrell Armstrong, Ronald Murray, Goga
+Bitadze, KJ Martin, Yi Jianlian, Steve Smith, and Didier Ilunga-Mbenga, so do
+not import Basketball strict proofs to production until the 128-player alias
+tail is resolved or an intentional ESPN-ID migration is chosen. SportsDataverse
+is useful for Basketball and maybe Football, but should not replace the locked
+official NHL API proof DB or MLB official-data path as the global source of
+truth.
+
 Update, 2026-08-27 (0.4.16): implemented strict Hockey teammate validation
 from the completed official NHL game-level proof database. Hockey links now use
 `sport_teammates` rows when `sport_teammate_stint_coverage.coverage_type` is
