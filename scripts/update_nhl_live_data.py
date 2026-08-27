@@ -257,6 +257,35 @@ def ensure_live_schema(conn: "psycopg.Connection") -> None:
             "CREATE INDEX IF NOT EXISTS idx_sport_live_player_games_date "
             "ON sport_live_player_games(sport_id, game_date DESC)"
         )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS sport_teammates (
+                sport_id TEXT NOT NULL REFERENCES sports(sport_id),
+                player_a_id TEXT NOT NULL,
+                player_b_id TEXT NOT NULL,
+                team_id TEXT NOT NULL,
+                season INTEGER NOT NULL,
+                PRIMARY KEY (sport_id, player_a_id, player_b_id, team_id, season),
+                CHECK (player_a_id < player_b_id),
+                FOREIGN KEY (sport_id, player_a_id)
+                    REFERENCES sport_players(sport_id, player_id),
+                FOREIGN KEY (sport_id, player_b_id)
+                    REFERENCES sport_players(sport_id, player_id)
+            )
+            """
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sport_teammates_pair "
+            "ON sport_teammates(sport_id, player_a_id, player_b_id)"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sport_teammates_a "
+            "ON sport_teammates(sport_id, player_a_id)"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sport_teammates_b "
+            "ON sport_teammates(sport_id, player_b_id)"
+        )
     conn.commit()
 
 
@@ -484,7 +513,7 @@ def refresh_rollups(conn: "psycopg.Connection", season: int) -> None:
             """
             INSERT INTO sport_teammate_stint_coverage
                 (sport_id, season, coverage_type, strict, source, updated_at)
-            VALUES (%s, %s, 'game-log', 1, %s, now())
+            VALUES (%s, %s, 'game_boxscore', 1, %s, now())
             ON CONFLICT (sport_id, season) DO UPDATE
             SET coverage_type = EXCLUDED.coverage_type,
                 strict = EXCLUDED.strict,
@@ -525,7 +554,39 @@ def refresh_rollups(conn: "psycopg.Connection", season: int) -> None:
             """,
             (season, season, SPORT_ID),
         )
+    refresh_game_teammate_proofs(conn, season)
     refresh_search_index(conn, season)
+
+
+def refresh_game_teammate_proofs(conn: "psycopg.Connection", season: int) -> None:
+    with conn.cursor() as cur:
+        cur.execute("SET LOCAL statement_timeout = '10min'")
+        cur.execute(
+            "DELETE FROM sport_teammates WHERE sport_id = %s AND season = %s",
+            (SPORT_ID, season),
+        )
+        cur.execute(
+            """
+            INSERT INTO sport_teammates (sport_id, player_a_id, player_b_id, team_id, season)
+            SELECT DISTINCT
+                   a.sport_id,
+                   LEAST(a.player_id, b.player_id) AS player_a_id,
+                   GREATEST(a.player_id, b.player_id) AS player_b_id,
+                   a.team_id,
+                   a.season
+              FROM sport_live_player_games a
+              JOIN sport_live_player_games b
+                ON b.sport_id = a.sport_id
+               AND b.game_id = a.game_id
+               AND b.team_id = a.team_id
+               AND b.player_id > a.player_id
+             WHERE a.sport_id = %s
+               AND a.season = %s
+            ON CONFLICT DO NOTHING
+            """,
+            (SPORT_ID, season),
+        )
+        print(f"strict teammate proofs refreshed: {cur.rowcount:,} rows for {season}")
 
 
 def refresh_search_index(conn: "psycopg.Connection", season: int) -> None:
@@ -544,16 +605,16 @@ def refresh_search_index(conn: "psycopg.Connection", season: int) -> None:
                 GROUP BY player_id
             ),
             teammate_counts AS (
-                SELECT a.player_id, COUNT(DISTINCT b.player_id)::integer AS teammate_count
-                FROM sport_appearances a
-                JOIN sport_appearances b
-                  ON b.sport_id = a.sport_id
-                 AND b.team_id = a.team_id
-                 AND b.season = a.season
-                 AND b.player_id <> a.player_id
-                WHERE a.sport_id = %s
-                  AND a.player_id IN (SELECT player_id FROM live_players)
-                GROUP BY a.player_id
+                SELECT player_id, COUNT(DISTINCT teammate_id)::integer AS teammate_count
+                  FROM (
+                        SELECT player_a_id AS player_id, player_b_id AS teammate_id
+                          FROM sport_teammates WHERE sport_id = %s
+                        UNION ALL
+                        SELECT player_b_id AS player_id, player_a_id AS teammate_id
+                          FROM sport_teammates WHERE sport_id = %s
+                  ) links
+                 WHERE player_id IN (SELECT player_id FROM live_players)
+                 GROUP BY player_id
             )
             SELECT p.player_id, p.display_name, p.last_name, p.primary_pos,
                    p.debut_year, p.final_year,
@@ -565,7 +626,7 @@ def refresh_search_index(conn: "psycopg.Connection", season: int) -> None:
             LEFT JOIN teammate_counts t ON t.player_id = p.player_id
             WHERE p.sport_id = %s
             """,
-            (SPORT_ID, season, SPORT_ID, SPORT_ID, SPORT_ID),
+            (SPORT_ID, season, SPORT_ID, SPORT_ID, SPORT_ID, SPORT_ID),
         ).fetchall()
         payload = []
         for row in rows:

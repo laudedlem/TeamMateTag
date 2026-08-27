@@ -38,12 +38,19 @@ players by player id or external id, mark strict coverage for season keys
 proof table through `_sport_link_allowed`; non-Hockey sports and Hockey dev DBs
 without `game_boxscore` coverage continue to fall back to existing appearance
 logic. Bumped visible app version to `0.4.16`.
-Production import completed on 2026-08-27: 399,447 Hockey strict teammate rows
-loaded into `sport_teammates`, with game-boxscore strict coverage marked for 26
-season keys from 2000 through 2025. The importer copied 399,622 local source
-proofs; 175 proof rows were unmapped to production player IDs. Live validation
-confirmed Byfield -> Dubois is valid on `LAK 2023`, while a loose
-same-team-season Hockey pair without a strict proof now returns `not_teammate`.
+Production import completed on 2026-08-27. Initial import left 175 source proof
+rows unmapped because 8 recent short-stint/call-up players were missing from
+production: Nolan Allan, Graeme Clarke, Matthew Stienburg, Pierrick Dube, Logan
+Morrison, Cameron Butler, Aku Raty, and Frederic Brunet. The importer now
+backfills missing proof players from the local official boxscore DB, using NHL
+landing pages for full names, then reloads the proof graph. Final production
+counts: all 399,622 Hockey strict teammate rows loaded into `sport_teammates`,
+0 unmapped proof rows, and game-boxscore strict coverage marked for 26 season
+keys from 2000 through 2025. Live validation confirmed Byfield -> Dubois is
+valid on `LAK 2023`, while a loose same-team-season Hockey pair without a
+strict proof now returns `not_teammate`. The daily NHL live updater now
+refreshes same-game strict teammate proof rows from `sport_live_player_games`
+after every import and keeps Hockey coverage marked as `game_boxscore`.
 
 Update, 2026-08-25 (0.4.15): corrected the Atkinson zero again after comparing
 the user-visible result with the actual Google Fonts build. The ZIP/GitHub
