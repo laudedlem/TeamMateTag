@@ -307,6 +307,199 @@ def backfill_missing_players(src: sqlite3.Connection, dst: "psycopg.Connection")
     return len(missing_ids)
 
 
+def refresh_official_rollups(src: sqlite3.Connection, dst: "psycopg.Connection") -> tuple[int, int, int]:
+    with dst.cursor() as cur:
+        cur.execute(
+            """
+            CREATE TEMP TABLE tmp_nhl_appearance_rollups (
+                player_id TEXT NOT NULL,
+                external_id TEXT NOT NULL,
+                team_id TEXT NOT NULL,
+                team_name TEXT NOT NULL,
+                season INTEGER NOT NULL,
+                games_total INTEGER NOT NULL,
+                first_date DATE NOT NULL,
+                last_date DATE NOT NULL
+            ) ON COMMIT DROP
+            """
+        )
+        appearance_count = 0
+        rows = src.execute(
+            """
+            SELECT a.player_id, a.external_id, a.team_id,
+                   COALESCE(MAX(CASE WHEN a.team_id = g.away_team_id THEN g.away_team_name ELSE g.home_team_name END), a.team_id),
+                   a.season, COUNT(*) AS games_total, MIN(a.game_date), MAX(a.game_date)
+              FROM nhl_player_game_appearances a
+              JOIN nhl_games g ON g.game_id = a.game_id
+             GROUP BY a.player_id, a.external_id, a.team_id, a.season
+             ORDER BY a.season, a.team_id, a.player_id
+            """
+        )
+        with cur.copy(
+            "COPY tmp_nhl_appearance_rollups "
+            "(player_id, external_id, team_id, team_name, season, games_total, first_date, last_date) "
+            "FROM STDIN"
+        ) as copy:
+            for row in rows:
+                copy.write_row(tuple(row))
+                appearance_count += 1
+
+        cur.execute(
+            """
+            CREATE TEMP TABLE tmp_nhl_position_rollups (
+                player_id TEXT NOT NULL,
+                position TEXT NOT NULL,
+                games INTEGER NOT NULL
+            ) ON COMMIT DROP
+            """
+        )
+        position_count = 0
+        with cur.copy("COPY tmp_nhl_position_rollups (player_id, position, games) FROM STDIN") as copy:
+            for row in src.execute(
+                """
+                SELECT player_id, position, COUNT(*)
+                  FROM nhl_player_game_appearances
+                 WHERE COALESCE(position, '') <> ''
+                 GROUP BY player_id, position
+                """
+            ):
+                copy.write_row(tuple(row))
+                position_count += 1
+
+        cur.execute("CREATE INDEX ON tmp_nhl_appearance_rollups (player_id)")
+        cur.execute("CREATE INDEX ON tmp_nhl_appearance_rollups (team_id, season)")
+        cur.execute("CREATE INDEX ON tmp_nhl_position_rollups (player_id)")
+
+        cur.execute(
+            """
+            INSERT INTO sport_franchises (sport_id, franchise_id, name, active)
+            SELECT %s, team_id, MAX(team_name), true
+              FROM tmp_nhl_appearance_rollups
+             GROUP BY team_id
+            ON CONFLICT (sport_id, franchise_id) DO UPDATE
+            SET name = EXCLUDED.name,
+                active = true
+            """,
+            (SPORT_ID,),
+        )
+        cur.execute(
+            """
+            INSERT INTO sport_teams (sport_id, team_id, season, franchise_id, name)
+            SELECT %s, team_id, season, team_id, MAX(team_name)
+              FROM tmp_nhl_appearance_rollups
+             GROUP BY team_id, season
+            ON CONFLICT (sport_id, team_id, season) DO UPDATE
+            SET franchise_id = EXCLUDED.franchise_id,
+                name = EXCLUDED.name
+            """,
+            (SPORT_ID,),
+        )
+        cur.execute(
+            """
+            WITH rollups AS (
+                SELECT player_id, external_id, MIN(season) AS debut_year, MAX(season) AS final_year
+                  FROM tmp_nhl_appearance_rollups
+                 GROUP BY player_id, external_id
+            ),
+            primary_positions AS (
+                SELECT DISTINCT ON (player_id) player_id, position
+                  FROM tmp_nhl_position_rollups
+                 ORDER BY player_id, games DESC, position
+            )
+            UPDATE sport_players p
+               SET external_id = COALESCE(p.external_id, rollups.external_id),
+                   debut_year = LEAST(COALESCE(p.debut_year, rollups.debut_year), rollups.debut_year),
+                   final_year = GREATEST(COALESCE(p.final_year, rollups.final_year), rollups.final_year),
+                   primary_pos = COALESCE(p.primary_pos, primary_positions.position)
+              FROM rollups
+              LEFT JOIN primary_positions ON primary_positions.player_id = rollups.player_id
+             WHERE p.sport_id = %s
+               AND (p.player_id = rollups.player_id OR p.external_id = rollups.external_id)
+            """,
+            (SPORT_ID,),
+        )
+        cur.execute(
+            """
+            CREATE TEMP TABLE tmp_nhl_player_map AS
+            SELECT DISTINCT ON (rollups.player_id)
+                   rollups.player_id AS nhl_id,
+                   player.player_id
+              FROM (SELECT DISTINCT player_id, external_id FROM tmp_nhl_appearance_rollups) rollups
+              JOIN sport_players player
+                ON player.sport_id = %s
+               AND (player.player_id = rollups.player_id OR player.external_id = rollups.external_id)
+             ORDER BY rollups.player_id, (player.player_id = rollups.player_id) DESC, player.player_id
+            """,
+            (SPORT_ID,),
+        )
+        cur.execute("CREATE UNIQUE INDEX ON tmp_nhl_player_map (nhl_id)")
+        cur.execute(
+            """
+            INSERT INTO sport_appearances (sport_id, player_id, team_id, season, games_total)
+            SELECT %s, player_map.player_id, rollups.team_id, rollups.season, rollups.games_total
+              FROM tmp_nhl_appearance_rollups rollups
+              JOIN tmp_nhl_player_map player_map ON player_map.nhl_id = rollups.player_id
+            ON CONFLICT (sport_id, player_id, team_id, season) DO UPDATE
+            SET games_total = EXCLUDED.games_total
+            """,
+            (SPORT_ID,),
+        )
+        cur.execute(
+            """
+            INSERT INTO sport_player_stints
+                (sport_id, player_id, team_id, season, first_unit, last_unit,
+                 first_label, last_label, source)
+            SELECT %s, player_map.player_id, rollups.team_id, rollups.season,
+                   to_char(rollups.first_date, 'YYYYMMDD')::integer,
+                   to_char(rollups.last_date, 'YYYYMMDD')::integer,
+                   rollups.first_date::text,
+                   rollups.last_date::text,
+                   %s
+              FROM tmp_nhl_appearance_rollups rollups
+              JOIN tmp_nhl_player_map player_map ON player_map.nhl_id = rollups.player_id
+            ON CONFLICT (sport_id, player_id, team_id, season) DO UPDATE
+            SET first_unit = EXCLUDED.first_unit,
+                last_unit = EXCLUDED.last_unit,
+                first_label = EXCLUDED.first_label,
+                last_label = EXCLUDED.last_label,
+                source = EXCLUDED.source
+            """,
+            (SPORT_ID, SOURCE_NAME),
+        )
+        cur.execute(
+            """
+            INSERT INTO sport_player_positions (sport_id, player_id, position, games)
+            SELECT %s, player_map.player_id, positions.position, positions.games
+              FROM tmp_nhl_position_rollups positions
+              JOIN tmp_nhl_player_map player_map ON player_map.nhl_id = positions.player_id
+            ON CONFLICT (sport_id, player_id, position) DO UPDATE
+            SET games = EXCLUDED.games
+            """,
+            (SPORT_ID,),
+        )
+        cur.execute(
+            """
+            WITH careers AS (
+                SELECT player_id, SUM(games_total)::integer AS career_games
+                  FROM sport_appearances
+                 WHERE sport_id = %s
+                 GROUP BY player_id
+            )
+            UPDATE sport_players_searchable s
+               SET career_games = careers.career_games,
+                   disambiguation = COALESCE(NULLIF(p.primary_pos, ''), 'NHL') || ', '
+                                    || COALESCE(p.debut_year::text, '?') || '-' || COALESCE(p.final_year::text, '?')
+              FROM careers
+              JOIN sport_players p ON p.sport_id = %s AND p.player_id = careers.player_id
+             WHERE s.sport_id = %s
+               AND s.player_id = careers.player_id
+            """,
+            (SPORT_ID, SPORT_ID, SPORT_ID),
+        )
+    print(f"Refreshed {appearance_count:,} Hockey appearance rollups and {position_count:,} position rollups.")
+    return appearance_count, position_count, 0
+
+
 def copy_proofs(src: sqlite3.Connection, dst: "psycopg.Connection") -> int:
     rows = src.execute(
         """
@@ -352,6 +545,7 @@ def copy_proofs(src: sqlite3.Connection, dst: "psycopg.Connection") -> int:
 def import_proofs(dst: "psycopg.Connection", season_start: int, season_end: int) -> tuple[int, int]:
     with dst.cursor() as cur:
         cur.execute("SET LOCAL statement_timeout = '15min'")
+        cur.execute("DROP TABLE IF EXISTS tmp_nhl_player_map")
         cur.execute(
             """
             CREATE TEMP TABLE tmp_nhl_player_map AS
@@ -467,6 +661,7 @@ def main() -> int:
         with psycopg.connect(database_url, autocommit=False, prepare_threshold=None) as dst:
             ensure_tables(dst)
             backfill_missing_players(src, dst)
+            refresh_official_rollups(src, dst)
             copied = copy_proofs(src, dst)
             inserted, unmapped = import_proofs(dst, season_start, season_end)
             dst.commit()

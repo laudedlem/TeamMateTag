@@ -51,6 +51,15 @@ valid on `LAK 2023`, while a loose same-team-season Hockey pair without a
 strict proof now returns `not_teammate`. The daily NHL live updater now
 refreshes same-game strict teammate proof rows from `sport_live_player_games`
 after every import and keeps Hockey coverage marked as `game_boxscore`.
+After playtesting TJ Brodie, production Hockey card data was found stale for
+some post-2022 players because strict proof rows had been imported but
+card-facing `sport_appearances` rollups still came from older sources. The
+proof importer now also refreshes all official Hockey appearance, stint, team,
+position, player final-year, and searchable career-game rollups from the same
+local game-level DB before loading proofs. Production was refreshed: Brodie now
+has Toronto season 2023 (78 games, 2023-10-11 through 2024-04-17) and Chicago
+season 2024 (54 games, 2024-10-08 through 2025-03-01), so cards should show
+`2023-24` Leafs and `2024-25` Blackhawks.
 
 Update, 2026-08-25 (0.4.15): corrected the Atkinson zero again after comparing
 the user-visible result with the actual Google Fonts build. The ZIP/GitHub
