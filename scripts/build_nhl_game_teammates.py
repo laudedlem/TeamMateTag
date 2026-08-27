@@ -108,7 +108,15 @@ def get_json(url: str, cache_path: Path) -> dict[str, Any]:
                 if wait > 0:
                     time.sleep(wait)
                 LAST_REQUEST_AT = time.monotonic()
-        response = requests.get(url, timeout=30)
+        try:
+            response = requests.get(url, timeout=30)
+        except requests.RequestException as exc:
+            if attempt >= MAX_HTTP_RETRIES:
+                raise
+            delay = min(120.0, 10.0 * (attempt + 1))
+            print(f"NETWORK_RETRY sleeping {delay:.1f}s for {url}: {exc}", flush=True)
+            time.sleep(delay)
+            continue
         if response.status_code == 404:
             payload: dict[str, Any] = {"_missing": True, "_url": url}
             cache_path.parent.mkdir(parents=True, exist_ok=True)

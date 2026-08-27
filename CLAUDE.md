@@ -103,6 +103,9 @@ logged steadily. If an older run is still stuck with cache files growing but DB
 counts/log output not moving, stop it, remove the stale
 `raw/nhl_game_teammates/cache/build.lock` if present, pull `main`, and restart;
 already cached responses and already stored games will be reused.
+It also retries transient `requests` network/DNS failures such as
+`getaddrinfo failed`, logging them as `NETWORK_RETRY`, because home-network or
+DNS hiccups should not end a multi-hour build.
 
 Update, 2026-08-25 (0.4.08): fixed a Hockey Manager Mode data miss surfaced
 by Quinton Byfield -> Pierre-Luc Dubois. Production had Byfield on `LAK 2023`
