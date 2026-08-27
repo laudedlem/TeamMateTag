@@ -38,6 +38,12 @@ players by player id or external id, mark strict coverage for season keys
 proof table through `_sport_link_allowed`; non-Hockey sports and Hockey dev DBs
 without `game_boxscore` coverage continue to fall back to existing appearance
 logic. Bumped visible app version to `0.4.16`.
+Production import completed on 2026-08-27: 399,447 Hockey strict teammate rows
+loaded into `sport_teammates`, with game-boxscore strict coverage marked for 26
+season keys from 2000 through 2025. The importer copied 399,622 local source
+proofs; 175 proof rows were unmapped to production player IDs. Live validation
+confirmed Byfield -> Dubois is valid on `LAK 2023`, while a loose
+same-team-season Hockey pair without a strict proof now returns `not_teammate`.
 
 Update, 2026-08-25 (0.4.15): corrected the Atkinson zero again after comparing
 the user-visible result with the actual Google Fonts build. The ZIP/GitHub

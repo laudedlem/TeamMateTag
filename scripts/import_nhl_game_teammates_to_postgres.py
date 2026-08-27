@@ -88,23 +88,58 @@ def copy_proofs(src: sqlite3.Connection, dst: "psycopg.Connection") -> int:
             """
             CREATE TEMP TABLE tmp_nhl_game_teammates (
                 player_a_nhl_id TEXT NOT NULL,
+                player_a_external_id TEXT NOT NULL,
                 player_b_nhl_id TEXT NOT NULL,
+                player_b_external_id TEXT NOT NULL,
                 team_id TEXT NOT NULL,
                 season INTEGER NOT NULL
             ) ON COMMIT DROP
             """
         )
         with cur.copy(
-            "COPY tmp_nhl_game_teammates (player_a_nhl_id, player_b_nhl_id, team_id, season) FROM STDIN"
+            "COPY tmp_nhl_game_teammates "
+            "(player_a_nhl_id, player_a_external_id, player_b_nhl_id, player_b_external_id, team_id, season) "
+            "FROM STDIN"
         ) as copy:
-            for row in rows:
-                copy.write_row(tuple(row))
+            for player_a_id, player_b_id, team_id, season in rows:
+                copy.write_row((
+                    player_a_id,
+                    player_a_id.replace("nhl:", ""),
+                    player_b_id,
+                    player_b_id.replace("nhl:", ""),
+                    team_id,
+                    season,
+                ))
                 count += 1
+        cur.execute("CREATE INDEX ON tmp_nhl_game_teammates (player_a_external_id)")
+        cur.execute("CREATE INDEX ON tmp_nhl_game_teammates (player_b_external_id)")
     return count
 
 
 def import_proofs(dst: "psycopg.Connection", season_start: int, season_end: int) -> tuple[int, int]:
     with dst.cursor() as cur:
+        cur.execute("SET LOCAL statement_timeout = '15min'")
+        cur.execute(
+            """
+            CREATE TEMP TABLE tmp_nhl_player_map AS
+            WITH source_ids AS (
+                SELECT player_a_nhl_id AS nhl_id, player_a_external_id AS external_id
+                  FROM tmp_nhl_game_teammates
+                UNION
+                SELECT player_b_nhl_id AS nhl_id, player_b_external_id AS external_id
+                  FROM tmp_nhl_game_teammates
+            )
+            SELECT DISTINCT ON (source_ids.nhl_id)
+                   source_ids.nhl_id, player.player_id
+              FROM source_ids
+              JOIN sport_players player
+                ON player.sport_id = %s
+               AND (player.player_id = source_ids.nhl_id OR player.external_id = source_ids.external_id)
+             ORDER BY source_ids.nhl_id, (player.player_id = source_ids.nhl_id) DESC, player.player_id
+            """,
+            (SPORT_ID,),
+        )
+        cur.execute("CREATE UNIQUE INDEX ON tmp_nhl_player_map (nhl_id)")
         cur.execute("DELETE FROM sport_teammates WHERE sport_id = %s", (SPORT_ID,))
         cur.execute(
             """
@@ -116,18 +151,12 @@ def import_proofs(dst: "psycopg.Connection", season_start: int, season_end: int)
                    proof.team_id,
                    proof.season
               FROM tmp_nhl_game_teammates proof
-              JOIN sport_players pa
-                ON pa.sport_id = %s
-               AND (pa.player_id = proof.player_a_nhl_id
-                    OR pa.external_id = replace(proof.player_a_nhl_id, 'nhl:', ''))
-              JOIN sport_players pb
-                ON pb.sport_id = %s
-               AND (pb.player_id = proof.player_b_nhl_id
-                    OR pb.external_id = replace(proof.player_b_nhl_id, 'nhl:', ''))
+              JOIN tmp_nhl_player_map pa ON pa.nhl_id = proof.player_a_nhl_id
+              JOIN tmp_nhl_player_map pb ON pb.nhl_id = proof.player_b_nhl_id
              WHERE pa.player_id <> pb.player_id
             ON CONFLICT DO NOTHING
             """,
-            (SPORT_ID, SPORT_ID, SPORT_ID),
+            (SPORT_ID,),
         )
         inserted = cur.rowcount
         cur.execute(
@@ -135,7 +164,7 @@ def import_proofs(dst: "psycopg.Connection", season_start: int, season_end: int)
             INSERT INTO sport_teammate_stint_coverage
                 (sport_id, season, coverage_type, strict, source, updated_at)
             SELECT %s, season, 'game_boxscore', 1, %s, now()
-              FROM generate_series(%s, %s) AS season
+              FROM generate_series(%s::integer, %s::integer) AS season
             ON CONFLICT (sport_id, season) DO UPDATE
             SET coverage_type = EXCLUDED.coverage_type,
                 strict = EXCLUDED.strict,
@@ -172,19 +201,14 @@ def import_proofs(dst: "psycopg.Connection", season_start: int, season_end: int)
             SELECT COUNT(*)
               FROM tmp_nhl_game_teammates proof
              WHERE NOT EXISTS (
-                   SELECT 1 FROM sport_players pa
-                    WHERE pa.sport_id = %s
-                      AND (pa.player_id = proof.player_a_nhl_id
-                           OR pa.external_id = replace(proof.player_a_nhl_id, 'nhl:', ''))
+                   SELECT 1 FROM tmp_nhl_player_map pa
+                    WHERE pa.nhl_id = proof.player_a_nhl_id
              )
                 OR NOT EXISTS (
-                   SELECT 1 FROM sport_players pb
-                    WHERE pb.sport_id = %s
-                      AND (pb.player_id = proof.player_b_nhl_id
-                           OR pb.external_id = replace(proof.player_b_nhl_id, 'nhl:', ''))
+                   SELECT 1 FROM tmp_nhl_player_map pb
+                    WHERE pb.nhl_id = proof.player_b_nhl_id
              )
             """,
-            (SPORT_ID, SPORT_ID),
         )
         unmapped = int(cur.fetchone()[0])
     return int(inserted), unmapped
