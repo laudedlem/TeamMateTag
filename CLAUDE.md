@@ -106,6 +106,14 @@ already cached responses and already stored games will be reused.
 It also retries transient `requests` network/DNS failures such as
 `getaddrinfo failed`, logging them as `NETWORK_RETRY`, because home-network or
 DNS hiccups should not end a multi-hour build.
+The resumed Hockey proof build completed on 2026-08-27. Final local SQLite
+counts in `raw/nhl_game_teammates/nhl_game_teammates.sqlite`: 30,222 official
+regular-season games for season keys 2000-2025, 1,152,614 player-game
+appearances, and 399,622 strict player-pair/team-season proof rows. Season
+2004 correctly has 0 games because of the 2004-05 NHL lockout; season key 2025
+represents the completed 2025-26 regular season. A targeted validation found
+Quinton Byfield/Pierre-Luc Dubois proofed on `LAK` season 2023 with 80 shared
+regular-season games and first proof game `2023020008` on 2023-10-11.
 
 Update, 2026-08-25 (0.4.08): fixed a Hockey Manager Mode data miss surfaced
 by Quinton Byfield -> Pierre-Luc Dubois. Production had Byfield on `LAK 2023`
