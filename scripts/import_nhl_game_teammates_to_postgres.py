@@ -307,6 +307,100 @@ def backfill_missing_players(src: sqlite3.Connection, dst: "psycopg.Connection")
     return len(missing_ids)
 
 
+def table_exists(cur: "psycopg.Cursor", table: str) -> bool:
+    return cur.execute("SELECT to_regclass(%s)", (table,)).fetchone()[0] is not None
+
+
+def cleanup_non_official_hockey_players(dst: "psycopg.Connection") -> int:
+    deleted_players = 0
+    with dst.cursor() as cur:
+        row = cur.execute(
+            "SELECT COUNT(*) FROM sport_players WHERE sport_id = %s AND player_id NOT LIKE 'nhl:%%'",
+            (SPORT_ID,),
+        ).fetchone()
+        deleted_players = int(row[0]) if row else 0
+        cur.execute(
+            "DELETE FROM sport_teammates WHERE sport_id = %s AND (player_a_id NOT LIKE 'nhl:%%' OR player_b_id NOT LIKE 'nhl:%%')",
+            (SPORT_ID,),
+        )
+        for table in (
+            "sport_live_player_games",
+            "sport_player_aliases",
+            "sport_player_images",
+            "player_headshots",
+            "player_headshot_source_attempts",
+            "sport_player_positions",
+            "sport_player_season_traits",
+            "sport_player_stints",
+            "sport_player_traits",
+            "sport_players_searchable",
+            "sport_appearances",
+        ):
+            if table_exists(cur, table):
+                cur.execute(
+                    f"DELETE FROM {table} WHERE sport_id = %s AND player_id NOT LIKE 'nhl:%%'",
+                    (SPORT_ID,),
+                )
+        cur.execute(
+            "DELETE FROM sport_players WHERE sport_id = %s AND player_id NOT LIKE 'nhl:%%'",
+            (SPORT_ID,),
+        )
+    if deleted_players:
+        print(f"Removed {deleted_players:,} obsolete non-official Hockey players.")
+    else:
+        print("No obsolete non-official Hockey players found.")
+    return deleted_players
+
+
+def cleanup_unplayed_official_hockey_players(dst: "psycopg.Connection") -> int:
+    with dst.cursor() as cur:
+        rows = cur.execute(
+            """
+            SELECT p.player_id
+              FROM sport_players p
+             WHERE p.sport_id = %s
+               AND p.player_id LIKE 'nhl:%%'
+               AND NOT EXISTS (
+                   SELECT 1 FROM sport_appearances a
+                    WHERE a.sport_id = p.sport_id AND a.player_id = p.player_id
+               )
+               AND NOT EXISTS (
+                   SELECT 1 FROM sport_teammates t
+                    WHERE t.sport_id = p.sport_id
+                      AND (t.player_a_id = p.player_id OR t.player_b_id = p.player_id)
+               )
+            """,
+            (SPORT_ID,),
+        ).fetchall()
+        player_ids = [row[0] for row in rows]
+        if not player_ids:
+            print("No unplayed official Hockey players found.")
+            return 0
+        for table in (
+            "sport_live_player_games",
+            "sport_player_aliases",
+            "sport_player_images",
+            "player_headshots",
+            "player_headshot_source_attempts",
+            "sport_player_positions",
+            "sport_player_season_traits",
+            "sport_player_stints",
+            "sport_player_traits",
+            "sport_players_searchable",
+        ):
+            if table_exists(cur, table):
+                cur.execute(
+                    f"DELETE FROM {table} WHERE sport_id = %s AND player_id = ANY(%s)",
+                    (SPORT_ID, player_ids),
+                )
+        cur.execute(
+            "DELETE FROM sport_players WHERE sport_id = %s AND player_id = ANY(%s)",
+            (SPORT_ID, player_ids),
+        )
+    print(f"Removed {len(player_ids):,} unplayed official Hockey players.")
+    return len(player_ids)
+
+
 def refresh_official_rollups(src: sqlite3.Connection, dst: "psycopg.Connection") -> tuple[int, int, int]:
     with dst.cursor() as cur:
         cur.execute(
@@ -435,6 +529,48 @@ def refresh_official_rollups(src: sqlite3.Connection, dst: "psycopg.Connection")
         cur.execute("CREATE UNIQUE INDEX ON tmp_nhl_player_map (nhl_id)")
         cur.execute(
             """
+            DELETE FROM sport_appearances a
+             USING sport_players p
+             WHERE a.sport_id = %s
+               AND p.sport_id = a.sport_id
+               AND p.player_id = a.player_id
+               AND p.player_id LIKE 'nhl:%%'
+               AND a.season BETWEEN (SELECT MIN(season) FROM tmp_nhl_appearance_rollups)
+                                AND (SELECT MAX(season) FROM tmp_nhl_appearance_rollups)
+               AND NOT EXISTS (
+                   SELECT 1
+                     FROM tmp_nhl_appearance_rollups rollups
+                    WHERE (rollups.player_id = p.player_id OR rollups.external_id = p.external_id)
+                      AND rollups.team_id = a.team_id
+                      AND rollups.season = a.season
+               )
+            """,
+            (SPORT_ID,),
+        )
+        removed_appearances = int(cur.rowcount)
+        cur.execute(
+            """
+            DELETE FROM sport_player_stints stints
+             USING sport_players p
+             WHERE stints.sport_id = %s
+               AND p.sport_id = stints.sport_id
+               AND p.player_id = stints.player_id
+               AND p.player_id LIKE 'nhl:%%'
+               AND stints.season BETWEEN (SELECT MIN(season) FROM tmp_nhl_appearance_rollups)
+                                     AND (SELECT MAX(season) FROM tmp_nhl_appearance_rollups)
+               AND NOT EXISTS (
+                   SELECT 1
+                     FROM tmp_nhl_appearance_rollups rollups
+                    WHERE (rollups.player_id = p.player_id OR rollups.external_id = p.external_id)
+                      AND rollups.team_id = stints.team_id
+                      AND rollups.season = stints.season
+               )
+            """,
+            (SPORT_ID,),
+        )
+        removed_stints = int(cur.rowcount)
+        cur.execute(
+            """
             INSERT INTO sport_appearances (sport_id, player_id, team_id, season, games_total)
             SELECT %s, player_map.player_id, rollups.team_id, rollups.season, rollups.games_total
               FROM tmp_nhl_appearance_rollups rollups
@@ -468,6 +604,15 @@ def refresh_official_rollups(src: sqlite3.Connection, dst: "psycopg.Connection")
         )
         cur.execute(
             """
+            DELETE FROM sport_player_positions positions
+             USING tmp_nhl_player_map player_map
+             WHERE positions.sport_id = %s
+               AND positions.player_id = player_map.player_id
+            """,
+            (SPORT_ID,),
+        )
+        cur.execute(
+            """
             INSERT INTO sport_player_positions (sport_id, player_id, position, games)
             SELECT %s, player_map.player_id, positions.position, positions.games
               FROM tmp_nhl_position_rollups positions
@@ -496,8 +641,11 @@ def refresh_official_rollups(src: sqlite3.Connection, dst: "psycopg.Connection")
             """,
             (SPORT_ID, SPORT_ID, SPORT_ID),
         )
-    print(f"Refreshed {appearance_count:,} Hockey appearance rollups and {position_count:,} position rollups.")
-    return appearance_count, position_count, 0
+    print(
+        f"Refreshed {appearance_count:,} Hockey appearance rollups and {position_count:,} position rollups; "
+        f"removed {removed_appearances:,} stale appearances and {removed_stints:,} stale stints."
+    )
+    return appearance_count, position_count, removed_appearances
 
 
 def copy_proofs(src: sqlite3.Connection, dst: "psycopg.Connection") -> int:
@@ -664,6 +812,8 @@ def main() -> int:
             refresh_official_rollups(src, dst)
             copied = copy_proofs(src, dst)
             inserted, unmapped = import_proofs(dst, season_start, season_end)
+            cleanup_non_official_hockey_players(dst)
+            cleanup_unplayed_official_hockey_players(dst)
             dst.commit()
         print(f"Copied {copied:,} source proofs.")
         print(f"Imported {inserted:,} Hockey strict teammate rows.")

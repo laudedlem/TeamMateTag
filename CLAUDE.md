@@ -60,6 +60,13 @@ local game-level DB before loading proofs. Production was refreshed: Brodie now
 has Toronto season 2023 (78 games, 2023-10-11 through 2024-04-17) and Chicago
 season 2024 (54 games, 2024-10-08 through 2025-03-01), so cards should show
 `2023-24` Leafs and `2024-25` Blackhawks.
+Final cleanup pass removed the remaining stale Hockey card/search data from
+production: first 114 stale appearances and 26 obsolete non-official `hdb:*`
+players, then a follow-up removed 35 more official-ID appearance artifacts and
+31 empty official player shells that had no official game-level appearance and
+no strict proof rows. Final checks: 0 non-`nhl:*` Hockey players, 0 unplayed
+official Hockey shells, 0 Hockey appearance rows outside the official
+game-level DB for 2000-2025, and all 399,622 strict proof rows still loaded.
 
 Update, 2026-08-25 (0.4.15): corrected the Atkinson zero again after comparing
 the user-visible result with the actual Google Fonts build. The ZIP/GitHub
