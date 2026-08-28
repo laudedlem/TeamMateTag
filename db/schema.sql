@@ -104,6 +104,27 @@ CREATE TABLE IF NOT EXISTS teammate_exclusions (
     PRIMARY KEY (player_a_id, player_b_id, team_id, season)
 );
 
+CREATE TABLE IF NOT EXISTS mlb_teammate_game_proofs (
+    player_a_id     TEXT NOT NULL REFERENCES players(player_id),
+    player_b_id     TEXT NOT NULL REFERENCES players(player_id),
+    team_id         TEXT NOT NULL,
+    season          INTEGER NOT NULL,
+    shared_games    INTEGER NOT NULL,
+    first_game_pk   INTEGER NOT NULL,
+    first_game_date TEXT NOT NULL,
+    source          TEXT,
+    PRIMARY KEY (player_a_id, player_b_id, team_id, season),
+    CHECK (player_a_id < player_b_id),
+    FOREIGN KEY (team_id, season) REFERENCES teams(team_id, season)
+);
+
+CREATE INDEX IF NOT EXISTS idx_mlb_tgp_pair
+    ON mlb_teammate_game_proofs(player_a_id, player_b_id);
+CREATE INDEX IF NOT EXISTS idx_mlb_tgp_b_a
+    ON mlb_teammate_game_proofs(player_b_id, player_a_id);
+CREATE INDEX IF NOT EXISTS idx_mlb_tgp_team_season
+    ON mlb_teammate_game_proofs(team_id, season);
+
 -- ============================================================
 -- THE TEAMMATE GRAPH (DERIVED)
 -- This is what the game queries on every move.

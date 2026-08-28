@@ -268,6 +268,42 @@ def get_shared_seasons(
             (sport, a, b, min_season),
         ).fetchall()
         return [(t, s) for t, s in rows]
+    if not sport:
+        strict_game_coverage = conn.execute(
+            """SELECT 1
+                 FROM teammate_stint_coverage
+                WHERE strict <> 0
+                  AND coverage_type = 'game_boxscore'
+                  AND season >= ?
+                LIMIT 1""",
+            (min_season,),
+        ).fetchone()
+        if strict_game_coverage is not None:
+            player_a_id, player_b_id = sorted((a, b))
+            rows = conn.execute(
+                """SELECT proof.team_id, proof.season
+                     FROM mlb_teammate_game_proofs proof
+                    WHERE proof.player_a_id = ?
+                      AND proof.player_b_id = ?
+                      AND proof.season >= ?
+                      AND EXISTS (
+                          SELECT 1
+                            FROM teammate_stint_coverage c
+                           WHERE c.season = proof.season
+                             AND c.strict <> 0
+                             AND c.coverage_type = 'game_boxscore'
+                      )
+                      AND NOT EXISTS (
+                          SELECT 1 FROM teammate_exclusions e
+                           WHERE e.team_id = proof.team_id
+                             AND e.season = proof.season
+                             AND ((e.player_a_id = proof.player_a_id AND e.player_b_id = proof.player_b_id)
+                               OR (e.player_a_id = proof.player_b_id AND e.player_b_id = proof.player_a_id))
+                      )
+                    ORDER BY proof.season, proof.team_id""",
+                (player_a_id, player_b_id, min_season),
+            ).fetchall()
+            return [(t, s) for t, s in rows]
     rows = conn.execute(
         """SELECT a.team_id, a.season
              FROM appearances a

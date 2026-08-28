@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.4.16"
+APP_VERSION = "0.4.17"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -965,6 +965,33 @@ def ensure_runtime_schema():
                        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
                        PRIMARY KEY (player_a_id, player_b_id, team_id, season)
                    )"""
+            )
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS mlb_teammate_game_proofs (
+                       player_a_id TEXT NOT NULL REFERENCES players(player_id),
+                       player_b_id TEXT NOT NULL REFERENCES players(player_id),
+                       team_id TEXT NOT NULL,
+                       season INTEGER NOT NULL,
+                       shared_games INTEGER NOT NULL,
+                       first_game_pk INTEGER NOT NULL,
+                       first_game_date DATE NOT NULL,
+                       source TEXT,
+                       PRIMARY KEY (player_a_id, player_b_id, team_id, season),
+                       CHECK (player_a_id < player_b_id),
+                       FOREIGN KEY (team_id, season) REFERENCES teams(team_id, season)
+                   )"""
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_mlb_tgp_pair "
+                "ON mlb_teammate_game_proofs(player_a_id, player_b_id)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_mlb_tgp_b_a "
+                "ON mlb_teammate_game_proofs(player_b_id, player_a_id)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_mlb_tgp_team_season "
+                "ON mlb_teammate_game_proofs(team_id, season)"
             )
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS sport_player_stints (
@@ -7456,6 +7483,22 @@ def generate_baseball_film_review(conn, puzzle_day: date, seed_suffix: str = "",
                            WHERE c.season = a.season
                              AND c.strict <> 0
                       )
+                      OR (
+                          EXISTS (
+                              SELECT 1 FROM teammate_stint_coverage c
+                               WHERE c.season = a.season
+                                 AND c.strict <> 0
+                                 AND c.coverage_type = 'game_boxscore'
+                          )
+                          AND EXISTS (
+                              SELECT 1
+                                FROM mlb_teammate_game_proofs proof
+                               WHERE proof.team_id = a.team_id
+                                 AND proof.season = a.season
+                                 AND proof.player_a_id = LEAST(a.player_id, b.player_id)
+                                 AND proof.player_b_id = GREATEST(a.player_id, b.player_id)
+                          )
+                      )
                       OR EXISTS (
                           SELECT 1
                             FROM player_stints sa
@@ -7466,6 +7509,12 @@ def generate_baseball_film_review(conn, puzzle_day: date, seed_suffix: str = "",
                              AND sb.player_id = b.player_id
                              AND sa.team_id = a.team_id
                              AND sa.season = a.season
+                             AND NOT EXISTS (
+                                  SELECT 1 FROM teammate_stint_coverage c
+                                   WHERE c.season = a.season
+                                     AND c.strict <> 0
+                                     AND c.coverage_type = 'game_boxscore'
+                             )
                              AND sa.first_unit <= sb.last_unit
                              AND sb.first_unit <= sa.last_unit
                       )

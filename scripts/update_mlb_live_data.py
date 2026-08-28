@@ -235,6 +235,35 @@ def ensure_live_schema(conn: "psycopg.Connection") -> None:
             "CREATE INDEX IF NOT EXISTS idx_mlb_live_player_games_date "
             "ON mlb_live_player_games(game_date DESC)"
         )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS mlb_teammate_game_proofs (
+                player_a_id TEXT NOT NULL REFERENCES players(player_id),
+                player_b_id TEXT NOT NULL REFERENCES players(player_id),
+                team_id TEXT NOT NULL,
+                season INTEGER NOT NULL,
+                shared_games INTEGER NOT NULL,
+                first_game_pk INTEGER NOT NULL,
+                first_game_date DATE NOT NULL,
+                source TEXT,
+                PRIMARY KEY (player_a_id, player_b_id, team_id, season),
+                CHECK (player_a_id < player_b_id),
+                FOREIGN KEY (team_id, season) REFERENCES teams(team_id, season)
+            )
+            """
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_mlb_tgp_pair "
+            "ON mlb_teammate_game_proofs(player_a_id, player_b_id)"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_mlb_tgp_b_a "
+            "ON mlb_teammate_game_proofs(player_b_id, player_a_id)"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_mlb_tgp_team_season "
+            "ON mlb_teammate_game_proofs(team_id, season)"
+        )
     conn.commit()
 
 
@@ -519,12 +548,43 @@ def refresh_runtime_tables(conn: "psycopg.Connection", season: int) -> None:
         cur.execute(
             """
             INSERT INTO teammate_stint_coverage (season, coverage_type, strict, source, updated_at)
-            VALUES (%s, 'game-log', 1, %s, now())
+            VALUES (%s, 'game_boxscore', 1, %s, now())
             ON CONFLICT (season) DO UPDATE
             SET coverage_type = EXCLUDED.coverage_type,
                 strict = EXCLUDED.strict,
                 source = EXCLUDED.source,
                 updated_at = now()
+            """,
+            (season, SOURCE),
+        )
+        cur.execute("DELETE FROM mlb_teammate_game_proofs WHERE season = %s", (season,))
+        cur.execute(
+            """
+            INSERT INTO mlb_teammate_game_proofs
+                (player_a_id, player_b_id, team_id, season, shared_games,
+                 first_game_pk, first_game_date, source)
+            WITH grouped AS (
+                SELECT
+                    a.player_id AS player_a_id,
+                    b.player_id AS player_b_id,
+                    a.team_id,
+                    a.season,
+                    COUNT(*)::integer AS shared_games,
+                    MIN(to_char(a.game_date, 'YYYY-MM-DD') || '|' || a.game_pk::text) AS first_key
+                  FROM mlb_live_player_games a
+                  JOIN mlb_live_player_games b
+                    ON b.game_pk = a.game_pk
+                   AND b.team_id = a.team_id
+                   AND b.player_id > a.player_id
+                 WHERE a.season = %s
+                 GROUP BY a.player_id, b.player_id, a.team_id, a.season
+            )
+            SELECT player_a_id, player_b_id, team_id, season, shared_games,
+                   split_part(first_key, '|', 2)::integer AS first_game_pk,
+                   split_part(first_key, '|', 1)::date AS first_game_date,
+                   %s
+              FROM grouped
+            ON CONFLICT DO NOTHING
             """,
             (season, SOURCE),
         )

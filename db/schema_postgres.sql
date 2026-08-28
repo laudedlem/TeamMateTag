@@ -97,6 +97,27 @@ CREATE TABLE IF NOT EXISTS teammate_exclusions (
     PRIMARY KEY (player_a_id, player_b_id, team_id, season)
 );
 
+CREATE TABLE IF NOT EXISTS mlb_teammate_game_proofs (
+    player_a_id     TEXT NOT NULL REFERENCES players(player_id),
+    player_b_id     TEXT NOT NULL REFERENCES players(player_id),
+    team_id         TEXT NOT NULL,
+    season          INTEGER NOT NULL,
+    shared_games    INTEGER NOT NULL,
+    first_game_pk   INTEGER NOT NULL,
+    first_game_date DATE NOT NULL,
+    source          TEXT,
+    PRIMARY KEY (player_a_id, player_b_id, team_id, season),
+    CHECK (player_a_id < player_b_id),
+    FOREIGN KEY (team_id, season) REFERENCES teams(team_id, season)
+);
+
+CREATE INDEX IF NOT EXISTS idx_mlb_tgp_pair
+    ON mlb_teammate_game_proofs(player_a_id, player_b_id);
+CREATE INDEX IF NOT EXISTS idx_mlb_tgp_b_a
+    ON mlb_teammate_game_proofs(player_b_id, player_a_id);
+CREATE INDEX IF NOT EXISTS idx_mlb_tgp_team_season
+    ON mlb_teammate_game_proofs(team_id, season);
+
 -- Teammate links are derived from the two indexed appearance rows at query
 -- time. Do not materialize every player pair: the old table consumed roughly
 -- 400 MB by itself and is unnecessary for the runtime query path.

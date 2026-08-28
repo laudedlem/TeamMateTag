@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.4.16`
+- Current display version: `0.4.17`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -24,6 +24,31 @@ changes. It is the concise source of truth for another coding assistant.
   migration run, then remove it again.
 
 ## Current user experience
+
+Update, 2026-08-27 (0.4.17): implemented strict Baseball teammate validation
+from MLB StatsAPI same-game boxscore proofs. Added
+`scripts/build_mlb_game_teammates.py`, which builds local
+`raw/mlb_game_teammates/mlb_game_teammates_v2.sqlite` from cached
+`raw/mlb_statsapi` regular-season schedules/boxscores, filtering to players
+with batting, pitching, or fielding evidence of actually appearing. Final local
+historical counts for 2000-2025: 61,817 regular-season game records,
+1,770,477 player-game appearances, 694,446 player-pair/team-season proof rows,
+and 0 unmapped MLBAM player audit rows. Added
+`scripts/import_mlb_game_teammates_to_postgres.py` and ran it against
+production Supabase. Production Baseball now has 796,142 rows in
+`mlb_teammate_game_proofs`: 694,446 historical proofs for 2000-2025 plus
+101,696 live 2026 proofs derived from `mlb_live_player_games`. All 27 Baseball
+season keys from 2000 through 2026 are marked `game_boxscore` in
+`teammate_stint_coverage`, with 0 orphan proof player IDs. Runtime Baseball
+links now require a proof row when a season has game-boxscore coverage; the
+old stint-range path remains only as fallback for uncovered dev/local seasons.
+Smoke checks confirmed Trout/Ohtani on the Angels and Judge/Soto on the 2024
+Yankees through the proof table. A production audit found 328,171 old
+same-team-season Baseball pairs that lack a same-game proof and therefore no
+longer count once this code is deployed. `scripts/update_mlb_live_data.py` now
+refreshes current-season `mlb_teammate_game_proofs` after each live import so
+future MLB game days keep strict proofs current automatically. Bumped visible
+app version to `0.4.17`.
 
 Update, 2026-08-27 (Basketball strict proof investigation): started the
 Basketball game-level teammate-proof pass after Hockey was completed. Added
