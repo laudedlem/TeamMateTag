@@ -76,6 +76,21 @@ strict teammate proof rows, 26 covered seasons, 0 missing proof players, and
 text-ID proof table is small enough for Supabase Free or needs a more compact
 integer-key runtime schema.
 
+Update, 2026-08-28 (compact proof storage for three sports): added and ran
+`scripts/compact_supabase_proof_storage.py --execute` against the new Supabase
+recovery project. This keeps raw boxscore/snap data local and replaces the
+large text-heavy online proof tables with compact integer-key tables plus
+compatibility views named `sport_teammates` and `mlb_teammate_game_proofs`.
+Verified exact row-count parity before dropping the old physical proof tables:
+505,729 non-Football sport proof rows (Basketball + Hockey) and 694,446
+Baseball proof rows before and after compaction. Smoke queries through the
+compatibility views confirmed Trout/Ohtani, LeBron/Wade, Toews/Kane, and
+Crosby/Malkin links. New Supabase database size after `VACUUM FULL`: about
+269 MB, down from about 440 MB. Remaining data-work caveat: daily live updaters
+that write directly to `sport_teammates` or `mlb_teammate_game_proofs` must be
+updated to write compact-key rows (or use dedicated insert helpers) before they
+are run against this compact schema.
+
 ## Current user experience
 
 Update, 2026-08-28 (Football 2000-2012 Game Book gathering): added and cleaned
