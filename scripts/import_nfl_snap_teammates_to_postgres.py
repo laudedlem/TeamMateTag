@@ -370,6 +370,49 @@ def copy_teammate_proofs(src: sqlite3.Connection, dst: "psycopg.Connection", sta
     return count
 
 
+def prune_live_rows(dst: "psycopg.Connection", start: int, end: int) -> tuple[int, int]:
+    with dst.cursor() as cur:
+        cur.execute(
+            """
+            DELETE FROM sport_live_player_games live
+             WHERE live.sport_id = %s
+               AND live.season BETWEEN %s AND %s
+               AND EXISTS (
+                   SELECT 1
+                     FROM sport_teammate_stint_coverage c
+                    WHERE c.sport_id = live.sport_id
+                      AND c.season = live.season
+                      AND c.strict <> 0
+                      AND c.coverage_type = 'game_boxscore'
+               )
+               AND EXISTS (
+                   SELECT 1
+                     FROM sport_teammates t
+                    WHERE t.sport_id = live.sport_id
+                      AND t.season = live.season
+               )
+            """,
+            (SPORT_ID, start, end),
+        )
+        player_rows = cur.rowcount
+        cur.execute(
+            """
+            DELETE FROM sport_live_game_imports game
+             WHERE game.sport_id = %s
+               AND game.season BETWEEN %s AND %s
+               AND NOT EXISTS (
+                   SELECT 1
+                     FROM sport_live_player_games live
+                    WHERE live.sport_id = game.sport_id
+                      AND live.game_id = game.game_id
+               )
+            """,
+            (SPORT_ID, start, end),
+        )
+        game_rows = cur.rowcount
+    return int(player_rows), int(game_rows)
+
+
 def refresh_runtime(dst: "psycopg.Connection", start: int, end: int, source_name: str, source_url: str) -> None:
     with dst.cursor() as cur:
         cur.execute("SET LOCAL statement_timeout = '20min'")
@@ -510,6 +553,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--source-name", default=SOURCE_NAME)
     parser.add_argument("--source-url", default=SOURCE_URL)
     parser.add_argument("--proofs-only", action="store_true")
+    parser.add_argument(
+        "--prune-live-after-refresh",
+        action="store_true",
+        help="Delete imported live player-game staging rows after compact proofs and rollups are refreshed.",
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
 
@@ -544,12 +592,17 @@ def main(argv: list[str] | None = None) -> int:
         games, appearances = copy_games_and_appearances(src, dst, start, end, args.source_name)
         teammates = copy_teammate_proofs(src, dst, start, end)
         refresh_runtime(dst, start, end, args.source_name, args.source_url)
+        pruned_players = pruned_games = 0
+        if args.prune_live_after_refresh:
+            pruned_players, pruned_games = prune_live_rows(dst, start, end)
         checks = verify(dst, start, end)
         dst.commit()
     print(
         f"imported {team_count:,} team-seasons; {player_count:,} players; {games:,} games; "
         f"{appearances:,} snap appearances; {teammates:,} teammate proofs"
     )
+    if args.prune_live_after_refresh:
+        print(f"pruned {pruned_players:,} live player-game rows and {pruned_games:,} game-import rows")
     print(
         f"verified production: {checks['games']:,} games; {checks['appearances']:,} player-games; "
         f"{checks['rollups']:,} player-team-season rollups; {checks['teammates']:,} teammate proofs; "

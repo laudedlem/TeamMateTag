@@ -29,6 +29,7 @@ def main(argv: list[str] | None = None) -> int:
         SOURCE_NAME,
         "--source-url",
         SOURCE_URL,
+        "--prune-live-after-refresh",
     ]
     if argv:
         args.extend(argv)

@@ -17,6 +17,18 @@ changes. It is the concise source of truth for another coding assistant.
   below the Free plan's 500 MB database quota. The old materialized Baseball
   `teammates` table was removed because it alone consumed roughly 400 MB; all
   game paths derive links from indexed appearances instead.
+- Supabase Free plan storage warning received on 2026-08-28 after adding large
+  historical strict proof work. Production storage policy is now runtime-only:
+  keep compact teammate proof rows (`sport_teammates` /
+  `mlb_teammate_game_proofs`), card/search rollups, coverage flags, teams,
+  players, and current-season/recent updater staging rows only. Full historical
+  player-game/boxscore/snap participation stays in local SQLite/raw files under
+  `raw/` and should not be retained in Supabase once compact proofs and rollups
+  are built. Use `scripts/trim_supabase_runtime_storage.py` to audit table sizes
+  and prune historical live staging rows only for seasons that already have
+  compact strict proofs. For quota recovery, run it with `--execute
+  --vacuum-full` once Supabase SQL accepts connections so physical table/index
+  storage is released, not just made reusable.
 - Required environment values are documented in `.env.example`. Never commit
   `.env` or any Supabase password/key.
 - Runtime schema migrations are skipped during ordinary gameplay to keep Vercel
@@ -52,9 +64,11 @@ players. Production import completed on 2026-08-28 using
 6,282 players, 3,312 games, 283,652 player-game appearances, 24,688
 player-team-season rollups, 682,167 compact teammate proof rows, and all 13
 season keys from 2000-2012 marked `game_boxscore`. The shared Football importer
-now has a `--proofs-only` mode and streams compact proof rows from local SQLite
-with Postgres `COPY`, avoiding Supabase temp-disk failures from large in-DB
-self-joins. Follow-up still needed once Supabase SQL connections recover:
+now has a `--proofs-only` mode, a `--prune-live-after-refresh` mode for
+historical imports, and streams compact proof rows from local SQLite with
+Postgres `COPY`, avoiding Supabase temp-disk failures from large in-DB
+self-joins. Follow-up still needed once Supabase SQL connections recover and
+storage has been trimmed:
 run `python scripts\import_nfl_snap_teammates_to_postgres.py --season-start
 2013 --season-end 2025 --proofs-only` so the compact `sport_teammates` table
 also contains the modern snap-count seasons. Gameplay can already validate
