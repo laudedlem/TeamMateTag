@@ -114,6 +114,16 @@ backfilled; 0 unmapped proof rows. Basketball production now has 112,959 strict
 all 26 season keys from 2000 through 2025. The ESPN importer was also tightened
 so future reruns delete/reload only its covered season range rather than all
 Basketball proof rows, preserving the legacy gap import.
+Follow-up, 2026-08-27 (Basketball stale-shell cleanup): added
+`scripts/cleanup_basketball_unplayed_players.py` and ran it against
+production. It removes only Basketball player shells with no
+`sport_appearances` and no `sport_teammates` proof participation, plus their
+search/image/headshot/trait dependent rows. Cleanup removed 135 old unplayed
+Basketball player shells. Final production checks after cleanup: 2,477
+Basketball players, 14,321 Basketball appearance rows, 14,321 matching stints,
+112,959 strict Basketball teammate proof rows, 0 players/search rows without
+appearances, 0 orphan proof rows, and 0 Basketball All-Star/exhibition teams in
+`sport_teams`.
 
 Update, 2026-08-27 (0.4.16): implemented strict Hockey teammate validation
 from the completed official NHL game-level proof database. Hockey links now use
