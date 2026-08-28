@@ -34,6 +34,7 @@ ESPN_DIR = ROOT / "raw" / "nba"
 NBA_STATS = ROOT / "raw" / "nba_kaggle" / "PlayerStatistics.csv"
 LOCAL_SPORT_DB = ROOT / "db" / "teammatetag_local.sqlite"
 OUT_DIR = ROOT / "raw" / "nba_identity"
+MANUAL_OVERRIDES = ROOT / "scripts" / "data" / "nba_espn_manual_id_overrides.csv"
 
 ESPN_TO_NBA_TEAM = {
     "1": "1610612737",   # Hawks
@@ -96,6 +97,98 @@ def normalize(value: str) -> str:
     text = text.lower().replace(".", "")
     text = re.sub(r"\b(jr|sr|ii|iii|iv|v)\b", "", text)
     return re.sub(r"[^a-z0-9]+", " ", text).strip()
+
+
+def name_aliases(value: str) -> set[str]:
+    """Return conservative public-name aliases used by Basketball data feeds."""
+    base = normalize(value)
+    if not base:
+        return set()
+    aliases = {base}
+    parts = base.split()
+    if len(parts) > 2:
+        aliases.add(f"{parts[0]} {parts[-1]}")
+    if len(parts) == 2:
+        aliases.add(f"{parts[1]} {parts[0]}")
+    known = {
+        "nene": {"nene hilario"},
+        "nene hilario": {"nene"},
+        "darrel armstrong": {"darrell armstrong"},
+        "darrell armstrong": {"darrel armstrong"},
+        "ronald murray": {"flip murray"},
+        "flip murray": {"ronald murray"},
+        "kj martin": {"kenyon martin", "kenyon martin jr"},
+        "kenyon martin jr": {"kj martin"},
+        "didier ilunga mbenga": {"dj mbenga", "didier mbenga"},
+        "dj mbenga": {"didier ilunga mbenga", "didier mbenga"},
+        "clarence weatherspoon": {"clar weatherspoon"},
+        "clar weatherspoon": {"clarence weatherspoon"},
+        "ha seung jin": {"seung jin ha"},
+        "seung jin ha": {"ha seung jin"},
+        "zhizhi wang": {"zhi zhi wang", "wang zhi zhi"},
+        "zhi zhi wang": {"wang zhi zhi", "zhizhi wang"},
+        "wang zhi zhi": {"zhi zhi wang", "zhizhi wang"},
+        "yi jianlian": {"jianlian yi"},
+        "jianlian yi": {"yi jianlian"},
+        "gigi datome": {"luigi datome"},
+        "luigi datome": {"gigi datome"},
+        "pooh jeter": {"eugene jeter"},
+        "eugene jeter": {"pooh jeter"},
+        "ike austin": {"isaac austin"},
+        "isaac austin": {"ike austin"},
+        "vassilis spanoulis": {"vasileios spanoulis"},
+        "vasileios spanoulis": {"vassilis spanoulis"},
+        "viacheslav kravtsov": {"slava kravtsov"},
+        "slava kravtsov": {"viacheslav kravtsov"},
+        "viktor khryapa": {"victor khryapa"},
+        "victor khryapa": {"viktor khryapa"},
+        "yue sun": {"sun yue"},
+        "sun yue": {"yue sun"},
+        "cui yongxi": {"yongxi cui"},
+        "yongxi cui": {"cui yongxi"},
+        "cam reynolds": {"cameron reynolds"},
+        "cameron reynolds": {"cam reynolds"},
+        "matthew hurt": {"matt hurt"},
+        "matt hurt": {"matthew hurt"},
+        "nigel hayes": {"nigel hayes davis"},
+        "nigel hayes davis": {"nigel hayes"},
+        "omari rasulala spellman": {"omari spellman"},
+        "omari spellman": {"omari rasulala spellman"},
+        "jerome adolphus jordan": {"jerome jordan"},
+        "jerome jordan": {"jerome adolphus jordan"},
+        "josh emmanuel akognon": {"josh akognon"},
+        "josh akognon": {"josh emmanuel akognon"},
+        "pierre deshawn jackson": {"pierre jackson"},
+        "pierre jackson": {"pierre deshawn jackson"},
+        "vince shamar hunter": {"vincent hunter"},
+        "vincent hunter": {"vince shamar hunter"},
+        "gustavo alfonso ayon": {"gustavo ayon"},
+        "gustavo ayon": {"gustavo alfonso ayon"},
+        "walter herrmann heinrich": {"walter herrmann"},
+        "walter herrmann": {"walter herrmann heinrich"},
+        "roko leni ukic": {"roko ukic"},
+        "roko ukic": {"roko leni ukic"},
+        "mike james batiste": {"mike batiste"},
+        "mike batiste": {"mike james batiste"},
+        "marquinhos vieira": {"marcus vinicius"},
+        "marcus vinicius": {"marquinhos vieira"},
+    }
+    aliases.update(known.get(base, set()))
+    return aliases
+
+
+def load_manual_overrides(path: Path) -> dict[str, str]:
+    if not path.exists():
+        return {}
+    overrides: dict[str, str] = {}
+    with path.open(encoding="utf-8-sig", newline="") as handle:
+        for row in csv.DictReader(handle):
+            espn_id = (row.get("espn_id") or "").strip()
+            nba_person_id = (row.get("nba_person_id") or "").strip()
+            status = (row.get("status") or "verified").strip().lower()
+            if espn_id and nba_person_id and status == "verified":
+                overrides[espn_id] = nba_person_id
+    return overrides
 
 
 def season_from_nba_game_id(game_id: str, fallback_date: str = "") -> int | None:
@@ -284,9 +377,19 @@ def read_production_players() -> dict[str, dict[str, object]]:
 
 
 def score_match(espn: IdentityFootprint, nba: IdentityFootprint) -> tuple[float, int, int, int]:
-    shared = len(espn.season_teams & nba.season_teams)
-    union = len(espn.season_teams | nba.season_teams)
-    season_shared = len(espn.seasons & nba.seasons)
+    espn_shifted = {
+        (season + offset, team_id)
+        for season, team_id in espn.season_teams
+        for offset in (0, -1, 1)
+    }
+    espn_seasons_shifted = {
+        season + offset
+        for season in espn.seasons
+        for offset in (0, -1, 1)
+    }
+    shared = len(espn_shifted & nba.season_teams)
+    union = len(espn_shifted | nba.season_teams)
+    season_shared = len(espn_seasons_shifted & nba.seasons)
     team_shared = len(espn.teams & nba.teams)
     score = (shared * 10.0) + (season_shared * 1.5) + team_shared
     if union:
@@ -305,40 +408,71 @@ def main() -> int:
     parser.add_argument("--season-start", type=int, default=2002)
     parser.add_argument("--season-end", type=int, default=2025)
     parser.add_argument("--out-dir", type=Path, default=OUT_DIR)
+    parser.add_argument("--manual-overrides", type=Path, default=MANUAL_OVERRIDES)
     args = parser.parse_args()
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
     espn_players = read_espn(args.season_start, args.season_end)
     nba_players = read_nba_stats(args.season_start, args.season_end)
     prod = read_production_players()
+    manual_overrides = load_manual_overrides(args.manual_overrides)
 
     nba_by_name: dict[str, list[IdentityFootprint]] = defaultdict(list)
     for item in nba_players.values():
-        nba_by_name[item.normalized_name].append(item)
+        for alias in name_aliases(item.display_name):
+            nba_by_name[alias].append(item)
 
     rows = []
     status_counts = Counter()
     for espn in sorted(espn_players.values(), key=lambda item: (item.display_name, item.source_id)):
         candidates = []
+        candidate_ids = set()
+        manual_id = manual_overrides.get(espn.source_id)
+        if manual_id and manual_id in nba_players:
+            nba = nba_players[manual_id]
+            score, shared, season_shared, team_shared = score_match(espn, nba)
+            candidates.append((max(score, 9999.0), shared, season_shared, team_shared, nba))
+            candidate_ids.add(nba.source_id)
+        elif manual_id:
+            display = str(prod.get(manual_id, {}).get("display_name") or espn.display_name)
+            nba = IdentityFootprint(manual_id)
+            nba.names[normalize(display)] += 1
+            nba.display_names[display] += 1
+            candidates.append((9999.0, 0, 0, 0, nba))
+            candidate_ids.add(nba.source_id)
+        for alias in name_aliases(espn.display_name):
+            for nba in nba_by_name.get(alias, []):
+                if nba.source_id in candidate_ids:
+                    continue
+                candidate_ids.add(nba.source_id)
+                score, shared, season_shared, team_shared = score_match(espn, nba)
+                if shared or season_shared or team_shared:
+                    candidates.append((score, shared, season_shared, team_shared, nba))
         for nba in nba_by_name.get(espn.normalized_name, []):
+            if nba.source_id in candidate_ids:
+                continue
+            candidate_ids.add(nba.source_id)
             score, shared, season_shared, team_shared = score_match(espn, nba)
             if shared or season_shared or team_shared:
                 candidates.append((score, shared, season_shared, team_shared, nba))
         candidates.sort(key=lambda item: item[:4], reverse=True)
         best = candidates[0] if candidates else None
         second = candidates[1] if len(candidates) > 1 else None
-        if best and best[1] >= 1 and (not second or best[0] >= second[0] + 5):
+        if manual_id and best:
+            status = "auto_manual_override"
+        elif best and best[1] >= 1 and (not second or best[0] >= second[0] + 5):
             status = "auto_footprint"
         elif best and best[1] >= 1:
             status = "review_ambiguous"
-        elif len(nba_by_name.get(espn.normalized_name, [])) == 1:
+        alias_candidates = {
+            item.source_id: item
+            for alias in name_aliases(espn.display_name)
+            for item in nba_by_name.get(alias, [])
+        }
+        if status == "unmatched" and len(alias_candidates) == 1:
             status = "auto_unique_name"
-        else:
-            status = "unmatched"
         status_counts[status] += 1
-        nba = best[4] if best else (
-            nba_by_name[espn.normalized_name][0] if len(nba_by_name.get(espn.normalized_name, [])) == 1 else None
-        )
+        nba = best[4] if best else (next(iter(alias_candidates.values())) if len(alias_candidates) == 1 else None)
         nba_id = nba.source_id if nba else ""
         prod_row = prod.get(nba_id, {})
         rows.append({

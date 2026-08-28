@@ -63,6 +63,24 @@ tail is resolved or an intentional ESPN-ID migration is chosen. SportsDataverse
 is useful for Basketball and maybe Football, but should not replace the locked
 official NHL API proof DB or MLB official-data path as the global source of
 truth.
+Follow-up, 2026-08-27 (Basketball ID gaps resolved locally): added tracked
+verified alias overrides at `scripts/data/nba_espn_manual_id_overrides.csv`
+and improved `scripts/audit_nba_espn_id_consistency.py` so it compares
+adjacent season labels between sources and recognizes conservative public-name
+aliases. The identity audit now resolves all 2,471 ESPN Basketball athletes:
+2,363 by footprint and 108 by verified manual override, with 0 review/unmatched
+rows in the generated audit. Rebuilt
+`raw/nba_game_teammates/nba_espn_game_teammates.sqlite`; final local strict
+Basketball proof counts are 28,766 regular-season games, 594,986 stored mapped
+positive-minute appearances, and 106,107 teammate/team-season proof rows for
+2002-2025. `raw/nba_game_teammates/nba_espn_unmapped_players.csv` now has 0
+rows. The remaining 406 skipped team rows are exhibition/All-Star teams such as
+Team LeBron, Team Giannis, East/West All-Stars, USA/World, Team Shaq, and Team
+Chuck, which should stay excluded. Next production step is to write/import the
+Basketball Postgres loader mirroring Hockey: backfill any missing proof players
+from the ESPN/NBA crosswalk, refresh Basketball appearance/stint/card rollups,
+load `sport_teammates`, and mark Basketball 2002-2025 coverage as
+`game_boxscore`.
 
 Update, 2026-08-27 (0.4.16): implemented strict Hockey teammate validation
 from the completed official NHL game-level proof database. Hockey links now use

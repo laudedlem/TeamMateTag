@@ -1,0 +1,105 @@
+espn_id,espn_name,nba_person_id,nba_name,status,evidence
+1713,Nene,2403,Nene Hilario,verified,Public alias plus matching Denver/Washington/Houston NBA career footprint.
+24,Darrel Armstrong,353,Darrell Armstrong,verified,ESPN one-r spelling variant; matching Orlando/New Orleans/Dallas/Indiana/New Jersey NBA footprint.
+1777,Ronald Murray,2436,Flip Murray,verified,Public name vs nickname; matching Seattle/Chicago/Detroit/Indiana/Atlanta/Cleveland/Charlotte/Milwaukee footprint.
+4348700,Goga Bitadze,1629048,Goga Bitadze,verified,Exact NBA catalog identity; ESPN source uses same Orlando/Indiana footprint.
+4431828,KJ Martin,1630231,Kenyon Martin Jr.,verified,Public abbreviation vs official name; matching Houston/LA Clippers/Philadelphia/Utah footprint.
+3214,Yi Jianlian,201146,Jianlian Yi,verified,Name-order variant; matching Milwaukee/New Jersey/Washington/Dallas footprint.
+781,Steve Smith,120,Steven Smith,verified,Steve/Steven alias; older career footprint disambiguates from 2006 Steven Smith.
+2450,Didier Ilunga-Mbenga,2788,DJ Mbenga,verified,Public full name vs NBA short name; matching Dallas/LA Lakers/Golden State/New Orleans footprint.
+896,Clarence Weatherspoon,221,Clar. Weatherspoon,verified,Official abbreviated first name; matching New York/Houston footprint.
+717,Glenn Robinson,299,Glenn Robinson,verified,Older Glenn Robinson footprint disambiguates from Glenn Robinson III.
+3058,Walter Herrmann Heinrich,200835,Walter Herrmann,verified,Full-name variant; matching Charlotte/Detroit footprint.
+2435,Victor Khryapa,2751,Viktor Khryapa,verified,Victor/Viktor spelling variant; matching Portland/Chicago footprint.
+6546,Gustavo Alfonso Ayon,202970,Gustavo Ayon,verified,Middle-name variant; matching New Orleans/Orlando/Milwaukee/Atlanta footprint.
+972,ZhiZhi Wang,1917,Wang Zhi-zhi,verified,Name-order and spacing variant; matching Dallas/LA Clippers/Miami footprint.
+793,Jabari Smith,2074,Jabari Smith,verified,Older Jabari Smith footprint disambiguates from Jabari Smith Jr.
+6633,Robbie John Hummel,203133,Robbie Hummel,verified,Middle-name variant; matching Minnesota footprint.
+2790,Roko-Leni Ukic,101146,Roko Ukic,verified,Hyphenated full-name variant; matching Toronto/Milwaukee footprint.
+1042,Charles A Smith,1520,Charles Smith,verified,Middle-initial variant; matching Portland/Denver/San Antonio footprint.
+578,Hanno Mottola,2069,Hanno Mottola,verified,Exact identity; adjacent season-label footprint.
+301,Tim Hardaway,896,Tim Hardaway,verified,Older Tim Hardaway footprint disambiguates from Tim Hardaway Jr.
+2968363,Marcelinho Huertas,1626273,Marcelinho Huertas,verified,Known NBA person id; matching LA Lakers footprint.
+1870,Mike James Batiste,2471,Mike Batiste,verified,Full-name variant; matching Memphis footprint.
+565,Sam Mitchell,417,Sam Mitchell,verified,Exact identity; adjacent season-label footprint.
+668,Terry Porter,345,Terry Porter,verified,Exact identity; adjacent season-label footprint.
+597,Tyrone Nesby,1838,Tyrone Nesby,verified,Exact identity; adjacent season-label footprint.
+524,George McCloud,45,George McCloud,verified,Exact identity; adjacent season-label footprint.
+485,Felipe Lopez,1732,Felipe Lopez,verified,Exact identity; adjacent season-label footprint.
+112,Jud Buechler,146,Jud Buechler,verified,Exact identity; adjacent season-label footprint.
+804,John Starks,317,John Starks,verified,Exact identity; adjacent season-label footprint.
+500,Dan Majerle,105,Dan Majerle,verified,Exact identity; adjacent season-label footprint.
+4280,Jerome Adolphus Jordan,202366,Jerome Jordan,verified,Middle-name variant; matching New York/Brooklyn footprint.
+704,Mitch Richmond,782,Mitch Richmond,verified,Exact identity; adjacent season-label footprint.
+3105,Eugene Jeter,200817,Pooh Jeter,verified,Public first name vs nickname; matching Sacramento footprint.
+619,Hakeem Olajuwon,165,Hakeem Olajuwon,verified,Exact identity; adjacent season-label footprint.
+21,Greg Anthony,21,Greg Anthony,verified,Exact identity; adjacent season-label footprint.
+172,Vonteego Cummings,1907,Vonteego Cummings,verified,Exact identity; adjacent season-label footprint.
+175,Dell Curry,209,Dell Curry,verified,Exact identity; adjacent season-label footprint.
+265,Chris Gatling,423,Chris Gatling,verified,Exact identity; adjacent season-label footprint.
+2585629,Luigi Datome,203540,Gigi Datome,verified,Luigi/Gigi public-name variant; matching Detroit/Boston footprint.
+82,Cal Bowdler,1898,Cal Bowdler,verified,Exact identity; adjacent season-label footprint.
+811,Bryant Stith,179,Bryant Stith,verified,Exact identity; adjacent season-label footprint.
+571,Eric Montross,376,Eric Montross,verified,Exact identity; adjacent season-label footprint.
+4065836,Omari Spellman,1629016,Omari Spellman,verified,Exact identity; matching Atlanta/Golden State footprint.
+602,Johnny Newman,271,Johnny Newman,verified,Exact identity; adjacent season-label footprint.
+2528096,Mike James,1628455,Mike James,verified,Newer Mike James footprint disambiguates from older Mike James.
+2408,Ha Seung-Jin,2775,Seung-Jin Ha,verified,Name-order variant; matching Portland footprint.
+457,Trajan Langdon,1892,Trajan Langdon,verified,NBA regular-season identity; adjacent season-label footprint.
+6636,Slava Kravtsov,203139,Viacheslav Kravtsov,verified,Short name vs full name; matching Detroit/Phoenix footprint.
+538,Derrick McKey,365,Derrick McKey,verified,Exact identity; adjacent season-label footprint.
+68,Mookie Blaylock,302,Mookie Blaylock,verified,Exact identity; adjacent season-label footprint.
+262,Dean Garrett,1051,Dean Garrett,verified,Exact identity; adjacent season-label footprint.
+799,Felton Spencer,280,Felton Spencer,verified,Exact identity; adjacent season-label footprint.
+92,Terrell Brandon,210,Terrell Brandon,verified,Exact identity; adjacent season-label footprint.
+115,Matt Bullard,672,Matt Bullard,verified,Exact identity; adjacent season-label footprint.
+2447,Vasileios Spanoulis,2779,Vassilis Spanoulis,verified,Greek name spelling variant; matching Houston footprint.
+6501,Chris Wright,202874,Chris Wright,verified,Golden State/Milwaukee Chris Wright footprint.
+995,Antonis Fotsis,2238,Antonis Fotsis,verified,Exact identity; adjacent season-label footprint.
+30,William Avery,1895,William Avery,verified,Exact identity; adjacent season-label footprint.
+386,Harold Jamison,1942,Harold Jamison,verified,Exact identity; adjacent season-label footprint.
+3036,Marquinhos Vieira,200790,Marcus Vinicius,verified,Public Brazilian name vs NBA registered name; matching New Orleans footprint.
+3057240,Cameron Reynolds,1629244,Cam Reynolds,verified,Cameron/Cam name variant; matching Minnesota/Houston/San Antonio footprint.
+1009,Alvin Jones,2264,Alvin Jones,verified,Exact identity; adjacent season-label footprint.
+730,Carlos Rogers,435,Carlos Rogers,verified,Exact identity; adjacent season-label footprint.
+1058,Joseph Crispin,2202,Joe Crispin,verified,Joseph/Joe name variant; matching Phoenix/LA Lakers footprint.
+28,Isaac Austin,1134,Ike Austin,verified,Isaac/Ike name variant; matching Memphis footprint.
+760,Shawnelle Scott,1035,Shawnelle Scott,verified,Exact identity; adjacent season-label footprint.
+2841,Boniface N'Dong,101238,Boniface Ndong,verified,Apostrophe/spacing variant; matching LA Clippers footprint.
+680,Brent Price,85,Brent Price,verified,Exact identity; adjacent season-label footprint.
+38,Erick Barkley,2057,Erick Barkley,verified,Exact identity; adjacent season-label footprint.
+2489021,Erik Jay Murphy,203513,Erik Murphy,verified,Middle-name variant; matching Chicago footprint.
+96,Chucky Brown,359,Chucky Brown,verified,Exact identity; adjacent season-label footprint.
+2583664,Tony Mitchell,203502,Tony Mitchell,verified,Detroit Tony Mitchell footprint.
+2432,Luis Alberto Flores,2784,Luis Flores,verified,Middle-name variant; matching Denver/Golden State footprint.
+1036,Victor Alexander,2349,Victor Alexander,verified,Exact identity; adjacent season-label footprint.
+14,Nick Anderson,98,Nick Anderson,verified,Exact identity; adjacent season-label footprint.
+324,Cedric Henderson,1538,Cedric Henderson,verified,Modern-career Cedric Henderson footprint.
+494,Sam Mack,694,Sam Mack,verified,Exact identity; adjacent season-label footprint.
+1047,Norman Richardson,2369,Norman Richardson,verified,Exact identity; adjacent season-label footprint.
+705,Isaiah Rider,375,Isaiah Rider,verified,Exact identity; adjacent season-label footprint.
+276,Steve Goodrich,1864,Steve Goodrich,verified,Exact identity; adjacent season-label footprint.
+384,Tim James,1906,Tim James,verified,Exact identity; adjacent season-label footprint.
+1073,Tang Hamilton,2347,Tang Hamilton,verified,Exact identity; adjacent season-label footprint.
+3245,Sun Yue,201180,Yue Sun,verified,Name-order variant; matching LA Lakers footprint.
+3059409,Nigel Hayes,1628502,Nigel Hayes,verified,Nigel Hayes/Hayes-Davis public-name continuity; matching Lakers/Kings/Raptors footprint.
+2578204,Pierre Deshawn Jackson,203510,Pierre Jackson,verified,Middle-name variant; matching Dallas footprint.
+4431673,Matt Hurt,1630562,Matthew Hurt,verified,Short-name variant; matching Memphis footprint.
+3064,Steven Smith,200848,Steven Smith,verified,2006 Philadelphia Steven Smith footprint distinct from older Steve Smith.
+1060,Ike Fontaine,1829,Ike Fontaine,verified,Exact identity; adjacent season-label footprint.
+691,Eldridge Recasner,695,Eldridge Recasner,verified,Exact identity; adjacent season-label footprint.
+932,Brandon Williams,1585,Brandon Williams,verified,Older Brandon Williams footprint disambiguates from recent Brandon Williams.
+266,Matt Geiger,761,Matt Geiger,verified,Exact identity; adjacent season-label footprint.
+5159486,Yongxi Cui,1642385,Cui Yongxi,verified,Name-order variant; matching Brooklyn footprint.
+645,Mike Penberthy,2130,Mike Penberthy,verified,Exact identity; adjacent season-label footprint.
+85,Ira Bowman,1085,Ira Bowman,verified,Exact identity; adjacent season-label footprint.
+6656,Josh Emmanuel Akognon,203006,Josh Akognon,verified,Middle-name variant; matching Dallas footprint.
+6666,Chris Wright,203203,Chris Wright,verified,Dallas Chris Wright footprint distinct from Golden State/Milwaukee Chris Wright.
+2489010,Tony Mitchell,203183,Tony Mitchell,verified,Milwaukee Tony Mitchell footprint distinct from Detroit Tony Mitchell.
+3057304,Vince Shamar Hunter,1626205,Vincent Hunter,verified,First-name/full-name variant; matching Memphis footprint.
+716,Larry Robinson,1683,Larry Robinson,verified,Exact identity; adjacent season-label footprint.
+651,Elliot Perry,386,Elliot Perry,verified,Exact identity; adjacent season-label footprint.
+197,Vinny Del Negro,219,Vinny Del Negro,verified,Exact identity; adjacent season-label footprint.
+6639,Chris Smith,203147,Chris Smith,verified,New York Chris Smith footprint.
+1048,Ratko Varda,2237,Ratko Varda,verified,Exact identity; adjacent season-label footprint.
+777,Dickey Simpkins,54,Dickey Simpkins,verified,Exact identity; adjacent season-label footprint.
