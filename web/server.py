@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.4.18"
+APP_VERSION = "0.4.19"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -3629,7 +3629,7 @@ def _sport_link_allowed(conn, sport: str, first: str, second: str, team_id: str,
     ).fetchone()
     if strict_game_coverage is not None:
         player_a_id, player_b_id = sorted((first, second))
-        return conn.execute(
+        if conn.execute(
             """SELECT 1 FROM sport_teammates
                 WHERE sport_id=%s
                   AND player_a_id=%s
@@ -3638,6 +3638,22 @@ def _sport_link_allowed(conn, sport: str, first: str, second: str, team_id: str,
                   AND season=%s
                 LIMIT 1""",
             (sport, player_a_id, player_b_id, team_id, season),
+        ).fetchone() is not None:
+            return True
+        return conn.execute(
+            """SELECT 1
+                 FROM sport_live_player_games a
+                 JOIN sport_live_player_games b
+                   ON b.sport_id = a.sport_id
+                  AND b.game_id = a.game_id
+                  AND b.team_id = a.team_id
+                WHERE a.sport_id=%s
+                  AND a.player_id=%s
+                  AND b.player_id=%s
+                  AND a.team_id=%s
+                  AND a.season=%s
+                LIMIT 1""",
+            (sport, first, second, team_id, season),
         ).fetchone() is not None
     strict = conn.execute(
         """SELECT 1 FROM sport_teammate_stint_coverage

@@ -162,6 +162,46 @@ CREATE INDEX IF NOT EXISTS idx_sport_teammates_a
 CREATE INDEX IF NOT EXISTS idx_sport_teammates_b
     ON sport_teammates(sport_id, player_b_id);
 
+CREATE TABLE IF NOT EXISTS sport_live_game_imports (
+    sport_id     TEXT NOT NULL REFERENCES sports(sport_id),
+    game_id      TEXT NOT NULL,
+    game_date    DATE NOT NULL,
+    season       INTEGER NOT NULL,
+    status       TEXT NOT NULL,
+    source       TEXT NOT NULL,
+    row_count    INTEGER NOT NULL DEFAULT 0,
+    imported_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (sport_id, game_id)
+);
+
+CREATE TABLE IF NOT EXISTS sport_live_player_games (
+    sport_id     TEXT NOT NULL,
+    game_id      TEXT NOT NULL,
+    game_date    DATE NOT NULL,
+    season       INTEGER NOT NULL,
+    player_id    TEXT NOT NULL,
+    team_id      TEXT NOT NULL,
+    position     TEXT,
+    games_total  INTEGER NOT NULL DEFAULT 1,
+    goals        INTEGER NOT NULL DEFAULT 0,
+    assists      INTEGER NOT NULL DEFAULT 0,
+    points       INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (sport_id, game_id, player_id, team_id),
+    FOREIGN KEY (sport_id, game_id)
+        REFERENCES sport_live_game_imports(sport_id, game_id) ON DELETE CASCADE,
+    FOREIGN KEY (sport_id, player_id)
+        REFERENCES sport_players(sport_id, player_id),
+    FOREIGN KEY (sport_id, team_id, season)
+        REFERENCES sport_teams(sport_id, team_id, season)
+);
+
+CREATE INDEX IF NOT EXISTS idx_sport_live_player_games_rollup
+    ON sport_live_player_games(sport_id, season, player_id, team_id);
+CREATE INDEX IF NOT EXISTS idx_sport_live_player_games_pair
+    ON sport_live_player_games(sport_id, game_id, team_id, player_id);
+CREATE INDEX IF NOT EXISTS idx_sport_live_player_games_date
+    ON sport_live_player_games(sport_id, game_date DESC);
+
 CREATE TABLE IF NOT EXISTS sport_players_searchable (
     sport_id       TEXT NOT NULL,
     player_id      TEXT NOT NULL,

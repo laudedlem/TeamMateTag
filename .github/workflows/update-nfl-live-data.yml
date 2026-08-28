@@ -1,0 +1,39 @@
+name: Update NFL Live Data
+
+on:
+  workflow_dispatch:
+    inputs:
+      season:
+        description: NFL season start year, for example 2026 for the 2026 season
+        required: false
+        type: string
+  schedule:
+    # Runs daily during the season; offseason and pre-snap-file runs no-op.
+    - cron: "25 11 * * *"
+
+jobs:
+  update-nfl-live-data:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "psycopg[binary]" python-dotenv
+
+      - name: Update current NFL snap data
+        shell: bash
+        run: |
+          args=()
+          if [[ -n "${{ inputs.season }}" ]]; then
+            args+=(--season "${{ inputs.season }}")
+          fi
+          python scripts/update_nfl_live_data.py "${args[@]}"

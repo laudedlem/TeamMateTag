@@ -47,6 +47,16 @@ def make_conn() -> sqlite3.Connection:
             team_id TEXT,
             season INTEGER
         );
+        CREATE TABLE sport_live_player_games (
+            sport_id TEXT,
+            game_id TEXT,
+            game_date TEXT,
+            season INTEGER,
+            player_id TEXT,
+            team_id TEXT,
+            position TEXT,
+            games_total INTEGER
+        );
         CREATE TABLE sport_players (
             sport_id TEXT,
             player_id TEXT,
@@ -99,3 +109,35 @@ def test_basketball_game_boxscore_coverage_requires_proof_row():
 
     assert get_shared_seasons(conn, "nba:one", "nba:proofed", sport="basketball") == [("1610612747", 2025)]
     assert get_shared_seasons(conn, "nba:one", "nba:loose_only", sport="basketball") == []
+
+
+def test_football_partial_game_boxscore_coverage_uses_game_rows_and_legacy_fallback():
+    conn = make_conn()
+    conn.executemany(
+        "INSERT INTO sport_appearances VALUES ('football', ?, 'KC', ?, 17)",
+        [
+            ("nfl:mahomes", 2011),
+            ("nfl:kelce", 2011),
+            ("nfl:loose_only", 2024),
+            ("nfl:proofed", 2024),
+            ("nfl:mahomes", 2024),
+        ],
+    )
+    conn.executemany(
+        "INSERT INTO sport_player_stints VALUES ('football', ?, 'KC', 2011, 1, 17, '1', '17', 'test')",
+        [("nfl:mahomes",), ("nfl:kelce",)],
+    )
+    conn.execute(
+        "INSERT INTO sport_teammate_stint_coverage VALUES ('football', 2011, 'stint_range', 1, 'test')"
+    )
+    conn.execute(
+        "INSERT INTO sport_teammate_stint_coverage VALUES ('football', 2024, 'game_boxscore', 1, 'test')"
+    )
+    conn.executemany(
+        "INSERT INTO sport_live_player_games VALUES ('football', '2024_01_BAL_KC', '2024-09-05', 2024, ?, 'KC', 'QB', 1)",
+        [("nfl:mahomes",), ("nfl:proofed",)],
+    )
+
+    assert get_shared_seasons(conn, "nfl:mahomes", "nfl:kelce", sport="football") == [("KC", 2011)]
+    assert get_shared_seasons(conn, "nfl:mahomes", "nfl:proofed", sport="football") == [("KC", 2024)]
+    assert get_shared_seasons(conn, "nfl:mahomes", "nfl:loose_only", sport="football") == []

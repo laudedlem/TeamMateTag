@@ -1,0 +1,21 @@
+pfr_player_id,player_id,display_name,note
+AndeAl01,nfl:00-0037428,Alec Anderson,Matched by unique name/career window in nflverse roster catalog.
+BrowFr01,nfl:00-0033994,Fred Brown,Matched by unique name/career window; excludes 1960s linebacker.
+BrowJo03,nfl:00-0001967,Jonathan Brown,Matched by unique name/career window.
+CartTJ00,nfl:00-0035916,T.J. Carter,Matched to defensive lineman by 2022 Rams snap position.
+CartTJ01,nfl:00-0037052,T.J. Carter,Matched to defensive back by 2022 Rams snap position.
+FarmGe02,nfl:00-0031746,George Farmer,Matched by unique modern career window.
+HallGa01,nfl:00-0039265,Gabe Hall,Matched by unique name/career window.
+HammJe01,nfl:00-0030805,Je'Ron Hamm,Matched by unique name/career window.
+HenrMa02,nfl:00-0032877,Marcus Henry,Matched to offensive lineman by snap position and 2020-2021 seasons.
+JameRo99,nfl:00-0026278,Robert James,Matched to modern linebacker by snap position and 2013 season.
+JohnIs03,nfl:00-0039483,Isaiah Johnson,Matched to 2024-2025 Dolphins defensive back.
+LoveJo02,nfl:00-0035161,John Lovett,Matched to Packers tight end/fullback by team and season.
+MartAd00,nfl:00-0038658,Adrian Martinez,Matched by unique name/career window.
+MillJo01,nfl:00-0028349,Jordan Miller,Matched to 2013 Jaguars defensive tackle.
+MurrBi00,nfl:00-0036093,Bill Murray,Matched by unique modern career window.
+ParkSt00,nfl:00-0034736,Steven Parker,Matched by unique name/career window.
+WhitCo05,nfl:00-0035891,Cody White,Matched by unique name/career window.
+WillCh06,nfl:00-0026691,Chris Williams,Matched to 2014 Bears wide receiver by snap position.
+WillDa14,nfl:00-0035892,Darryl Williams,Matched to 2022 Jaguars center by snap position.
+WillIs02,nfl:00-0033161,Isaiah Williams,Matched to 2021 Jets offensive lineman by snap position.

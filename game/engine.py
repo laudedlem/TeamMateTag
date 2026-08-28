@@ -172,7 +172,8 @@ def get_shared_seasons(
         ).fetchone()
         if strict_game_coverage is not None:
             player_a_id, player_b_id = sorted((a, b))
-            rows = conn.execute(
+            rows = []
+            proof_rows = conn.execute(
                 """SELECT t.team_id, t.season
                      FROM sport_teammates t
                     WHERE t.sport_id = ?
@@ -198,7 +199,112 @@ def get_shared_seasons(
                     ORDER BY t.season, t.team_id""",
                 (sport, player_a_id, player_b_id, min_season),
             ).fetchall()
-            return [(t, s) for t, s in rows]
+            rows.extend(proof_rows)
+            game_rows = conn.execute(
+                """SELECT DISTINCT live_a.team_id, live_a.season
+                     FROM sport_live_player_games live_a
+                     JOIN sport_live_player_games live_b
+                       ON live_b.sport_id = live_a.sport_id
+                      AND live_b.game_id = live_a.game_id
+                      AND live_b.team_id = live_a.team_id
+                    WHERE live_a.sport_id = ?
+                      AND live_a.player_id = ?
+                      AND live_b.player_id = ?
+                      AND live_a.season >= ?
+                      AND EXISTS (
+                          SELECT 1
+                            FROM sport_teammate_stint_coverage c
+                           WHERE c.sport_id = live_a.sport_id
+                             AND c.season = live_a.season
+                             AND c.strict <> 0
+                             AND c.coverage_type = 'game_boxscore'
+                      )
+                      AND NOT EXISTS (
+                          SELECT 1 FROM sport_teammate_exclusions e
+                           WHERE e.sport_id = live_a.sport_id
+                             AND e.team_id = live_a.team_id
+                             AND e.season = live_a.season
+                             AND ((e.player_a_id = live_a.player_id AND e.player_b_id = live_b.player_id)
+                               OR (e.player_a_id = live_b.player_id AND e.player_b_id = live_a.player_id))
+                      )""",
+                (sport, a, b, min_season),
+            ).fetchall()
+            rows.extend(game_rows)
+            fallback_rows = conn.execute(
+                """SELECT a.team_id, a.season
+                     FROM sport_appearances a
+                     JOIN sport_appearances b
+                       ON b.sport_id = a.sport_id AND b.team_id = a.team_id AND b.season = a.season
+                    WHERE a.sport_id = ? AND a.player_id = ? AND b.player_id = ?
+                      AND a.season >= ?
+                      AND NOT EXISTS (
+                          SELECT 1 FROM sport_teammate_stint_coverage c
+                           WHERE c.sport_id = a.sport_id
+                             AND c.season = a.season
+                             AND c.strict <> 0
+                             AND c.coverage_type = 'game_boxscore'
+                      )
+                      AND NOT (
+                          a.sport_id = 'football' AND a.season >= 2025
+                          AND EXISTS (
+                              SELECT 1 FROM sport_players pa
+                               WHERE pa.sport_id = a.sport_id AND pa.player_id = a.player_id
+                                 AND pa.debut_year <= a.season - 4
+                          )
+                          AND NOT EXISTS (
+                              SELECT 1 FROM sport_appearances prior_a
+                               WHERE prior_a.sport_id = a.sport_id AND prior_a.player_id = a.player_id
+                                 AND prior_a.season BETWEEN a.season - 2 AND a.season - 1
+                          )
+                      )
+                      AND NOT (
+                          b.sport_id = 'football' AND b.season >= 2025
+                          AND EXISTS (
+                              SELECT 1 FROM sport_players pb
+                               WHERE pb.sport_id = b.sport_id AND pb.player_id = b.player_id
+                                 AND pb.debut_year <= b.season - 4
+                          )
+                          AND NOT EXISTS (
+                              SELECT 1 FROM sport_appearances prior_b
+                               WHERE prior_b.sport_id = b.sport_id AND prior_b.player_id = b.player_id
+                                 AND prior_b.season BETWEEN b.season - 2 AND b.season - 1
+                          )
+                      )
+                      AND NOT EXISTS (
+                          SELECT 1 FROM sport_teammate_exclusions e
+                           WHERE e.sport_id = a.sport_id
+                             AND e.team_id = a.team_id
+                             AND e.season = a.season
+                             AND ((e.player_a_id = a.player_id AND e.player_b_id = b.player_id)
+                               OR (e.player_a_id = b.player_id AND e.player_b_id = a.player_id))
+                      )
+                      AND (
+                          NOT EXISTS (
+                              SELECT 1 FROM sport_teammate_stint_coverage c
+                               WHERE c.sport_id = a.sport_id
+                                 AND c.season = a.season
+                                 AND c.strict <> 0
+                          )
+                          OR EXISTS (
+                              SELECT 1
+                                FROM sport_player_stints sa
+                                JOIN sport_player_stints sb
+                                  ON sb.sport_id = sa.sport_id
+                                 AND sb.team_id = sa.team_id
+                                 AND sb.season = sa.season
+                               WHERE sa.sport_id = a.sport_id
+                                 AND sa.player_id = a.player_id
+                                 AND sb.player_id = b.player_id
+                                 AND sa.team_id = a.team_id
+                                 AND sa.season = a.season
+                                 AND sa.first_unit <= sb.last_unit
+                                 AND sb.first_unit <= sa.last_unit
+                          )
+                      )""",
+                (sport, a, b, min_season),
+            ).fetchall()
+            rows.extend(fallback_rows)
+            return sorted({(t, s) for t, s in rows}, key=lambda row: (row[1], row[0]))
         rows = conn.execute(
             """SELECT a.team_id, a.season
                  FROM sport_appearances a

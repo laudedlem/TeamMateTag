@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.4.18`
+- Current display version: `0.4.19`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -24,6 +24,34 @@ changes. It is the concise source of truth for another coding assistant.
   migration run, then remove it again.
 
 ## Current user experience
+
+Update, 2026-08-27 (0.4.19): moved Football to strict same-game snap proof for
+covered modern seasons. Added `scripts/build_nfl_snap_teammates.py`, which
+downloads/caches nflverse snap-count CSVs, maps PFR snap IDs to the app's
+Football IDs through the nflverse player registry plus
+`scripts/data/nfl_pfr_manual_id_overrides.csv`, and builds the local compact
+proof source `raw/nfl_game_teammates/nfl_snap_teammates.sqlite`. Final local
+2013-2025 build: 3,407 regular-season games, 310,466 player-game snap
+appearances, 7,089 players, and 9 remaining PFR-only players backfilled as
+`nfl_pfr:*` identities. Added
+`scripts/import_nfl_snap_teammates_to_postgres.py` and ran it against
+production. Production Football now has strict `game_boxscore` coverage for
+2013-2025 with 3,407 games, 310,466 player-game rows in
+`sport_live_player_games`, and 28,233 player-team-season rollups rebuilt from
+snap appearances. Football links in those seasons are valid only if both
+players recorded at least one offensive, defensive, or special-teams snap for
+the same team in the same regular-season game. Seasons 2002-2012 intentionally
+remain legacy `stint_range` because nflverse snap-count assets do not provide
+full game-level snap rows for those seasons. The runtime was adjusted so sports
+with partial `game_boxscore` coverage combine exact proof rows for covered
+seasons with legacy fallback only for uncovered seasons. Added
+`scripts/update_nfl_live_data.py` and `.github/workflows/update-nfl-live-data.yml`;
+the workflow runs daily at 11:25 UTC and no-ops until the current-season
+nflverse snap-count file exists. A 2026 dry-run no-opped because
+`snap_counts_2026.csv` has not been published yet; a 2025 dry-run rebuilt
+272 games and 25,393 snap appearances. Production smoke confirmed
+Mahomes/Kelce via shared Chiefs games from 2018-2025. Bumped visible app
+version to `0.4.19`.
 
 Update, 2026-08-27 (0.4.18): added Basketball daily live-data updating and
 tightened strict proof enforcement across cross-sport gameplay. The shared
