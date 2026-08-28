@@ -5,6 +5,8 @@
 -- not exist in the current production schema. If it succeeds, run the VACUUM
 -- statements after it as a separate batch to release physical storage.
 
+SET SESSION CHARACTERISTICS AS TRANSACTION READ WRITE;
+
 BEGIN;
 
 DO $$
@@ -62,3 +64,4 @@ COMMIT;
 -- VACUUM (FULL, ANALYZE) sport_player_stints;
 -- VACUUM (FULL, ANALYZE) sport_players;
 -- VACUUM (FULL, ANALYZE) sport_teams;
+-- SET default_transaction_read_only = 'off';
