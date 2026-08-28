@@ -99,6 +99,21 @@ Curry on Golden State 2017-2019, Nene Hilario/James Harden on Houston
 names were applied so rows such as Goga Bitadze and Nene Hilario display
 correctly; suffix parsing was corrected so Kenyon Martin Jr. has last key
 `Martin`.
+Follow-up, 2026-08-27 (Basketball 2000-2001 gap filled): clarified Basketball
+season keys: `2025` means the 2025-26 NBA season. SportsDataverse/ESPN remains
+the preferred Basketball source for 2002-2025, but it starts at season key
+2002, so `scripts/import_nba_legacy_game_teammates_to_postgres.py` now imports
+strict same-game proof rows for the 2000-01 and 2001-02 gap from the local
+NBA-ID `raw/nba_game_teammates/nba_game_teammates.sqlite` build. That legacy
+source has exactly 1,189 games for each of 2000 and 2001, every stored game has
+two teams, and it uses NBA person IDs directly. Production import completed:
+2,378 legacy regular-season games, 47,369 player-game appearances, and 6,852
+proof rows imported for 2000-2001; 11 missing old short-stint players were
+backfilled; 0 unmapped proof rows. Basketball production now has 112,959 strict
+`sport_teammates` rows, 0 orphan proof rows, and `game_boxscore` coverage for
+all 26 season keys from 2000 through 2025. The ESPN importer was also tightened
+so future reruns delete/reload only its covered season range rather than all
+Basketball proof rows, preserving the legacy gap import.
 
 Update, 2026-08-27 (0.4.16): implemented strict Hockey teammate validation
 from the completed official NHL game-level proof database. Hockey links now use
