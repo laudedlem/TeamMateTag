@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.4.17`
+- Current display version: `0.4.18`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -24,6 +24,32 @@ changes. It is the concise source of truth for another coding assistant.
   migration run, then remove it again.
 
 ## Current user experience
+
+Update, 2026-08-27 (0.4.18): added Basketball daily live-data updating and
+tightened strict proof enforcement across cross-sport gameplay. The shared
+`game.engine.get_shared_seasons` path and Film Review `_sport_link_allowed`
+now use `sport_teammates` for any sport/season with
+`sport_teammate_stint_coverage.coverage_type='game_boxscore'`, not only
+Hockey. This means Basketball runtime validation now follows the intended
+strict proof table: two players count only when both logged positive minutes
+for the same NBA team in the same regular-season game. Added
+`scripts/update_nba_live_data.py`, which reads ESPN scoreboard/summary
+boxscores for completed regular-season games, maps ESPN athlete IDs through
+`raw/nba_identity/espn_to_nba_crosswalk_auto.csv`, stages rows in
+`sport_live_game_imports`/`sport_live_player_games`, refreshes Basketball
+`sport_appearances`, `sport_player_stints`, `sport_teammates`, coverage, player
+card/search years, career games, teammate counts, and ESPN headshot URLs.
+Brand-new players not yet in the ESPN->NBA crosswalk are temporarily inserted
+as `nba_espn:<id>` with ESPN headshots so live gameplay remains complete; the
+script logs those names for later canonicalization to NBA person IDs. Added
+`.github/workflows/update-nba-live-data.yml`, scheduled daily at 10:55 UTC
+with manual dispatch options for season and season-to-date backfill. Dry runs:
+the current offseason/default 2025 window found 0 games; 2025-10-21 found 2
+completed regular-season games and 39 positive-minute appearances, with two
+temporary ESPN-backed newcomers (Brooks Barnhizer and Will Richard). Production
+Basketball remains at 112,959 strict proof rows across season keys 2000-2025
+until the next real/imported game window runs. Bumped visible app version to
+`0.4.18`.
 
 Update, 2026-08-27 (0.4.17): implemented strict Baseball teammate validation
 from MLB StatsAPI same-game boxscore proofs. Added

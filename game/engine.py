@@ -160,46 +160,45 @@ def get_shared_seasons(
     if a == b:
         return []
     if sport:
-        if sport == "hockey":
-            strict_game_coverage = conn.execute(
-                """SELECT 1
-                     FROM sport_teammate_stint_coverage
-                    WHERE sport_id = ?
-                      AND strict <> 0
-                      AND coverage_type = 'game_boxscore'
-                      AND season >= ?
-                    LIMIT 1""",
-                (sport, min_season),
-            ).fetchone()
-            if strict_game_coverage is not None:
-                player_a_id, player_b_id = sorted((a, b))
-                rows = conn.execute(
-                    """SELECT t.team_id, t.season
-                         FROM sport_teammates t
-                        WHERE t.sport_id = ?
-                          AND t.player_a_id = ?
-                          AND t.player_b_id = ?
-                          AND t.season >= ?
-                          AND EXISTS (
-                              SELECT 1
-                                FROM sport_teammate_stint_coverage c
-                               WHERE c.sport_id = t.sport_id
-                                 AND c.season = t.season
-                                 AND c.strict <> 0
-                                 AND c.coverage_type = 'game_boxscore'
-                          )
-                          AND NOT EXISTS (
-                              SELECT 1 FROM sport_teammate_exclusions e
-                               WHERE e.sport_id = t.sport_id
-                                 AND e.team_id = t.team_id
-                                 AND e.season = t.season
-                                 AND ((e.player_a_id = t.player_a_id AND e.player_b_id = t.player_b_id)
-                                   OR (e.player_a_id = t.player_b_id AND e.player_b_id = t.player_a_id))
-                          )
-                        ORDER BY t.season, t.team_id""",
-                    (sport, player_a_id, player_b_id, min_season),
-                ).fetchall()
-                return [(t, s) for t, s in rows]
+        strict_game_coverage = conn.execute(
+            """SELECT 1
+                 FROM sport_teammate_stint_coverage
+                WHERE sport_id = ?
+                  AND strict <> 0
+                  AND coverage_type = 'game_boxscore'
+                  AND season >= ?
+                LIMIT 1""",
+            (sport, min_season),
+        ).fetchone()
+        if strict_game_coverage is not None:
+            player_a_id, player_b_id = sorted((a, b))
+            rows = conn.execute(
+                """SELECT t.team_id, t.season
+                     FROM sport_teammates t
+                    WHERE t.sport_id = ?
+                      AND t.player_a_id = ?
+                      AND t.player_b_id = ?
+                      AND t.season >= ?
+                      AND EXISTS (
+                          SELECT 1
+                            FROM sport_teammate_stint_coverage c
+                           WHERE c.sport_id = t.sport_id
+                             AND c.season = t.season
+                             AND c.strict <> 0
+                             AND c.coverage_type = 'game_boxscore'
+                      )
+                      AND NOT EXISTS (
+                          SELECT 1 FROM sport_teammate_exclusions e
+                           WHERE e.sport_id = t.sport_id
+                             AND e.team_id = t.team_id
+                             AND e.season = t.season
+                             AND ((e.player_a_id = t.player_a_id AND e.player_b_id = t.player_b_id)
+                               OR (e.player_a_id = t.player_b_id AND e.player_b_id = t.player_a_id))
+                      )
+                    ORDER BY t.season, t.team_id""",
+                (sport, player_a_id, player_b_id, min_season),
+            ).fetchall()
+            return [(t, s) for t, s in rows]
         rows = conn.execute(
             """SELECT a.team_id, a.season
                  FROM sport_appearances a

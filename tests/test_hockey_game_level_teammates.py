@@ -82,3 +82,20 @@ def test_hockey_without_game_boxscore_coverage_falls_back_to_appearances():
     )
 
     assert get_shared_seasons(conn, "nhl:current", "nhl:loose_only", sport="hockey") == [("LAK", 2023)]
+
+
+def test_basketball_game_boxscore_coverage_requires_proof_row():
+    conn = make_conn()
+    conn.executemany(
+        "INSERT INTO sport_appearances VALUES ('basketball', ?, '1610612747', 2025, 80)",
+        [("nba:one",), ("nba:loose_only",), ("nba:proofed",)],
+    )
+    conn.execute(
+        "INSERT INTO sport_teammate_stint_coverage VALUES ('basketball', 2025, 'game_boxscore', 1, 'test')"
+    )
+    conn.execute(
+        "INSERT INTO sport_teammates VALUES ('basketball', 'nba:one', 'nba:proofed', '1610612747', 2025)"
+    )
+
+    assert get_shared_seasons(conn, "nba:one", "nba:proofed", sport="basketball") == [("1610612747", 2025)]
+    assert get_shared_seasons(conn, "nba:one", "nba:loose_only", sport="basketball") == []
