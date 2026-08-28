@@ -68,11 +68,11 @@ def copy_rows(src: sqlite3.Connection, dst: psycopg.Connection, table: str, colu
     exclusion = ""
     if table == "sport_teams":
         exclusion = f" AND NOT {EXHIBITION_TEAM_SQL}"
-    elif table == "sport_appearances":
-        exclusion = """ AND NOT EXISTS (
+    elif table in {"sport_appearances", "sport_player_stints"}:
+        exclusion = """ AND EXISTS (
             SELECT 1 FROM sport_teams AS team WHERE team.sport_id=source.sport_id
               AND team.team_id=source.team_id AND team.season=source.season
-              AND (
+              AND NOT (
                   replace(lower(team.name), '-', ' ') LIKE '%all star%'
                   OR replace(lower(team.name), '-', ' ') LIKE '%rising star%'
                   OR lower(team.name) = 'world'

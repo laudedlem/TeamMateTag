@@ -40,6 +40,42 @@ changes. It is the concise source of truth for another coding assistant.
   cold starts fast. Set `TEAMMATETAG_AUTO_MIGRATE=1` only for an intentional
   migration run, then remove it again.
 
+Update, 2026-08-28 (new Supabase recovery project): created/repointed local
+`.env` to the new Free Supabase project `npymptruhptacfmheobv` after the prior
+project exceeded disk/WAL limits and stopped accepting normal SQL/REST
+connections. The local Python driver rejected Supabase's copied
+`?pgbouncer=true` URI option, and the transaction pooler timed out locally, so
+the recovery import used the working shared session pooler `DIRECT_URL`.
+Do not commit `.env` or print keys. The new project has been rebuilt only with
+compact runtime data for Baseball, Basketball, and Hockey:
+`scripts/migrate_to_postgres.py`, `scripts/migrate_cross_sport_to_postgres.py`,
+`scripts/import_nba_espn_game_teammates_to_postgres.py`,
+`scripts/import_nhl_game_teammates_to_postgres.py`, and
+`scripts/import_mlb_game_teammates_to_postgres.py --skip-live`. Verified counts:
+Basketball has 106,107 strict proof rows, Hockey has 399,622 strict proof rows,
+Baseball has 694,446 historical strict proof rows, and all imported proof sets
+had 0 orphan player IDs. Database size after targeted cleanup was about 440 MB.
+Football has not been uploaded to the new Supabase project. A stopped
+proof-only Football upload attempt committed 0 Football proof rows and then
+`VACUUM (FULL, ANALYZE) sport_teammates` reclaimed the aborted-copy bloat.
+Keep Football local-only until the compact package and projected Postgres size
+are reviewed.
+
+Update, 2026-08-28 (Football compact local runtime): added
+`scripts/build_nfl_compact_runtime.py`. It never connects to Supabase; it
+combines the local 2000-2012 Game Book source and 2013-2025 nflverse snap
+source into `raw/nfl_game_teammates/nfl_compact_runtime.sqlite`, copying only
+catalog rows, appearance/stint/position rollups, strict same-game teammate
+proofs, coverage flags, search rows, and headshot URLs. The build also fills
+the Football catalog from source-side `nfl_snap_players` so older Game Book
+IDs missing from `db/teammatetag_local.sqlite` do not break proof loading.
+Latest local compact build: 333.6 MB, 26,203 players, 1,800 team-seasons,
+52,921 appearance rollups, 52,921 stints, 21,773 position rows, 1,550,846
+strict teammate proof rows, 26 covered seasons, 0 missing proof players, and
+0 missing proof teams. Do not upload Football before deciding whether this
+text-ID proof table is small enough for Supabase Free or needs a more compact
+integer-key runtime schema.
+
 ## Current user experience
 
 Update, 2026-08-28 (Football 2000-2012 Game Book gathering): added and cleaned
