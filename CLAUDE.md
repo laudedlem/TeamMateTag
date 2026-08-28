@@ -25,27 +25,32 @@ changes. It is the concise source of truth for another coding assistant.
 
 ## Current user experience
 
-Update, 2026-08-28 (Football 2000-2012 Game Book gathering): added
+Update, 2026-08-28 (Football 2000-2012 Game Book gathering): added and cleaned
 `scripts/build_nfl_gamebook_teammates.py` to gather pre-snap-count Football
-participation data from official NFL Game Book PDFs exposed by NFL.com Game
-Center pages. The script uses nflverse `games.csv` for the 2000-2012 regular
-season schedule, builds NFL.com game URLs, caches page HTML/PDFs under
-`raw/nfl/gamebooks/`, parses the first-page `Lineups` and `Substitutions`
-sections with PyMuPDF coordinates, excludes `Did Not Play`/`Not Active`, and
-resolves abbreviated Game Book names to app Football IDs by team/week/jersey
-from nflverse roster caches with conservative name fallbacks. Full local pass
-against `raw/nfl_game_teammates/nfl_gamebook_teammates_v2.sqlite` processed all
-3,312 regular-season games from 2000-2012: 3,059 official Game Books found,
-253 missing PDFs, 254,694 participant entries parsed, 254,676 resolved
-appearances, and 18 unresolved parsed entries. Coverage by season: 2000 has
-158/248 PDFs found, 2001 has 87/248 found, 2002 has 255/256 found, 2003-2004
-complete, 2005 has 255/256 found, and 2006-2012 complete. Audit CSVs were
-exported under `logs/nfl_gamebook_audit/` for missing PDFs, unresolved players,
-status by season, and appearances by season. Do not import this as complete
-strict 2000-2012 Football truth yet; next step is targeted recovery for the
-253 missing Game Books, especially 2000-2001, likely through alternate NFL.com
-slugs/pages, archived URLs, or another source that provides true game
-participation rather than ordinary boxscore stat lines.
+participation data from NFL Game Book PDFs. The script uses nflverse
+`games.csv` for the 2000-2012 regular-season schedule, builds modern NFL.com
+game URLs first, falls back to official NFLGSIS Gamebook paths by schedule
+GSIS id when the modern page lacks a PDF, and supports explicit PDF overrides
+for known edge cases. It validates every PDF against the scheduled teams before
+parsing so wrong-but-valid fallback PDFs cannot be imported. The parser reads
+first-page `Lineups` and `Substitutions`, handles inherited substitution
+positions and hybrid labels such as `DT-LS`, excludes `Did Not Play`/`Not
+Active`, and resolves abbreviated Game Book names to app Football IDs by
+team/week/jersey, unique player-registry fallback, and tracked manual
+corrections in `scripts/data/nfl_gamebook_manual_corrections.csv`. Final local
+clean build at `raw/nfl_game_teammates/nfl_gamebook_teammates.sqlite`: all
+3,312 regular-season games from 2000-2012 are `ok`, 283,672 participant
+appearances are resolved, 6,282 players appear, 0 Game Books are missing, and
+0 parsed entries are unresolved. Three contradictory Game Book rows are
+intentionally excluded in the manual correction file: `B.DeMarco` in
+`2000_02_CLE_CIN`, `C.Clemons` in `2003_07_WAS_BUF`, and `V.Vaughn` in
+`2006_01_SF_ARI`, because public roster/transaction evidence conflicts with
+counting them as active regular-season participants. Audit CSVs under
+`logs/nfl_gamebook_audit/` now show full 2000-2012 coverage and zero unresolved
+players. Next Football production step: write/import the Postgres loader for
+this local Game Book proof DB, merge it with the existing 2013-2025 snap-count
+proof table, rebuild Football appearance/stint/card rollups, and mark 2000-2012
+as `game_boxscore` only after production smoke checks pass.
 
 Update, 2026-08-27 (0.4.19): moved Football to strict same-game snap proof for
 covered modern seasons. Added `scripts/build_nfl_snap_teammates.py`, which

@@ -1,19 +1,1 @@
 game_id,team_id,season,week,jersey_number,gamebook_name,position,reason
-2000_01_PHI_DAL,PHI,2000,1,42,"R.Cook, 45 T.Hauck",S,ambiguous roster candidates: 2
-2000_02_CLE_CIN,CIN,2000,2,73,B.DeMarco,G,no roster candidate for team/week/jersey
-2000_02_STL_SEA,SEA,2000,2,85,J.Hill,TE,no roster candidate for team/week/jersey
-2000_03_NO_SEA,SEA,2000,3,85,J.Hill,TE,no roster candidate for team/week/jersey
-2000_04_SEA_SD,SEA,2000,4,85,J.Hill,TE,no roster candidate for team/week/jersey
-2000_05_SEA_KC,SEA,2000,5,85,J.Hill,TE,no roster candidate for team/week/jersey
-2000_07_IND_SEA,SEA,2000,7,85,J.Hill,TE,no roster candidate for team/week/jersey
-2000_08_SEA_OAK,SEA,2000,8,85,J.Hill,TE,no roster candidate for team/week/jersey
-2001_01_SEA_CLE,CLE,2001,1,74,M.Smith,RT,ambiguous roster candidates: 2
-2001_17_CIN_TEN,CIN,2001,17,84,"T.Houshmandzadeh, DT-LS 91 R.Chevrier",WR,no roster candidate for team/week/jersey
-2002_10_HOU_TEN,HOU,2002,10,64,M.Newell,C,no roster candidate for team/week/jersey
-2003_02_CHI_MIN,CHI,2003,2,32,T.Johnson,FS,no roster candidate for team/week/jersey
-2003_07_WAS_BUF,WAS,2003,7,53,C.Clemons,LB,no roster candidate for team/week/jersey
-2003_07_WAS_BUF,WAS,2003,7,75,B.Noble,DT,no roster candidate for team/week/jersey
-2005_01_IND_BAL,IND,2005,1,54,R.Calmus,LB,no roster candidate for team/week/jersey
-2005_14_BAL_DEN,BAL,2005,14,77,O.Brown,T,no roster candidate for team/week/jersey
-2006_01_SF_ARI,SF,2006,1,32,V.Vaughn,RB,no roster candidate for team/week/jersey
-2007_02_NYJ_BAL,BAL,2007,2,30,P.Daniels,RB,no roster candidate for team/week/jersey

@@ -1,0 +1,20 @@
+action,game_id,team_id,season,week,jersey_number,gamebook_name,position,player_id,note
+exclude,2000_02_CLE_CIN,CIN,2000,2,73,B.DeMarco,G,,Game Book lists B.DeMarco but public roster/transaction sources indicate Brian DeMarco was released before the 2000 regular season; leave uncounted.
+map,2000_01_SEA_MIA,SEA,2000,1,85,J.Hill,TE,nfl:00-0007438,James Hill is verified as Seattle TE #85 with 10 regular-season games in 2000; nflverse registry jersey is stale.
+map,2000_02_STL_SEA,SEA,2000,2,85,J.Hill,TE,nfl:00-0007438,James Hill is verified as Seattle TE #85 with 10 regular-season games in 2000; nflverse registry jersey is stale.
+map,2000_03_NO_SEA,SEA,2000,3,85,J.Hill,TE,nfl:00-0007438,James Hill is verified as Seattle TE #85 with 10 regular-season games in 2000; nflverse registry jersey is stale.
+map,2000_04_SEA_SD,SEA,2000,4,85,J.Hill,TE,nfl:00-0007438,James Hill is verified as Seattle TE #85 with 10 regular-season games in 2000; nflverse registry jersey is stale.
+map,2000_05_SEA_KC,SEA,2000,5,85,J.Hill,TE,nfl:00-0007438,James Hill is verified as Seattle TE #85 with 10 regular-season games in 2000; nflverse registry jersey is stale.
+map,2000_06_SEA_CAR,SEA,2000,6,85,J.Hill,TE,nfl:00-0007438,James Hill is verified as Seattle TE #85 with 10 regular-season games in 2000; nflverse registry jersey is stale.
+map,2000_07_IND_SEA,SEA,2000,7,85,J.Hill,TE,nfl:00-0007438,James Hill is verified as Seattle TE #85 with 10 regular-season games in 2000; nflverse registry jersey is stale.
+map,2000_08_SEA_OAK,SEA,2000,8,85,J.Hill,TE,nfl:00-0007438,James Hill is verified as Seattle TE #85 with 10 regular-season games in 2000; nflverse registry jersey is stale.
+map,2000_09_KC_SEA,SEA,2000,9,85,J.Hill,TE,nfl:00-0007438,James Hill is verified as Seattle TE #85 with 10 regular-season games in 2000; nflverse registry jersey is stale.
+map,2000_10_SD_SEA,SEA,2000,10,85,J.Hill,TE,nfl:00-0007438,James Hill is verified as Seattle TE #85 with 10 regular-season games in 2000; nflverse registry jersey is stale.
+map,2001_01_SEA_CLE,CLE,2001,1,74,M.Smith,RT,nfl:00-0015255,Mark Smith is verified as Cleveland #74 in 2001; Game Book line position is a defensive-row label mismatch.
+map,2001_02_DET_CLE,CLE,2001,2,74,M.Smith,RT,nfl:00-0015255,Mark Smith is verified as Cleveland #74 in 2001; Game Book line position is a defensive-row label mismatch.
+map,2001_03_CLE_JAX,CLE,2001,3,74,M.Smith,RT,nfl:00-0015255,Mark Smith is verified as Cleveland #74 in 2001; Game Book line position is a defensive-row label mismatch.
+map,2001_04_SD_CLE,CLE,2001,4,74,M.Smith,RT,nfl:00-0015255,Mark Smith is verified as Cleveland #74 in 2001; Game Book line position is a defensive-row label mismatch.
+map,2001_05_CLE_CIN,CLE,2001,5,74,M.Smith,RT,nfl:00-0015255,Mark Smith is verified as Cleveland #74 in 2001; Game Book line position is a defensive-row label mismatch.
+map,2003_02_CHI_MIN,CHI,2003,2,32,T.Johnson,FS,nfl:00-0021952,Todd Johnson is verified as Chicago #32 in 2003; nflverse status/season roster row is stale.
+exclude,2003_07_WAS_BUF,WAS,2003,7,53,C.Clemons,LB,,Game Book lists C.Clemons but public roster/injury sources conflict on 2003 active participation; leave uncounted until reconciled.
+exclude,2006_01_SF_ARI,SF,2006,1,32,V.Vaughn,RB,,Game Book lists V.Vaughn but transaction sources show Vickiel Vaughn was placed on injured reserve before Week 1; leave uncounted.

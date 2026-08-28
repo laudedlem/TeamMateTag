@@ -1,0 +1,4 @@
+game_id,pdf_url,note
+2002_05_GB_CHI,https://static.www.nfl.com/image/upload/v1770924326/gamecenter/10012002-1007-0064-989b-0869dc51ca5a.pdf,Official NFL static Game Book PDF indexed but not linked from the modern game page.
+2001_01_CHI_BAL,https://www.packerstats.com/gamebooks/1/7/7/1771.pdf,NFL Game Summary mirror; NFLGSIS id collides with a modern Steelers-Bills PDF.
+2005_15_KC_NYG,https://www.nflgsis.com/2005/Reg/15/28734/Gamebook.pdf,Official NFLGSIS Game Book path using schedule GSIS id 28734.

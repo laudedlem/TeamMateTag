@@ -77,6 +77,49 @@ TEAM_SLUG = {
     "WAS": "redskins",
 }
 
+TEAM_FULL_NAME = {
+    "ARI": "Arizona Cardinals",
+    "ARZ": "Arizona Cardinals",
+    "ATL": "Atlanta Falcons",
+    "BAL": "Baltimore Ravens",
+    "BUF": "Buffalo Bills",
+    "CAR": "Carolina Panthers",
+    "CHI": "Chicago Bears",
+    "CIN": "Cincinnati Bengals",
+    "CLE": "Cleveland Browns",
+    "CLV": "Cleveland Browns",
+    "DAL": "Dallas Cowboys",
+    "DEN": "Denver Broncos",
+    "DET": "Detroit Lions",
+    "GB": "Green Bay Packers",
+    "GNB": "Green Bay Packers",
+    "HOU": "Houston Texans",
+    "IND": "Indianapolis Colts",
+    "JAX": "Jacksonville Jaguars",
+    "JAC": "Jacksonville Jaguars",
+    "KC": "Kansas City Chiefs",
+    "LA": "Los Angeles Rams",
+    "LAR": "Los Angeles Rams",
+    "STL": "St. Louis Rams",
+    "SD": "San Diego Chargers",
+    "LAC": "Los Angeles Chargers",
+    "LV": "Las Vegas Raiders",
+    "OAK": "Oakland Raiders",
+    "MIA": "Miami Dolphins",
+    "MIN": "Minnesota Vikings",
+    "NE": "New England Patriots",
+    "NO": "New Orleans Saints",
+    "NYG": "New York Giants",
+    "NYJ": "New York Jets",
+    "PHI": "Philadelphia Eagles",
+    "PIT": "Pittsburgh Steelers",
+    "SEA": "Seattle Seahawks",
+    "SF": "San Francisco 49ers",
+    "TB": "Tampa Bay Buccaneers",
+    "TEN": "Tennessee Titans",
+    "WAS": "Washington Redskins",
+}
+
 ROSTER_TEAM_ALIASES = {
     "ARI": ("ARI", "ARZ"),
     "BAL": ("BAL", "BLT"),
@@ -87,11 +130,15 @@ ROSTER_TEAM_ALIASES = {
 
 ENTRY_POS = {
     "QB", "RB", "FB", "WR", "TE", "LT", "LG", "C", "RG", "RT", "G", "T", "C/G", "G/T", "OL",
-    "K", "P", "LS", "KR", "PR", "RB-KR", "DB-KR", "WR-KR",
-    "LE", "RE", "LDE", "RDE", "DE", "DT", "NT", "DL",
-    "LB", "ILB", "MLB", "OLB", "SLB", "WLB", "BLB", "LOLB", "ROLB",
-    "CB", "LCB", "RCB", "DB", "S", "SS", "FS", "CB/S",
+    "K", "PK", "P", "LS", "KR", "PR",
+    "LE", "RE", "LDE", "RDE", "DE", "LDT", "RDT", "DT", "NT", "DL",
+    "LB", "ILB", "MLB", "OLB", "SLB", "WLB", "BLB", "LOLB", "ROLB", "LLB", "RLB",
+    "CB", "LCB", "RCB", "DB", "S", "SS", "FS",
 }
+
+PLAYER_REGISTRY = ROOT / "raw" / "nfl" / "players.csv"
+MANUAL_CORRECTIONS = ROOT / "scripts" / "data" / "nfl_gamebook_manual_corrections.csv"
+PDF_OVERRIDES = ROOT / "scripts" / "data" / "nfl_gamebook_pdf_overrides.csv"
 
 SCHEMA = """
 PRAGMA journal_mode = WAL;
@@ -165,6 +212,7 @@ class ScheduleGame:
     gameday: str
     away_team: str
     home_team: str
+    gsis: str
 
 
 @dataclass(frozen=True)
@@ -201,10 +249,19 @@ class GameResult:
     unresolved: list[UnresolvedEntry]
 
 
+class PdfGameMismatch(RuntimeError):
+    pass
+
+
 def normalize(value: str) -> str:
     value = unicodedata.normalize("NFKD", value or "")
     value = "".join(ch for ch in value if not unicodedata.combining(ch))
     return re.sub(r"[^a-z0-9]", "", value.lower())
+
+
+def valid_position(pos: str) -> bool:
+    parts = re.split(r"[/\-]", (pos or "").strip())
+    return bool(parts) and all(part in ENTRY_POS for part in parts)
 
 
 def download(url: str, destination: Path, *, binary: bool = False) -> bytes | str:
@@ -217,6 +274,29 @@ def download(url: str, destination: Path, *, binary: bool = False) -> bytes | st
         data = response.read()
     destination.write_bytes(data)
     return data if binary else data.decode("utf-8", errors="replace")
+
+
+def pdf_matches_game(pdf_path: Path, game: ScheduleGame) -> bool:
+    doc = fitz.open(pdf_path)
+    text = normalize(doc[0].get_text()[:5000]) if len(doc) else ""
+    away = normalize(TEAM_FULL_NAME.get(game.away_team, game.away_team))
+    home = normalize(TEAM_FULL_NAME.get(game.home_team, game.home_team))
+    return bool(away and home and away in text and home in text)
+
+
+def download_game_pdf(pdf_url: str, pdf_path: Path, game: ScheduleGame) -> bytes:
+    data = download(pdf_url, pdf_path, binary=True)
+    if not bytes(data).startswith(b"%PDF"):
+        raise RuntimeError("downloaded file is not a PDF")
+    if pdf_matches_game(pdf_path, game):
+        return bytes(data)
+    pdf_path.unlink(missing_ok=True)
+    data = download(pdf_url, pdf_path, binary=True)
+    if not bytes(data).startswith(b"%PDF"):
+        raise RuntimeError("downloaded file is not a PDF")
+    if not pdf_matches_game(pdf_path, game):
+        raise PdfGameMismatch("PDF does not match scheduled teams")
+    return bytes(data)
 
 
 def load_schedule(start: int, end: int) -> list[ScheduleGame]:
@@ -235,6 +315,7 @@ def load_schedule(start: int, end: int) -> list[ScheduleGame]:
                     gameday=row["gameday"],
                     away_team=row["away_team"],
                     home_team=row["home_team"],
+                    gsis=row.get("gsis") or "",
                 )
             )
     return games
@@ -246,7 +327,20 @@ def nfl_game_url(game: ScheduleGame) -> str:
     return f"https://www.nfl.com/games/{away}-at-{home}-{game.season}-reg-{game.week}"
 
 
-def discover_pdf_url(game: ScheduleGame) -> tuple[str | None, str | None]:
+def load_pdf_overrides() -> dict[str, str]:
+    if not PDF_OVERRIDES.exists():
+        return {}
+    with PDF_OVERRIDES.open(encoding="utf-8-sig", newline="") as handle:
+        return {
+            row["game_id"]: row["pdf_url"]
+            for row in csv.DictReader(handle)
+            if row.get("game_id") and row.get("pdf_url")
+        }
+
+
+def discover_pdf_url(game: ScheduleGame, pdf_overrides: dict[str, str]) -> tuple[str | None, str | None]:
+    if game.game_id in pdf_overrides:
+        return pdf_overrides[game.game_id], None
     url = nfl_game_url(game)
     html_path = CACHE / "html" / f"{game.game_id}.html"
     try:
@@ -264,6 +358,8 @@ def discover_pdf_url(game: ScheduleGame) -> tuple[str | None, str | None]:
         pdfs = re.findall(r"https://static\.www\.nfl\.com/image/upload/[^\"\\]+?\.pdf", window)
     pdfs = [pdf for pdf in pdfs if "media-guides" not in pdf]
     if not pdfs:
+        if game.gsis:
+            return f"https://www.nflgsis.com/{game.season}/Reg/{game.week:02d}/{game.gsis}/Gamebook.pdf", None
         return None, "no gamebook pdf link found"
     return pdfs[0], None
 
@@ -309,26 +405,33 @@ def parse_lineups(spans: list[tuple[float, float, str]], away: str, home: str) -
             continue
         for i in range(0, len(cells) - 2, 3):
             pos, jersey, name = cells[i], cells[i + 1], cells[i + 2]
-            if pos in ENTRY_POS and jersey.isdigit():
+            if valid_position(pos) and jersey.isdigit():
                 x = parts[i][0]
                 team = away if x < 306 else home
                 entries.append(ParsedEntry(team, pos, jersey, name, "Lineups"))
     return entries
 
 
-ENTRY_RE = re.compile(
-    r"\b(?P<pos>[A-Z]{1,4}(?:[/\-][A-Z]{1,4})?)\s+(?P<jersey>\d{1,2})\s+"
-    r"(?P<name>.*?)(?=,\s*[A-Z]{1,4}(?:/[A-Z]{1,4})?\s+\d{1,2}\s+|$)"
+SUB_ENTRY_RE = re.compile(
+    r"^(?:(?P<pos>[A-Z]{1,4}(?:[/\-][A-Z]{1,4})*)\s+)?"
+    r"(?P<jersey>\d{1,2})\s+(?P<name>.+?)$"
 )
 
 
 def parse_sub_block(text: str, team: str) -> list[ParsedEntry]:
     entries: list[ParsedEntry] = []
     text = re.sub(r"\s+", " ", text).strip().strip(",")
-    for match in ENTRY_RE.finditer(text):
-        pos = match.group("pos").strip()
-        if pos not in ENTRY_POS:
+    last_pos = ""
+    for chunk in (part.strip() for part in text.split(",")):
+        if not chunk:
             continue
+        match = SUB_ENTRY_RE.match(chunk)
+        if not match:
+            continue
+        pos = (match.group("pos") or last_pos).strip()
+        if not valid_position(pos):
+            continue
+        last_pos = pos
         name = match.group("name").strip(" ,")
         if name:
             entries.append(ParsedEntry(team, pos, match.group("jersey"), name, "Substitutions"))
@@ -398,6 +501,35 @@ def load_roster_index(seasons: set[int]) -> dict[tuple[int, int | None, str, str
     return index
 
 
+def load_player_registry() -> list[dict[str, str]]:
+    if not PLAYER_REGISTRY.exists():
+        return []
+    with PLAYER_REGISTRY.open(encoding="utf-8-sig", newline="") as handle:
+        return list(csv.DictReader(handle))
+
+
+def correction_key(game_id: str, entry: ParsedEntry) -> tuple[str, str, str, str, str]:
+    return (game_id, entry.team_id, entry.jersey, entry.gamebook_name, entry.position)
+
+
+def load_manual_corrections() -> dict[tuple[str, str, str, str, str], dict[str, str]]:
+    if not MANUAL_CORRECTIONS.exists():
+        return {}
+    with MANUAL_CORRECTIONS.open(encoding="utf-8-sig", newline="") as handle:
+        return {
+            (row["game_id"], row["team_id"], row["jersey_number"], row["gamebook_name"], row["position"]): row
+            for row in csv.DictReader(handle)
+        }
+
+
+def registry_by_player_id(player_registry: list[dict[str, str]]) -> dict[str, dict[str, str]]:
+    return {
+        f"nfl:{row['gsis_id'].strip()}": row
+        for row in player_registry
+        if (row.get("gsis_id") or "").strip()
+    }
+
+
 def split_gamebook_name(name: str) -> tuple[str, str]:
     if "." in name:
         first, last = name.split(".", 1)
@@ -411,13 +543,19 @@ def split_gamebook_name(name: str) -> tuple[str, str]:
 def name_matches(gamebook_name: str, row: dict[str, str]) -> bool:
     first_hint, last_hint = split_gamebook_name(gamebook_name)
     roster_first = normalize(row.get("first_name") or row.get("football_name") or "")
+    roster_common = normalize(row.get("common_first_name") or row.get("football_name") or "")
     roster_football = normalize(row.get("football_name") or "")
     roster_last = normalize(row.get("last_name") or "")
     roster_full = normalize(row.get("full_name") or "")
+    roster_display = normalize(row.get("display_name") or "")
     if last_hint and last_hint not in {roster_last, normalize(row.get("full_name", "").split()[-1] if row.get("full_name") else "")}:
-        if last_hint not in roster_full:
+        if last_hint not in roster_full and last_hint not in roster_display:
             return False
-    if first_hint and not (roster_first.startswith(first_hint) or roster_football.startswith(first_hint)):
+    if first_hint and not (
+        roster_first.startswith(first_hint)
+        or roster_common.startswith(first_hint)
+        or roster_football.startswith(first_hint)
+    ):
         return False
     return True
 
@@ -426,13 +564,78 @@ def last_name_matches(gamebook_name: str, row: dict[str, str]) -> bool:
     _first_hint, last_hint = split_gamebook_name(gamebook_name)
     roster_last = normalize(row.get("last_name") or "")
     roster_full = normalize(row.get("full_name") or "")
-    return bool(last_hint and (last_hint == roster_last or last_hint in roster_full))
+    roster_display = normalize(row.get("display_name") or "")
+    return bool(last_hint and (last_hint == roster_last or last_hint in roster_full or last_hint in roster_display))
+
+
+def plausible_registry_season(row: dict[str, str], season: int) -> bool:
+    starts = [
+        row.get("rookie_season"),
+        row.get("rookie_year"),
+        row.get("draft_year"),
+    ]
+    ends = [
+        row.get("last_season"),
+        row.get("to"),
+    ]
+    start_years = [int(value) for value in starts if (value or "").isdigit()]
+    end_years = [int(value) for value in ends if (value or "").isdigit()]
+    if start_years and season < min(start_years) - 1:
+        return False
+    if end_years and season > max(end_years) + 1:
+        return False
+    return True
+
+
+def registry_row_to_roster(row: dict[str, str], entry: ParsedEntry) -> dict[str, str]:
+    return {
+        "gsis_id": row.get("gsis_id") or "",
+        "full_name": row.get("display_name") or entry.gamebook_name,
+        "first_name": row.get("first_name") or row.get("common_first_name") or "",
+        "last_name": row.get("last_name") or "",
+        "football_name": row.get("football_name") or row.get("common_first_name") or "",
+        "birth_date": row.get("birth_date") or "",
+        "position": row.get("position") or entry.position,
+        "pfr_id": row.get("pfr_id") or "",
+        "headshot_url": row.get("headshot") or row.get("headshot_url") or "",
+    }
+
+
+def registry_lookup(
+    entry: ParsedEntry,
+    game: ScheduleGame,
+    player_registry: list[dict[str, str]],
+) -> tuple[str | None, dict[str, str] | None, str | None]:
+    registry_candidates = [
+        row
+        for row in player_registry
+        if (row.get("gsis_id") or "").strip()
+        and name_matches(entry.gamebook_name, row)
+        and plausible_registry_season(row, game.season)
+    ]
+    if entry.jersey:
+        jersey_matches = [
+            row
+            for row in registry_candidates
+            if (row.get("jersey_number") or "").strip() in {"", "0", entry.jersey}
+        ]
+        if jersey_matches:
+            registry_candidates = jersey_matches
+    deduped_registry = {}
+    for row in registry_candidates:
+        deduped_registry.setdefault(row.get("gsis_id") or "", row)
+    registry_candidates = list(deduped_registry.values())
+    if len(registry_candidates) == 1:
+        row = registry_row_to_roster(registry_candidates[0], entry)
+        return f"nfl:{row['gsis_id'].strip()}", row, "accepted unique player-registry match; roster cache missing/mismarked game row"
+    return None, None, None
 
 
 def resolve_entry(
     entry: ParsedEntry,
     game: ScheduleGame,
     roster_index: dict[tuple[int, int | None, str, str], list[dict[str, str]]],
+    player_registry: list[dict[str, str]],
 ) -> tuple[str | None, dict[str, str] | None, str | None]:
     team_codes = ROSTER_TEAM_ALIASES.get(entry.team_id, (entry.team_id,))
     candidates = []
@@ -461,6 +664,9 @@ def resolve_entry(
         if len(name_candidates) == 1:
             row = name_candidates[0]
             return f"nfl:{row['gsis_id'].strip()}", row, "accepted unique team/name match despite missing jersey match"
+        registry_player_id, registry_row, registry_warning = registry_lookup(entry, game, player_registry)
+        if registry_player_id and registry_row:
+            return registry_player_id, registry_row, registry_warning
         return None, None, "no roster candidate for team/week/jersey"
     deduped = {}
     for row in candidates:
@@ -480,36 +686,53 @@ def resolve_entry(
     if len(matching) > 1:
         row = matching[0]
         return f"nfl:{row['gsis_id'].strip()}", row, "multiple matching candidates; used first"
+    registry_player_id, registry_row, registry_warning = registry_lookup(entry, game, player_registry)
+    if registry_player_id and registry_row:
+        return registry_player_id, registry_row, registry_warning
     return None, None, f"ambiguous roster candidates: {len(candidates)}"
 
 
 def process_game(
     game: ScheduleGame,
     roster_index: dict[tuple[int, int | None, str, str], list[dict[str, str]]],
+    player_registry: list[dict[str, str]],
+    player_registry_by_id: dict[str, dict[str, str]],
+    manual_corrections: dict[tuple[str, str, str, str, str], dict[str, str]],
+    pdf_overrides: dict[str, str],
 ) -> GameResult:
-    pdf_url, error = discover_pdf_url(game)
+    pdf_url, error = discover_pdf_url(game, pdf_overrides)
     status = "missing_pdf" if error else "ok"
     message = error
     parsed_entries: list[ParsedEntry] = []
     if pdf_url:
         pdf_path = CACHE / "pdf" / f"{game.game_id}.pdf"
         try:
-            data = download(pdf_url, pdf_path, binary=True)
-            if not bytes(data).startswith(b"%PDF"):
-                raise RuntimeError("downloaded file is not a PDF")
+            download_game_pdf(pdf_url, pdf_path, game)
             parsed_entries = parse_gamebook(pdf_path, game.away_team, game.home_team)
         except Exception as exc:
             status = "parse_error"
             message = str(exc)
     resolved: list[ResolvedEntry] = []
     unresolved: list[UnresolvedEntry] = []
+    counted_entries = 0
     for entry in parsed_entries:
-        player_id, row, warning = resolve_entry(entry, game, roster_index)
+        correction = manual_corrections.get(correction_key(game.game_id, entry))
+        if correction and correction.get("action") == "exclude":
+            continue
+        counted_entries += 1
+        if correction and correction.get("action") == "map":
+            player_id = correction.get("player_id") or ""
+            registry_row = player_registry_by_id.get(player_id)
+            if player_id and registry_row:
+                row = registry_row_to_roster(registry_row, entry)
+                resolved.append(ResolvedEntry(entry, player_id, row, correction.get("note") or "manual correction"))
+                continue
+        player_id, row, warning = resolve_entry(entry, game, roster_index, player_registry)
         if player_id is None or row is None:
             unresolved.append(UnresolvedEntry(entry, warning or "unresolved"))
         else:
             resolved.append(ResolvedEntry(entry, player_id, row, warning))
-    return GameResult(game, pdf_url, status, message, len(parsed_entries), resolved, unresolved)
+    return GameResult(game, pdf_url, status, message, counted_entries, resolved, unresolved)
 
 
 def build(args: argparse.Namespace) -> None:
@@ -517,6 +740,10 @@ def build(args: argparse.Namespace) -> None:
     if args.limit:
         games = games[: args.limit]
     roster_index = load_roster_index({game.season for game in games})
+    player_registry = load_player_registry()
+    player_registry_by_id = registry_by_player_id(player_registry)
+    manual_corrections = load_manual_corrections()
+    pdf_overrides = load_pdf_overrides()
     args.output.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(args.output)
     conn.executescript(SCHEMA)
@@ -596,7 +823,10 @@ def build(args: argparse.Namespace) -> None:
                 },
             )
     if args.workers <= 1:
-        iterable = ((idx, process_game(game, roster_index)) for idx, game in enumerate(games, start=1))
+        iterable = (
+            (idx, process_game(game, roster_index, player_registry, player_registry_by_id, manual_corrections, pdf_overrides))
+            for idx, game in enumerate(games, start=1)
+        )
         for idx, result in iterable:
             write_result(result)
             if idx % args.commit_every == 0:
@@ -611,7 +841,10 @@ def build(args: argparse.Namespace) -> None:
     else:
         completed = 0
         with ThreadPoolExecutor(max_workers=args.workers) as pool:
-            futures = [pool.submit(process_game, game, roster_index) for game in games]
+            futures = [
+                pool.submit(process_game, game, roster_index, player_registry, player_registry_by_id, manual_corrections, pdf_overrides)
+                for game in games
+            ]
             for future in as_completed(futures):
                 completed += 1
                 write_result(future.result())
