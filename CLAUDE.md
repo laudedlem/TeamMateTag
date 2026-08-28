@@ -29,6 +29,11 @@ changes. It is the concise source of truth for another coding assistant.
   compact strict proofs. For quota recovery, run it with `--execute
   --vacuum-full` once Supabase SQL accepts connections so physical table/index
   storage is released, not just made reusable.
+- If Supabase refuses normal SQL/REST because the project is over quota, use
+  `scripts/purge_football_from_supabase.py --execute --vacuum-full` as the
+  first emergency recovery command as soon as SQL accepts a connection. It
+  removes Football runtime/catalog rows from Supabase only; local Football raw
+  data and SQLite proof sources are preserved for a cleaner compact re-upload.
 - Required environment values are documented in `.env.example`. Never commit
   `.env` or any Supabase password/key.
 - Runtime schema migrations are skipped during ordinary gameplay to keep Vercel
