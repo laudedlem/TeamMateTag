@@ -882,22 +882,25 @@ def build(args: argparse.Namespace) -> None:
             for player_id, meta in sorted(player_meta.items())
         ],
     )
+    stored_appearances = conn.execute("SELECT COUNT(*) FROM nfl_player_game_snap_appearances").fetchone()[0]
+    stored_players = conn.execute("SELECT COUNT(*) FROM nfl_snap_players").fetchone()[0]
+    unresolved_entries = conn.execute("SELECT COUNT(*) FROM nfl_snap_unmapped_players").fetchone()[0]
     for key, value in {
         "source": SOURCE_NAME,
         "season_start": str(args.season_start),
         "season_end": str(args.season_end),
         "games": str(len(games)),
         "gamebook_entries": str(total_entries),
-        "snap_appearances": str(resolved),
-        "players": str(len(player_meta)),
-        "unresolved_entries": str(total_entries - resolved),
+        "snap_appearances": str(stored_appearances),
+        "players": str(stored_players),
+        "unresolved_entries": str(unresolved_entries),
         "status_counts": json.dumps(status_counts, sort_keys=True),
     }.items():
         conn.execute("INSERT OR REPLACE INTO nfl_snap_build_meta (key, value) VALUES (?, ?)", (key, value))
     conn.commit()
     print(
         f"built {args.output}: games {len(games):,}; entries {total_entries:,}; "
-        f"resolved appearances {resolved:,}; unresolved {total_entries - resolved:,}; statuses {status_counts}",
+        f"stored appearances {stored_appearances:,}; unresolved {unresolved_entries:,}; statuses {status_counts}",
         flush=True,
     )
 

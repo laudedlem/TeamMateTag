@@ -39,7 +39,7 @@ Active`, and resolves abbreviated Game Book names to app Football IDs by
 team/week/jersey, unique player-registry fallback, and tracked manual
 corrections in `scripts/data/nfl_gamebook_manual_corrections.csv`. Final local
 clean build at `raw/nfl_game_teammates/nfl_gamebook_teammates.sqlite`: all
-3,312 regular-season games from 2000-2012 are `ok`, 283,672 participant
+3,312 regular-season games from 2000-2012 are `ok`, 283,652 stored participant
 appearances are resolved, 6,282 players appear, 0 Game Books are missing, and
 0 parsed entries are unresolved. Three contradictory Game Book rows are
 intentionally excluded in the manual correction file: `B.DeMarco` in
@@ -47,10 +47,21 @@ intentionally excluded in the manual correction file: `B.DeMarco` in
 `2006_01_SF_ARI`, because public roster/transaction evidence conflicts with
 counting them as active regular-season participants. Audit CSVs under
 `logs/nfl_gamebook_audit/` now show full 2000-2012 coverage and zero unresolved
-players. Next Football production step: write/import the Postgres loader for
-this local Game Book proof DB, merge it with the existing 2013-2025 snap-count
-proof table, rebuild Football appearance/stint/card rollups, and mark 2000-2012
-as `game_boxscore` only after production smoke checks pass.
+players. Production import completed on 2026-08-28 using
+`scripts/import_nfl_gamebook_teammates_to_postgres.py`: 414 team-seasons,
+6,282 players, 3,312 games, 283,652 player-game appearances, 24,688
+player-team-season rollups, 682,167 compact teammate proof rows, and all 13
+season keys from 2000-2012 marked `game_boxscore`. The shared Football importer
+now has a `--proofs-only` mode and streams compact proof rows from local SQLite
+with Postgres `COPY`, avoiding Supabase temp-disk failures from large in-DB
+self-joins. Follow-up still needed once Supabase SQL connections recover:
+run `python scripts\import_nfl_snap_teammates_to_postgres.py --season-start
+2013 --season-end 2025 --proofs-only` so the compact `sport_teammates` table
+also contains the modern snap-count seasons. Gameplay can already validate
+2013-2025 through `sport_live_player_games`; this follow-up is for compact proof
+table consistency. Supabase was refusing new SQL connections after the first
+attempt hit temp disk limits (`No space left on device`), but the 2000-2012 Game
+Book import had already committed and verified before the connection issue.
 
 Update, 2026-08-27 (0.4.19): moved Football to strict same-game snap proof for
 covered modern seasons. Added `scripts/build_nfl_snap_teammates.py`, which

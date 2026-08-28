@@ -28,6 +28,7 @@ SOURCE = ROOT / "raw" / "nfl_game_teammates" / "nfl_snap_teammates.sqlite"
 SCHEMA = ROOT / "db" / "cross_sport_schema_postgres.sql"
 SPORT_ID = "football"
 SOURCE_NAME = "nflverse_snap_counts"
+SOURCE_URL = "https://github.com/nflverse/nflverse-data/releases/tag/snap_counts"
 DEFAULT_GAME_DATE = "2000-01-01"
 
 
@@ -104,7 +105,7 @@ def connect() -> "psycopg.Connection":
     url = os.environ.get("DATABASE_URL")
     if not url:
         raise SystemExit("DATABASE_URL is required")
-    return psycopg.connect(url)
+    return psycopg.connect(url, prepare_threshold=None)
 
 
 def ensure_tables(conn: "psycopg.Connection") -> None:
@@ -132,6 +133,13 @@ def source_summary(src: sqlite3.Connection) -> dict[str, int | None]:
         "appearances": int(row[3] or 0),
         "players": int(row[4] or 0),
     }
+
+
+def source_has_gamebook_dates(src: sqlite3.Connection) -> bool:
+    row = src.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='nfl_gamebook_games'"
+    ).fetchone()
+    return row is not None
 
 
 def copy_players(src: sqlite3.Connection, dst: "psycopg.Connection") -> int:
@@ -251,26 +259,55 @@ def copy_teams(src: sqlite3.Connection, dst: "psycopg.Connection", start: int, e
     return len(rows)
 
 
-def copy_games_and_appearances(src: sqlite3.Connection, dst: "psycopg.Connection", start: int, end: int) -> tuple[int, int]:
-    games = src.execute(
-        """
-        SELECT game_id, season, week, COUNT(*)
-          FROM nfl_player_game_snap_appearances
-         WHERE season BETWEEN ? AND ?
-         GROUP BY game_id, season, week
-         ORDER BY season, week, game_id
-        """,
-        (start, end),
-    ).fetchall()
-    appearances = src.execute(
-        """
-        SELECT game_id, season, week, team_id, player_id, position
-          FROM nfl_player_game_snap_appearances
-         WHERE season BETWEEN ? AND ?
-         ORDER BY season, week, game_id, team_id, player_id
-        """,
-        (start, end),
-    ).fetchall()
+def copy_games_and_appearances(
+    src: sqlite3.Connection,
+    dst: "psycopg.Connection",
+    start: int,
+    end: int,
+    source_name: str,
+) -> tuple[int, int]:
+    if source_has_gamebook_dates(src):
+        games = src.execute(
+            """
+            SELECT a.game_id, a.season, a.week, g.gameday, COUNT(*)
+              FROM nfl_player_game_snap_appearances a
+              JOIN nfl_gamebook_games g ON g.game_id = a.game_id
+             WHERE a.season BETWEEN ? AND ?
+             GROUP BY a.game_id, a.season, a.week, g.gameday
+             ORDER BY a.season, a.week, a.game_id
+            """,
+            (start, end),
+        ).fetchall()
+        appearances = src.execute(
+            """
+            SELECT a.game_id, a.season, a.week, g.gameday, a.team_id, a.player_id, a.position
+              FROM nfl_player_game_snap_appearances a
+              JOIN nfl_gamebook_games g ON g.game_id = a.game_id
+             WHERE a.season BETWEEN ? AND ?
+             ORDER BY a.season, a.week, a.game_id, a.team_id, a.player_id
+            """,
+            (start, end),
+        ).fetchall()
+    else:
+        games = src.execute(
+            """
+            SELECT game_id, season, week, NULL, COUNT(*)
+              FROM nfl_player_game_snap_appearances
+             WHERE season BETWEEN ? AND ?
+             GROUP BY game_id, season, week
+             ORDER BY season, week, game_id
+            """,
+            (start, end),
+        ).fetchall()
+        appearances = src.execute(
+            """
+            SELECT game_id, season, week, NULL, team_id, player_id, position
+              FROM nfl_player_game_snap_appearances
+             WHERE season BETWEEN ? AND ?
+             ORDER BY season, week, game_id, team_id, player_id
+            """,
+            (start, end),
+        ).fetchall()
     with dst.cursor() as cur:
         cur.execute("DELETE FROM sport_live_player_games WHERE sport_id = %s AND season BETWEEN %s AND %s", (SPORT_ID, start, end))
         cur.execute("DELETE FROM sport_live_game_imports WHERE sport_id = %s AND season BETWEEN %s AND %s", (SPORT_ID, start, end))
@@ -278,23 +315,62 @@ def copy_games_and_appearances(src: sqlite3.Connection, dst: "psycopg.Connection
             """
             INSERT INTO sport_live_game_imports
                 (sport_id, game_id, game_date, season, status, source, row_count, imported_at)
-            VALUES (%s, %s, %s::date + ((%s - 1) * interval '7 days'), %s, 'Final', %s, %s, now())
+            VALUES (%s, %s, COALESCE(%s::date, %s::date + ((%s - 1) * interval '7 days')), %s, 'Final', %s, %s, now())
             """,
-            [(SPORT_ID, game_id, f"{season}-09-01", week, season, SOURCE_NAME, count) for game_id, season, week, count in games],
+            [
+                (SPORT_ID, game_id, gameday, f"{season}-09-01", week, season, source_name, count)
+                for game_id, season, week, gameday, count in games
+            ],
         )
         cur.executemany(
             """
             INSERT INTO sport_live_player_games
                 (sport_id, game_id, game_date, season, player_id, team_id,
                  position, games_total, goals, assists, points)
-            VALUES (%s, %s, %s::date + ((%s - 1) * interval '7 days'), %s, %s, %s, %s, 1, 0, 0, 0)
+            VALUES (%s, %s, COALESCE(%s::date, %s::date + ((%s - 1) * interval '7 days')), %s, %s, %s, %s, 1, 0, 0, 0)
             """,
-            [(SPORT_ID, game_id, f"{season}-09-01", week, season, player_id, team, pos) for game_id, season, week, team, player_id, pos in appearances],
+            [
+                (SPORT_ID, game_id, gameday, f"{season}-09-01", week, season, player_id, team, pos)
+                for game_id, season, week, gameday, team, player_id, pos in appearances
+            ],
         )
     return len(games), len(appearances)
 
 
-def refresh_runtime(dst: "psycopg.Connection", start: int, end: int) -> None:
+def copy_teammate_proofs(src: sqlite3.Connection, dst: "psycopg.Connection", start: int, end: int) -> int:
+    query = """
+        SELECT a.sport_id, a.player_a_id, a.player_b_id, a.team_id, a.season
+          FROM (
+                SELECT 'football' AS sport_id,
+                       MIN(a.player_id, b.player_id) AS player_a_id,
+                       MAX(a.player_id, b.player_id) AS player_b_id,
+                       a.team_id,
+                       a.season
+                  FROM nfl_player_game_snap_appearances a
+                  JOIN nfl_player_game_snap_appearances b
+                    ON b.game_id = a.game_id
+                   AND b.team_id = a.team_id
+                   AND b.player_id > a.player_id
+                 WHERE a.season BETWEEN ? AND ?
+                 GROUP BY a.season, a.team_id,
+                          MIN(a.player_id, b.player_id),
+                          MAX(a.player_id, b.player_id)
+               ) a
+         ORDER BY a.season, a.team_id, a.player_a_id, a.player_b_id
+    """
+    with dst.cursor() as cur:
+        cur.execute("DELETE FROM sport_teammates WHERE sport_id = %s AND season BETWEEN %s AND %s", (SPORT_ID, start, end))
+        count = 0
+        with cur.copy(
+            "COPY sport_teammates (sport_id, player_a_id, player_b_id, team_id, season) FROM STDIN"
+        ) as copy:
+            for row in src.execute(query, (start, end)):
+                copy.write_row(row)
+                count += 1
+    return count
+
+
+def refresh_runtime(dst: "psycopg.Connection", start: int, end: int, source_name: str, source_url: str) -> None:
     with dst.cursor() as cur:
         cur.execute("SET LOCAL statement_timeout = '20min'")
         cur.execute("DELETE FROM sport_appearances WHERE sport_id = %s AND season BETWEEN %s AND %s", (SPORT_ID, start, end))
@@ -332,7 +408,7 @@ def refresh_runtime(dst: "psycopg.Connection", start: int, end: int) -> None:
                 last_label = EXCLUDED.last_label,
                 source = EXCLUDED.source
             """,
-            (SOURCE_NAME, SPORT_ID, start, end),
+            (source_name, SPORT_ID, start, end),
         )
         cur.execute(
             """
@@ -394,14 +470,12 @@ def refresh_runtime(dst: "psycopg.Connection", start: int, end: int) -> None:
                 source = EXCLUDED.source,
                 updated_at = now()
             """,
-            (SPORT_ID, start, end, SOURCE_NAME),
+            (SPORT_ID, start, end, source_name),
         )
         cur.execute(
             """
             INSERT INTO sport_data_provenance (sport_id, source, season, source_url, row_count)
-            SELECT %s, %s, season,
-                   'https://github.com/nflverse/nflverse-data/releases/tag/snap_counts',
-                   COUNT(*)::integer
+            SELECT %s, %s, season, %s, COUNT(*)::integer
               FROM sport_live_player_games
              WHERE sport_id = %s AND season BETWEEN %s AND %s
              GROUP BY season
@@ -409,7 +483,7 @@ def refresh_runtime(dst: "psycopg.Connection", start: int, end: int) -> None:
             SET source_url = EXCLUDED.source_url,
                 row_count = EXCLUDED.row_count
             """,
-            (SPORT_ID, SOURCE_NAME, SPORT_ID, start, end),
+            (SPORT_ID, source_name, source_url, SPORT_ID, start, end),
         )
 
 
@@ -423,7 +497,9 @@ def verify(dst: "psycopg.Connection", start: int, end: int) -> dict[str, int]:
         rollups = cur.fetchone()[0]
         cur.execute("SELECT COUNT(*) FROM sport_teammate_stint_coverage WHERE sport_id = %s AND coverage_type='game_boxscore' AND season BETWEEN %s AND %s", (SPORT_ID, start, end))
         coverage = cur.fetchone()[0]
-    return {"games": games, "appearances": appearances, "rollups": rollups, "coverage": coverage}
+        cur.execute("SELECT COUNT(*) FROM sport_teammates WHERE sport_id = %s AND season BETWEEN %s AND %s", (SPORT_ID, start, end))
+        teammates = cur.fetchone()[0]
+    return {"games": games, "appearances": appearances, "rollups": rollups, "coverage": coverage, "teammates": teammates}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -431,6 +507,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--source", type=Path, default=SOURCE)
     parser.add_argument("--season-start", type=int)
     parser.add_argument("--season-end", type=int)
+    parser.add_argument("--source-name", default=SOURCE_NAME)
+    parser.add_argument("--source-url", default=SOURCE_URL)
+    parser.add_argument("--proofs-only", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
 
@@ -449,16 +528,32 @@ def main(argv: list[str] | None = None) -> int:
 
     with connect() as dst:
         ensure_tables(dst)
+        if args.proofs_only:
+            teammates = copy_teammate_proofs(src, dst, start, end)
+            checks = verify(dst, start, end)
+            dst.commit()
+            print(f"imported {teammates:,} teammate proofs")
+            print(
+                f"verified production: {checks['games']:,} games; {checks['appearances']:,} player-games; "
+                f"{checks['rollups']:,} player-team-season rollups; {checks['teammates']:,} teammate proofs; "
+                f"{checks['coverage']} strict seasons"
+            )
+            return 0
         team_count = copy_teams(src, dst, start, end)
         player_count = copy_players(src, dst)
-        games, appearances = copy_games_and_appearances(src, dst, start, end)
-        refresh_runtime(dst, start, end)
+        games, appearances = copy_games_and_appearances(src, dst, start, end, args.source_name)
+        teammates = copy_teammate_proofs(src, dst, start, end)
+        refresh_runtime(dst, start, end, args.source_name, args.source_url)
         checks = verify(dst, start, end)
         dst.commit()
-    print(f"imported {team_count:,} team-seasons; {player_count:,} players; {games:,} games; {appearances:,} snap appearances")
+    print(
+        f"imported {team_count:,} team-seasons; {player_count:,} players; {games:,} games; "
+        f"{appearances:,} snap appearances; {teammates:,} teammate proofs"
+    )
     print(
         f"verified production: {checks['games']:,} games; {checks['appearances']:,} player-games; "
-        f"{checks['rollups']:,} player-team-season rollups; {checks['coverage']} strict seasons"
+        f"{checks['rollups']:,} player-team-season rollups; {checks['teammates']:,} teammate proofs; "
+        f"{checks['coverage']} strict seasons"
     )
     return 0
 
