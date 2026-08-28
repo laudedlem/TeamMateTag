@@ -81,6 +81,24 @@ Basketball Postgres loader mirroring Hockey: backfill any missing proof players
 from the ESPN/NBA crosswalk, refresh Basketball appearance/stint/card rollups,
 load `sport_teammates`, and mark Basketball 2002-2025 coverage as
 `game_boxscore`.
+Follow-up, 2026-08-27 (Basketball strict proofs live): added
+`scripts/import_nba_espn_game_teammates_to_postgres.py` and ran it against
+production Supabase. Basketball now uses strict same-game regular-season proof
+rows for covered seasons 2002-2025. Import source:
+`raw/nba_game_teammates/nba_espn_game_teammates.sqlite` from SportsDataverse/
+ESPN player boxscores plus the verified ESPN->NBA identity crosswalk. The
+production import backfilled 35 missing Basketball proof players on first run,
+then reran cleanly with no missing proof players. Final production counts:
+106,107 Basketball rows in `sport_teammates`, 0 unmapped/orphan proof rows, 24
+Basketball `game_boxscore` coverage seasons from 2002 through 2025, while 2000
+and 2001 intentionally remain `stint_range` because the SportsDataverse NBA
+player-box files begin at 2002. Production smoke checks showed valid strict
+proofs for LeBron James/Dwyane Wade on Miami 2011-2013, Kevin Durant/Stephen
+Curry on Golden State 2017-2019, Nene Hilario/James Harden on Houston
+2017-2019, and Kenyon Martin Jr./James Harden on Houston 2021. Verified alias
+names were applied so rows such as Goga Bitadze and Nene Hilario display
+correctly; suffix parsing was corrected so Kenyon Martin Jr. has last key
+`Martin`.
 
 Update, 2026-08-27 (0.4.16): implemented strict Hockey teammate validation
 from the completed official NHL game-level proof database. Hockey links now use
