@@ -350,9 +350,18 @@ button.danger:hover:not(:disabled) {
 
 .manager-sport-tile {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(140px, 0.9fr);
+  grid-template-columns: minmax(0, 1fr) minmax(9.5rem, 0.72fr);
+  grid-template-areas: "copy starter";
   gap: 0.85rem;
   align-items: center;
+}
+
+.manager-sport-tile .sport-tile-copy {
+  grid-area: copy;
+}
+
+.manager-sport-tile .manager-starter {
+  grid-area: starter;
 }
 
 .film-sport-tile {
@@ -481,6 +490,7 @@ button.danger:hover:not(:disabled) {
   gap: 0.65rem;
   align-items: center;
   min-width: 0;
+  max-width: 100%;
 }
 
 .manager-starter-photo {
@@ -516,7 +526,9 @@ button.danger:hover:not(:disabled) {
 .manager-starter strong {
   display: block;
   line-height: 1.15;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
 }
 
 .manager-leaderboard-panel {
@@ -9440,6 +9452,58 @@ body[data-mode-hub="film"] .film-preview-player small,
 
 .home-root .home-launch-tile .sport-tile-status {
   margin-top: auto;
+}
+
+body[data-mode-hub="manager"] .manager-sport-tile {
+  grid-template-columns: minmax(0, 1fr) minmax(9.75rem, 0.72fr);
+  grid-template-areas: "copy starter";
+  gap: 0.9rem;
+  padding-right: 5.15rem;
+}
+
+body[data-mode-hub="manager"] .manager-sport-tile .sport-tile-copy {
+  grid-area: copy;
+  min-width: 0;
+  max-width: 100%;
+}
+
+body[data-mode-hub="manager"] .manager-sport-tile .sport-tile-name {
+  display: block;
+  max-width: 100%;
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
+}
+
+body[data-mode-hub="manager"] .manager-starter {
+  grid-area: starter;
+  min-width: 0;
+  max-width: 100%;
+  justify-self: stretch;
+}
+
+body[data-mode-hub="manager"] .manager-starter strong {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  body[data-mode-hub="manager"] .manager-sport-tile {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "copy"
+      "starter";
+    align-content: center;
+    gap: 0.55rem;
+    min-height: 156px;
+  }
+
+  body[data-mode-hub="manager"] .manager-starter {
+    width: min(100%, 18rem);
+  }
 }
 
 .home h2,
