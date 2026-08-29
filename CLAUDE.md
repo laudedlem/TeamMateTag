@@ -113,6 +113,14 @@ Toews/Kane, Football Favre/Rodgers, Mahomes/Kelce, and Brady/Gronk. The first
 Football import script version attempted `VACUUM FULL` after successful commit
 and hit disk pressure; the script now uses `ANALYZE` instead. Do not recreate
 the dropped redundant indexes on Free unless storage is re-evaluated.
+Vercel production env vars were updated through the Vercel API to point
+`DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`,
+`SUPABASE_SERVICE_ROLE_KEY`, and matching public Supabase URL/key vars at the
+new Supabase project, then empty commit `20876d3` triggered a production
+redeploy. Production smoke checks on `https://teammatetag.com` returned 200 for
+home, `/film`, Baseball autocomplete, Football/Hockey/Basketball autocomplete,
+and Football/Hockey/Basketball Film Review pages. After this recovery, revoke
+the temporary Vercel token that was created for Codex.
 
 ## Current user experience
 
