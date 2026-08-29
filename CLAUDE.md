@@ -138,6 +138,15 @@ Baseball (Trout/Ohtani), Basketball (LeBron/Wade), Hockey (Toews/Kane), and
 Football (Mahomes/Kelce). The daily live update scripts are intentionally not
 run yet against this schema; they still need a compact-key write path instead
 of direct writes to the proof compatibility views.
+Follow-up support restore, 2026-08-28: Baseball Film Review also needed the
+small `baseball_player_positions` support table in the new Supabase project;
+ran `scripts/load_baseball_film_review_positions.py` and loaded 16,734
+player-position totals. Basketball and Hockey Film Review needed the compact
+`sport_player_images` URLs mirrored back into `player_headshots` because the
+daily Film generator only uses verified headshots; restored 2,572 Basketball
+and 8,451 Hockey verified image rows from compact runtime image URLs. Patched
+`game/film_review_generator.py` so Hockey lineup slots accept the stored
+`L`/`R` positions as `LW`/`RW`.
 
 ## Current user experience
 

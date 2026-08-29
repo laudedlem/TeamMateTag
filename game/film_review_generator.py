@@ -45,6 +45,14 @@ FOOTBALL_ROLE_POSITIONS = {
     "CB": {"CB"}, "S": {"S", "SS", "FS"}, "P": {"P"},
 }
 
+HOCKEY_ROLE_POSITIONS = {
+    "LW": {"LW", "L"},
+    "RW": {"RW", "R"},
+    "C": {"C"},
+    "D": {"D"},
+    "G": {"G"},
+}
+
 QUALITY_FLOORS = {
     "baseball": (250, 2000),
     "football": (32, 2000),
@@ -160,7 +168,12 @@ def _eligible(conn: sqlite3.Connection, sport: str, slot: str) -> dict[str, int]
               {headshot_filter}
         """, (*sorted(STABLE_HEADSHOT_PROVIDERS.get(sport, set())), *sorted(FALLBACK_HEADSHOT_PROVIDERS),
               sport, career_floor, modern_final_year))}
-    expected = FOOTBALL_ROLE_POSITIONS.get(slot, {slot}) if sport == "football" else {slot}
+    if sport == "football":
+        expected = FOOTBALL_ROLE_POSITIONS.get(slot, {slot})
+    elif sport == "hockey":
+        expected = HOCKEY_ROLE_POSITIONS.get(slot, {slot})
+    else:
+        expected = {slot}
     placeholders = ",".join("?" for _ in expected)
     return {row[0]: row[1] for row in conn.execute(
         f"""SELECT DISTINCT pp.player_id,
