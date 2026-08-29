@@ -1,4 +1,4 @@
-name: Update MLB Live Data
+name: Update MLB Compact Live Data
 
 on:
   workflow_dispatch:
@@ -17,7 +17,7 @@ on:
     - cron: "20 10 * * *"
 
 jobs:
-  update-mlb-live-data:
+  update-mlb-compact-live-data:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -34,7 +34,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install "psycopg[binary]" requests python-dotenv
 
-      - name: Update current MLB appearances
+      - name: Build local compact MLB data and publish runtime rows
         shell: bash
         run: |
           args=()
@@ -44,4 +44,4 @@ jobs:
           if [[ "${{ inputs.season_to_date }}" == "true" ]]; then
             args+=(--season-to-date)
           fi
-          python scripts/update_mlb_live_data.py "${args[@]}"
+          python scripts/update_mlb_compact_live.py "${args[@]}" --upload --prune-live-staging

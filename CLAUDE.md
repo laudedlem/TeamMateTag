@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.4.24`
+- Current display version: `0.4.25`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -196,6 +196,28 @@ local artifact. No Supabase upload or duplicate production tables were created.
 Also changed Film Review generation to use the teammate matrix directly when
 strict game-boxscore coverage exists, reducing dependence on bulky
 appearance/stint joins before the future production swap.
+Update, 2026-08-29 (0.4.25): implemented the local-first compact MLB live-season
+updater. Added `scripts/update_mlb_compact_live.py`, which fetches completed
+regular-season MLB box scores from the free MLB Stats API into local SQLite
+under `raw/mlb_live_runtime/`, derives appearances/stints/search rows and
+same-game teammate proofs locally, then uploads only compact runtime rows to
+Supabase. The GitHub daily workflow now runs this compact updater with
+`--upload --prune-live-staging`, so the Actions runner may temporarily gather
+boxscore data but Supabase retains only refined gameplay data. Local 2026 build
+at `raw/mlb_live_runtime/mlb_live_2026.sqlite`: 9.0 MB, 2,022 games with actual
+player appearances through 2026-08-28, 59,801 player-game rows stored locally,
+1,590 player-team-season rows, and 28,994 compact teammate proof rows, with
+0 missing proof players and 0 missing proof teams. Verified Tarik Skubal's 2026
+Detroit/LAN stints and strict Dodgers proof links to Shohei Ohtani, Mookie
+Betts, and Freddie Freeman. Uploaded 2026 compact rows to Supabase, pruned
+empty same-season `mlb_live_*` staging rows, and ran targeted `VACUUM FULL` only
+on those emptied staging tables; production database size reported about 484 MB
+after cleanup. Updated `scripts/build_minimal_runtime_sqlite.py` so the offline
+minimal runtime compiler includes the local live MLB runtime file when present.
+Latest all-sport compact artifact with MLB 2026 included:
+`raw/runtime_compact/teammatetag_runtime_minimal.sqlite`, 263.6 MB, 2,780,015
+teammate team-season rows, all four sport smoke checks and Film Review
+generation passed.
 
 ## Current user experience
 

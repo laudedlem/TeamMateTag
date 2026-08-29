@@ -23,6 +23,7 @@ DEFAULT_OUTPUT = ROOT / "raw" / "runtime_compact" / "teammatetag_runtime_minimal
 BASEBALL_DB = ROOT / "db" / "base2nerdle.sqlite"
 SPORT_CATALOG_DB = ROOT / "db" / "teammatetag_local.sqlite"
 MLB_PROOFS_DB = ROOT / "raw" / "mlb_game_teammates" / "mlb_game_teammates_v2.sqlite"
+MLB_LIVE_RUNTIME_DIR = ROOT / "raw" / "mlb_live_runtime"
 NBA_PROOFS_DB = ROOT / "raw" / "nba_game_teammates" / "nba_espn_game_teammates.sqlite"
 NHL_PROOFS_DB = ROOT / "raw" / "nhl_game_teammates" / "nhl_game_teammates.sqlite"
 NFL_RUNTIME_DB = ROOT / "raw" / "nfl_game_teammates" / "nfl_compact_runtime_int.sqlite"
@@ -49,6 +50,8 @@ def attach(conn: sqlite3.Connection) -> None:
     conn.execute("ATTACH DATABASE ? AS baseball", (str(BASEBALL_DB),))
     conn.execute("ATTACH DATABASE ? AS sportcat", (str(SPORT_CATALOG_DB),))
     conn.execute("ATTACH DATABASE ? AS mlbraw", (str(MLB_PROOFS_DB),))
+    for index, live_db in enumerate(sorted(MLB_LIVE_RUNTIME_DIR.glob("mlb_live_*.sqlite"))):
+        conn.execute(f"ATTACH DATABASE ? AS mlblive{index}", (str(live_db),))
     conn.execute("ATTACH DATABASE ? AS nbaraw", (str(NBA_PROOFS_DB),))
     conn.execute("ATTACH DATABASE ? AS nhlraw", (str(NHL_PROOFS_DB),))
     conn.execute("ATTACH DATABASE ? AS nflrt", (str(NFL_RUNTIME_DB),))
@@ -222,12 +225,23 @@ def create_schema(conn: sqlite3.Connection) -> None:
 
 
 def source_table_exists(conn: sqlite3.Connection, schema: str, table: str) -> bool:
-    return bool(
-        conn.execute(
-            f"SELECT 1 FROM {schema}.sqlite_master WHERE type IN ('table', 'view') AND name = ?",
-            (table,),
-        ).fetchone()
-    )
+    try:
+        return bool(
+            conn.execute(
+                f"SELECT 1 FROM {schema}.sqlite_master WHERE type IN ('table', 'view') AND name = ?",
+                (table,),
+            ).fetchone()
+        )
+    except sqlite3.OperationalError:
+        return False
+
+
+def attached_mlb_live_schemas(conn: sqlite3.Connection) -> list[str]:
+    return [
+        name
+        for _seq, name, _file in conn.execute("PRAGMA database_list")
+        if name.startswith("mlblive")
+    ]
 
 
 def copy_baseball_catalog(conn: sqlite3.Connection) -> None:
@@ -303,6 +317,78 @@ def copy_baseball_catalog(conn: sqlite3.Connection) -> None:
             search_key, last_key, career_games, teammate_count in rows
         ],
     )
+    for live_schema in attached_mlb_live_schemas(conn):
+        if not source_table_exists(conn, live_schema, "appearances"):
+            continue
+        conn.executescript(
+            f"""
+            INSERT OR REPLACE INTO runtime_teams
+            SELECT 'baseball', team_id, season, franchise_id, COALESCE(name, team_id)
+              FROM {live_schema}.teams;
+
+            INSERT OR REPLACE INTO runtime_player_team_seasons
+            SELECT 'baseball', player_id, team_id, season, games_total,
+                   games_pitched, games_batted
+              FROM {live_schema}.appearances;
+            """
+        )
+        live_rows = conn.execute(
+            f"""
+            SELECT p.player_id, p.mlbam_id, p.name_first, p.name_last,
+                   p.debut_year, p.final_year, p.primary_pos, s.display_name,
+                   s.search_key, s.last_key, s.career_games, s.teammate_count
+              FROM {live_schema}.players p
+              LEFT JOIN {live_schema}.players_searchable s ON s.player_id = p.player_id
+             WHERE EXISTS (
+                   SELECT 1 FROM {live_schema}.appearances a
+                    WHERE a.player_id = p.player_id
+             )
+            """
+        ).fetchall()
+        conn.executemany(
+            """
+            INSERT INTO runtime_players
+                (scope, player_id, external_id, display_name, first_name, last_name,
+                 debut_year, final_year, primary_pos, search_key, last_key,
+                 career_games, teammate_count)
+            VALUES ('baseball', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(scope, player_id) DO UPDATE SET
+                external_id = COALESCE(excluded.external_id, runtime_players.external_id),
+                display_name = excluded.display_name,
+                first_name = COALESCE(excluded.first_name, runtime_players.first_name),
+                last_name = COALESCE(excluded.last_name, runtime_players.last_name),
+                debut_year = COALESCE(runtime_players.debut_year, excluded.debut_year),
+                final_year = CASE
+                    WHEN runtime_players.final_year IS NULL THEN excluded.final_year
+                    WHEN excluded.final_year IS NULL THEN runtime_players.final_year
+                    WHEN excluded.final_year > runtime_players.final_year THEN excluded.final_year
+                    ELSE runtime_players.final_year
+                END,
+                primary_pos = COALESCE(runtime_players.primary_pos, excluded.primary_pos),
+                search_key = COALESCE(NULLIF(excluded.search_key, ''), runtime_players.search_key),
+                last_key = COALESCE(NULLIF(excluded.last_key, ''), runtime_players.last_key),
+                career_games = MAX(runtime_players.career_games, excluded.career_games),
+                teammate_count = MAX(runtime_players.teammate_count, excluded.teammate_count)
+            """,
+            [
+                (
+                    pid,
+                    str(mlbam_id) if mlbam_id is not None else None,
+                    display or " ".join(part for part in (first, last) if part).strip() or pid,
+                    first,
+                    last,
+                    debut,
+                    final,
+                    pos,
+                    search_key or normalize(f"{first or ''} {last or ''}"),
+                    last_key or normalize(last or first or pid),
+                    int(career_games or 0),
+                    int(teammate_count or 0),
+                )
+                for pid, mlbam_id, first, last, debut, final, pos, display,
+                search_key, last_key, career_games, teammate_count in live_rows
+            ],
+        )
 
 
 def copy_cross_sport_catalog(conn: sqlite3.Connection, sport: str, source_schema: str) -> None:
@@ -569,6 +655,9 @@ def insert_proofs(conn: sqlite3.Connection) -> None:
         ("hockey", "nhlraw.nhl_teammate_game_proofs"),
         ("football", "nflrt.sport_teammates"),
     ]
+    for live_schema in attached_mlb_live_schemas(conn):
+        if source_table_exists(conn, live_schema, "mlb_teammate_game_proofs"):
+            sources.append(("baseball", f"{live_schema}.mlb_teammate_game_proofs"))
     for scope, table in sources:
         conn.execute(
             f"""
