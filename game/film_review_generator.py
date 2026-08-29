@@ -203,6 +203,7 @@ def _candidate_links(conn: sqlite3.Connection, sport: str, player_id: str,
                      used_links: set[tuple[str, int]]) -> list[tuple[str, tuple[str, int]]]:
     _career_floor, modern_final_year = QUALITY_FLOORS[sport]
     exclusion_clause = ""
+    matrix_exclusion_clause = ""
     if _table_exists(conn, "sport_teammate_exclusions"):
         exclusion_clause = """
           AND NOT EXISTS (
@@ -212,6 +213,55 @@ def _candidate_links(conn: sqlite3.Connection, sport: str, player_id: str,
                    OR (e.player_a_id=b.player_id AND e.player_b_id=a.player_id))
           )
         """
+        matrix_exclusion_clause = """
+          AND NOT EXISTS (
+              SELECT 1 FROM sport_teammate_exclusions e
+               WHERE e.sport_id=t.sport_id AND e.team_id=t.team_id AND e.season=t.season
+                 AND ((e.player_a_id=t.player_a_id AND e.player_b_id=t.player_b_id)
+                   OR (e.player_a_id=t.player_b_id AND e.player_b_id=t.player_a_id))
+          )
+        """
+    strict_game_coverage = conn.execute(
+        """SELECT 1
+             FROM sport_teammate_stint_coverage
+            WHERE sport_id = ?
+              AND strict <> 0
+              AND coverage_type = 'game_boxscore'
+              AND season >= ?
+            LIMIT 1""",
+        (sport, modern_final_year),
+    ).fetchone()
+    if strict_game_coverage is not None:
+        rows = conn.execute(f"""
+            SELECT CASE WHEN t.player_a_id = ? THEN t.player_b_id ELSE t.player_a_id END AS candidate_id,
+                   t.team_id,
+                   t.season
+              FROM sport_teammates t
+              JOIN sport_players b_player
+                ON b_player.sport_id = t.sport_id
+               AND b_player.player_id = CASE WHEN t.player_a_id = ? THEN t.player_b_id ELSE t.player_a_id END
+             WHERE t.sport_id = ?
+               AND (t.player_a_id = ? OR t.player_b_id = ?)
+               AND t.season >= ?
+               AND EXISTS (
+                    SELECT 1 FROM sport_teammate_stint_coverage c
+                     WHERE c.sport_id = t.sport_id
+                       AND c.season = t.season
+                       AND c.strict <> 0
+                       AND c.coverage_type = 'game_boxscore'
+               )
+            {matrix_exclusion_clause}
+        """, (player_id, player_id, sport, player_id, player_id, modern_final_year))
+        by_candidate: dict[str, list[tuple[str, int]]] = {}
+        for candidate, team_id, season in rows:
+            if candidate in eligible and candidate not in used_players:
+                by_candidate.setdefault(candidate, []).append((team_id, season))
+        unique = [
+            (candidate, links[0])
+            for candidate, links in by_candidate.items()
+            if len(links) == 1 and links[0] not in used_links
+        ]
+        return sorted(unique, key=lambda item: eligible[item[0]], reverse=True)
     rows = conn.execute(f"""
         SELECT b.player_id, a.team_id, a.season
         FROM sport_appearances a

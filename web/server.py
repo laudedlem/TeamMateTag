@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.4.23"
+APP_VERSION = "0.4.24"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -7493,6 +7493,51 @@ def generate_baseball_film_review(conn, puzzle_day: date, seed_suffix: str = "",
 
     def candidates(player_id: str, eligible: dict[str, int], used_players: set[str],
                    used_links: set[tuple[str, int]]) -> list[tuple[str, tuple[str, int]]]:
+        strict_game_coverage = conn.execute(
+            """SELECT 1
+                 FROM teammate_stint_coverage
+                WHERE strict <> 0
+                  AND coverage_type = 'game_boxscore'
+                  AND season >= 2000
+                LIMIT 1"""
+        ).fetchone()
+        if strict_game_coverage is not None:
+            rows = conn.execute(
+                """SELECT CASE WHEN proof.player_a_id=%s THEN proof.player_b_id ELSE proof.player_a_id END AS player_id,
+                          proof.team_id,
+                          proof.season
+                     FROM mlb_teammate_game_proofs proof
+                     JOIN players p
+                       ON p.player_id = CASE WHEN proof.player_a_id=%s THEN proof.player_b_id ELSE proof.player_a_id END
+                    WHERE (proof.player_a_id=%s OR proof.player_b_id=%s)
+                      AND proof.season >= 2000
+                      AND p.final_year >= 2000
+                      AND EXISTS (
+                          SELECT 1 FROM teammate_stint_coverage c
+                           WHERE c.season = proof.season
+                             AND c.strict <> 0
+                             AND c.coverage_type = 'game_boxscore'
+                      )
+                      AND NOT EXISTS (
+                          SELECT 1 FROM teammate_exclusions e
+                           WHERE e.team_id = proof.team_id
+                             AND e.season = proof.season
+                             AND ((e.player_a_id = proof.player_a_id AND e.player_b_id = proof.player_b_id)
+                               OR (e.player_a_id = proof.player_b_id AND e.player_b_id = proof.player_a_id))
+                      )
+                    ORDER BY player_id, proof.team_id, proof.season""",
+                (player_id, player_id, player_id, player_id),
+            ).fetchall()
+            by_candidate: dict[str, list[tuple[str, int]]] = {}
+            for pid, team, season in rows:
+                if pid in eligible and pid not in used_players:
+                    by_candidate.setdefault(pid, []).append((team, season))
+            unique = [
+                (pid, links[0])
+                for pid, links in by_candidate.items()
+                if len(links) == 1 and links[0] not in used_links
+            ]
+            return sorted(unique, key=lambda item: eligible[item[0]], reverse=True)
         rows = conn.execute(
             """SELECT DISTINCT b.player_id, a.team_id, a.season
                  FROM appearances a

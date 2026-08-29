@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.4.23`
+- Current display version: `0.4.24`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -177,6 +177,25 @@ Baseball and Hockey keep the more central starter placement. Basketball and
 Football use a narrower right-side starter block anchored closer to the sport
 icon, creating more space after the sport name while preserving the
 side-by-side layout. Verified desktop, tablet, and mobile geometry.
+Update, 2026-08-28 (0.4.24): Started the offline-only Supabase size reduction
+path. Added `scripts/build_minimal_runtime_sqlite.py`, which builds a separate
+local refined runtime artifact at
+`raw/runtime_compact/teammatetag_runtime_minimal.sqlite` without copying raw
+boxscore/game/snap rows. The compact artifact preserves the essential runtime
+facts only: players, teams, player-team-seasons/card rows, headshots, position
+and trait rollups, coverage markers, and a single teammate team-season matrix
+row for each pair/team/season. Latest local build is 261.0 MB and contains
+7,168 Baseball players / 694,446 Baseball teammate rows, 2,601 Basketball
+players / 106,107 Basketball teammate rows, 4,655 Hockey players / 399,622
+Hockey teammate rows, and 11,775 Football players / 1,550,846 Football
+teammate rows, with 0 missing proof players and 0 missing proof teams.
+Added `scripts/smoke_minimal_runtime_sqlite.py`; it passed known-link and
+valid-move checks for all four sports plus Film Review generation for Baseball,
+Basketball, Hockey, Football Offense, and Football Defense against the compact
+local artifact. No Supabase upload or duplicate production tables were created.
+Also changed Film Review generation to use the teammate matrix directly when
+strict game-boxscore coverage exists, reducing dependence on bulky
+appearance/stint joins before the future production swap.
 
 ## Current user experience
 
