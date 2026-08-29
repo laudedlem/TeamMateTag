@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Import completed MLB games from the free public MLB Stats API into production.
+Legacy direct importer for completed MLB games from the public MLB Stats API.
 
-The script stores one row per player/game appearance, then rolls those rows up
-into the runtime `appearances` table. That makes daily reruns idempotent and
-keeps midseason trades accurate for teammate-stint logic.
+Do not use this for normal updates. `update_mlb_compact_live.py` replaced it
+with the local-first compact path that keeps player-game rows out of Supabase.
+This file remains importable for shared MLB Stats API helpers.
 
 Examples:
     python scripts/update_mlb_live_data.py --dry-run --backfill-days 1
@@ -829,6 +829,15 @@ def main() -> int:
     parser.add_argument("--workers", type=int, default=8)
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
+
+    if not args.dry_run and os.environ.get("TEAMMATETAG_ALLOW_LEGACY_MLB_LIVE_UPDATER") != "1":
+        print(
+            "ERROR: update_mlb_live_data.py is a legacy direct-to-Supabase updater. "
+            "Use scripts/update_mlb_compact_live.py so raw player-game rows stay local. "
+            "Set TEAMMATETAG_ALLOW_LEGACY_MLB_LIVE_UPDATER=1 only for an intentional recovery run.",
+            file=sys.stderr,
+        )
+        return 2
 
     if args.season_to_date:
         start = season_start(args.season)

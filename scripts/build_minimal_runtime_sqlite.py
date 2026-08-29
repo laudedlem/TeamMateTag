@@ -10,11 +10,14 @@ from __future__ import annotations
 
 import argparse
 import csv
+import io
 import os
 import sqlite3
 import sys
 import unicodedata
 import re
+import zipfile
+from collections import Counter, defaultdict
 from pathlib import Path
 
 
@@ -28,6 +31,7 @@ NBA_PROOFS_DB = ROOT / "raw" / "nba_game_teammates" / "nba_espn_game_teammates.s
 NHL_PROOFS_DB = ROOT / "raw" / "nhl_game_teammates" / "nhl_game_teammates.sqlite"
 NFL_RUNTIME_DB = ROOT / "raw" / "nfl_game_teammates" / "nfl_compact_runtime_int.sqlite"
 HEADSHOT_REGISTRY = ROOT / "raw" / "headshot_registry_2026-08-15.csv"
+LAHMAN_ZIP = ROOT / "raw" / "lahman_1871-2025_csv.zip"
 
 
 def normalize(value: str | None) -> str:
@@ -273,10 +277,6 @@ def copy_baseball_catalog(conn: sqlite3.Connection) -> None:
          WHERE season >= 2000;
         """
     )
-    if source_table_exists(conn, "baseball", "player_playoff_traits"):
-        conn.execute("INSERT INTO player_playoff_traits SELECT * FROM baseball.player_playoff_traits")
-    if source_table_exists(conn, "baseball", "player_powerup_qualifications"):
-        conn.execute("INSERT INTO player_powerup_qualifications SELECT * FROM baseball.player_powerup_qualifications")
     rows = conn.execute(
         """
         SELECT p.player_id, p.mlbam_id, p.name_first, p.name_last, p.debut_year,
@@ -519,6 +519,204 @@ def copy_cross_sport_catalog(conn: sqlite3.Connection, sport: str, source_schema
             search_key, last_key, career_games, teammate_count in rows
         ],
     )
+
+
+def open_lahman_csv(zf: zipfile.ZipFile, name: str):
+    return csv.DictReader(io.TextIOWrapper(zf.open(name), encoding="utf-8-sig", newline=""))
+
+
+def build_baseball_playoff_support(conn: sqlite3.Connection) -> dict[str, int]:
+    conn.execute("DELETE FROM player_playoff_traits")
+    conn.execute("DELETE FROM player_powerup_qualifications")
+    player_ids = {
+        row[0]
+        for row in conn.execute("SELECT player_id FROM runtime_players WHERE scope = 'baseball'")
+    }
+    team_to_franchise = {
+        (team_id, int(season)): franchise_id
+        for team_id, season, franchise_id in conn.execute(
+            "SELECT team_id, season, franchise_id FROM runtime_teams WHERE scope = 'baseball'"
+        )
+    }
+    appearances = conn.execute(
+        """
+        SELECT player_id, team_id, season
+          FROM runtime_player_team_seasons
+         WHERE scope = 'baseball'
+        """
+    ).fetchall()
+    team_counts: dict[str, set[str]] = defaultdict(set)
+    franchise_counts: dict[str, set[str]] = defaultdict(set)
+    season_counts: dict[str, set[int]] = defaultdict(set)
+    for player_id, team_id, season in appearances:
+        team_counts[player_id].add(team_id)
+        season_counts[player_id].add(int(season))
+        franchise_id = team_to_franchise.get((team_id, int(season)))
+        if franchise_id:
+            franchise_counts[player_id].add(franchise_id)
+
+    birth_country: dict[str, str] = {}
+    mvp_count = Counter()
+    roty_count = Counter()
+    gold_glove_count = Counter()
+    triple_crown_count = Counter()
+    career_hr = Counter()
+    ws_rings = Counter()
+    powerups: set[tuple[str, str, str, str, int]] = set()
+    champions: set[tuple[str, int]] = set()
+    max_lahman_batting_year = 0
+
+    if LAHMAN_ZIP.exists():
+        with zipfile.ZipFile(LAHMAN_ZIP) as zf:
+            for row in open_lahman_csv(zf, "lahman_1871-2025_csv/People.csv"):
+                player_id = row["playerID"]
+                if player_id in player_ids:
+                    birth_country[player_id] = (row.get("birthCountry") or "").strip()
+
+            for row in open_lahman_csv(zf, "lahman_1871-2025_csv/Batting.csv"):
+                player_id = row["playerID"]
+                year = int(row.get("yearID") or 0)
+                max_lahman_batting_year = max(max_lahman_batting_year, year)
+                if player_id not in player_ids:
+                    continue
+                home_runs = int(row.get("HR") or 0)
+                career_hr[player_id] += home_runs
+                franchise_id = team_to_franchise.get((row["teamID"], year))
+                if year >= 2000 and home_runs >= 40 and franchise_id:
+                    powerups.add((player_id, "bubblegum", franchise_id, row["teamID"], year))
+
+            for row in open_lahman_csv(zf, "lahman_1871-2025_csv/Pitching.csv"):
+                player_id = row["playerID"]
+                year = int(row.get("yearID") or 0)
+                if player_id not in player_ids:
+                    continue
+                strikeouts = int(row.get("SO") or 0)
+                franchise_id = team_to_franchise.get((row["teamID"], year))
+                if year >= 2000 and strikeouts >= 200 and franchise_id:
+                    powerups.add((player_id, "pine_tar", franchise_id, row["teamID"], year))
+
+            appearances_by_player_year: dict[tuple[str, int], set[str]] = defaultdict(set)
+            for player_id, team_id, season in appearances:
+                appearances_by_player_year[(player_id, int(season))].add(team_id)
+            for row in open_lahman_csv(zf, "lahman_1871-2025_csv/AwardsPlayers.csv"):
+                player_id = row["playerID"]
+                year = int(row.get("yearID") or 0)
+                if player_id not in player_ids:
+                    continue
+                award = (row.get("awardID") or "").strip()
+                if award == "Most Valuable Player":
+                    mvp_count[player_id] += 1
+                elif award == "Rookie of the Year":
+                    roty_count[player_id] += 1
+                elif award == "Gold Glove":
+                    gold_glove_count[player_id] += 1
+                    powerup_key = "backup_mitt"
+                elif award == "Triple Crown":
+                    triple_crown_count[player_id] += 1
+                    powerup_key = None
+                elif award == "Silver Slugger":
+                    powerup_key = "bat_donut"
+                else:
+                    powerup_key = None
+                if year >= 2000 and powerup_key:
+                    for team_id in appearances_by_player_year.get((player_id, year), set()):
+                        franchise_id = team_to_franchise.get((team_id, year))
+                        if franchise_id:
+                            powerups.add((player_id, powerup_key, franchise_id, team_id, year))
+
+            seen_allstar = set()
+            for row in open_lahman_csv(zf, "lahman_1871-2025_csv/AllstarFull.csv"):
+                player_id = row["playerID"]
+                year = int(row.get("yearID") or 0)
+                team_id = row["teamID"]
+                franchise_id = team_to_franchise.get((team_id, year))
+                dedupe = (player_id, team_id, year)
+                if player_id in player_ids and year >= 2000 and franchise_id and dedupe not in seen_allstar:
+                    seen_allstar.add(dedupe)
+                    powerups.add((player_id, "sunglasses", franchise_id, team_id, year))
+
+            for row in open_lahman_csv(zf, "lahman_1871-2025_csv/Teams.csv"):
+                season = int(row.get("yearID") or 0)
+                if season >= 2000 and (row.get("WSWin") or "") == "Y":
+                    champions.add((row["teamID"], season))
+
+    for player_id, team_id, season in appearances:
+        if (team_id, int(season)) in champions:
+            ws_rings[player_id] += 1
+
+    for live_schema in attached_mlb_live_schemas(conn):
+        if not source_table_exists(conn, live_schema, "mlb_live_player_season_stats"):
+            continue
+        for player_id, team_id, season, home_runs, strikeouts in conn.execute(
+            f"""
+            SELECT player_id, team_id, season, home_runs, strikeouts_pitched
+              FROM {live_schema}.mlb_live_player_season_stats
+            """
+        ):
+            season = int(season)
+            if season > max_lahman_batting_year:
+                career_hr[player_id] += int(home_runs or 0)
+            franchise_id = team_to_franchise.get((team_id, season))
+            if not franchise_id:
+                continue
+            if int(home_runs or 0) >= 40:
+                powerups.add((player_id, "bubblegum", franchise_id, team_id, season))
+            if int(strikeouts or 0) >= 200:
+                powerups.add((player_id, "pine_tar", franchise_id, team_id, season))
+
+    trait_rows = []
+    for player_id in sorted(player_ids):
+        country = birth_country.get(player_id, "")
+        is_canadian = country in {"Canada", "CAN"}
+        is_japanese = country in {"Japan", "JPN"}
+        is_cuban = country in {"Cuba", "CUB"}
+        team_count = len(team_counts.get(player_id, set()))
+        franchise_count = len(franchise_counts.get(player_id, set()))
+        seasons = len(season_counts.get(player_id, set()))
+        trait_rows.append(
+            (
+                player_id,
+                country or None,
+                int(is_japanese),
+                int(is_cuban),
+                int(is_canadian),
+                int(mvp_count[player_id]),
+                int(roty_count[player_id]),
+                int(gold_glove_count[player_id]),
+                int(triple_crown_count[player_id]),
+                int(career_hr[player_id]),
+                int(ws_rings[player_id]),
+                team_count,
+                franchise_count,
+                seasons,
+                int(franchise_count == 1 and seasons >= 10),
+                int(team_count >= 7),
+            )
+        )
+    conn.executemany(
+        """
+        INSERT INTO player_playoff_traits (
+            player_id, birth_country, is_japanese, is_cuban, is_canadian,
+            mvp_count, roty_count, gold_glove_count, triple_crown_count,
+            career_hr, world_series_rings, team_count, franchise_count,
+            season_count, hound_dog_eligible, journeyman_eligible
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        trait_rows,
+    )
+    conn.executemany(
+        """
+        INSERT INTO player_powerup_qualifications
+            (player_id, powerup_key, franchise_id, team_id, season)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        sorted(powerups),
+    )
+    return {
+        "baseball_playoff_traits": len(trait_rows),
+        "baseball_powerup_qualifications": len(powerups),
+    }
 
 
 def load_headshot_registry(conn: sqlite3.Connection) -> int:
@@ -1022,6 +1220,7 @@ def build(output: Path) -> dict[str, int]:
         copy_cross_sport_catalog(conn, "basketball", "sportcat")
         copy_cross_sport_catalog(conn, "hockey", "sportcat")
         copy_cross_sport_catalog(conn, "football", "nflrt")
+        baseball_support = build_baseball_playoff_support(conn)
         loaded_headshots = load_headshot_registry(conn)
         backfill_raw_proof_catalog(conn)
         build_keys(conn)
@@ -1032,6 +1231,7 @@ def build(output: Path) -> dict[str, int]:
         conn.execute("VACUUM")
         checks = verify(conn)
         checks["registry_rows_read"] = loaded_headshots
+        checks.update(baseball_support)
         report(conn)
         return checks
     finally:

@@ -16,6 +16,7 @@ import os
 import sqlite3
 import sys
 from collections import defaultdict
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -42,7 +43,7 @@ from update_mlb_live_data import (  # noqa: E402
     SOURCE,
     RawAppearance,
     appeared_in_game,
-    fetch_boxscore_rows,
+    get_json,
     parse_date,
     scheduled_games,
     season_start,
@@ -53,6 +54,13 @@ from update_mlb_live_data import (  # noqa: E402
 
 DEFAULT_OUTPUT_DIR = ROOT / "raw" / "mlb_live_runtime"
 BASEBALL_DB = ROOT / "db" / "base2nerdle.sqlite"
+
+
+@dataclass(frozen=True)
+class CompactAppearance:
+    raw: RawAppearance
+    home_runs: int = 0
+    strikeouts_pitched: int = 0
 
 
 def default_window(backfill_days: int) -> tuple[date, date]:
@@ -111,6 +119,26 @@ def create_local_schema(conn: sqlite3.Connection) -> None:
             PRIMARY KEY (game_pk, player_id, team_id)
         ) WITHOUT ROWID;
 
+        CREATE TABLE IF NOT EXISTS mlb_live_player_game_stats (
+            game_pk INTEGER NOT NULL,
+            game_date TEXT NOT NULL,
+            season INTEGER NOT NULL,
+            player_id TEXT NOT NULL,
+            team_id TEXT NOT NULL,
+            home_runs INTEGER NOT NULL DEFAULT 0,
+            strikeouts_pitched INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (game_pk, player_id, team_id)
+        ) WITHOUT ROWID;
+
+        CREATE TABLE IF NOT EXISTS mlb_live_player_season_stats (
+            player_id TEXT NOT NULL,
+            team_id TEXT NOT NULL,
+            season INTEGER NOT NULL,
+            home_runs INTEGER NOT NULL DEFAULT 0,
+            strikeouts_pitched INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (player_id, team_id, season)
+        ) WITHOUT ROWID;
+
         CREATE TABLE IF NOT EXISTS appearances (
             player_id TEXT NOT NULL,
             team_id TEXT NOT NULL,
@@ -155,10 +183,40 @@ def create_local_schema(conn: sqlite3.Connection) -> None:
             teammate_count INTEGER NOT NULL DEFAULT 0
         );
 
+        CREATE TABLE IF NOT EXISTS player_playoff_traits (
+            player_id TEXT PRIMARY KEY,
+            birth_country TEXT,
+            is_japanese INTEGER NOT NULL DEFAULT 0,
+            is_cuban INTEGER NOT NULL DEFAULT 0,
+            is_canadian INTEGER NOT NULL DEFAULT 0,
+            mvp_count INTEGER NOT NULL DEFAULT 0,
+            roty_count INTEGER NOT NULL DEFAULT 0,
+            gold_glove_count INTEGER NOT NULL DEFAULT 0,
+            triple_crown_count INTEGER NOT NULL DEFAULT 0,
+            career_hr INTEGER NOT NULL DEFAULT 0,
+            world_series_rings INTEGER NOT NULL DEFAULT 0,
+            team_count INTEGER NOT NULL DEFAULT 0,
+            franchise_count INTEGER NOT NULL DEFAULT 0,
+            season_count INTEGER NOT NULL DEFAULT 0,
+            hound_dog_eligible INTEGER NOT NULL DEFAULT 0,
+            journeyman_eligible INTEGER NOT NULL DEFAULT 0
+        );
+
+        CREATE TABLE IF NOT EXISTS player_powerup_qualifications (
+            player_id TEXT NOT NULL,
+            powerup_key TEXT NOT NULL,
+            franchise_id TEXT NOT NULL,
+            team_id TEXT NOT NULL,
+            season INTEGER NOT NULL,
+            PRIMARY KEY (player_id, powerup_key, team_id, season)
+        ) WITHOUT ROWID;
+
         CREATE INDEX IF NOT EXISTS idx_mlb_live_games_rollup
             ON mlb_live_player_games(season, player_id, team_id);
         CREATE INDEX IF NOT EXISTS idx_mlb_live_games_pair
             ON mlb_live_player_games(game_pk, team_id, player_id);
+        CREATE INDEX IF NOT EXISTS idx_mlb_live_stats_rollup
+            ON mlb_live_player_game_stats(season, player_id, team_id);
         CREATE INDEX IF NOT EXISTS idx_mlb_proofs_pair
             ON mlb_teammate_game_proofs(player_a_id, player_b_id);
         """
@@ -260,10 +318,42 @@ def ensure_local_player(
     return player_id
 
 
+def fetch_compact_boxscore_rows(game: dict[str, Any]) -> list[CompactAppearance]:
+    game_pk = int(game["gamePk"])
+    boxscore = get_json(f"/game/{game_pk}/boxscore")
+    rows: list[CompactAppearance] = []
+
+    for side in ("away", "home"):
+        side_box = boxscore.get("teams", {}).get(side, {})
+        team = side_box.get("team", {})
+        for player_entry in (side_box.get("players") or {}).values():
+            total, pitched, batted = appeared_in_game(player_entry)
+            if not total:
+                continue
+            stats = player_entry.get("stats") or {}
+            batting = stats.get("batting") or {}
+            pitching = stats.get("pitching") or {}
+            rows.append(
+                CompactAppearance(
+                    raw=RawAppearance(
+                        person=player_entry["person"],
+                        team=team,
+                        position=(player_entry.get("position") or {}).get("abbreviation"),
+                        games_total=total,
+                        games_pitched=pitched,
+                        games_batted=batted,
+                    ),
+                    home_runs=int(batting.get("homeRuns") or 0),
+                    strikeouts_pitched=int(pitching.get("strikeOuts") or 0),
+                )
+            )
+    return rows
+
+
 def materialize_local_game(
     conn: sqlite3.Connection,
     game: dict[str, Any],
-    rows: list[RawAppearance],
+    rows: list[CompactAppearance],
     mlbam_to_player: dict[int, str],
 ) -> int:
     game_pk = int(game["gamePk"])
@@ -271,7 +361,9 @@ def materialize_local_game(
     game_day = parse_date(game.get("officialDate") or game["gameDate"][:10])
     status = (game.get("status") or {}).get("detailedState") or "Final"
     payload = []
-    for row in rows:
+    stat_payload = []
+    for item in rows:
+        row = item.raw
         tid = ensure_local_team(conn, row.team, season)
         player_id = ensure_local_player(conn, mlbam_to_player, row.person, season, row.position)
         payload.append(
@@ -287,7 +379,19 @@ def materialize_local_game(
                 row.games_batted,
             )
         )
+        stat_payload.append(
+            (
+                game_pk,
+                game_day.isoformat(),
+                season,
+                player_id,
+                tid,
+                item.home_runs,
+                item.strikeouts_pitched,
+            )
+        )
     if not payload:
+        conn.execute("DELETE FROM mlb_live_player_game_stats WHERE game_pk = ?", (game_pk,))
         conn.execute("DELETE FROM mlb_live_player_games WHERE game_pk = ?", (game_pk,))
         conn.execute("DELETE FROM mlb_live_game_imports WHERE game_pk = ?", (game_pk,))
         return 0
@@ -305,7 +409,16 @@ def materialize_local_game(
         """,
         (game_pk, game_day.isoformat(), season, status, len(payload)),
     )
+    conn.execute("DELETE FROM mlb_live_player_game_stats WHERE game_pk = ?", (game_pk,))
     conn.execute("DELETE FROM mlb_live_player_games WHERE game_pk = ?", (game_pk,))
+    conn.executemany(
+        """
+        INSERT INTO mlb_live_player_game_stats
+            (game_pk, game_date, season, player_id, team_id, home_runs, strikeouts_pitched)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        stat_payload,
+    )
     conn.executemany(
         """
         INSERT INTO mlb_live_player_games
@@ -333,11 +446,14 @@ def collect_local(
         mlbam_to_player = load_catalog(conn)
         if reset_season:
             for table in (
+                "mlb_live_player_game_stats",
                 "mlb_live_player_games",
                 "mlb_live_game_imports",
+                "mlb_live_player_season_stats",
                 "appearances",
                 "player_stints",
                 "mlb_teammate_game_proofs",
+                "player_powerup_qualifications",
             ):
                 conn.execute(f"DELETE FROM {table} WHERE season = ?", (season,))
         games = [game for game in scheduled_games(start, end) if int(game.get("season") or season) == season]
@@ -348,9 +464,9 @@ def collect_local(
         chunk_size = max(workers * 6, 25)
         for chunk_start in range(0, len(games), chunk_size):
             chunk = games[chunk_start : chunk_start + chunk_size]
-            fetched: dict[int, list[RawAppearance]] = {}
+            fetched: dict[int, list[CompactAppearance]] = {}
             with ThreadPoolExecutor(max_workers=max(workers, 1)) as pool:
-                futures = {pool.submit(fetch_boxscore_rows, game): i for i, game in enumerate(chunk)}
+                futures = {pool.submit(fetch_compact_boxscore_rows, game): i for i, game in enumerate(chunk)}
                 for future in as_completed(futures):
                     fetched[futures[future]] = future.result()
             for offset, game in enumerate(chunk):
@@ -374,6 +490,19 @@ def collect_local(
 
 
 def rebuild_local_runtime(conn: sqlite3.Connection, season: int) -> None:
+    conn.execute("DELETE FROM mlb_live_player_season_stats WHERE season = ?", (season,))
+    conn.execute(
+        """
+        INSERT INTO mlb_live_player_season_stats
+            (player_id, team_id, season, home_runs, strikeouts_pitched)
+        SELECT player_id, team_id, season,
+               SUM(home_runs), SUM(strikeouts_pitched)
+          FROM mlb_live_player_game_stats
+         WHERE season = ?
+         GROUP BY player_id, team_id, season
+        """,
+        (season,),
+    )
     conn.execute("DELETE FROM appearances WHERE season = ?", (season,))
     conn.execute(
         """
@@ -432,6 +561,64 @@ def rebuild_local_runtime(conn: sqlite3.Connection, season: int) -> None:
         (season, SOURCE),
     )
     refresh_local_search(conn, season)
+    refresh_local_playoff_support(conn, season)
+
+
+def refresh_local_playoff_support(conn: sqlite3.Connection, season: int) -> None:
+    conn.execute("DELETE FROM player_powerup_qualifications WHERE season = ?", (season,))
+    conn.execute(
+        """
+        INSERT OR IGNORE INTO player_powerup_qualifications
+            (player_id, powerup_key, franchise_id, team_id, season)
+        SELECT s.player_id, 'bubblegum', t.franchise_id, s.team_id, s.season
+          FROM mlb_live_player_season_stats s
+          JOIN teams t ON t.team_id = s.team_id AND t.season = s.season
+         WHERE s.season = ?
+           AND s.home_runs >= 40
+        UNION
+        SELECT s.player_id, 'pine_tar', t.franchise_id, s.team_id, s.season
+          FROM mlb_live_player_season_stats s
+          JOIN teams t ON t.team_id = s.team_id AND t.season = s.season
+         WHERE s.season = ?
+           AND s.strikeouts_pitched >= 200
+        """,
+        (season, season),
+    )
+    conn.execute(
+        """
+        INSERT INTO player_playoff_traits (
+            player_id, birth_country, is_japanese, is_cuban, is_canadian,
+            mvp_count, roty_count, gold_glove_count, triple_crown_count,
+            career_hr, world_series_rings, team_count, franchise_count,
+            season_count, hound_dog_eligible, journeyman_eligible
+        )
+        SELECT p.player_id, NULL, 0, 0, 0, 0, 0, 0, 0,
+               COALESCE(SUM(s.home_runs), 0), 0,
+               COUNT(DISTINCT a.team_id),
+               COUNT(DISTINCT t.franchise_id),
+               COUNT(DISTINCT a.season),
+               CASE WHEN COUNT(DISTINCT t.franchise_id) = 1
+                         AND COUNT(DISTINCT a.season) >= 10 THEN 1 ELSE 0 END,
+               CASE WHEN COUNT(DISTINCT a.team_id) >= 7 THEN 1 ELSE 0 END
+          FROM players p
+          JOIN appearances a ON a.player_id = p.player_id
+          LEFT JOIN teams t ON t.team_id = a.team_id AND t.season = a.season
+          LEFT JOIN mlb_live_player_season_stats s
+            ON s.player_id = p.player_id
+         WHERE p.player_id IN (
+               SELECT DISTINCT player_id FROM appearances WHERE season = ?
+         )
+         GROUP BY p.player_id
+        ON CONFLICT(player_id) DO UPDATE SET
+            career_hr = MAX(player_playoff_traits.career_hr, excluded.career_hr),
+            team_count = excluded.team_count,
+            franchise_count = excluded.franchise_count,
+            season_count = excluded.season_count,
+            hound_dog_eligible = excluded.hound_dog_eligible,
+            journeyman_eligible = excluded.journeyman_eligible
+        """,
+        (season,),
+    )
 
 
 def refresh_local_search(conn: sqlite3.Connection, season: int) -> None:
@@ -500,12 +687,15 @@ def table_count(conn: sqlite3.Connection, table: str, season: int | None = None)
 def local_summary(path: Path, season: int) -> dict[str, int]:
     conn = sqlite3.connect(path)
     try:
+        create_local_schema(conn)
         return {
             "games": table_count(conn, "mlb_live_game_imports", season),
             "player_games": table_count(conn, "mlb_live_player_games", season),
             "player_team_seasons": table_count(conn, "appearances", season),
             "stints": table_count(conn, "player_stints", season),
             "proofs": table_count(conn, "mlb_teammate_game_proofs", season),
+            "season_stats": table_count(conn, "mlb_live_player_season_stats", season),
+            "powerup_qualifications": table_count(conn, "player_powerup_qualifications", season),
             "players": table_count(conn, "players"),
         }
     finally:
@@ -561,12 +751,51 @@ def upload_compact(path: Path, season: int, database_url: str, prune_live_stagin
             """,
             (season,),
         ).fetchall()
+        team_season_stats = src.execute(
+            """
+            SELECT player_id, team_id, season, home_runs, strikeouts_pitched
+              FROM mlb_live_player_season_stats
+             WHERE season = ?
+            """,
+            (season,),
+        ).fetchall()
+        player_season_stats = src.execute(
+            """
+            SELECT player_id, season, SUM(home_runs) AS home_runs,
+                   SUM(strikeouts_pitched) AS strikeouts_pitched
+              FROM mlb_live_player_season_stats
+             WHERE season = ?
+             GROUP BY player_id, season
+            """,
+            (season,),
+        ).fetchall()
+        powerups = src.execute(
+            """
+            SELECT player_id, powerup_key, franchise_id, team_id, season
+              FROM player_powerup_qualifications
+             WHERE season = ?
+            """,
+            (season,),
+        ).fetchall()
     finally:
         src.close()
 
     with psycopg.connect(database_url, autocommit=False, prepare_threshold=None) as conn:
         with conn.cursor() as cur:
             cur.execute("SET LOCAL statement_timeout = '20min'")
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS mlb_player_season_stat_rollups (
+                    player_id TEXT NOT NULL REFERENCES players(player_id),
+                    team_id TEXT NOT NULL,
+                    season INTEGER NOT NULL,
+                    home_runs INTEGER NOT NULL DEFAULT 0,
+                    strikeouts_pitched INTEGER NOT NULL DEFAULT 0,
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                    PRIMARY KEY (player_id, team_id, season)
+                )
+                """
+            )
             cur.executemany(
                 """
                 INSERT INTO franchises (franchise_id, name, active)
@@ -636,6 +865,100 @@ def upload_compact(path: Path, season: int, database_url: str, prune_live_stagin
                     teammate_count = EXCLUDED.teammate_count
                 """,
                 searchable,
+            )
+            cur.execute(
+                """
+                DELETE FROM player_powerup_qualifications
+                 WHERE season = %s
+                   AND powerup_key IN ('bubblegum', 'pine_tar')
+                """,
+                (season,),
+            )
+            cur.executemany(
+                """
+                INSERT INTO player_powerup_qualifications
+                    (player_id, powerup_key, franchise_id, team_id, season)
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (player_id, powerup_key, team_id, season) DO UPDATE
+                SET franchise_id = EXCLUDED.franchise_id
+                """,
+                powerups,
+            )
+            old_player_home_runs: dict[str, int] = {}
+            for player_id, home_runs in cur.execute(
+                """
+                SELECT player_id, COALESCE(SUM(home_runs), 0)
+                  FROM mlb_player_season_stat_rollups
+                 WHERE season = %s
+                 GROUP BY player_id
+                """,
+                (season,),
+            ).fetchall():
+                old_player_home_runs[player_id] = int(home_runs or 0)
+            cur.execute("DELETE FROM mlb_player_season_stat_rollups WHERE season = %s", (season,))
+            cur.executemany(
+                """
+                INSERT INTO mlb_player_season_stat_rollups
+                    (player_id, team_id, season, home_runs, strikeouts_pitched, updated_at)
+                VALUES (%s, %s, %s, %s, %s, now())
+                ON CONFLICT (player_id, team_id, season) DO UPDATE
+                SET home_runs = EXCLUDED.home_runs,
+                    strikeouts_pitched = EXCLUDED.strikeouts_pitched,
+                    updated_at = now()
+                """,
+                team_season_stats,
+            )
+            new_player_home_runs = {player_id: int(home_runs or 0) for player_id, _season, home_runs, _so in player_season_stats}
+            cur.executemany(
+                """
+                INSERT INTO player_playoff_traits (
+                    player_id, birth_country, is_japanese, is_cuban, is_canadian,
+                    mvp_count, roty_count, gold_glove_count, triple_crown_count,
+                    career_hr, world_series_rings, team_count, franchise_count,
+                    season_count, hound_dog_eligible, journeyman_eligible
+                )
+                SELECT p.player_id,
+                       COALESCE(t.birth_country, NULL),
+                       COALESCE(t.is_japanese, false),
+                       COALESCE(t.is_cuban, false),
+                       COALESCE(t.is_canadian, false),
+                       COALESCE(t.mvp_count, 0),
+                       COALESCE(t.roty_count, 0),
+                       COALESCE(t.gold_glove_count, 0),
+                       COALESCE(t.triple_crown_count, 0),
+                       GREATEST(COALESCE(t.career_hr, 0) + %s, 0),
+                       COALESCE(t.world_series_rings, 0),
+                       stats.team_count,
+                       stats.franchise_count,
+                       stats.season_count,
+                       (stats.franchise_count = 1 AND stats.season_count >= 10),
+                       (stats.team_count >= 7)
+                  FROM players p
+                  LEFT JOIN player_playoff_traits t ON t.player_id = p.player_id
+                  JOIN (
+                        SELECT a.player_id,
+                               COUNT(DISTINCT a.team_id) AS team_count,
+                               COUNT(DISTINCT tm.franchise_id) AS franchise_count,
+                               COUNT(DISTINCT a.season) AS season_count
+                          FROM appearances a
+                          LEFT JOIN teams tm
+                            ON tm.team_id = a.team_id AND tm.season = a.season
+                         WHERE a.player_id = %s
+                         GROUP BY a.player_id
+                  ) stats ON stats.player_id = p.player_id
+                 WHERE p.player_id = %s
+                ON CONFLICT (player_id) DO UPDATE
+                SET career_hr = EXCLUDED.career_hr,
+                    team_count = EXCLUDED.team_count,
+                    franchise_count = EXCLUDED.franchise_count,
+                    season_count = EXCLUDED.season_count,
+                    hound_dog_eligible = EXCLUDED.hound_dog_eligible,
+                    journeyman_eligible = EXCLUDED.journeyman_eligible
+                """,
+                [
+                    (new_hr - old_player_home_runs.get(player_id, 0), player_id, player_id)
+                    for player_id, new_hr in new_player_home_runs.items()
+                ],
             )
             cur.execute(
                 """
@@ -722,6 +1045,9 @@ def upload_compact(path: Path, season: int, database_url: str, prune_live_stagin
                 removed_games = 0
             cur.execute("ANALYZE appearances")
             cur.execute("ANALYZE player_stints")
+            cur.execute("ANALYZE player_powerup_qualifications")
+            cur.execute("ANALYZE player_playoff_traits")
+            cur.execute("ANALYZE mlb_player_season_stat_rollups")
             cur.execute("ANALYZE compact_mlb_teammate_game_proofs")
             db_size = cur.execute("SELECT pg_size_pretty(pg_database_size(current_database()))").fetchone()[0]
         conn.commit()
@@ -731,6 +1057,8 @@ def upload_compact(path: Path, season: int, database_url: str, prune_live_stagin
         "appearances": len(appearances),
         "stints": len(stints),
         "proofs": len(proofs),
+        "season_stats": len(team_season_stats),
+        "powerup_qualifications": len(powerups),
         "removed_live_player_games": removed_player_games,
         "removed_live_games": removed_games,
         "database_size": str(db_size),

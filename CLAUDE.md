@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.4.25`
+- Current display version: `0.4.26`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -218,6 +218,37 @@ Latest all-sport compact artifact with MLB 2026 included:
 `raw/runtime_compact/teammatetag_runtime_minimal.sqlite`, 263.6 MB, 2,780,015
 teammate team-season rows, all four sport smoke checks and Film Review
 generation passed.
+Update, 2026-08-29 (0.4.26): tightened the local-first data contract after
+the user called out stale/redundant replacement risk. The legacy direct MLB
+live updater `scripts/update_mlb_live_data.py` now refuses production writes
+unless `TEAMMATETAG_ALLOW_LEGACY_MLB_LIVE_UPDATER=1` is explicitly set; it
+remains importable only for shared MLB Stats API helpers. Expanded
+`scripts/update_mlb_compact_live.py` so the local 2026 MLB runtime file also
+stores tiny derived game/season stat rollups (`home_runs`,
+`strikeouts_pitched`) and builds 2026 Baseball Playoffs support rows locally
+before upload. Uploads now replace compact 2026 appearances/stints/proofs,
+replace same-season HR/K powerup qualifiers, upsert tiny
+`mlb_player_season_stat_rollups`, update player-card/search/team-season data,
+and keep `mlb_live_*` staging empty. Latest local 2026 MLB file:
+`raw/mlb_live_runtime/mlb_live_2026.sqlite`, 12.8 MB, 2,023 games with actual
+player appearances through 2026-08-28, 59,829 local player-game rows, 1,591
+player-team-season/stat rows, 29,006 compact teammate proofs, and 6 current
+2026 HR/K powerup qualifiers. Production now has 29,006 MLB 2026 proof rows,
+1,591 tiny stat-rollup rows, 0 `mlb_live_*` staging rows, and reports about
+487 MB database size.
+Also moved Baseball Playoffs support generation into
+`scripts/build_minimal_runtime_sqlite.py` instead of relying on Supabase-only
+helper tables: it rebuilds `player_playoff_traits` and
+`player_powerup_qualifications` locally from Lahman through 2025 plus live MLB
+season-stat rollups after Lahman's max season. Latest all-sport compact
+artifact is 264.0 MB with 7,389 local Baseball Playoffs trait rows and 3,259
+local Baseball powerup qualification rows. Added
+`scripts/audit_runtime_data_hygiene.py`; it verifies local compact data,
+local MLB 2026 source/proof/stat/qualifier rows, the compact MLB workflow, and
+empty Supabase MLB staging rows. The audit and compact smoke tests passed.
+Remaining consistency work: NBA, NHL, and NFL live updaters still need the same
+local-first compact replacement pattern before their scheduled workflows are
+safe to run for future seasons.
 
 ## Current user experience
 
