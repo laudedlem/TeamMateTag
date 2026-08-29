@@ -9484,6 +9484,24 @@ body[data-mode-hub="manager"] .manager-starter {
   width: min(100%, 10.75rem);
 }
 
+body[data-mode-hub="manager"] .sport-tile-basketball .manager-starter,
+body[data-mode-hub="manager"] .sport-tile-football .manager-starter {
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 0.5rem;
+  width: min(100%, 8.3rem);
+}
+
+body[data-mode-hub="manager"] .sport-tile-basketball .manager-starter-photo,
+body[data-mode-hub="manager"] .sport-tile-football .manager-starter-photo {
+  height: 40px;
+  width: 40px;
+}
+
+body[data-mode-hub="manager"] .sport-tile-basketball .manager-starter strong,
+body[data-mode-hub="manager"] .sport-tile-football .manager-starter strong {
+  font-size: 0.92rem;
+}
+
 body[data-mode-hub="manager"] .manager-starter strong {
   display: block;
   max-width: 100%;
@@ -9511,6 +9529,11 @@ body[data-mode-hub="manager"] .manager-starter-name span {
   body[data-mode-hub="manager"] .manager-starter {
     width: min(100%, 10.25rem);
   }
+
+  body[data-mode-hub="manager"] .sport-tile-basketball .manager-starter,
+  body[data-mode-hub="manager"] .sport-tile-football .manager-starter {
+    width: min(100%, 8.15rem);
+  }
 }
 
 @media (max-width: 520px) {
@@ -9533,6 +9556,23 @@ body[data-mode-hub="manager"] .manager-starter-name span {
 
   body[data-mode-hub="manager"] .manager-starter strong {
     font-size: 0.84rem;
+  }
+
+  body[data-mode-hub="manager"] .sport-tile-basketball .manager-starter,
+  body[data-mode-hub="manager"] .sport-tile-football .manager-starter {
+    grid-template-columns: 34px minmax(0, 1fr);
+    width: min(100%, 7.25rem);
+  }
+
+  body[data-mode-hub="manager"] .sport-tile-basketball .manager-starter-photo,
+  body[data-mode-hub="manager"] .sport-tile-football .manager-starter-photo {
+    height: 34px;
+    width: 34px;
+  }
+
+  body[data-mode-hub="manager"] .sport-tile-basketball .manager-starter strong,
+  body[data-mode-hub="manager"] .sport-tile-football .manager-starter strong {
+    font-size: 0.8rem;
   }
 }
 

@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.4.22`
+- Current display version: `0.4.23`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -172,6 +172,11 @@ mobile-specific sizing so Basketball title, starter headshot/name, and icon do
 not overlap. Kept the first-name/last-name stacked starter labels from
 `0.4.20`. Verified desktop, tablet, and mobile geometry with a long Basketball
 starter-name stress case.
+Update, 2026-08-28 (0.4.23): Adjusted Manager hub starter alignment by sport.
+Baseball and Hockey keep the more central starter placement. Basketball and
+Football use a narrower right-side starter block anchored closer to the sport
+icon, creating more space after the sport name while preserving the
+side-by-side layout. Verified desktop, tablet, and mobile geometry.
 
 ## Current user experience
 
