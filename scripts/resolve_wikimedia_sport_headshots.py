@@ -1,4 +1,4 @@
-"""Resolve basketball/hockey headshot gaps from Wikipedia/Wikimedia.
+"""Resolve hockey headshot gaps from Wikipedia/Wikimedia.
 
 This is intentionally conservative: exact or near-name article, sport-specific
 career language, birth-year mismatch rejection when local birth year exists,
@@ -29,12 +29,6 @@ API = "https://en.wikipedia.org/w/api.php"
 SUMMARY = "https://en.wikipedia.org/api/rest_v1/page/summary/"
 USER_AGENT = "TeamMateTag Wikimedia sport headshot resolver/0.2.10"
 CONFIG = {
-    "basketball": {
-        "sport_terms": ("basketball", "nba", "national basketball association"),
-        "role_titles": ("basketball player", "NBA player"),
-        "provider": "Wikimedia Commons",
-        "report": ROOT / "raw" / "basketball_wikimedia_headshots.csv",
-    },
     "hockey": {
         "sport_terms": ("ice hockey", "hockey", "nhl", "national hockey league"),
         "role_titles": ("ice hockey", "ice hockey player", "hockey player"),

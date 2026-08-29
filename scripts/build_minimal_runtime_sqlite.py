@@ -36,6 +36,11 @@ NBA_PROOFS_DB = ROOT / "raw" / "nba_game_teammates" / "nba_espn_game_teammates.s
 NHL_PROOFS_DB = ROOT / "raw" / "nhl_game_teammates" / "nhl_game_teammates.sqlite"
 NFL_RUNTIME_DB = ROOT / "raw" / "nfl_game_teammates" / "nfl_compact_runtime_int.sqlite"
 HEADSHOT_REGISTRY = ROOT / "raw" / "headshot_registry_2026-08-15.csv"
+BASEBALL_HEADSHOT_REGISTRY_DB = ROOT / "raw" / "headshot_registry" / "baseball_headshots.sqlite"
+BASKETBALL_HEADSHOT_REGISTRY_DB = ROOT / "raw" / "headshot_registry" / "basketball_headshots.sqlite"
+HOCKEY_HEADSHOT_REGISTRY_DB = ROOT / "raw" / "headshot_registry" / "hockey_headshots.sqlite"
+FOOTBALL_HEADSHOT_REGISTRY_DB = ROOT / "raw" / "headshot_registry" / "football_headshots.sqlite"
+LEGACY_BASEBALL_HEADSHOT_REGISTRY_DB = ROOT / "raw" / "headshot_registry" / "baseball_ootp_headshots.sqlite"
 LAHMAN_ZIP = ROOT / "raw" / "lahman_1871-2025_csv.zip"
 
 
@@ -897,8 +902,104 @@ def build_baseball_playoff_support(conn: sqlite3.Connection) -> dict[str, int]:
 
 
 def load_headshot_registry(conn: sqlite3.Connection) -> int:
+    local_rows = []
+    baseball_registry_db = (
+        BASEBALL_HEADSHOT_REGISTRY_DB
+        if BASEBALL_HEADSHOT_REGISTRY_DB.exists()
+        else LEGACY_BASEBALL_HEADSHOT_REGISTRY_DB
+    )
+    if baseball_registry_db.exists():
+        with sqlite3.connect(baseball_registry_db) as registry:
+            columns = {row[1] for row in registry.execute("PRAGMA table_info(baseball_headshots)")}
+            source_expr = "COALESCE(public_url, source_url)" if "source_url" in columns else "public_url"
+            fallback_expr = "fallback_url" if "fallback_url" in columns else "NULL"
+            local_rows = [
+                (
+                    "baseball",
+                    player_id,
+                    source_url or (f"/local-headshots/baseball/{Path(local_path).name}" if local_path else None),
+                    fallback_url,
+                    provider or "OOTP Facepack",
+                    status or "verified",
+                )
+                for player_id, local_path, source_url, fallback_url, provider, status in registry.execute(
+                    f"""
+                    SELECT player_id, local_path, {source_expr}, {fallback_expr}, provider, status
+                      FROM baseball_headshots
+                     WHERE status = 'verified'
+                    """
+                )
+            ]
+    if BASKETBALL_HEADSHOT_REGISTRY_DB.exists():
+        with sqlite3.connect(BASKETBALL_HEADSHOT_REGISTRY_DB) as registry:
+            local_rows.extend(
+                (
+                    "basketball",
+                    player_id,
+                    source_url or (f"/local-headshots/basketball/{Path(local_path).name}" if local_path else None),
+                    None,
+                    provider or "Canonical Local Cache",
+                    status or "verified",
+                )
+                for player_id, local_path, source_url, provider, status in registry.execute(
+                    """
+                    SELECT player_id, local_path, source_url, provider, status
+                      FROM basketball_headshots
+                     WHERE status = 'verified'
+                    """
+                )
+            )
+    if HOCKEY_HEADSHOT_REGISTRY_DB.exists():
+        with sqlite3.connect(HOCKEY_HEADSHOT_REGISTRY_DB) as registry:
+            local_rows.extend(
+                (
+                    "hockey",
+                    player_id,
+                    source_url or (f"/local-headshots/hockey/{Path(local_path).name}" if local_path else None),
+                    None,
+                    provider or "Canonical Local Cache",
+                    status or "verified",
+                )
+                for player_id, local_path, source_url, provider, status in registry.execute(
+                    """
+                    SELECT player_id, local_path, source_url, provider, status
+                      FROM hockey_headshots
+                     WHERE status = 'verified'
+                    """
+                )
+            )
+    if FOOTBALL_HEADSHOT_REGISTRY_DB.exists():
+        with sqlite3.connect(FOOTBALL_HEADSHOT_REGISTRY_DB) as registry:
+            local_rows.extend(
+                (
+                    "football",
+                    player_id,
+                    source_url or (f"/local-headshots/football/{Path(local_path).name}" if local_path else None),
+                    None,
+                    provider or "Canonical Local Cache",
+                    status or "verified",
+                )
+                for player_id, local_path, source_url, provider, status in registry.execute(
+                    """
+                    SELECT player_id, local_path, source_url, provider, status
+                      FROM football_headshots
+                     WHERE status = 'verified'
+                    """
+                )
+            )
+    if local_rows:
+        canonical_scopes = sorted({row[0] for row in local_rows})
+        conn.executemany("DELETE FROM runtime_headshots WHERE scope = ?", [(scope,) for scope in canonical_scopes])
+        conn.executemany(
+            """
+            INSERT OR REPLACE INTO runtime_headshots
+                (scope, player_id, source_url, fallback_url, provider, status)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            local_rows,
+        )
     if not HEADSHOT_REGISTRY.exists():
-        return 0
+        return len(local_rows)
     with HEADSHOT_REGISTRY.open(newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
         rows = [
@@ -913,15 +1014,17 @@ def load_headshot_registry(conn: sqlite3.Connection) -> int:
             for row in reader
         ]
     rows = [row for row in rows if row[0] and row[1]]
+    canonical_sports = {"baseball", "basketball", "hockey", "football"}
+    non_canonical_rows = [row for row in rows if row[0] not in canonical_sports]
     conn.executemany(
         """
         INSERT OR REPLACE INTO runtime_headshots
             (scope, player_id, source_url, fallback_url, provider, status)
         VALUES (?, ?, ?, ?, ?, ?)
         """,
-        rows,
+        non_canonical_rows,
     )
-    return len(rows)
+    return len(rows) + len(local_rows)
 
 
 def build_keys(conn: sqlite3.Connection) -> None:
@@ -1072,6 +1175,51 @@ def insert_proofs(conn: sqlite3.Connection) -> None:
         )
 
 
+def insert_baseball_pitcher_exceptions(conn: sqlite3.Connection) -> int:
+    """Treat same-team-season pitcher pairs as teammates even without shared games."""
+    before = conn.execute(
+        "SELECT COUNT(*) FROM teammate_team_seasons WHERE scope = 'baseball'"
+    ).fetchone()[0]
+    conn.executescript(
+        """
+        CREATE TEMP INDEX IF NOT EXISTS tmp_runtime_pts_baseball_pitchers
+            ON runtime_player_team_seasons(scope, team_id, season, player_id, games_pitched);
+        """
+    )
+    conn.execute(
+        """
+        INSERT OR IGNORE INTO teammate_team_seasons
+            (scope, player_a_key, player_b_key, team_key)
+        SELECT 'baseball',
+               CASE WHEN pa.player_key < pb.player_key THEN pa.player_key ELSE pb.player_key END,
+               CASE WHEN pa.player_key < pb.player_key THEN pb.player_key ELSE pa.player_key END,
+               tk.team_key
+          FROM runtime_player_team_seasons a
+          JOIN runtime_player_team_seasons b
+            ON b.scope = a.scope
+           AND b.team_id = a.team_id
+           AND b.season = a.season
+           AND b.player_id > a.player_id
+          JOIN compact_player_keys pa
+            ON pa.scope = 'baseball' AND pa.player_id = a.player_id
+          JOIN compact_player_keys pb
+            ON pb.scope = 'baseball' AND pb.player_id = b.player_id
+          JOIN compact_team_keys tk
+            ON tk.scope = 'baseball'
+           AND tk.team_id = a.team_id
+           AND tk.season = a.season
+         WHERE a.scope = 'baseball'
+           AND a.season >= 2000
+           AND COALESCE(a.games_pitched, 0) > 0
+           AND COALESCE(b.games_pitched, 0) > 0
+        """
+    )
+    after = conn.execute(
+        "SELECT COUNT(*) FROM teammate_team_seasons WHERE scope = 'baseball'"
+    ).fetchone()[0]
+    return after - before
+
+
 def create_compatibility_views(conn: sqlite3.Connection) -> None:
     conn.executescript(
         """
@@ -1156,7 +1304,7 @@ def create_compatibility_views(conn: sqlite3.Connection) -> None:
           FROM runtime_player_traits;
 
         CREATE VIEW sport_player_season_traits AS
-        SELECT scope AS sport_id, player_id, NULL AS season, 0 AS games,
+        SELECT scope AS sport_id, player_id, 0 AS season, 0 AS games,
                peak_points AS points, peak_goals AS goals, peak_assists AS assists,
                peak_touchdowns AS touchdowns, peak_passing_touchdowns AS passing_touchdowns,
                peak_rushing_touchdowns AS rushing_touchdowns,
@@ -1337,6 +1485,18 @@ def update_teammate_counts(conn: sqlite3.Connection) -> None:
                ), teammate_count)
         """
     )
+    conn.execute(
+        """
+        UPDATE runtime_players
+           SET career_games = COALESCE((
+                   SELECT NULLIF(t.career_games, 0)
+                     FROM runtime_player_traits t
+                    WHERE t.scope = runtime_players.scope
+                      AND t.player_id = runtime_players.player_id
+               ), career_games)
+         WHERE scope <> 'baseball'
+        """
+    )
 
 
 def verify(conn: sqlite3.Connection) -> dict[str, int]:
@@ -1406,12 +1566,14 @@ def build(output: Path) -> dict[str, int]:
         backfill_raw_proof_catalog(conn)
         build_keys(conn)
         insert_proofs(conn)
+        baseball_pitcher_exception_rows = insert_baseball_pitcher_exceptions(conn)
         update_teammate_counts(conn)
         create_compatibility_views(conn)
         create_indexes(conn)
         conn.execute("VACUUM")
         checks = verify(conn)
         checks["registry_rows_read"] = loaded_headshots
+        checks["baseball_pitcher_exception_rows"] = baseball_pitcher_exception_rows
         checks.update(baseball_support)
         report(conn)
         return checks

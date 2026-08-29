@@ -1,4 +1,4 @@
-"""Resolve Basketball/Hockey Reference player-page headshots.
+"""Resolve Hockey Reference player-page headshots.
 
 Sports Reference pages expose player portraits in page markup, but plain
 requests can be blocked or served incomplete pages. This script uses curl_cffi
@@ -32,18 +32,6 @@ from audit_runtime_headshots import KNOWN_PLACEHOLDER_URLS, fetch, hamming  # no
 from name_normalize import normalize  # noqa: E402
 
 CONFIG = {
-    "basketball": {
-        "base": "https://www.basketball-reference.com",
-        "index": "https://www.basketball-reference.com/players/{letter}/",
-        "provider": "Basketball Reference",
-        "report": ROOT / "raw" / "basketball_reference_headshots.csv",
-        "row_pattern": re.compile(
-            r'<tr[^>]*>.*?<a href="/players/(?P<letter>[a-z])/(?P<slug>[a-z0-9]+)\.html">(?P<name>.*?)</a>.*?'
-            r'data-stat="year_min"[^>]*>(?P<debut>\d{4})</td>.*?'
-            r'data-stat="year_max"[^>]*>(?P<final>\d{4})</td>',
-            re.S,
-        ),
-    },
     "hockey": {
         "base": "https://www.hockey-reference.com",
         "index": "https://www.hockey-reference.com/players/{letter}/",

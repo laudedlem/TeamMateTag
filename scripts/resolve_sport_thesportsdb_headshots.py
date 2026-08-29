@@ -1,4 +1,4 @@
-"""Resolve flagged non-NFL headshots from TheSportsDB using ESPN identity data."""
+"""Resolve flagged Hockey headshots from TheSportsDB using ESPN identity data."""
 from __future__ import annotations
 
 import argparse
@@ -19,20 +19,12 @@ from name_normalize import normalize  # noqa: E402
 API = "https://www.thesportsdb.com/api/v1/json/123/searchplayers.php"
 HEADERS = {"User-Agent": "TeamMateTag headshot resolver/0.2.10 (contact: teammatetag.com)"}
 CONFIG = {
-    "baseball": ("mlb", "Baseball"),
-    "basketball": ("nba", "Basketball"),
     "hockey": ("nhl", "Ice Hockey"),
 }
 
 
 def local_birth_dates(sport: str) -> dict[str, str]:
-    if sport != "basketball":
-        return {}
-    path = ROOT / "raw" / "nba_headshot_identity_matches.csv"
-    if not path.exists():
-        return {}
-    with path.open(encoding="utf-8", newline="") as handle:
-        return {row["player_id"]: row["birth_date"] for row in csv.DictReader(handle) if row.get("birth_date")}
+    return {}
 
 
 def espn_identities(sport: str, league: str) -> dict[tuple[str, int], list[str]]:

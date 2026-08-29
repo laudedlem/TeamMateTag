@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.4.30`
+- Current display version: `0.5.00`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog policy: production is runtime-only. Keep compact
@@ -24,6 +24,85 @@ changes. It is the concise source of truth for another coding assistant.
 - Runtime schema migrations are skipped during ordinary gameplay to keep Vercel
   cold starts fast. Set `TEAMMATETAG_AUTO_MIGRATE=1` only for an intentional
   migration run, then remove it again.
+- Baseball headshots now have a canonical local registry at
+  `raw/headshot_registry/baseball_headshots.sqlite`, built by
+  `scripts/sync_baseball_headshots.py`. It prioritizes the canonical local
+  cache, then optional verified historical sources only when filling new gaps,
+  and stores the result as one local image per player in
+  `raw/player_headshots/baseball/`. The old production-export CSV
+  must not overwrite this registry. Current local Baseball coverage is
+  7,389/7,389 verified with 0 placeholders.
+- Basketball headshots now follow the same local-first pattern:
+  `raw/headshot_registry/basketball_headshots.sqlite` plus one compressed JPEG
+  per player in `raw/player_headshots/basketball/`, built by
+  `scripts/sync_basketball_headshots.py`. Current local Basketball coverage is
+  2,601/2,601 verified with 0 placeholders.
+- Hockey headshots now follow the same canonical local-first pattern:
+  `raw/headshot_registry/hockey_headshots.sqlite` plus one compressed JPEG per
+  player in `raw/player_headshots/hockey/`, built by
+  `scripts/sync_hockey_headshots.py`. Current local Hockey coverage is
+  4,655/4,655 verified with 0 placeholders. The old placeholder-heavy Hockey
+  cache was replaced after a guarded full-coverage verification.
+- Football headshots now follow the same canonical local-first pattern:
+  `raw/headshot_registry/football_headshots.sqlite` plus one compressed JPEG
+  per verified player in `raw/player_headshots/football/`, built by
+  `scripts/sync_football_headshots.py`. Football does not have complete public
+  image coverage yet: current local coverage is 8,642/11,775 verified overall,
+  with 3,951/4,692 verified among players with 50+ games. The 3,133 unresolved
+  players are explicitly listed in local/file-storage missing manifests and
+  should be excluded from photo-dependent starters and Film Review puzzles.
+  `scripts/collect_football_wikimedia_headshots.py` is the active targeted
+  gap-fill helper for verified Wikimedia exact-name American-football image
+  matches; it writes `raw/football_manual_headshots.csv`, which is consumed by
+  the same canonical sync. Keep manual candidate rows only when the sync can
+  actually download, validate, and store a local image.
+- Deploy-ready file storage artifacts are built locally with
+  `scripts/build_file_storage_artifacts.py` under `raw/file_storage/`. This is
+  the local mirror of what should later go to Supabase Storage instead of
+  Postgres: optimized WebP headshots plus small static JSON/gzip gameplay
+  artifacts. Current all-sport Storage mirror: 7,389 Baseball WebPs at
+  20.1 MB, 2,601 Basketball WebPs at 13.3 MB, 4,655 Hockey WebPs at 32.7 MB,
+  8,642 Football WebPs at 38.3 MB, and 113.9 MB total including manifests,
+  Football missing-headshot JSON, and Baseball Playoffs support JSON. The app
+  now prefers these file-storage headshot manifests when present; database rows
+  should keep only lightweight IDs/status/object paths needed for fast queries.
+- Storage split principle: user/game state that changes constantly
+  (profiles, leaderboards, active games, attempts, friend challenges) stays in
+  Postgres. Query-critical indexed lookup data also stays in Postgres,
+  especially the compact teammate team-season matrix. Image bytes, raw
+  boxscore/snap/player-game files, archival/static generated JSON, and
+  reference text belong in local files/Supabase Storage. A local size test on
+  the compact runtime showed that dropping headshot URL/support tables would
+  save only about 4.4 MB, or about 7.7 MB if also moving small trait/position
+  helpers, while risking slower gameplay unless corresponding file-backed
+  validators are added.
+- After live-season updaters introduce new players, refresh photos locally with
+  `scripts/refresh_canonical_headshot_artifacts.py`. It runs the active
+  per-sport canonical syncs, preserves one verified local image per player,
+  rebuilds the compact runtime, rebuilds `raw/file_storage/`, and audits the
+  result. Do not upload raw image candidates or restore backup caches; only the
+  optimized file-storage mirror should later be published.
+
+Update, 2026-08-29 (0.5.00 compact Supabase replacement): replaced production
+runtime data with the locally refined compact runtime instead of uploading raw
+boxscore/snap/image data. Supabase Storage now holds the deploy-ready file
+mirror: 23,287 optimized headshot objects plus 6 small runtime/static objects
+from `raw/file_storage/` (about 107 MB local payload). Supabase Postgres now
+holds only compact runtime/catalog data and small mutable gameplay tables.
+Verified production Postgres size after the swap and Baseball pitcher-exception
+repair: about 393 MB. Key compact rows: 7,390 Baseball players, 19,031
+cross-sport players, 23,287 headshot URL/status rows, 833,431 Baseball compact
+teammate rows, and 2,056,575 cross-sport compact teammate rows. Rebuilt the
+2026-08-29 Film Review puzzle rows after the replacement.
+
+Update, 2026-08-29 (Baseball pitcher exception): same-team-season pitcher pairs
+are now inserted into the compact Baseball teammate matrix even when strict
+same-game proofs are absent, because starting pitchers can be true teammates
+without appearing in the same game. The active compact builder now includes
+`insert_baseball_pitcher_exceptions()`, and the already-built local compact DB
+and Supabase were patched with 109,979 additional compact Baseball rows.
+Verified `Clayton Kershaw -> Zack Greinke` links for 3 Dodgers seasons and
+`Tarik Skubal -> Shohei Ohtani` still links for the 2026 Dodgers.
 
 Update, 2026-08-28 (new Supabase recovery project): created/repointed local
 `.env` to the new Free Supabase project `npymptruhptacfmheobv` after the prior
@@ -1340,9 +1419,10 @@ pulled inward to sit more naturally inside the field.
   179 NFL, and 102 NHL. NFL's remaining entries are same-name collisions and
   require source-page identifier extraction rather than name matching.
 - Historical source scope is MLB 1903 onward, NBA/BAA 1946-47 onward (never
-  ABA), NHL 1917-18 onward, and NFL 1966 onward. Run
-  `scripts/supplement_nfl_reference_ids.py` after honors and before
-  reconciliation to bridge Wikipedia award pages to nflverse roster IDs.
+  ABA), NHL 1917-18 onward, and NFL 1966 onward. The old NFL reference-ID
+  supplement script was removed during the 2026-08-29 cleanup; use the active
+  compact Football runtime/headshot syncs rather than resurrecting old
+  source-specific helpers.
 - The current active identity queue is 195: 4 NBA, 91 NFL, and 100 NHL after
   the identifier and season-label cleanup passes.
 - `scripts/supplement_nhl_official_ids.py` resolves NHL career-stat references
@@ -1363,10 +1443,10 @@ pulled inward to sit more naturally inside the field.
   differences only after position and season-game-log verification. This
   reduced the active queue to 90: 71 NFL and 19 NHL.
 - `scripts/download_nfl_rosters.py` caches the missing 2002-25 nflverse
-  roster releases. `scripts/supplement_nfl_roster_identities.py` uses a
-  unique player-year roster identity to add missing canonical players and
-  promote source honors, including initials written with or without spaces.
-  `scripts/supplement_hockeydb_identity_claims.py` resolves historical NHL
+  roster releases. The old NFL roster-identity supplement script was removed
+  during the 2026-08-29 cleanup after the compact Football runtime became the
+  active source of truth. `scripts/supplement_hockeydb_identity_claims.py`
+  resolves historical NHL
   identities only when HockeyDB's name, first season, position, and career
   games all agree. The active queue is now 43: 27 NFL and 16 NHL.
 - `scripts/supplement_hockey_reference_identities.py` uses verified
@@ -1493,10 +1573,10 @@ season source refresh.
   `scripts/build_local_photo_cache.py` caches league-native NBA, NFL, and NHL
   headshots locally with source URLs. Do not use Wikimedia fallbacks in public
   production without a licensing review.
-- Native cache result: 30,561 images, 19.82 GiB. NBA native coverage is
-  complete; NHL is missing 7 players; NFL is missing 8,741, mostly historical
-  records without a native image URL. `scripts/report_missing_headshots.py`
-  writes the unresolved-player CSV for the licensed fallback-source decision.
+- Native cache result: 30,561 images, 19.82 GiB. This has been superseded for
+  Baseball and Basketball by the compact canonical headshot caches under
+  `raw/player_headshots/<sport>/`; use `scripts/report_headshot_gaps.py` for
+  current unresolved-player reporting.
 - `scripts/remove_placeholder_headshots.py` removes known NBA/NFL silhouette
   responses that otherwise return HTTP 200 and would be mistaken for photos.
 - `scripts/apply_verified_photo_overrides.py` holds reviewed Commons fallback
@@ -2111,67 +2191,14 @@ checked registry record by default, not just manual approvals. Repeated
 `--limit 500` batches therefore advance through the remaining catalog. Use
 `--force` only when intentionally rechecking prior results.
 
-Update, 2026-08-14 (0.2.10): investigated the NFL photo failure. A first
-500-player byte audit found 479 generic placeholders and 21 unique images,
-confirming the old NFL catalog URLs are not reliable coverage. Added
-`scripts/refresh_nflverse_headshots.py`, which joins the current nflverse
-players file by GSIS ID and refreshed 13,728 NFL source candidates, preferring
-nflverse's player-specific NFL asset and using ESPN only when necessary.
-Trent Cole and Clifton Geathers were manually visually verified with ESPN
-portraits and saved as registry overrides. Do not call the catalog 100% covered
-yet: the remaining sources must still pass the resumable byte-level audit and
-the flagged players need reviewed replacement URLs.
-
-Update, 2026-08-15 (0.2.10): restarted the NFL scan as durable 500-player
-batches after stopping an old all-sport process that did not write results
-until completion. The first 3,500 football players are now classified from
-their downloaded image bytes: 3,338 are generic placeholders, 78 are
-unavailable, and 86 are distinct images. The audit reuses a HTTP session per
-worker and can reclassify a byte-identical image shared by multiple players as
-a placeholder. Continue the remaining football batches before treating any
-candidate URL as usable coverage.
-
-The full 15,236-player football scan was completed the same day. Before
-fallbacks it found 7,164 distinct images, 7,385 placeholders, and 687 missing
-responses. `scripts/resolve_nfl_espn_headshots.py` tested the ESPN identity
-from nflverse for every flagged player and promoted 1,737 additional unique
-portraits only after byte-level validation. Current coverage is 8,901 verified
-photos, 5,655 placeholders, and 680 missing responses. The unresolved set is
-intentionally suppressed in player cards, never displayed as a generic NFL
-headshot. `scripts/apply_verified_runtime_headshots.py` records hand-verified
-runtime exceptions, currently Devin Hester and Mike Brown; rerun it after any
-future forced audit. Trent Cole and Clifton Geathers are verified ESPN images.
-
-Photo sourcing pass, 2026-08-15: `resolve_nfl_wikimedia_headshots.py` ran a
-strict name + American-football description + recorded-team match against every
-remaining NFL gap. It promoted 30 Commons photos and recorded every other
-outcome in `player_headshot_source_attempts`; most unresolved players simply
-do not have a matching Wikipedia article. `resolve_nfl_thesportsdb_headshots.py`
-is the next fallback. It requires exact name and nflverse birth-date matches,
-checks the returned image bytes, and respects TheSportsDB's free 30-request per
-minute limit. It has resolved Lance Briggs. The durable long-running pass is
-intentionally allowed to continue locally; it must not use placeholders as a
-fallback. The first run was interrupted by a free-tier rate limit after 1,001
-attempts, so the resolver now uses 25-player batches, a 2.5-second interval,
-and a 65-second retry window. A long-running local pass resumes the remaining
-queue from its durable attempt records. At that point in the pass, football had
-9,112 verified images, 5,458 blocked placeholders, and 666 missing responses.
-The SportsDB resolver now orders unattempted records by total recorded NFL
-games, so high-visibility playable players are repaired before short-stint
-records. There are 31 non-GSIS football IDs needing a later identity-data
-review; several are historic names incorrectly attached to a modern season and
-must be removed or reconciled, not assigned a speculative photo.
-
-Headshot follow-up, 2026-08-15: The complete unresolved queue can be exported
-with `scripts/report_nfl_headshot_gaps.py`; the generated ignored CSV is
-`raw/nfl_unresolved_headshots_YYYY-MM-DD.csv`, ordered by career games. The
-Wikimedia resolver now accepts a redirect only when first initial and last name
-match, then still requires the football-career and team checks. It also treats
-a CDN `429` as a temporary byte-check failure when the article identity is
-otherwise strict. This recovered high-usage players including Mike Vick, Troy
-Polamalu, Antonio Gates, Charles Woodson, Dwight Freeney, and Robert Mathis.
-Current snapshot: 9,223 verified football images, 5,347 placeholders, and 666
-missing responses. Never replace a blocked card with a generic league image.
+Superseded Football headshot investigation, 2026-08-14/15: old NFL catalog
+URLs had thousands of generic placeholders, and the previous ESPN/Wikimedia/
+TheSportsDB/FootballDB resolver scripts were replaced by the canonical local
+Football registry workflow on 2026-08-29. Do not rerun the old direct resolver
+commands. Use `scripts/sync_football_headshots.py`; it validates bytes,
+rejects known placeholders, writes one compressed local JPEG per verified
+player, and writes explicit missing-player reports for photo-dependent
+selection filters.
 
 ESPN recovery, 2026-08-15: the original ESPN fallback incorrectly looped over
 unavailable records and never reached all historical ESPN IDs. It was changed
@@ -2228,41 +2255,18 @@ and TheSportsDB or another validated historical source. The local NBA source
 contains player name, debut/final years, position, and birthday. Do not claim
 the ESPN catalog is comprehensive for NBA history.
 
-NBA historical identity bridge: `scripts/build_nba_headshot_identity_map.py`
-creates `raw/nba_headshot_identity_matches.csv` from the local NBA career
-dataset. The current build produced 2,359 player-to-birth-date matches and
-covers 825 of the initially flagged NBA headshots. `resolve_sport_thesportsdb_headshots.py --sport basketball`
-uses that local birth date for an exact TheSportsDB identity match, then
-downloads and validates the returned portrait before promotion. It runs in
-five-player checkpoint batches because the free endpoint is slow and rate
-limited.
+Superseded NBA headshot workflow, 2026-08-29: the old NBA identity bridge,
+ESPN catalog pass, BBGM one-off importer, web-image resolver, and their
+Basketball-specific CSV outputs were deleted after the verified outputs were
+folded into the canonical local cache. Current Basketball headshot truth is
+`raw/headshot_registry/basketball_headshots.sqlite` plus exactly one saved
+image per player under `raw/player_headshots/basketball/<player_id-safe>.jpg`.
+Rebuild with `scripts/sync_basketball_headshots.py`; it proves it can rebuild
+from that canonical cache without the old CSV reports.
 
-NBA ESPN catalog portrait pass, 2026-08-15: the completed ESPN current-NBA
-index has 614 athletes. `scripts/collect_nba_espn_catalog_headshots.py` matched
-432 to local players by normalized name plus exact birthday, downloaded and
-byte-validated their ESPN URLs, and saved the durable mapping at
-`raw/nba_espn_headshot_catalog.csv`. Results: 431 valid portraits and 1
-unavailable response. These were already valid through the NBA source, so this
-pass promoted zero flagged players; it exists to validate the cross-sport ESPN
-workflow and preserve the mappings for source fallback. The remaining 182 ESPN
-records did not have an unambiguous local identity match and were not guessed.
-
-NBA rapid playtest image pass, 2026-08-15: `BasketBall-GM-Rosters` maintains a
-community `player-photos.json` map with 5,408 historical NBA image URLs.
-`scripts/import_nba_bbgm_playtest_headshots.py` resolves those Basketball-
-Reference IDs through the 26 public player-index pages, matches local flagged
-players by normalized name and career span, byte-checks every URL, and writes
-the result to `raw/nba_bbgm_playtest_headshots.csv`. First pass: 770 matched,
-748 usable images promoted. Every promoted row has provider `BBGM community
-map` and review note `Playtest-only community mapping; license and source
-review required.` This is deliberately separate from vetted sources so it can
-be replaced later without losing provenance.
-
-Gap reporting, 2026-08-15: `scripts/export_headshot_gaps.py` writes the active
-2000-present unresolved list to `raw/active_headshot_gaps.csv`, including
-sport, player ID, display name, career years, current audit status, and review
-note. Use this file for targeted source research and user playtest feedback;
-do not rely on a stale one-off terminal list.
+Current gap reporting, 2026-08-29: `scripts/report_headshot_gaps.py` writes
+current per-sport CSVs and `raw/headshot_gap_reports/headshot_gap_summary.md`
+from the compact local runtime. Old all-sport headshot reports were deleted.
 
 Small community CSV pass, 2026-08-15: the IvoVillanueva MLB and NHL roster
 repositories were assessed. They are current-roster-oriented rather than
@@ -2285,46 +2289,25 @@ mapping as playtest-only provenance until a licensing pass.
 
 ESPN/OOTP pass, 2026-08-15: all NFL and NHL ESPN identity pages are complete.
 `resolve_sport_espn_headshots.py --sport hockey` matched 1,151 unresolved NHL
-identities and promoted 358 validated ESPN portraits. The full NFL catalog
-resolver (`collect_nfl_espn_catalog_headshots.py`) matched 2,909 unresolved
-players by exact NFLverse birth date but promoted only 2 real images; the rest
-were generic, shared, or unavailable ESPN responses. ESPN is now effectively
-exhausted for historic NFL gaps.
+identities and promoted 358 validated ESPN portraits. The old NFL ESPN catalog
+resolver was deleted after its verified rows were folded into the canonical
+Football sync.
 
-OOTP local MLB playtest pass, 2026-08-15: Cinemaodyssey Facepack V18 was
-downloaded to `raw/ootp/COFacepackV18.zip` (347 MB compressed, 21,264 JPGs).
-`import_ootp_mlb_playtest_headshots.py` matched 2,211 active baseball gaps by
-unambiguous normalized filename and extracted them under
-`raw/ootp/matched_mlb_headshots/`. Local Flask serves them at
-`/local-headshots/ootp/<player_id>.jpg` only when `TEAMMATETAG_LOCAL_SPORTS=1`.
-Production deliberately suppresses these local-only URLs until images are
-migrated to supported storage. All imported records are `OOTP Facepack` with a
-playtest-only review note. The all-history record count after import was 7,074
-verified. For the current 2000-present playable baseball catalog, the result
-is 5,143 verified / 94 unresolved.
-
-OOTP production publishing, 2026-08-15: `scripts/publish_ootp_mlb_headshots.py`
-is the resumable production bridge for the 2,211 extracted OOTP photos (40.22
-MB). It creates the public Supabase Storage bucket `player-headshots`, uploads
-objects under `baseball/ootp/`, and updates the OOTP database records from
-local-only `/local-headshots/...` URLs to public storage URLs. It requires
-`SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in the local `.env`, in addition
-to the existing `DATABASE_URL`. The service-role key must never be committed or
-placed in Vercel/browser code. The public bucket does not consume Postgres
-database capacity and requires no Vercel configuration to display its URLs.
-The initial production publication completed successfully: all 2,211 files
-were uploaded, their database URLs were changed to public Supabase Storage
-objects, and a direct public-image request returned HTTP 200 image/jpeg. A
-deployment restart clears any warm Vercel card cache that could still hold an
-old local-only image URL.
+Superseded Baseball headshot workflow, 2026-08-29: the old OOTP zip/staging
+folder, one-off Baseball Reference/Wikimedia resolver CSVs, and OOTP publish
+bridge were deleted after their verified outputs were folded into the canonical
+local cache. Current Baseball headshot truth is
+`raw/headshot_registry/baseball_headshots.sqlite` plus exactly one saved image
+per player under `raw/player_headshots/baseball/<player_id>.<ext>`. Rebuild
+with `scripts/sync_baseball_headshots.py`; it now proves it can rebuild from
+that canonical cache without the old OOTP source folder.
 
 Manual replacement workflow, 2026-08-15: `scripts/export_headshot_submission_sheet.py`
 creates an Excel-friendly CSV with stable sport/player IDs and blank
 `replacement_url` / `source_note` fields. `scripts/import_headshot_submissions.py`
 downloads every supplied URL, requires a decodable non-placeholder image, then
 updates the runtime registry. Current review sheets are generated locally under
-`raw/mlb_headshot_review_sheet.csv` (94 rows) and
-`raw/nba_headshot_review_sheet.csv` (103 rows). The sheets and raw images stay
+the sport-specific review sheets. The sheets and raw images stay
 Git-ignored; a reviewer can fill only the two blank fields and hand the file
 back to the assistant for validation and import.
 
@@ -2399,10 +2382,9 @@ Review workflow for manual replacements:
   position, teams, career years, and blank `replacement_url` / `source_note`.
 - `scripts/import_headshot_submissions.py --input <sheet>` validates direct
   image URLs, blocks known placeholder hashes, then updates the live registry.
-- Current local review sheets: `raw/mlb_headshot_review_sheet.csv` (92),
-  `raw/nba_headshot_review_sheet.csv` (103), and
-  `raw/nhl_headshot_review_sheet.csv` (210). Do not edit IDs or player fields;
-  fill only `replacement_url`, optionally `source_note`.
+- Current local review sheets should be regenerated from
+  `scripts/report_headshot_gaps.py` output as needed. Do not edit IDs or
+  player fields; fill only replacement URL/source note fields in new sheets.
 - MLB repeated names remaining in the sheet are genuine different players,
   distinguished by position/team history. NBA's only repeated display name is
   two different Marcus Williams players (PG versus SF). NHL's only remaining
@@ -2441,85 +2423,37 @@ Completed identity cleanup, 2026-08-15:
   recreate these duplicate `hdb:*` player rows.
 
 Headshot cleanup snapshot after the identity pass:
-- Current unresolved review sheet:
-  `raw/headshot_submissions_current.csv`, 4,699 active rows.
-- Baseball: 7,168 verified, 0 placeholder in the production headshot
-  registry. `raw/mlb_headshot_review_sheet.csv` was regenerated after the
-  final 2026-08-15 manual pass and now contains 0 unresolved active MLB rows.
-  Mark Johnson pitcher `johnsma03`/BRef `johnsma05` is verified from Wikimedia
-  Commons via the user's linked `Mark Johnson (pitcher)` Wikipedia page. Steve
-  Sparks pitcher `sparkst02` is verified from the user-supplied local JPEG,
-  uploaded to Supabase Storage at
-  `https://olqefgxnxifuiyutjyqb.supabase.co/storage/v1/object/public/player-headshots/baseball/manual/sparkst02.jpg`.
-  Juan Morillo `morilju01` is now sourced from Baseball Reference using the
-  direct URL supplied by the user:
-  `https://www.baseball-reference.com/req/2025011210/images/headshots/0/04d67323_davis.jpg`.
-  Earlier in the same pass, Luis Matos, Mike Darr, Jose Ortiz, and Brian Hunter
-  outfielder were promoted from Wikimedia. Brian Hunter first baseman
-  `huntebr01` was explicitly reverted after a same-name false match to the
-  outfielder.
-- `scripts/resolve_mlb_bref_headshots.py`
-  checks unresolved MLB rows against Baseball Reference player pages, extracts
-  the structured `image.contentUrl`, rejects known placeholders/tiny images,
-  and writes validated URLs directly to the production registry. The key fix
-  was using optional `curl_cffi` Safari impersonation as a fallback after plain
-  `requests` hit BRef HTTP 403/429, plus using `players.bbref_id` instead of
-  assuming `player_id` is always the BRef slug. This promoted 51 additional
-  BRef portraits on 2026-08-15, bringing Baseball Reference to 71 verified
-  MLB headshots in production. `braunry01`, the pitcher Ryan Braun, was
-  verified from his Baseball Reference page; the famous Brewers outfielder
-  remains `braunry02` and already had a verified MLBAM headshot.
-- `scripts/resolve_mlb_wikimedia_headshots.py` checks unresolved MLB rows
-  against Wikipedia/Wikimedia. It searches likely article titles, requires a
-  baseball article plus a current TeamMateTag team-context or role match,
-  validates image bytes against known placeholders when Wikimedia permits the
-  download, and otherwise accepts Wikimedia API image metadata only for a
-  matched article image with dimensions over 80px. It now includes birth-year
-  title guesses such as `Name (baseball, born YYYY)`, rejects disambiguation
-  pages, and rejects article birth-year mismatches to reduce same-name false
-  positives. Current Wikimedia promotions include Bill Mueller, Matt Young
-  `youngma02` from `Matt Young (outfielder)`, Abraham Nunez infielder, Craig
-  Wilson first baseman, Mark McLemore, JD Closser, Ben Johnson, Juan Morillo,
-  Luis Matos, Mike Darr, Jose Ortiz, and Brian Hunter outfielder. The generic
-  `Matt Young` Wikipedia page remains rejected because it is the older pitcher,
-  not TeamMateTag's 2011-12 Braves/Tigers position player.
-- OOTP same-name caution: visual review found several incorrect same-name
-  matches and they were reverted to unresolved: `castrra02`, `deshide01`,
-  `nunezab01`, `penato02`, `wilsocr02`, and `wilsocr03`. The OOTP importer now
-  blocks these IDs so they are not re-promoted accidentally. Current safe OOTP
-  manual additions include Jerry Hairston Jr, Ramon Castro catcher, Alberto
-  Castillo catcher, Tim Raines Jr, Eddy Rodriguez pitcher, and Abraham Nunez
-  2002-04.
-- Basketball: 2,566 verified, 0 placeholder/missing in production after the
-  2026-08-15 Basketball-Reference, Wikimedia, and web-image pass. New script:
-  `scripts/resolve_reference_headshots.py --sport basketball` derives
-  Basketball-Reference slugs from the alphabetical player index, validates the
-  discovered page headshot, and updates Supabase. It promoted 11
-  Basketball-Reference portraits. `scripts/resolve_wikimedia_sport_headshots.py
-  --sport basketball` was fixed so validated image dicts no longer overwrite
-  `status='verified'`; it promoted obvious Wikipedia cases including Speedy
-  Claxton, Sarunas Jasikevicius, Zeljko Rebraca, Boo Buie, Marcus Williams
-  born 1986, and Clarence Weatherspoon. `scripts/resolve_nba_web_image_headshots.py`
-  promoted 73 additional exact-name web-image matches for playtesting. These
-  web-image rows are useful for current gameplay but need later source/license
-  review. Current review sheet: `raw/nba_headshot_review_sheet.csv`, now 0
-  unresolved rows.
-- Hockey: 4,501 verified, 0 placeholder/missing in production after the
-  2026-08-15 Hockey-Reference, Wikimedia, web-image, and final HockeyDB pass.
-  `scripts/resolve_reference_headshots.py --sport hockey` derives
-  Hockey-Reference slugs from the alphabetical player index, validates page
-  headshots, and updates Supabase. It promoted 16 Hockey-Reference portraits
-  after retrying transient 429s. `scripts/resolve_wikimedia_sport_headshots.py
-  --sport hockey` promoted/retained 10 Wikimedia portraits, including manual
-  exact-identity fixes for Sean Collins defenseman, Alexandre Picard winger,
-  Petr Sykora born 1978, and Andy Berenzweig. New script:
-  `scripts/resolve_nhl_web_image_headshots.py` promoted 119 exact-name
-  web-image matches; five final rows were manually patched from HockeyDB or
-  Hockey News Windsor: Melvin Angelstad, Tommy Vestlund/Westlund, Matthieu
-  Descoteaux, Michael Rucinski, and William/Billy Bowler. Current review sheet:
-  `raw/nhl_headshot_review_sheet.csv`, now 0 unresolved rows. Review fallback
-  images at `raw/nhl_headshot_fallback_review.md`; these playtest images need
-  later source/license review.
+- Baseball local canonical cache: 7,389 verified / 0 missing / 0 placeholders
+  for the 2000-present playable Baseball catalog. The compact runtime rebuild
+  now reads Baseball headshots from
+  `raw/headshot_registry/baseball_headshots.sqlite`, and
+  `raw/player_headshots/baseball/` contains exactly one validated local image
+  for each Baseball player ID. The old OOTP zip/staging folder and the old
+  Baseball-specific BRef/Wikimedia/OOTP resolver scripts were deleted after
+  the canonical cache proved complete. Production still needs a future clean
+  upload/swap from this local cache; do not recreate direct-to-production
+  Baseball headshot importers.
+- Basketball local canonical cache: 2,601 verified / 0 missing /
+  0 placeholders for the 2000-present playable Basketball catalog. The compact
+  runtime rebuild now reads Basketball headshots from
+  `raw/headshot_registry/basketball_headshots.sqlite`, and
+  `raw/player_headshots/basketball/` contains exactly one compressed local JPEG
+  for each Basketball player ID. The old Basketball-specific BRef/Wikimedia/
+  ESPN/BBGM/web-image scripts and CSVs were deleted after the canonical cache
+  proved complete. Production still needs a future clean upload/swap from this
+  local cache; do not recreate direct-to-production Basketball headshot
+  importers.
+- Hockey local canonical cache: 4,655 verified / 0 missing / 0 placeholders
+  for the 2000-present playable Hockey catalog. The compact runtime rebuild now
+  reads Hockey headshots from `raw/headshot_registry/hockey_headshots.sqlite`,
+  and `raw/player_headshots/hockey/` contains exactly one compressed local JPEG
+  for each Hockey player ID. The sync fills the canonical cache from the old
+  verified local cache, reviewed crops, FHM facepacks, verified source CSVs,
+  local NHL roster cache, ESPN catalog images, and official NHL CDN fallbacks;
+  it rejects the repeated NHL missing-image placeholder by SHA. The old
+  placeholder-heavy Hockey folder was replaced only after the guarded sync hit
+  4,655/4,655 verified. Deploy-ready Hockey WebPs live under
+  `raw/file_storage/player-headshots/hockey/` and currently total 32.7 MB.
 - 2026-08-15 crop cleanup: added `scripts/crop_recent_headshots.py` to normalize
   recent fallback photos into 360x450 card portraits, upload them to Supabase
   Storage under `player-headshots/<sport>/cropped/`, and update both
@@ -2684,14 +2618,10 @@ Update, 2026-08-15 (0.2.14): headshot status correction and NFL fallback tooling
 - Synced 74 verified NBA/NHL registry headshots into `sport_player_images`.
 - Added `scripts/sync_verified_headshots_to_display.py` so verified
   `player_headshots` URLs can be republished into the app display table.
-- Added `scripts/resolve_nfl_web_image_headshots.py`, a football-specific web
-  image fallback resolver with exact-name, football-context, team-cue, and
-  placeholder-fingerprint checks.
-- Ran NFL web fallback batches:
-  - First batch: 249 promoted from 250 checked.
-  - Second batch: 169 promoted from 500 checked.
-  - Third run hit search-provider timeouts and was stopped; no results from
-    that run were written.
+- Superseded NFL web-image resolver notes: verified rows from the old
+  source-specific Football passes were folded into
+  `scripts/sync_football_headshots.py`; the old resolver scripts and stale
+  review reports were deleted during the 2026-08-29 cleanup.
 - Fixed `ensure_runtime_schema()` so it no longer tries to add a primary key to
   `film_review_daily_attempts` when the table already has one.
 - Important NFL data-quality fix: nflverse 2025 weekly roster rows contained
@@ -2700,142 +2630,21 @@ Update, 2026-08-15 (0.2.14): headshot status correction and NFL fallback tooling
   durable player identifier, and 31 bad fallback-ID football records were
   removed from production.
 
-Update, 2026-08-15 (0.2.15): FootballDB NFL headshot resolver.
-- Bumped visible app version to `0.2.15`.
-- Pro Football Reference is still not script-accessible from this environment:
-  both player pages and direct `/req/.../images/headshots/{pfr_id}.jpg` URLs
-  return Cloudflare-style `403` responses. Do not keep rerunning broad PFR or
-  ESPN scans unless a new access method or new IDs are added.
-- FootballDB is script-accessible with browser-style headers and exposes player
-  CDN headshots on profile pages, for example
-  `https://cdn.footballdb.com/headshots/NFL/2016/hestede01.jpg`.
-- Added `scripts/resolve_nfl_footballdb_headshots.py`.
-  - Builds/caches a paginated FootballDB player index in
-    `raw/footballdb_nfl_player_index.csv`.
-  - Matches remaining NFL gaps by normalized exact name.
-  - Fetches candidate profile pages and uses image alt text, title, position,
-    and team-name overlap to score identity confidence.
-  - Validates image bytes against known NFL placeholder hashes/perceptual
-    hashes.
-  - Promotes accepted images into both `player_headshots` and
-    `sport_player_images`, so accepted URLs are immediately visible in the live
-    game.
-- Made `scripts/resolve_nfl_web_image_headshots.py` flush verified rows every
-  batch with `--flush-every`, preventing long web-search runs from losing all
-  progress on timeout/interruption.
-- Ran the FootballDB resolver against the currently matching unresolved NFL
-  set. The first loose exact-name pass promoted 78 candidates, but manual
-  inspection showed wrong-player risk on duplicate/common names, for example
-  older James Williams rows matching a 2025 FootballDB James Williams page. The
-  78 FootballDB promotions were reverted from `player_headshots` and
-  `sport_player_images`.
-- The FootballDB resolver now generates likely profile slugs such as
-  `chris-carter-cartech02`, parses FootballDB NFL stat rows for pro career
-  years and teams, and requires career-year plus team evidence before
-  promotion. It also supports `--workers` for concurrent profile checks.
-- First safe FootballDB live batch promoted 7 rows: Chris Carter, B.J.
-  Daniels, John Lotulelei, Gabe Ikard, Dwayne Gratz, Khyri Thornton, and Kevin
-  Norwood.
-- Current verified/display coverage after this pass:
-  - MLB: 5,237 / 5,237 playable 2000-present players verified.
-  - NBA: 2,566 / 2,566 playable 2000-present players verified/displayed.
-  - NHL: 4,501 / 4,501 playable 2000-present players verified/displayed.
-  - NFL: 11,369 verified out of 15,205 playable 2000-present football players;
-    3,836 remain with `placeholder`, `missing`, `wrong_player`, or `bad_crop`
-    status.
-- Remaining NFL examples after FootballDB: Chris Carter (2011-2017 OLB/LB),
-  Edward Jasper (2000-2005 NT/DT), P.J. Alexander (2003-2007 G), Dan Buenning
-  (2005-2008 G), Eddie Berlin (2001-2005 WR), Leonardo Carson (2000-2004 DT),
-  Micah Knorr (2000-2004 P), Moe Williams (2000-2005 RB), Peter Warrick
-  (2000-2005 WR), and Scott McGarrahan (2000-2005 SS/DB).
-
-Update, 2026-08-16 (0.2.15 data pass): NFL headshot long-run status.
-- User ran the full FootballDB resolver locally. Current Supabase football
-  headshot status:
-  - `verified`: 12,022
-  - `placeholder`: 2,799
-  - `missing`: 384
-  - remaining unresolved: 3,183
-  - FootballDB provider rows: 660
-- Verified that all 660 FootballDB rows are also present in
-  `sport_player_images` with matching URLs, so they are available to the live
-  game.
-- `scripts/resolve_nfl_web_image_headshots.py` now supports `--workers` and
-  adds team-specific search queries such as `"Player Name" "Team Name" NFL
-  headshot`. This is the next unattended local pass after FootballDB.
-- Recommended local run for the next pass:
-  `python scripts\resolve_nfl_web_image_headshots.py --delay 0.2 --workers 3 --flush-every 10`
-- After web-image URL promotion, crop and publish accepted fallback photos to
-  Supabase Storage with:
-  `python scripts\crop_recent_headshots.py --sport football --provider "Web image search" --workers 8`
-- Added review-based candidate collection:
-  - `scripts/collect_nfl_headshot_review_candidates.py` gathers loose image
-    candidates into `raw/nfl_headshot_review/pending` and creates
-    `raw/nfl_headshot_review/review.html`.
-  - `scripts/import_nfl_reviewed_headshots.py` imports whatever remains in
-    `pending` after manual deletion, crops it, uploads it to Supabase Storage,
-    and updates `player_headshots` plus `sport_player_images`.
-  - Collector now defaults to a priority queue from the newest
-    `raw/nfl_unresolved_headshots_*.csv`, supports `--min-games`,
-    `--queries-per-player`, and prints every completed player so it does not
-    feel stalled.
-
-Update, 2026-08-16 (NFL priority headshot workflow): manual-first football gap list.
-- User wants remaining NFL photos resolved by priority, starting with players
-  who have the most corrected games played. College photos are acceptable when
-  NFL uniform photos are unavailable, as long as identity is reliable.
-- Added `scripts/export_nfl_headshot_priority.py`.
-  - Exports every unresolved 2000-present NFL player from Supabase into
-    `raw/nfl_headshot_priority_list.csv`.
-  - Uses corrected games played: one max games value per player/team/season,
-    avoiding inflated totals from duplicate appearance rows.
-  - Adds known teams, season/team context, existing attempted sources, Google
-    web/image links, college-image search links, and likely FootballDB profile
-    guesses.
-  - Current all-gap export: 3,163 unresolved NFL players.
-- Exported the high-priority subset to
-  `raw/nfl_headshot_priority_50plus.csv`: 234 unresolved NFL players with at
-  least 50 corrected games played.
-- Added `scripts/build_nfl_headshot_priority_review.py`, which turns the 50+
-  CSV into `raw/nfl_headshot_priority_50plus_review.html` for browser review.
-  Open this file locally to click through candidates/search links.
-- Added `raw/nfl_50plus_photo_research_top10.csv` as the first researched
-  batch. Good/likely candidates found:
-  - Leonardo Carson: Auburn, direct image from Auburn archive:
-    `https://www.autigers.com/archive/1997/fb-peach/carson.jpg`.
-  - Al Johnson: Wisconsin, UW coach page has a usable current/professional
-    image.
-  - Otis Grigsby: Kentucky, official Kentucky roster page has a headshot.
-  - Cecil Sapp: Colorado State, official CSU hall-of-fame page has an image.
-  - Reynaldo Hill: Florida, official Florida roster page plus Getty references.
-  - Others in the first ten have college/source context but still need visual
-    confirmation or a cleaner image.
-- Attempted a Wikipedia college supplement script, but Wikipedia API returned
-  429 rate-limit responses quickly. The local nflverse roster files have many
-  blank college values for older 2000s players, so the current reliable path is
-  source-by-source/manual priority review, not another broad blind scrape.
-- The automated DuckDuckGo image candidate collector has been low yield for
-  football. Do not rely on it as the primary NFL completion path unless the
-  query/source strategy changes.
-- Added `scripts/collect_nfl_priority_source_candidates.py` for a better
-  semi-automated pass over the 50+ games priority group.
-  - It reads `raw/nfl_headshot_priority_50plus.csv`, optionally uses researched
-    values from `raw/nfl_50plus_photo_research_top10.csv`, searches likely
-    college/team/player source pages, scrapes page images, rejects known NFL
-    placeholders and obvious placeholder/logo URLs, and writes:
-    - `raw/nfl_priority_source_review/pending/*.jpg`
-    - `raw/nfl_priority_source_review/candidates.csv`
-    - `raw/nfl_priority_source_review/review.html`
-  - It does not promote anything into the game. User should open the review
-    HTML, delete bad images from `pending`, then run
-    `scripts/import_nfl_reviewed_headshots.py`.
-  - Importer was updated to support multiple candidate filenames per player,
-    such as `nfl_00-0022079__1.jpg`.
-  - First test with top 3 priority players found usable/visible candidates for
-    Leonardo Carson and Al Johnson. Micah Knorr still had no candidate in that
-    narrow pass. The process correctly remains manual-review-first because
-    source pages/search can still surface wrong players or placeholder graphics
-    such as the earlier Reynaldo Hill issue.
+Superseded FootballDB/priority headshot workflow, 2026-08-15/16: the old
+FootballDB, ESPN, web-image, Wikimedia, manual review, and priority-export
+scripts/reports were deleted after the 2026-08-29 canonical Football sync.
+Current Football headshot source of truth:
+- `scripts/sync_football_headshots.py`
+- `raw/headshot_registry/football_headshots.sqlite`
+- `raw/player_headshots/football/`
+- `raw/headshot_gap_reports/football_missing_after_canonical_sync.csv`
+- `raw/headshot_gap_reports/football_missing_50plus_after_canonical_sync.csv`
+- `raw/file_storage/manifests/headshots/football_missing.json`
+Current local Football coverage is 8,637 verified / 3,138 unresolved across
+11,775 runtime players. Among 50+ game players, 3,946 are verified and 746 are
+explicitly listed as unresolved. Unresolved Football players stay playable when
+typed by a user but should be excluded from photo-dependent starters and Film
+Review puzzle generation.
 
 Update, 2026-08-16 (0.2.16): curated puzzles now require verified headshots.
 - User decided to stop chasing every obscure NFL photo for now. Remaining NFL

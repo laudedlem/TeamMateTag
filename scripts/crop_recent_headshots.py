@@ -34,7 +34,7 @@ load_dotenv(ROOT / ".env")
 
 import server  # noqa: E402
 from audit_runtime_headshots import dhash  # noqa: E402
-from publish_ootp_mlb_headshots import BUCKET, ensure_public_bucket, headers, public_url, storage_config  # noqa: E402
+from headshot_storage import BUCKET, ensure_public_bucket, headers, public_url, storage_config  # noqa: E402
 
 TARGET_SIZE = (360, 450)
 PORTRAIT_ZOOM = 0.95

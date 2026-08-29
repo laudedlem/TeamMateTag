@@ -19,7 +19,6 @@ Run the existing loaders first, then build the reconciliation layer:
 python scripts\load_local_sport_traits.py --nfl-last 2024
 python scripts\supplement_hockeydb_history.py
 python scripts\load_local_honors_history.py
-python scripts\supplement_nfl_reference_ids.py
 python scripts\reconcile_local_identities.py
 ```
 

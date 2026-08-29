@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.4.30"
+APP_VERSION = "0.5.00"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -195,7 +195,16 @@ LOCAL_PO_REMATCH_LINKS: dict[str, str] = {}
 LOCAL_PO_POSTGAME_EXITS: dict[str, set[str]] = {}
 LOCAL_PO_LOCK = Lock()
 HEADSHOT_URL = "https://midfield.mlbstatic.com/v1/people/{}/spots/120"
-LOCAL_OOTP_HEADSHOT_DIR = ROOT / "raw" / "ootp" / "matched_mlb_headshots"
+FILE_STORAGE_ROOT = ROOT / "raw" / "file_storage"
+FILE_STORAGE_HEADSHOT_BUCKET = "player-headshots"
+FILE_STORAGE_HEADSHOT_BASE_URL = os.environ.get("TEAMMATETAG_HEADSHOT_BASE_URL", "").rstrip("/")
+FILE_STORAGE_HEADSHOT_MANIFEST_CACHE: dict[str, dict[str, str]] = {}
+LOCAL_HEADSHOT_DIRS = {
+    "baseball": ROOT / "raw" / "player_headshots" / "baseball",
+    "basketball": ROOT / "raw" / "player_headshots" / "basketball",
+    "hockey": ROOT / "raw" / "player_headshots" / "hockey",
+    "football": ROOT / "raw" / "player_headshots" / "football",
+}
 
 
 def _official_sport_headshot_url(sport: str, external_id: str | None) -> str | None:
@@ -212,16 +221,52 @@ def _official_sport_headshot_url(sport: str, external_id: str | None) -> str | N
     return None
 
 
+def _file_storage_headshot_manifest(sport: str) -> dict[str, str]:
+    if sport in FILE_STORAGE_HEADSHOT_MANIFEST_CACHE:
+        return FILE_STORAGE_HEADSHOT_MANIFEST_CACHE[sport]
+    manifest_path = FILE_STORAGE_ROOT / "manifests" / "headshots" / f"{sport}.json"
+    if not manifest_path.exists():
+        FILE_STORAGE_HEADSHOT_MANIFEST_CACHE[sport] = {}
+        return {}
+    with manifest_path.open(encoding="utf-8") as handle:
+        payload = json.load(handle)
+    rows = {}
+    for row in payload.get("rows") or []:
+        player_id = row.get("player_id")
+        object_path = row.get("object_path")
+        if not player_id or not object_path:
+            continue
+        if FILE_STORAGE_HEADSHOT_BASE_URL:
+            rows[player_id] = (
+                f"{FILE_STORAGE_HEADSHOT_BASE_URL}/"
+                f"{quote_plus(FILE_STORAGE_HEADSHOT_BUCKET)}/{quote_plus(object_path, safe='/')}"
+            )
+        elif LOCAL_SPORTS_ENABLED:
+            rows[player_id] = f"/file-storage/{FILE_STORAGE_HEADSHOT_BUCKET}/{object_path}"
+    FILE_STORAGE_HEADSHOT_MANIFEST_CACHE[sport] = rows
+    return rows
+
+
+def _file_storage_headshot_urls(sport: str, player_ids: list[str]) -> dict[str, str]:
+    manifest = _file_storage_headshot_manifest(sport)
+    if not manifest:
+        return {}
+    return {player_id: manifest[player_id] for player_id in player_ids if player_id in manifest}
+
+
 def _headshot_registry_urls(conn, sport: str, player_ids: list[str]) -> dict[str, str | None]:
     """Return reviewed URLs, or an explicit block for known bad sources."""
     if not player_ids:
         return {}
+    urls = dict(_file_storage_headshot_urls(sport, player_ids))
+    missing_player_ids = [player_id for player_id in player_ids if player_id not in urls]
+    if not missing_player_ids:
+        return urls
     rows = conn.execute(
         """SELECT player_id, source_url, fallback_url, status FROM player_headshots
              WHERE sport_id=%s AND player_id=ANY(%s)""",
-        (sport, player_ids),
+        (sport, missing_player_ids),
     ).fetchall()
-    urls = {}
     for player_id, source_url, fallback_url, status in rows:
         if status == "verified" and source_url:
             if source_url.startswith("/local-headshots/") and not LOCAL_SPORTS_ENABLED:
@@ -2572,12 +2617,30 @@ def _insert_game(conn, table: str, blob: dict) -> str:
 # Routes
 # ============================================================
 
-@app.route("/local-headshots/ootp/<path:filename>")
-def local_ootp_headshot(filename: str):
-    """Serve imported OOTP images only in the local sports build."""
+@app.route("/local-headshots/<sport>/<path:filename>")
+def local_canonical_headshot(sport: str, filename: str):
+    """Serve canonical local headshots only in the local sports build."""
     if not LOCAL_SPORTS_ENABLED:
         abort(404)
-    return send_from_directory(LOCAL_OOTP_HEADSHOT_DIR, filename)
+    directory = LOCAL_HEADSHOT_DIRS.get(sport)
+    if directory is None:
+        abort(404)
+    return send_from_directory(directory, filename)
+
+
+@app.route("/file-storage/<bucket>/<sport>/<path:filename>")
+def local_file_storage_object(bucket: str, sport: str, filename: str):
+    """Serve deploy-ready local file-storage artifacts during offline playtesting."""
+    if not LOCAL_SPORTS_ENABLED:
+        abort(404)
+    if bucket != FILE_STORAGE_HEADSHOT_BUCKET:
+        abort(404)
+    if sport not in {"baseball", "basketball", "hockey", "football"}:
+        abort(404)
+    directory = FILE_STORAGE_ROOT / bucket / sport
+    if not (directory / filename).exists():
+        abort(404)
+    return send_from_directory(directory, filename)
 
 
 @app.route("/")
@@ -7462,6 +7525,8 @@ def generate_baseball_film_review(conn, puzzle_day: date, seed_suffix: str = "",
                      JOIN players_searchable ps ON ps.player_id=p.player_id
                      LEFT JOIN player_headshots h ON h.sport_id='baseball' AND h.player_id=p.player_id
                     WHERE a.season>=2000 AND p.final_year>=2000
+                      AND h.status='verified'
+                      AND COALESCE(h.source_url, h.fallback_url, '') <> ''
                     GROUP BY a.player_id, ps.career_games, ps.teammate_count, p.final_year, h.provider
                     HAVING SUM(a.games_pitched)>=%s
                     ORDER BY a.player_id""",
@@ -7475,6 +7540,8 @@ def generate_baseball_film_review(conn, puzzle_day: date, seed_suffix: str = "",
                      JOIN players_searchable ps ON ps.player_id=p.player_id
                      LEFT JOIN player_headshots h ON h.sport_id='baseball' AND h.player_id=p.player_id
                     WHERE bp.position=%s AND bp.games>=25 AND p.final_year>=2000
+                      AND h.status='verified'
+                      AND COALESCE(h.source_url, h.fallback_url, '') <> ''
                     ORDER BY bp.player_id""",
                 (slot,),
             ).fetchall()
