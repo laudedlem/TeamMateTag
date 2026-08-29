@@ -408,7 +408,35 @@ def get_shared_seasons(
                     ORDER BY proof.season, proof.team_id""",
                 (player_a_id, player_b_id, min_season),
             ).fetchall()
-            return [(t, s) for t, s in rows]
+            pitcher_rows = conn.execute(
+                """SELECT a.team_id, a.season
+                     FROM appearances a
+                     JOIN appearances b
+                       ON b.team_id = a.team_id
+                      AND b.season = a.season
+                    WHERE a.player_id = ?
+                      AND b.player_id = ?
+                      AND a.season >= ?
+                      AND a.games_pitched > 0
+                      AND b.games_pitched > 0
+                      AND EXISTS (
+                          SELECT 1
+                            FROM teammate_stint_coverage c
+                           WHERE c.season = a.season
+                             AND c.strict <> 0
+                             AND c.coverage_type = 'game_boxscore'
+                      )
+                      AND NOT EXISTS (
+                          SELECT 1 FROM teammate_exclusions e
+                           WHERE e.team_id = a.team_id
+                             AND e.season = a.season
+                             AND ((e.player_a_id = a.player_id AND e.player_b_id = b.player_id)
+                               OR (e.player_a_id = b.player_id AND e.player_b_id = a.player_id))
+                      )
+                    ORDER BY a.season, a.team_id""",
+                (a, b, min_season),
+            ).fetchall()
+            return sorted({(t, s) for t, s in rows + pitcher_rows}, key=lambda row: (row[1], row[0]))
     rows = conn.execute(
         """SELECT a.team_id, a.season
              FROM appearances a

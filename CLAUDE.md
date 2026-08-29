@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.4.27`
+- Current display version: `0.4.28`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -274,6 +274,22 @@ legacy-script blocking, compact updater offseason no-ops, and
 264.0 MB with 26,420 players, 144,978 player-team-season rows, and 2,780,027
 compact teammate proof rows. Supabase hygiene audit reports database size about
 487 MB, so quota remains tight but the scheduled update paths are now guarded.
+
+Update, 2026-08-29 (0.4.28): added the Baseball pitcher-only teammate exception
+to `game/engine.py`. Under strict same-game coverage, regular Baseball links
+still require a shared regular-season game by default, but if both players have
+`games_pitched > 0` for the same team-season, they now count as teammates even
+when they never appeared in the same game. This fixes starter-starter staff
+links such as Clayton Kershaw/Zack Greinke on the Dodgers from 2013-2015
+without expanding the compact proof table. Verified locally against the compact
+runtime: `get_shared_seasons(kershcl01, greinza01)` returns `LAN` 2013, 2014,
+and 2015, and Manager validation accepts `Kershaw -> Zack Greinke`.
+Cleanup direction: the guarded legacy direct updaters are temporary. They
+currently remain only because compact updater scripts import source-fetching
+helpers/constants from them. Preferred next cleanup is to move those helpers
+into neutral fetch/client modules, update compact scripts to import those, then
+delete the old direct-write scripts instead of keeping guard/tripwire files as
+long-term backups.
 
 ## Current user experience
 
