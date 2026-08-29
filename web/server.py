@@ -981,18 +981,22 @@ def ensure_runtime_schema():
                        FOREIGN KEY (team_id, season) REFERENCES teams(team_id, season)
                    )"""
             )
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_mlb_tgp_pair "
-                "ON mlb_teammate_game_proofs(player_a_id, player_b_id)"
-            )
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_mlb_tgp_b_a "
-                "ON mlb_teammate_game_proofs(player_b_id, player_a_id)"
-            )
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_mlb_tgp_team_season "
-                "ON mlb_teammate_game_proofs(team_id, season)"
-            )
+            mlb_proof_kind = conn.execute(
+                "SELECT relkind FROM pg_class WHERE oid = to_regclass('mlb_teammate_game_proofs')"
+            ).fetchone()
+            if mlb_proof_kind and mlb_proof_kind[0] == "r":
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_mlb_tgp_pair "
+                    "ON mlb_teammate_game_proofs(player_a_id, player_b_id)"
+                )
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_mlb_tgp_b_a "
+                    "ON mlb_teammate_game_proofs(player_b_id, player_a_id)"
+                )
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_mlb_tgp_team_season "
+                    "ON mlb_teammate_game_proofs(team_id, season)"
+                )
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS sport_player_stints (
                        sport_id TEXT NOT NULL,
@@ -1033,18 +1037,22 @@ def ensure_runtime_schema():
                        CHECK (player_a_id < player_b_id)
                    )"""
             )
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_sport_teammates_pair "
-                "ON sport_teammates(sport_id, player_a_id, player_b_id)"
-            )
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_sport_teammates_a "
-                "ON sport_teammates(sport_id, player_a_id)"
-            )
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_sport_teammates_b "
-                "ON sport_teammates(sport_id, player_b_id)"
-            )
+            sport_proof_kind = conn.execute(
+                "SELECT relkind FROM pg_class WHERE oid = to_regclass('sport_teammates')"
+            ).fetchone()
+            if sport_proof_kind and sport_proof_kind[0] == "r":
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_sport_teammates_pair "
+                    "ON sport_teammates(sport_id, player_a_id, player_b_id)"
+                )
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_sport_teammates_a "
+                    "ON sport_teammates(sport_id, player_a_id)"
+                )
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_sport_teammates_b "
+                    "ON sport_teammates(sport_id, player_b_id)"
+                )
             conn.execute(
                 """INSERT INTO sport_teammate_exclusions
                        (sport_id, player_a_id, player_b_id, team_id, season, reason)

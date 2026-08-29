@@ -121,6 +121,18 @@ redeploy. Production smoke checks on `https://teammatetag.com` returned 200 for
 home, `/film`, Baseball autocomplete, Football/Hockey/Basketball autocomplete,
 and Football/Hockey/Basketball Film Review pages. After this recovery, revoke
 the temporary Vercel token that was created for Codex.
+Follow-up fix, 2026-08-28: Manager Mode initially failed on the new Supabase
+project because runtime gameplay tables such as `manager_daily_starters` were
+not created by the static data rebuild, and `ensure_runtime_schema()` could not
+finish against the compact proof schema because `sport_teammates` and
+`mlb_teammate_game_proofs` are compatibility views. Patched
+`web/server.py` so runtime migration skips proof indexes when those relations
+are views, then ran `ensure_runtime_schema()` once against the new DB. Restored
+small supporting runtime tables by loading Baseball playoff traits/powerups and
+importing the local `raw/headshot_registry_2026-08-15.csv` registry into
+`player_headshots`. Production Manager smoke checks then returned starters for
+Baseball, Football, Hockey, and Basketball. Database size after these runtime
+support rows: about 470 MB.
 
 ## Current user experience
 
