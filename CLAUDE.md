@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.4.19`
+- Current display version: `0.4.20`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -147,6 +147,21 @@ daily Film generator only uses verified headshots; restored 2,572 Basketball
 and 8,451 Hockey verified image rows from compact runtime image URLs. Patched
 `game/film_review_generator.py` so Hockey lineup slots accept the stored
 `L`/`R` positions as `LW`/`RW`.
+Update, 2026-08-28 (0.4.20): resumed visible version bumps. Fixed Manager hub
+starter-name layout so first/last names can stack instead of ellipsizing, and
+gave Film Review hub/Football lineup labels more vertical text room so names
+like Jason Pierre-Paul are not clipped. Patched `scripts/update_mlb_live_data.py`
+so MLB live refreshes work with compact Supabase proof storage: the updater now
+detects the compact schema, creates compact player/team keys for live season
+rows, and refreshes `compact_mlb_teammate_game_proofs` instead of writing to
+the `mlb_teammate_game_proofs` compatibility view. Ran the 2026 MLB
+season-to-date import against production: 2,046 completed games and 60,377
+player-game appearances imported through 2026-08-28. Verified Tarik Skubal has
+2026 Detroit and Los Angeles Dodgers rows, Dodgers stint dates
+2026-08-04 through 2026-08-28, and strict 2026 Dodgers proof links to Shohei
+Ohtani, Mookie Betts, and Freddie Freeman. Production Manager smoke confirmed
+`Tarik Skubal -> Shohei Ohtani` is valid on the 2026 Dodgers. Database size
+after the MLB current-season refresh was about 489 MB.
 
 ## Current user experience
 

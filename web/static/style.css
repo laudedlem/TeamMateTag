@@ -6246,17 +6246,18 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
   display: block;
   font-size: 1rem;
   font-weight: 850;
-  line-height: 1.02;
-  max-height: 2.08em;
+  line-height: 1.12;
+  max-height: 2.34em;
   overflow: hidden;
   overflow-wrap: normal;
+  padding-block: 0.03em 0.13em;
   text-overflow: clip;
   white-space: normal;
   word-break: normal;
 }
 
 body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player small {
-  font-size: 0.82rem;
+  font-size: 0.86rem;
 }
 
 .powerup-panel[open] {
@@ -9485,9 +9486,17 @@ body[data-mode-hub="manager"] .manager-starter {
 body[data-mode-hub="manager"] .manager-starter strong {
   display: block;
   max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.08;
+  overflow: visible;
+  overflow-wrap: normal;
+  text-overflow: clip;
+  white-space: normal;
+  word-break: normal;
+}
+
+body[data-mode-hub="manager"] .manager-starter-name span {
+  display: block;
+  max-width: 100%;
 }
 
 @media (max-width: 900px) {
@@ -9503,6 +9512,26 @@ body[data-mode-hub="manager"] .manager-starter strong {
 
   body[data-mode-hub="manager"] .manager-starter {
     width: min(100%, 18rem);
+  }
+}
+
+@media (max-width: 520px) {
+  body[data-mode-hub="manager"] .manager-starter strong {
+    font-size: 0.94rem;
+  }
+}
+
+.sport-football .fr-board-slot .fr-board-player {
+  line-height: 1.12;
+  max-height: 2.38em;
+  padding-block: 0.02em 0.12em;
+}
+
+@media (max-width: 640px) {
+  .sport-football .fr-board-slot .fr-board-player {
+    font-size: 0.42rem;
+    line-height: 1.12;
+    max-height: 2.38em;
   }
 }
 

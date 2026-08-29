@@ -447,6 +447,15 @@ function renderManagerSummary(summary) {
   }
 }
 
+function managerStarterNameHtml(name) {
+  const clean = String(name || 'Unknown').trim();
+  const splitAt = clean.lastIndexOf(' ');
+  if (splitAt <= 0 || splitAt >= clean.length - 1) {
+    return `<strong class="manager-starter-name"><span>${escapeHtml(clean)}</span></strong>`;
+  }
+  return `<strong class="manager-starter-name"><span>${escapeHtml(clean.slice(0, splitAt))}</span><span>${escapeHtml(clean.slice(splitAt + 1))}</span></strong>`;
+}
+
 function renderManagerTiles(summary) {
   const sports = summary?.sports || {};
   Object.entries(sports).forEach(([sport, data]) => {
@@ -459,7 +468,7 @@ function renderManagerTiles(summary) {
         ? `<img src="${escapeHtml(starter.headshot_url)}" alt="">`
         : '';
       starterTarget.innerHTML = `<span class="manager-starter-photo ${photo ? '' : 'placeholder'}">${photo}</span>
-        <span><small>Today's Starter</small><strong>${escapeHtml(starter.name || 'Unknown')}</strong></span>`;
+        <span><small>Today's Starter</small>${managerStarterNameHtml(starter.name)}</span>`;
     }
   });
 }
