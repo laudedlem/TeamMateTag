@@ -9,31 +9,16 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.4.29`
+- Current display version: `0.4.30`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
-- Supabase runtime catalog: the non-baseball game data was imported on
-  2026-08-01. Database size was roughly 170 MB after the sport-runtime import,
-  below the Free plan's 500 MB database quota. The old materialized Baseball
-  `teammates` table was removed because it alone consumed roughly 400 MB; all
-  game paths derive links from indexed appearances instead.
-- Supabase Free plan storage warning received on 2026-08-28 after adding large
-  historical strict proof work. Production storage policy is now runtime-only:
-  keep compact teammate proof rows (`sport_teammates` /
-  `mlb_teammate_game_proofs`), card/search rollups, coverage flags, teams,
-  players, and current-season/recent updater staging rows only. Full historical
+- Supabase runtime catalog policy: production is runtime-only. Keep compact
+  teammate proof rows, card/search rollups, coverage flags, teams, players,
+  headshot URLs, and small derived gameplay qualifiers online. Full historical
   player-game/boxscore/snap participation stays in local SQLite/raw files under
-  `raw/` and should not be retained in Supabase once compact proofs and rollups
-  are built. Use `scripts/trim_supabase_runtime_storage.py` to audit table sizes
-  and prune historical live staging rows only for seasons that already have
-  compact strict proofs. For quota recovery, run it with `--execute
-  --vacuum-full` once Supabase SQL accepts connections so physical table/index
-  storage is released, not just made reusable.
-- If Supabase refuses normal SQL/REST because the project is over quota, use
-  `scripts/purge_football_from_supabase.py --execute --vacuum-full` as the
-  first emergency recovery command as soon as SQL accepts a connection. It
-  removes Football runtime/catalog rows from Supabase only; local Football raw
-  data and SQLite proof sources are preserved for a cleaner compact re-upload.
+  `raw/`. New data should be fetched and refined locally first, then uploaded
+  only through the active compact updater/loadout scripts. Do not recreate old
+  direct-to-Supabase importers or emergency purge scripts.
 - Required environment values are documented in `.env.example`. Never commit
   `.env` or any Supabase password/key.
 - Runtime schema migrations are skipped during ordinary gameplay to keep Vercel
@@ -308,6 +293,15 @@ no-op runs, Python compile, all-sport compact smoke tests, and the full hygiene
 audit. Note: two untracked one-off retry files remain locally under `logs/`
 because the shell blocked deletion; they are not committed and are not part of
 the active loadout.
+
+Update, 2026-08-29 (0.4.30): continued cleanup after a repo bloat audit. Removed
+unused tracked static font trees under `web/static/fonts/*/static`; the CSS only
+references the Sour Gummy variable fonts and the four Google Atkinson files.
+Also removed tracked emergency Supabase purge/trim scripts, their SQL helpers,
+and the stale additive Baseball history migration script. These were not part
+of the active compact loadout and could encourage future direct/destructive
+production operations. The top deployment policy now names the compact-only
+runtime approach instead of referencing deleted emergency scripts.
 
 ## Current user experience
 

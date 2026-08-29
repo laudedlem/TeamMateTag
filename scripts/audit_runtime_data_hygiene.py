@@ -142,8 +142,16 @@ def audit_workflows(failures: list[str]) -> None:
         "load_playoff_powerup_data.py",
         "load_playoff_win_condition_data.py",
         "compact_supabase_proof_storage.py",
+        "purge_football_from_supabase.py",
+        "trim_supabase_runtime_storage.py",
+        "expand_baseball_history.py",
     ):
         check(not (ROOT / "scripts" / legacy_script).exists(), f"{legacy_script} has been deleted", failures)
+    for legacy_sql in (
+        "purge_football_runtime.sql",
+        "emergency_free_sport_index_space.sql",
+    ):
+        check(not (ROOT / "scripts" / "sql" / legacy_sql).exists(), f"{legacy_sql} has been deleted", failures)
 
 
 def audit_supabase(failures: list[str]) -> None:
