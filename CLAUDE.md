@@ -132,7 +132,12 @@ small supporting runtime tables by loading Baseball playoff traits/powerups and
 importing the local `raw/headshot_registry_2026-08-15.csv` registry into
 `player_headshots`. Production Manager smoke checks then returned starters for
 Baseball, Football, Hockey, and Basketball. Database size after these runtime
-support rows: about 470 MB.
+support rows: about 470 MB. Additional production smoke checks confirmed
+Manager Mode can create seeded games and accept valid strict-proof moves for
+Baseball (Trout/Ohtani), Basketball (LeBron/Wade), Hockey (Toews/Kane), and
+Football (Mahomes/Kelce). The daily live update scripts are intentionally not
+run yet against this schema; they still need a compact-key write path instead
+of direct writes to the proof compatibility views.
 
 ## Current user experience
 
