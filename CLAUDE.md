@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.4.21`
+- Current display version: `0.4.22`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -162,12 +162,16 @@ player-game appearances imported through 2026-08-28. Verified Tarik Skubal has
 Ohtani, Mookie Betts, and Freddie Freeman. Production Manager smoke confirmed
 `Tarik Skubal -> Shohei Ohtani` is valid on the 2026 Dodgers. Database size
 after the MLB current-season refresh was about 489 MB.
-Update, 2026-08-28 (0.4.21): Manager hub sport tiles no longer place the
-starter headshot/name in the same horizontal lane as the sport name. The
-starter block now sits under the sport copy with the icon still reserved on
-the right, fixing the Basketball tile crowding. Verified with a long
-Basketball starter-name stress case on desktop and mobile: sport title,
-starter headshot/name, and icon had zero measured overlap.
+Update, 2026-08-28 (0.4.21): Manager hub sport tiles briefly moved the starter
+headshot/name under the sport copy to avoid Basketball crowding. This layout
+was superseded by `0.4.22`.
+Update, 2026-08-28 (0.4.22): Reverted Manager hub sport tiles back to the
+side-by-side layout the user preferred. The Today's Starter block now stays in
+the open lane between the sport name and the bottom-right sport icon, with
+mobile-specific sizing so Basketball title, starter headshot/name, and icon do
+not overlap. Kept the first-name/last-name stacked starter labels from
+`0.4.20`. Verified desktop, tablet, and mobile geometry with a long Basketball
+starter-name stress case.
 
 ## Current user experience
 
