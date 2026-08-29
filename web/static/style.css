@@ -9456,9 +9456,13 @@ body[data-mode-hub="film"] .film-preview-player small,
 }
 
 body[data-mode-hub="manager"] .manager-sport-tile {
-  grid-template-columns: minmax(0, 1fr) minmax(9.75rem, 0.72fr);
-  grid-template-areas: "copy starter";
-  gap: 0.9rem;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    "copy"
+    "starter";
+  align-content: center;
+  gap: 0.58rem;
+  min-height: 138px;
   padding-right: 5.15rem;
 }
 
@@ -9480,7 +9484,8 @@ body[data-mode-hub="manager"] .manager-starter {
   grid-area: starter;
   min-width: 0;
   max-width: 100%;
-  justify-self: stretch;
+  justify-self: start;
+  width: min(100%, 18rem);
 }
 
 body[data-mode-hub="manager"] .manager-starter strong {
@@ -9501,17 +9506,8 @@ body[data-mode-hub="manager"] .manager-starter-name span {
 
 @media (max-width: 900px) {
   body[data-mode-hub="manager"] .manager-sport-tile {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-areas:
-      "copy"
-      "starter";
-    align-content: center;
     gap: 0.55rem;
     min-height: 156px;
-  }
-
-  body[data-mode-hub="manager"] .manager-starter {
-    width: min(100%, 18rem);
   }
 }
 
