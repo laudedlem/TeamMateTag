@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.4.28`
+- Current display version: `0.4.29`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -290,6 +290,24 @@ helpers/constants from them. Preferred next cleanup is to move those helpers
 into neutral fetch/client modules, update compact scripts to import those, then
 delete the old direct-write scripts instead of keeping guard/tripwire files as
 long-term backups.
+
+Update, 2026-08-29 (0.4.29): completed the live-data cleanup pass. Extracted
+the source-fetching/date/parsing helpers needed by compact updaters into
+`scripts/live_mlb_client.py`, `scripts/live_nba_client.py`, and
+`scripts/live_nhl_client.py`; `update_mlb_compact_live.py` and
+`update_cross_sport_compact_live.py` now import those clean clients instead of
+legacy direct writers. Deleted obsolete direct-to-Supabase live scripts and
+one-time heavy Postgres migration/import loaders, including the old MLB/NBA/NHL
+/NFL live writers, historical proof importers, baseline migration scripts, and
+old playoff loader scripts that are now replaced by local compact runtime
+generation. Removed tracked stale NFL Game Book audit CSVs from `logs/`.
+Replaced stale live-data docs with the current local-first compact plan and
+deleted the old cross-sport deployment doc. `audit_runtime_data_hygiene.py` now
+verifies those legacy scripts stay deleted. Verified active compact updater
+no-op runs, Python compile, all-sport compact smoke tests, and the full hygiene
+audit. Note: two untracked one-off retry files remain locally under `logs/`
+because the shell blocked deletion; they are not committed and are not part of
+the active loadout.
 
 ## Current user experience
 

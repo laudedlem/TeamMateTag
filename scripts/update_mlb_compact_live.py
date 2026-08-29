@@ -38,7 +38,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from name_normalize import normalize  # noqa: E402
-from update_mlb_live_data import (  # noqa: E402
+from live_mlb_client import (  # noqa: E402
     EASTERN,
     SOURCE,
     RawAppearance,

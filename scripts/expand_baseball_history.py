@@ -7,8 +7,9 @@ the teammate graph and autocomplete index across the complete window.
 Run from the repository root:
     python scripts/expand_baseball_history.py
 
-Do not use scripts/migrate_to_postgres.py for this task. That script truncates
-static tables and is intended only for a fresh Supabase project.
+Do not use one-off Postgres migration loaders for this task. Production data
+should be refreshed from compact runtime/import paths, not table-truncating
+baseline loaders.
 """
 from __future__ import annotations
 

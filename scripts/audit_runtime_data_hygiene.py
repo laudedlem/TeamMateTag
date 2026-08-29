@@ -126,6 +126,24 @@ def audit_workflows(failures: list[str]) -> None:
         text = (WORKFLOW_DIR / filename).read_text(encoding="utf-8")
         check(compact_call in text, f"{filename} uses compact updater", failures)
         check(legacy_call not in text, f"{filename} does not call legacy direct updater", failures)
+    for legacy_script in (
+        "update_mlb_live_data.py",
+        "update_nba_live_data.py",
+        "update_nhl_live_data.py",
+        "update_nfl_live_data.py",
+        "import_mlb_game_teammates_to_postgres.py",
+        "import_nba_espn_game_teammates_to_postgres.py",
+        "import_nba_legacy_game_teammates_to_postgres.py",
+        "import_nhl_game_teammates_to_postgres.py",
+        "import_nfl_snap_teammates_to_postgres.py",
+        "import_nfl_gamebook_teammates_to_postgres.py",
+        "migrate_to_postgres.py",
+        "migrate_cross_sport_to_postgres.py",
+        "load_playoff_powerup_data.py",
+        "load_playoff_win_condition_data.py",
+        "compact_supabase_proof_storage.py",
+    ):
+        check(not (ROOT / "scripts" / legacy_script).exists(), f"{legacy_script} has been deleted", failures)
 
 
 def audit_supabase(failures: list[str]) -> None:

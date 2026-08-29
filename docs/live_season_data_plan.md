@@ -1,80 +1,55 @@
 # Live Season Data Plan
 
-Version 0.4.00 started with the free, lowest-risk path: MLB daily game imports
-from the public MLB Stats API into Supabase Postgres. Version 0.4.01 applies
-the same pattern to NHL regular-season game logs from the public NHL web API.
+TeamMateTag's live data pipeline is local-first.
 
-## Implemented first
+Large source data stays under `raw/` as local SQLite/CSV/cache files. Supabase
+receives only refined runtime data: player/team catalogs, team-season
+appearances, stints, compact teammate proof rows, search/card rollups, headshot
+URLs, coverage flags, and small derived qualifier/stat rows needed by gameplay.
 
-- `scripts/update_mlb_live_data.py` pulls completed MLB games from
-  `https://statsapi.mlb.com/api/v1`.
-- The import reads schedule windows, fetches each final game's boxscore, stores
-  one player/game appearance row, and rolls the season up into `appearances`.
-- The script creates and uses `mlb_live_game_imports` and
-  `mlb_live_player_games` so repeated runs are idempotent.
-- Current-season `player_stints` are rebuilt from actual game dates, which
-  makes midseason team ranges clearer than roster-level season stats.
-- New MLB players not yet present in the annual Lahman snapshot are inserted
-  with stable `mlbam_<id>` ids and searchable names.
-- `.github/workflows/update-mlb-live-data.yml` runs the updater daily and can
-  be triggered manually with an optional season-to-date backfill.
-- MLB live imports request/filter regular-season games only. All-Star or other
-  exhibition team memberships are not valid teammate-tag team memberships.
-- `scripts/update_nhl_live_data.py` pulls completed NHL regular-season games
-  from `https://api-web.nhle.com/v1`.
-- The NHL import stores game-level player rows in generic
-  `sport_live_game_imports` and `sport_live_player_games` tables, then rolls
-  them into `sport_appearances`, `sport_player_stints`,
-  `sport_player_season_traits`, positions, and search rows.
-- `.github/workflows/update-nhl-live-data.yml` runs the NHL updater daily and
-  can be triggered manually with an optional season-to-date backfill.
-- `scripts/remove_exhibition_memberships.py` removes any production
-  All-Star/exhibition rows that entered before the filters existed.
+## Active Updaters
 
-## Operator setup
+- Baseball: `scripts/update_mlb_compact_live.py`
+- Basketball/Hockey: `scripts/update_cross_sport_compact_live.py basketball|hockey`
+- Football: `scripts/update_nfl_compact_live.py`
 
-GitHub Actions needs this repository secret:
+Each active updater can run offline-only by omitting `--upload`. The scheduled
+GitHub workflows run the same scripts with `--upload --prune-live-staging`, so
+temporary online staging is removed after compact proof/runtime rows are
+refreshed.
 
-- `DATABASE_URL`: Supabase Postgres connection string.
-
-Useful manual runs:
+## Manual Runs
 
 ```bash
-python scripts/update_mlb_live_data.py --dry-run --backfill-days 1
-python scripts/update_mlb_live_data.py --season 2026 --season-to-date
-python scripts/update_mlb_live_data.py --season 2026 --backfill-days 3
-python scripts/update_nhl_live_data.py --dry-run --backfill-days 1
-python scripts/update_nhl_live_data.py --season 2025 --season-to-date
-python scripts/update_nhl_live_data.py --season 2025 --backfill-days 3
+python scripts/update_mlb_compact_live.py --season 2026 --backfill-days 3
+python scripts/update_cross_sport_compact_live.py basketball --season 2026 --backfill-days 3
+python scripts/update_cross_sport_compact_live.py hockey --season 2026 --backfill-days 3
+python scripts/update_nfl_compact_live.py --season 2026
 ```
 
-The first production run for a season automatically expands to season-to-date
-if no game imports exist yet.
+Add `--upload --prune-live-staging` only after the local output is inspected.
 
-The 2026 production season-to-date seed was run on 2026-08-23 and cleaned on
-2026-08-25 to remove the MLB All-Star Game. Supabase held 2,318 unique MLB
-regular-season games and 74,541 player-game rows after the cleanup.
+## Runtime Build
 
-The 2025-26 NHL production season-to-date seed was run on 2026-08-25.
-Supabase held 1,312 unique NHL regular-season games, 49,998 player-game rows,
-1,123 live player/team appearance pairs, 1,038 current-season trait rows, and
-1,038 searchable live players after the run.
+```bash
+python scripts/build_minimal_runtime_sqlite.py
+python scripts/audit_runtime_data_hygiene.py
+```
 
-## Next sports
+The minimal runtime compiler folds local historical proof DBs plus any live
+runtime files into `raw/runtime_compact/teammatetag_runtime_minimal.sqlite`
+without copying raw boxscore/player-game/snap rows.
 
-- NFL: use nflverse's free public data releases for roster/player/game updates.
-  This is naturally weekly rather than daily for most of the season.
-- NBA: use the free community `nba_api`/NBA.com endpoint path or
-  SportsDataverse boxscore releases. This is the least official of the four
-  free options, so it should be isolated behind the same staging/audit pattern.
+## Deleted Legacy Paths
 
-## Remaining limitations
+The old direct-to-Supabase live updaters and one-time Postgres import/migration
+scripts were removed after their source-fetching helpers were moved into small
+client modules:
 
-- MLB playoff powerup and win-condition derived trait tables are still annual
-  Lahman-based. The live importer updates teammate graph/search behavior first.
-- Historical annual rebuilds are still needed after Lahman publishes final
-  season CSVs, so temporary `mlbam_<id>` player ids can be reconciled later.
-- NHL career trait totals remain based on the existing historical source. The
-  live importer adds current-season trait rows without clobbering career totals.
-- NFL and NBA daily importers are not implemented yet; this document records
-  the recommended order and source pattern.
+- `scripts/live_mlb_client.py`
+- `scripts/live_nba_client.py`
+- `scripts/live_nhl_client.py`
+
+Do not recreate direct writers that upload raw historical game rows to
+Supabase. New source work should first land locally under `raw/`, then be
+compiled into compact runtime data.

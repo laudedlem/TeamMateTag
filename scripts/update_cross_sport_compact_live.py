@@ -34,8 +34,8 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from name_normalize import normalize  # noqa: E402
 
-import update_nba_live_data as nba_live  # noqa: E402
-import update_nhl_live_data as nhl_live  # noqa: E402
+import live_nba_client as nba_live  # noqa: E402
+import live_nhl_client as nhl_live  # noqa: E402
 
 
 SPORTS = {
