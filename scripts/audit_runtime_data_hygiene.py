@@ -117,6 +117,15 @@ def audit_workflows(failures: list[str]) -> None:
     mlb_workflow = (WORKFLOW_DIR / "update-mlb-live-data.yml").read_text(encoding="utf-8")
     check("update_mlb_compact_live.py" in mlb_workflow, "MLB scheduled workflow uses compact updater", failures)
     check("update_mlb_live_data.py" not in mlb_workflow, "MLB scheduled workflow does not call legacy direct updater", failures)
+    workflow_expectations = {
+        "update-nba-live-data.yml": ("update_cross_sport_compact_live.py basketball", "update_nba_live_data.py"),
+        "update-nhl-live-data.yml": ("update_cross_sport_compact_live.py hockey", "update_nhl_live_data.py"),
+        "update-nfl-live-data.yml": ("update_nfl_compact_live.py", "update_nfl_live_data.py"),
+    }
+    for filename, (compact_call, legacy_call) in workflow_expectations.items():
+        text = (WORKFLOW_DIR / filename).read_text(encoding="utf-8")
+        check(compact_call in text, f"{filename} uses compact updater", failures)
+        check(legacy_call not in text, f"{filename} does not call legacy direct updater", failures)
 
 
 def audit_supabase(failures: list[str]) -> None:

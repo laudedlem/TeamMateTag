@@ -27,6 +27,11 @@ BASEBALL_DB = ROOT / "db" / "base2nerdle.sqlite"
 SPORT_CATALOG_DB = ROOT / "db" / "teammatetag_local.sqlite"
 MLB_PROOFS_DB = ROOT / "raw" / "mlb_game_teammates" / "mlb_game_teammates_v2.sqlite"
 MLB_LIVE_RUNTIME_DIR = ROOT / "raw" / "mlb_live_runtime"
+SPORT_LIVE_RUNTIME_DIRS = {
+    "basketball": ROOT / "raw" / "basketball_live_runtime",
+    "hockey": ROOT / "raw" / "hockey_live_runtime",
+    "football": ROOT / "raw" / "football_live_runtime",
+}
 NBA_PROOFS_DB = ROOT / "raw" / "nba_game_teammates" / "nba_espn_game_teammates.sqlite"
 NHL_PROOFS_DB = ROOT / "raw" / "nhl_game_teammates" / "nhl_game_teammates.sqlite"
 NFL_RUNTIME_DB = ROOT / "raw" / "nfl_game_teammates" / "nfl_compact_runtime_int.sqlite"
@@ -56,6 +61,9 @@ def attach(conn: sqlite3.Connection) -> None:
     conn.execute("ATTACH DATABASE ? AS mlbraw", (str(MLB_PROOFS_DB),))
     for index, live_db in enumerate(sorted(MLB_LIVE_RUNTIME_DIR.glob("mlb_live_*.sqlite"))):
         conn.execute(f"ATTACH DATABASE ? AS mlblive{index}", (str(live_db),))
+    for sport, folder in SPORT_LIVE_RUNTIME_DIRS.items():
+        for index, live_db in enumerate(sorted(folder.glob(f"{sport}_live_*.sqlite"))):
+            conn.execute(f"ATTACH DATABASE ? AS {sport}live{index}", (str(live_db),))
     conn.execute("ATTACH DATABASE ? AS nbaraw", (str(NBA_PROOFS_DB),))
     conn.execute("ATTACH DATABASE ? AS nhlraw", (str(NHL_PROOFS_DB),))
     conn.execute("ATTACH DATABASE ? AS nflrt", (str(NFL_RUNTIME_DB),))
@@ -245,6 +253,15 @@ def attached_mlb_live_schemas(conn: sqlite3.Connection) -> list[str]:
         name
         for _seq, name, _file in conn.execute("PRAGMA database_list")
         if name.startswith("mlblive")
+    ]
+
+
+def attached_sport_live_schemas(conn: sqlite3.Connection, sport: str) -> list[str]:
+    prefix = f"{sport}live"
+    return [
+        name
+        for _seq, name, _file in conn.execute("PRAGMA database_list")
+        if name.startswith(prefix)
     ]
 
 
@@ -519,6 +536,166 @@ def copy_cross_sport_catalog(conn: sqlite3.Connection, sport: str, source_schema
             search_key, last_key, career_games, teammate_count in rows
         ],
     )
+    copy_live_cross_sport(conn, sport, source_schema)
+
+
+def copy_live_cross_sport(conn: sqlite3.Connection, sport: str, source_schema: str) -> None:
+    baseline_max_season = conn.execute(
+        f"""
+        SELECT COALESCE(MAX(season), 0)
+          FROM {source_schema}.sport_appearances
+         WHERE sport_id = ?
+        """,
+        (sport,),
+    ).fetchone()[0]
+    for live_schema in attached_sport_live_schemas(conn, sport):
+        if not source_table_exists(conn, live_schema, "sport_appearances"):
+            continue
+        conn.executescript(
+            f"""
+            INSERT OR REPLACE INTO runtime_teams
+            SELECT sport_id, team_id, season, franchise_id, name
+              FROM {live_schema}.sport_teams
+             WHERE sport_id = '{sport}'
+               AND season >= 2000;
+
+            INSERT OR REPLACE INTO runtime_player_team_seasons
+            SELECT sport_id, player_id, team_id, season, games_total, 0, 0
+              FROM {live_schema}.sport_appearances
+             WHERE sport_id = '{sport}'
+               AND season >= 2000;
+
+            INSERT OR REPLACE INTO runtime_positions
+            SELECT sport_id, player_id, position, games
+              FROM {live_schema}.sport_player_positions
+             WHERE sport_id = '{sport}';
+
+            INSERT OR REPLACE INTO runtime_coverage
+            SELECT sport_id, season, coverage_type, strict, source
+              FROM {live_schema}.sport_teammate_stint_coverage
+             WHERE sport_id = '{sport}'
+               AND season >= 2000;
+            """
+        )
+        if source_table_exists(conn, live_schema, "sport_player_images"):
+            conn.execute(
+                f"""
+                INSERT OR REPLACE INTO runtime_headshots
+                    (scope, player_id, source_url, fallback_url, provider, status)
+                SELECT sport_id, player_id, source_url, NULL, 'live_compact', 'verified'
+                  FROM {live_schema}.sport_player_images
+                 WHERE sport_id = ?
+                   AND source_url <> ''
+                """,
+                (sport,),
+            )
+        rows = conn.execute(
+            f"""
+            SELECT p.player_id, p.external_id, p.display_name, p.first_name,
+                   p.last_name, p.debut_year, p.final_year, p.primary_pos,
+                   s.search_key, s.last_key, s.career_games, s.teammate_count
+              FROM {live_schema}.sport_players p
+              LEFT JOIN {live_schema}.sport_players_searchable s
+                ON s.sport_id = p.sport_id AND s.player_id = p.player_id
+             WHERE p.sport_id = ?
+               AND EXISTS (
+                    SELECT 1 FROM {live_schema}.sport_appearances a
+                     WHERE a.sport_id = p.sport_id
+                       AND a.player_id = p.player_id
+                       AND a.season >= 2000
+               )
+            """,
+            (sport,),
+        ).fetchall()
+        conn.executemany(
+            """
+            INSERT INTO runtime_players
+                (scope, player_id, external_id, display_name, first_name, last_name,
+                 debut_year, final_year, primary_pos, search_key, last_key,
+                 career_games, teammate_count)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(scope, player_id) DO UPDATE SET
+                external_id = COALESCE(excluded.external_id, runtime_players.external_id),
+                display_name = excluded.display_name,
+                first_name = COALESCE(excluded.first_name, runtime_players.first_name),
+                last_name = COALESCE(excluded.last_name, runtime_players.last_name),
+                debut_year = COALESCE(runtime_players.debut_year, excluded.debut_year),
+                final_year = CASE
+                    WHEN runtime_players.final_year IS NULL THEN excluded.final_year
+                    WHEN excluded.final_year IS NULL THEN runtime_players.final_year
+                    WHEN excluded.final_year > runtime_players.final_year THEN excluded.final_year
+                    ELSE runtime_players.final_year
+                END,
+                primary_pos = COALESCE(runtime_players.primary_pos, excluded.primary_pos),
+                search_key = COALESCE(NULLIF(excluded.search_key, ''), runtime_players.search_key),
+                last_key = COALESCE(NULLIF(excluded.last_key, ''), runtime_players.last_key),
+                career_games = MAX(runtime_players.career_games, excluded.career_games),
+                teammate_count = MAX(runtime_players.teammate_count, excluded.teammate_count)
+            """,
+            [
+                (
+                    sport,
+                    pid,
+                    external_id,
+                    display or " ".join(part for part in (first, last) if part).strip() or pid,
+                    first,
+                    last,
+                    debut,
+                    final,
+                    pos,
+                    search_key or normalize(display or f"{first or ''} {last or ''}"),
+                    last_key or normalize(last or display or pid),
+                    int(career_games or 0),
+                    int(teammate_count or 0),
+                )
+                for pid, external_id, display, first, last, debut, final, pos,
+                search_key, last_key, career_games, teammate_count in rows
+            ],
+        )
+        if source_table_exists(conn, live_schema, "sport_player_season_traits"):
+            trait_rows = conn.execute(
+                f"""
+                SELECT player_id,
+                       SUM(games), SUM(points), SUM(goals), SUM(assists),
+                       MAX(points), MAX(goals), MAX(assists)
+                  FROM {live_schema}.sport_player_season_traits
+                 WHERE sport_id = ?
+                   AND season > ?
+                 GROUP BY player_id
+                """,
+                (sport, int(baseline_max_season or 0)),
+            ).fetchall()
+            conn.executemany(
+                """
+                INSERT INTO runtime_player_traits
+                    (scope, player_id, career_games, career_points, career_goals, career_assists)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(scope, player_id) DO UPDATE SET
+                    career_games = runtime_player_traits.career_games + excluded.career_games,
+                    career_points = runtime_player_traits.career_points + excluded.career_points,
+                    career_goals = runtime_player_traits.career_goals + excluded.career_goals,
+                    career_assists = runtime_player_traits.career_assists + excluded.career_assists
+                """,
+                [
+                    (sport, pid, int(games or 0), int(points or 0), int(goals or 0), int(assists or 0))
+                    for pid, games, points, goals, assists, _peak_points, _peak_goals, _peak_assists in trait_rows
+                ],
+            )
+            conn.executemany(
+                """
+                INSERT INTO runtime_player_season_peaks
+                    (scope, player_id, peak_points, peak_goals, peak_assists)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(scope, player_id) DO UPDATE SET
+                    peak_points = MAX(runtime_player_season_peaks.peak_points, excluded.peak_points),
+                    peak_goals = MAX(runtime_player_season_peaks.peak_goals, excluded.peak_goals),
+                    peak_assists = MAX(runtime_player_season_peaks.peak_assists, excluded.peak_assists)
+                """,
+                [
+                    (sport, pid, int(peak_points or 0), int(peak_goals or 0), int(peak_assists or 0))
+                    for pid, _games, _points, _goals, _assists, peak_points, peak_goals, peak_assists in trait_rows
+                ],
+            )
 
 
 def open_lahman_csv(zf: zipfile.ZipFile, name: str):
@@ -856,6 +1033,10 @@ def insert_proofs(conn: sqlite3.Connection) -> None:
     for live_schema in attached_mlb_live_schemas(conn):
         if source_table_exists(conn, live_schema, "mlb_teammate_game_proofs"):
             sources.append(("baseball", f"{live_schema}.mlb_teammate_game_proofs"))
+    for sport in ("basketball", "hockey", "football"):
+        for live_schema in attached_sport_live_schemas(conn, sport):
+            if source_table_exists(conn, live_schema, "sport_teammates"):
+                sources.append((sport, f"{live_schema}.sport_teammates"))
     for scope, table in sources:
         conn.execute(
             f"""

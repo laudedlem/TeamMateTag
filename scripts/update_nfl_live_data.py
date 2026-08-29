@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
-"""Update current-season NFL snap appearances from nflverse."""
+"""Legacy direct NFL live updater.
+
+Use update_nfl_compact_live.py for normal updates so snap rows stay local and
+Supabase receives only compact runtime rows.
+"""
 from __future__ import annotations
 
 import argparse
 import datetime as dt
 import json
+import os
 import sys
 from pathlib import Path
 from urllib.request import urlopen
@@ -42,6 +47,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--season", type=int, default=default_nfl_season())
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
+
+    if not args.dry_run and os.environ.get("TEAMMATETAG_ALLOW_LEGACY_NFL_LIVE_UPDATER") != "1":
+        print(
+            "ERROR: update_nfl_live_data.py is a legacy direct-to-Supabase updater. "
+            "Use scripts/update_nfl_compact_live.py.",
+            file=sys.stderr,
+        )
+        return 2
 
     available, size = snap_asset_available(args.season)
     if not available:

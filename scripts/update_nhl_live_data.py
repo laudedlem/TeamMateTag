@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """
-Import completed NHL games from the free public NHL web API into production.
+Legacy direct NHL live updater.
 
-The updater mirrors the MLB live-data pattern: store one row per player/game,
-then roll those rows into the compact runtime tables. Daily reruns are safe and
-midseason team stints are based on actual game dates.
+Use update_cross_sport_compact_live.py for normal updates so player-game rows
+stay local and Supabase receives only compact runtime rows.
 """
 from __future__ import annotations
 
@@ -713,6 +712,14 @@ def main() -> int:
     parser.add_argument("--workers", type=int, default=8)
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
+
+    if not args.dry_run and os.environ.get("TEAMMATETAG_ALLOW_LEGACY_NHL_LIVE_UPDATER") != "1":
+        print(
+            "ERROR: update_nhl_live_data.py is a legacy direct-to-Supabase updater. "
+            "Use scripts/update_cross_sport_compact_live.py hockey.",
+            file=sys.stderr,
+        )
+        return 2
 
     if args.season_to_date:
         start = nhl_season_start(args.season)

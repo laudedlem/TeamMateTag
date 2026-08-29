@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.4.26`
+- Current display version: `0.4.27`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog: the non-baseball game data was imported on
@@ -249,6 +249,31 @@ empty Supabase MLB staging rows. The audit and compact smoke tests passed.
 Remaining consistency work: NBA, NHL, and NFL live updaters still need the same
 local-first compact replacement pattern before their scheduled workflows are
 safe to run for future seasons.
+
+Update, 2026-08-29 (0.4.27): added local-first compact live updaters for
+Basketball, Hockey, and Football. NBA/NHL now use
+`scripts/update_cross_sport_compact_live.py basketball|hockey`, which fetches
+completed regular-season boxscores locally, stores player-game rows in
+`raw/basketball_live_runtime/` or `raw/hockey_live_runtime/`, derives compact
+appearance/stint/stat/proof rows, and uploads only runtime rows plus compact
+integer-key teammate proofs when `--upload` is used. NFL now uses
+`scripts/update_nfl_compact_live.py`, which builds from nflverse snap counts
+into `raw/football_live_runtime/` and uploads only compact runtime/proof rows;
+it no-ops cleanly until the requested `snap_counts_{season}.csv` asset exists.
+The scheduled NBA/NHL/NFL GitHub workflows now call these compact updaters with
+`--upload --prune-live-staging`, matching the MLB local-first updater pattern.
+The old direct live scripts (`update_nba_live_data.py`, `update_nhl_live_data.py`,
+and `update_nfl_live_data.py`) now refuse production writes unless an explicit
+legacy override env var is set, preventing accidental bulky staging/proof writes
+to Supabase. `scripts/build_minimal_runtime_sqlite.py` now attaches future
+Basketball/Hockey/Football live runtime DBs and folds their compact catalog,
+coverage, headshot, stat, and teammate-proof rows into the minimal offline
+runtime build without copying raw game/player-game/snap staging. Verified
+legacy-script blocking, compact updater offseason no-ops, and
+`scripts/audit_runtime_data_hygiene.py`; the fresh all-sport compact runtime is
+264.0 MB with 26,420 players, 144,978 player-team-season rows, and 2,780,027
+compact teammate proof rows. Supabase hygiene audit reports database size about
+487 MB, so quota remains tight but the scheduled update paths are now guarded.
 
 ## Current user experience
 

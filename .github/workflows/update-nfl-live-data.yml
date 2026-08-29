@@ -1,4 +1,4 @@
-name: Update NFL Live Data
+name: Update NFL Compact Live Data
 
 on:
   workflow_dispatch:
@@ -12,7 +12,7 @@ on:
     - cron: "25 11 * * *"
 
 jobs:
-  update-nfl-live-data:
+  update-nfl-compact-live-data:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -29,11 +29,11 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install "psycopg[binary]" python-dotenv
 
-      - name: Update current NFL snap data
+      - name: Build local compact NFL data and publish runtime rows
         shell: bash
         run: |
           args=()
           if [[ -n "${{ inputs.season }}" ]]; then
             args+=(--season "${{ inputs.season }}")
           fi
-          python scripts/update_nfl_live_data.py "${args[@]}"
+          python scripts/update_nfl_compact_live.py "${args[@]}" --upload --prune-live-staging

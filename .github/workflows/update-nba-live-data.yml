@@ -1,4 +1,4 @@
-name: Update NBA Live Data
+name: Update NBA Compact Live Data
 
 on:
   workflow_dispatch:
@@ -17,7 +17,7 @@ on:
     - cron: "55 10 * * *"
 
 jobs:
-  update-nba-live-data:
+  update-nba-compact-live-data:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -34,7 +34,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install "psycopg[binary]" requests python-dotenv
 
-      - name: Update current NBA appearances
+      - name: Build local compact NBA data and publish runtime rows
         shell: bash
         run: |
           args=()
@@ -44,4 +44,4 @@ jobs:
           if [[ "${{ inputs.season_to_date }}" == "true" ]]; then
             args+=(--season-to-date)
           fi
-          python scripts/update_nba_live_data.py "${args[@]}"
+          python scripts/update_cross_sport_compact_live.py basketball "${args[@]}" --upload --prune-live-staging

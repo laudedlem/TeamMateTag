@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Import completed NBA regular-season games from ESPN into production.
+"""Legacy direct NBA live updater.
 
-The historical Basketball proof graph uses SportsDataverse/ESPN player
-boxscores. This live updater follows the same rule: a player counts only when
-the ESPN boxscore shows positive minutes in a completed regular-season game.
+Use update_cross_sport_compact_live.py for normal updates so player-game rows
+stay local and Supabase receives only compact runtime rows.
 """
 from __future__ import annotations
 
@@ -601,6 +600,14 @@ def main() -> int:
     parser.add_argument("--season-to-date", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
+
+    if not args.dry_run and os.environ.get("TEAMMATETAG_ALLOW_LEGACY_NBA_LIVE_UPDATER") != "1":
+        print(
+            "ERROR: update_nba_live_data.py is a legacy direct-to-Supabase updater. "
+            "Use scripts/update_cross_sport_compact_live.py basketball.",
+            file=sys.stderr,
+        )
+        return 2
 
     today = datetime.now(EASTERN).date()
     season = args.season or default_season(today)
