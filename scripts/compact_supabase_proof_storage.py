@@ -185,17 +185,6 @@ def build_compact_tables(conn: "psycopg.Connection") -> dict[str, int]:
         if before["mlb_rows"] != after_build["compact_mlb_rows"]:
             raise RuntimeError(f"mlb row mismatch: {before['mlb_rows']} vs {after_build['compact_mlb_rows']}")
 
-        cur.execute("CREATE INDEX idx_compact_player_keys_lookup ON compact_player_keys(scope, player_id, player_key)")
-        cur.execute("CREATE INDEX idx_compact_team_keys_lookup ON compact_team_keys(scope, team_id, season, team_key)")
-        cur.execute(
-            "CREATE INDEX idx_compact_sport_teammates_reverse "
-            "ON compact_sport_teammates(sport_id, player_b_key, player_a_key)"
-        )
-        cur.execute(
-            "CREATE INDEX idx_compact_mlb_tgp_reverse "
-            "ON compact_mlb_teammate_game_proofs(player_b_key, player_a_key)"
-        )
-
         return before | after_build
 
 

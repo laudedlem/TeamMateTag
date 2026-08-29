@@ -54,12 +54,8 @@ compact runtime data for Baseball, Basketball, and Hockey:
 `scripts/import_mlb_game_teammates_to_postgres.py --skip-live`. Verified counts:
 Basketball has 106,107 strict proof rows, Hockey has 399,622 strict proof rows,
 Baseball has 694,446 historical strict proof rows, and all imported proof sets
-had 0 orphan player IDs. Database size after targeted cleanup was about 440 MB.
-Football has not been uploaded to the new Supabase project. A stopped
-proof-only Football upload attempt committed 0 Football proof rows and then
-`VACUUM (FULL, ANALYZE) sport_teammates` reclaimed the aborted-copy bloat.
-Keep Football local-only until the compact package and projected Postgres size
-are reviewed.
+had 0 orphan player IDs. Database size after targeted cleanup was about 440 MB
+before compact proof storage and Football import.
 
 Update, 2026-08-28 (Football compact local runtime): added
 `scripts/build_nfl_compact_runtime.py`. It never connects to Supabase; it
@@ -82,8 +78,8 @@ local Football runtime DB to integer-key proof storage with a compatibility
 `raw/nfl_game_teammates/nfl_compact_runtime_int.sqlite`. Size dropped from
 337.1 MB to 73.1 MB while preserving all 1,550,846 strict proof rows, with
 11,775 player keys, 830 team-season keys, 0 missing proof players, and
-0 missing teams. This is the local source to use for any future Football
-Supabase upload path; do not upload from the older text-ID runtime DB.
+0 missing teams. This is the local source to use for any Football Supabase
+upload path; do not upload from the older text-ID runtime DB.
 
 Update, 2026-08-28 (compact proof storage for three sports): added and ran
 `scripts/compact_supabase_proof_storage.py --execute` against the new Supabase
@@ -99,6 +95,24 @@ Crosby/Malkin links. New Supabase database size after `VACUUM FULL`: about
 that write directly to `sport_teammates` or `mlb_teammate_game_proofs` must be
 updated to write compact-key rows (or use dedicated insert helpers) before they
 are run against this compact schema.
+
+Update, 2026-08-28 (Football compact import live in new Supabase): added and
+ran `scripts/import_nfl_compact_runtime_to_supabase.py --execute`, importing
+Football from `raw/nfl_game_teammates/nfl_compact_runtime_int.sqlite` into the
+compact Supabase proof tables. This uploaded only refined runtime data: catalog
+rows, search/card rollups, coverage flags, headshot URLs, and integer-key
+same-game teammate proofs. No raw snap/Game Book player-game rows were
+uploaded. Verified counts after import: Football has 26,203 players, 52,921
+appearance rollups, 26 strict `game_boxscore` seasons from 2000-2025, and
+1,550,846 strict proof rows visible through the `sport_teammates` compatibility
+view, with 0 missing proof players and 0 missing teams. All non-baseball sports
+are active in the `sports` table. Final new Supabase database size after
+dropping redundant compact lookup/reverse indexes: about 462-463 MB. Smoke
+queries confirmed Baseball Trout/Ohtani, Basketball LeBron/Wade, Hockey
+Toews/Kane, Football Favre/Rodgers, Mahomes/Kelce, and Brady/Gronk. The first
+Football import script version attempted `VACUUM FULL` after successful commit
+and hit disk pressure; the script now uses `ANALYZE` instead. Do not recreate
+the dropped redundant indexes on Free unless storage is re-evaluated.
 
 ## Current user experience
 
