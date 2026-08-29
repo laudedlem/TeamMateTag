@@ -75,6 +75,15 @@ strict teammate proof rows, 26 covered seasons, 0 missing proof players, and
 0 missing proof teams. Do not upload Football before deciding whether this
 text-ID proof table is small enough for Supabase Free or needs a more compact
 integer-key runtime schema.
+Follow-up, 2026-08-28: added and ran
+`scripts/compact_nfl_local_runtime_storage.py`, which converts that refined
+local Football runtime DB to integer-key proof storage with a compatibility
+`sport_teammates` view. Output:
+`raw/nfl_game_teammates/nfl_compact_runtime_int.sqlite`. Size dropped from
+337.1 MB to 73.1 MB while preserving all 1,550,846 strict proof rows, with
+11,775 player keys, 830 team-season keys, 0 missing proof players, and
+0 missing teams. This is the local source to use for any future Football
+Supabase upload path; do not upload from the older text-ID runtime DB.
 
 Update, 2026-08-28 (compact proof storage for three sports): added and ran
 `scripts/compact_supabase_proof_storage.py --execute` against the new Supabase
