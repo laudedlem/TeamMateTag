@@ -88,9 +88,11 @@ const els = {
   timer: document.getElementById('timer'),
   currentPlayerName: document.getElementById('current-player-name'),
   winPanel: document.getElementById('win-panel'),
+  yourWinBox: document.getElementById('your-win-box'),
   yourWinName: document.getElementById('your-win-name'),
   yourWinDesc: document.getElementById('your-win-desc'),
   yourWinPips: document.getElementById('your-win-pips'),
+  oppWinBox: document.getElementById('opp-win-box'),
   oppWinName: document.getElementById('opp-win-name'),
   oppWinDesc: document.getElementById('opp-win-desc'),
   oppWinPips: document.getElementById('opp-win-pips'),
@@ -185,6 +187,7 @@ let referenceSport = 'baseball';
 let launchReturnPath = '';
 let feedbackExpandedKey = '';
 let feedbackRenderedKey = '';
+const expandedWinBoxes = new Set();
 
 let acItems = [];
 let acHighlight = -1;
@@ -1205,6 +1208,7 @@ async function enterMatchedGame(nextGame) {
   clearRequeueRelaxTimeout();
   currentMode = nextGame.mode || currentMode || 'mp';
   lastChainLength = 0;
+  expandedWinBoxes.clear();
   clearInterval(mpRematchPollInterval);
   hideGameOverBanner();
   showScreen(currentMode === 'po' ? 'po-game' : 'mp-game');
@@ -1875,6 +1879,38 @@ function powerupIconHtml(key) {
   return `<span class="powerup-icon powerup-svg" aria-hidden="true"><svg viewBox="0 0 24 24">${paths}</svg></span>`;
 }
 
+function compactPowerupHint(powerup) {
+  const key = powerup?.key || '';
+  const sport = CURRENT_SPORT || 'baseball';
+  const map = {
+    bubblegum: '40+ HR same franchise. +5s',
+    pine_tar: '200+ K same franchise. +5s',
+    bat_donut: 'Silver Slugger link. +5s',
+    sunglasses: 'All-Star link. +5s',
+    backup_mitt: 'Gold Glove link. +5s',
+    abs: '+15s now',
+    quick_pitch: 'Opponent gets 10s',
+    heat_check: '2,000-point season. +5s',
+    sixth_man: '7,000 assists. +5s',
+    switch: 'Same position link. +5s',
+    mvp_badge: sport === 'hockey' ? 'Hart winner link. +5s' : 'MVP link. +5s',
+    all_star_callup: 'All-Star link. +5s',
+    timeout: '+15s now',
+    full_court_press: 'Opponent gets 10s',
+    trick_play: '20+ TD season. +5s',
+    iron_man: '100+ games. +5s',
+    package_change: 'Same position link. +5s',
+    pro_bowl_callup: 'Pro Bowl link. +5s',
+    blitz: 'Opponent gets 10s',
+    breakaway: '400+ goals. +5s',
+    veteran_presence: '800+ points. +5s',
+    line_change: 'Same position link. +5s',
+    hart_honor: 'Hart winner link. +5s',
+    forecheck: 'Opponent gets 10s',
+  };
+  return map[key] || gameCopyStyle(powerup?.description || '');
+}
+
 function powerupLockedLabel() {
   if (game?.finished) return 'Game Over';
   if ((game?.countdown_seconds_remaining || 0) > 0) {
@@ -1902,7 +1938,7 @@ function powerupActivationText(move) {
 function powerupButtonHtml(powerup, disabled, stateLabel = 'Ready') {
   const classes = ['powerup-chip', 'powerup-' + powerupClass(powerup.key)];
   if (powerup.used) classes.push('used');
-  const description = gameCopyStyle(powerup.description || '');
+  const description = compactPowerupHint(powerup);
   return `<button
     type="button"
     class="${classes.join(' ')}"
@@ -1968,6 +2004,45 @@ function renderWinPips(progress, target) {
   return pips.join('');
 }
 
+function chainSideForIndex(index) {
+  if (index <= 0) return null;
+  return index % 2 === 1 ? 'p1' : 'p2';
+}
+
+function fulfilledWinPlayers(side) {
+  if (!side || !Array.isArray(game?.chain)) return [];
+  return game.chain.filter((player, index) => (
+    player?.win_condition_hit && chainSideForIndex(index) === side
+  ));
+}
+
+function fulfilledWinPlayersHtml(players) {
+  if (!players.length) return '<div class="win-hit-empty">No hits yet.</div>';
+  return `<div class="win-hit-list">${players.map((player) => {
+    const name = player?.name || 'Player';
+    const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
+    const image = player?.headshot_url
+      ? `<img src="${escapeHtml(player.headshot_url)}" alt="" loading="lazy" decoding="async">`
+      : `<span>${escapeHtml(initials || 'P')}</span>`;
+    return `<span class="win-hit-player">${image}<strong>${escapeHtml(name)}</strong></span>`;
+  }).join('')}</div>`;
+}
+
+function renderWinBox(box, nameEl, descEl, pipsEl, condition, boxKey, side) {
+  if (!box) return;
+  const expanded = expandedWinBoxes.has(boxKey);
+  box.classList.toggle('expanded', expanded);
+  box.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+  const label = condition?.label || '--';
+  const progress = Number(condition?.progress || 0);
+  const target = Number(condition?.target || 0);
+  nameEl.textContent = label;
+  pipsEl.innerHTML = condition ? renderWinPips(Math.min(progress, target), target) : '';
+  descEl.innerHTML = condition
+    ? `<span class="win-progress-count">${progress}/${target}</span>${expanded ? `<em>${escapeHtml(gameCopyStyle(condition.description || ''))}</em>${fulfilledWinPlayersHtml(fulfilledWinPlayers(side))}` : ''}`
+    : '';
+}
+
 function renderWinConditions() {
   const isPo = currentMode === 'po' && game?.win_conditions;
   els.winPanel.hidden = !isPo;
@@ -1975,16 +2050,10 @@ function renderWinConditions() {
   if (!isPo) return;
   const your = game.win_conditions.your_condition;
   const opp = game.win_conditions.opponent_condition;
-  els.yourWinName.textContent = your?.label || '--';
-  els.yourWinDesc.innerHTML = your
-    ? `<span class="win-progress-count">${your.progress}/${your.target}</span><em>${escapeHtml(gameCopyStyle(your.description || ''))}</em>`
-    : '';
-  els.yourWinPips.innerHTML = your ? renderWinPips(your.progress, your.target) : '';
-  els.oppWinName.textContent = opp?.label || '--';
-  els.oppWinDesc.innerHTML = opp
-    ? `<span class="win-progress-count">${opp.progress}/${opp.target}</span><em>${escapeHtml(gameCopyStyle(opp.description || ''))}</em>`
-    : '';
-  els.oppWinPips.innerHTML = opp ? renderWinPips(opp.progress, opp.target) : '';
+  const yourSide = game.your_side;
+  const oppSide = yourSide === 'p1' ? 'p2' : yourSide === 'p2' ? 'p1' : null;
+  renderWinBox(els.yourWinBox, els.yourWinName, els.yourWinDesc, els.yourWinPips, your, 'your', yourSide);
+  renderWinBox(els.oppWinBox, els.oppWinName, els.oppWinDesc, els.oppWinPips, opp, 'opp', oppSide);
 }
 
 function renderMpGame() {
@@ -2381,7 +2450,7 @@ function makeConnectionBar(sharedSeasons, allStrikes, showStrikes, linkMeta) {
   if (linkMeta?.type === 'powerup' && linkMeta?.powerup_label) {
     const badge = document.createElement('span');
     badge.className = `mode-tile-tag powerup-badge powerup-${powerupClass(linkMeta.powerup_key)}`;
-    badge.textContent = `${powerupIcon(linkMeta.powerup_key)} ${linkMeta.powerup_label}`;
+    badge.textContent = linkMeta.powerup_label;
     seasons.appendChild(badge);
   }
   (sharedSeasons || []).forEach((s) => {
@@ -3373,6 +3442,14 @@ on(els.playoffConditionSelect, 'change', () => {
   if (isCrossSport()) {
     window.localStorage.setItem('tt_local_playoff_condition_' + CURRENT_SPORT, els.playoffConditionSelect.value);
   }
+});
+on(els.yourWinBox, 'click', () => {
+  expandedWinBoxes.has('your') ? expandedWinBoxes.delete('your') : expandedWinBoxes.add('your');
+  renderWinConditions();
+});
+on(els.oppWinBox, 'click', () => {
+  expandedWinBoxes.has('opp') ? expandedWinBoxes.delete('opp') : expandedWinBoxes.add('opp');
+  renderWinConditions();
 });
 on(els.cancelMatchBtn, 'click', cancelMatchmaking);
 on(els.createCodeBtn, 'click', createChallengeCode);

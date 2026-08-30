@@ -371,18 +371,18 @@
             <span id="current-player-name"></span>
           </div>
           <div id="win-panel" class="win-panel" hidden>
-            <div class="win-box">
+            <button class="win-box" id="your-win-box" type="button" aria-expanded="false">
               <div class="powerup-box-label">Your Win Condition</div>
               <div id="your-win-name" class="powerup-name">--</div>
               <div id="your-win-desc" class="muted small"></div>
               <div id="your-win-pips" class="win-pips"></div>
-            </div>
-            <div class="win-box">
+            </button>
+            <button class="win-box" id="opp-win-box" type="button" aria-expanded="false">
               <div class="powerup-box-label">Opponent Win Condition</div>
               <div id="opp-win-name" class="powerup-name">--</div>
               <div id="opp-win-desc" class="muted small"></div>
               <div id="opp-win-pips" class="win-pips"></div>
-            </div>
+            </button>
           </div>
           <details id="powerup-panel" class="powerup-panel" hidden>
             <summary>Powerups</summary>

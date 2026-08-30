@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.5.13`, deployed from the latest pushed `main`
+- Current display version is `0.5.14`, deployed from the latest pushed `main`
   commit.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -67,7 +67,7 @@ decision needs context.
 
 ### Current data/runtime facts
 
-- Supabase database size after the latest hygiene audit: about `395 MB`.
+- Supabase database size after the latest hygiene audit: about `408 MB`.
 - Local compact teammate rows:
   - Baseball: `833,431`
   - Basketball: `106,107`
@@ -215,6 +215,11 @@ decision needs context.
   die on very short lineups. NBA Ring Chaser scoring was corrected by deriving
   NBA Finals champion seasons from playoff game IDs, which fixes Anthony Davis
   receiving one championship credit for the 2019-20 Lakers.
+- `0.5.14`: shortened bot queue fallback to an 8-10 second window while still
+  prioritizing real-user matches first. Playoffs UI is more compact: Powerup
+  buttons use terse action hints, powerup chain badges show only the name in
+  their powerup color, Win Condition boxes collapse by default and expand on
+  click to show progress, description, and qualifying players.
 
 ### Important implementation notes
 
@@ -318,7 +323,7 @@ decision needs context.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.5.13`
+- Current display version: `0.5.14`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog policy: production is runtime-only. Keep compact

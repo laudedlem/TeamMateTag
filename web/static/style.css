@@ -9618,3 +9618,195 @@ body[data-mode-hub="manager"] .manager-starter-name span {
   font-variant-numeric: slashed-zero tabular-nums;
   font-feature-settings: "tnum" 1;
 }
+
+/* 0.5.14: compact Playoffs controls for shorter screens. */
+.turn-card {
+  padding: 0.82rem 0.92rem 0.95rem;
+}
+
+.turn-header {
+  margin-bottom: 0.18rem;
+}
+
+.timer {
+  font-size: 1.42rem;
+  padding: 0.1rem 0.46rem;
+}
+
+.turn-prompt {
+  font-size: 1.02rem;
+  margin-bottom: 0.46rem;
+}
+
+.win-panel {
+  gap: 0.38rem;
+  margin: 0.38rem 0 0.18rem;
+}
+
+.win-box {
+  appearance: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.14rem;
+  min-width: 0;
+  padding: 0.34rem 0.48rem;
+  text-align: left;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.win-box:hover {
+  border-color: rgba(250, 204, 21, 0.58);
+}
+
+.win-box .powerup-box-label {
+  margin: 0;
+  font-size: 0.62rem;
+  line-height: 1;
+}
+
+.win-box .powerup-name {
+  margin: 0;
+  font-size: 0.83rem;
+  line-height: 1.08;
+  overflow-wrap: anywhere;
+}
+
+.win-box .win-pips {
+  margin-top: 0.04rem;
+  gap: 0.16rem;
+}
+
+.win-pip {
+  width: 0.46rem;
+  height: 0.46rem;
+}
+
+.win-box .win-progress-count {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 0.02rem;
+  color: color-mix(in srgb, var(--mode-playoffs, #facc15) 78%, #ffffff);
+  font-size: 0.76rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.win-box em {
+  margin-top: 0.26rem;
+  font-size: 0.74rem;
+  line-height: 1.22;
+}
+
+.win-box.expanded {
+  gap: 0.2rem;
+  padding-block: 0.46rem 0.55rem;
+}
+
+.win-hit-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(5.7rem, 1fr));
+  gap: 0.32rem;
+  margin-top: 0.4rem;
+}
+
+.win-hit-player {
+  align-items: center;
+  display: grid;
+  grid-template-columns: 1.6rem minmax(0, 1fr);
+  gap: 0.28rem;
+  min-width: 0;
+}
+
+.win-hit-player img,
+.win-hit-player span {
+  align-items: center;
+  aspect-ratio: 1;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 50%;
+  display: inline-flex;
+  font-size: 0.58rem;
+  font-weight: 900;
+  justify-content: center;
+  object-fit: cover;
+  object-position: top;
+  overflow: hidden;
+  width: 1.6rem;
+}
+
+.win-hit-player strong,
+.win-hit-empty {
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1.08;
+  overflow-wrap: anywhere;
+}
+
+.powerup-panel {
+  margin-top: 0.46rem;
+}
+
+.powerup-panel[open] {
+  row-gap: 0.42rem;
+}
+
+.powerup-box {
+  padding: 0.52rem 0.62rem;
+}
+
+.powerup-panel[open] #your-powerup-desc.powerup-list {
+  gap: 0.38rem;
+}
+
+.powerup-panel[open] #your-powerup-desc .powerup-chip {
+  grid-template-columns: 1.62rem minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  min-height: 3.1rem;
+  padding: 0.42rem 0.5rem;
+}
+
+.powerup-panel[open] #your-powerup-desc .powerup-icon {
+  grid-row: 1 / 3;
+  height: 1.62rem;
+  min-width: 1.62rem;
+  width: 1.62rem;
+}
+
+.powerup-panel[open] #your-powerup-desc .powerup-label {
+  font-size: 0.82rem;
+}
+
+.powerup-panel[open] #your-powerup-desc .powerup-desc {
+  font-size: 0.66rem;
+  line-height: 1.04;
+}
+
+.powerup-panel[open] #your-powerup-desc .powerup-state {
+  display: none;
+}
+
+.powerup-badge {
+  --badge-color: var(--chip-color, var(--accent));
+  background: color-mix(in srgb, var(--badge-color) 24%, transparent);
+  border-color: color-mix(in srgb, var(--badge-color) 66%, transparent);
+  color: color-mix(in srgb, var(--badge-color) 58%, #ffffff);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+@media (max-width: 760px) {
+  .turn-card {
+    padding: 0.68rem 0.72rem 0.78rem;
+  }
+
+  .win-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .powerup-panel[open] #your-powerup-desc.powerup-list {
+    grid-template-columns: 1fr;
+  }
+}
