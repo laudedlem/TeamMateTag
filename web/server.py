@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.5.08"
+APP_VERSION = "0.5.09"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -8931,9 +8931,19 @@ def _create_transient_bot_guest(conn, mode: str) -> tuple[str, str]:
     return guest_id, label
 
 
+def _ensure_transient_bot_guest(conn, guest_id: str, label: str) -> tuple[str, str]:
+    conn.execute(
+        """INSERT INTO guests (guest_id, display_name) VALUES (%s, %s)
+           ON CONFLICT (guest_id) DO UPDATE SET display_name=EXCLUDED.display_name""",
+        (guest_id, label),
+    )
+    return guest_id, label
+
+
 def _create_bot_sport_online_match(conn, sport: str, mode: str, guest_id: str,
-                                   display_name: str, preference: str | None = None):
-    bot_id, bot_name = _create_transient_bot_guest(conn, mode)
+                                   display_name: str, preference: str | None = None,
+                                   bot: tuple[str, str] | None = None):
+    bot_id, bot_name = _ensure_transient_bot_guest(conn, bot[0], bot[1]) if bot else _create_transient_bot_guest(conn, mode)
     preferences = {guest_id: preference} if preference else {}
     return _sport_online_create(
         conn,
@@ -8946,10 +8956,29 @@ def _create_bot_sport_online_match(conn, sport: str, mode: str, guest_id: str,
     )
 
 
-def _delete_transient_bot_guests(conn, blob: dict) -> None:
-    bot_ids = list(_bot_guest_ids(blob))
-    if bot_ids:
-        conn.execute("DELETE FROM guests WHERE guest_id = ANY(%s)", (bot_ids,))
+def _delete_transient_bot_guests(conn, blob: dict, current_game_id: str | None = None) -> None:
+    for bot_id in _bot_guest_ids(blob):
+        if current_game_id:
+            active_ref = conn.execute(
+                """SELECT 1
+                     FROM sport_online_games
+                    WHERE game_id <> %s
+                      AND NOT finished
+                      AND state->'bot_guest_ids' ? %s
+                    LIMIT 1""",
+                (current_game_id, bot_id),
+            ).fetchone()
+        else:
+            active_ref = conn.execute(
+                """SELECT 1
+                     FROM sport_online_games
+                    WHERE NOT finished
+                      AND state->'bot_guest_ids' ? %s
+                    LIMIT 1""",
+                (bot_id,),
+            ).fetchone()
+        if not active_ref:
+            conn.execute("DELETE FROM guests WHERE guest_id=%s", (bot_id,))
 
 
 def _sport_online_expire(blob: dict):
@@ -9001,7 +9030,6 @@ def _save_sport_online_result(conn, game_id: str, blob: dict, state: GameState):
                      (game_id,owner,opponent_for_result,opponent_name,len(state.chain),won,before,after,sport))
         _record_sport_struck_out_teams(conn,owner,sport,blob["mode"],state)
     blob["result_saved"] = True
-    _delete_transient_bot_guests(conn, blob)
 
 
 def _sport_online_state(conn, game_id: str, blob: dict, state: GameState, viewer: str) -> dict:
@@ -9817,6 +9845,7 @@ def sport_online_leave(sport: str, mode: str):
         if guest not in {blob["p1_guest_id"],blob["p2_guest_id"]}: return jsonify({"error":"unauthorized"}),403
         if not blob["finished"]:
             blob["finished"]=True; blob["winner"]=blob["p2"] if guest==blob["p1_guest_id"] else blob["p1"]; blob["last_move"]={"outcome":"forfeit"}; _save_sport_online_result(conn,gid,blob,state); _sport_online_save(conn,gid,blob)
+        _delete_transient_bot_guests(conn, blob, gid)
         return jsonify({"status":"gone"})
 
 
@@ -9927,17 +9956,18 @@ def sport_online_rematch(sport: str, mode: str):
         ).fetchall()}
         if request.path.endswith("rematch_status"):
             if bot_rematch:
-                return jsonify({"status":"waiting","you_requested":guest in requesters,"opponent_requested":guest in requesters,"opponent_present":True,"rematch_available":True})
+                return jsonify({"status":"waiting","you_requested":guest in requesters,"opponent_requested":True,"opponent_present":True,"rematch_available":True})
             if other in exited:
                 if guest in requesters:
                     _sport_online_requeue(conn, sport, mode, guest, other)
                     return jsonify({"status":"requeued","you_requested":True,"opponent_requested":False,"opponent_present":False,"rematch_available":False})
                 return jsonify({"status":"abandoned","you_requested":False,"opponent_requested":False,"opponent_present":False,"rematch_available":False})
             return jsonify({"status":"waiting","you_requested":guest in requesters,"opponent_requested":other in requesters,"opponent_present":True,"rematch_available":True})
-        if not blob["finished"] or blob.get("last_move",{}).get("outcome")=="forfeit": return jsonify({"error":"rematch unavailable"}),400
+        if not blob["finished"] or (blob.get("last_move") or {}).get("outcome")=="forfeit": return jsonify({"error":"rematch unavailable"}),400
         if bot_rematch:
             preference = data.get("win_condition_preference") if mode == "po" else None
             human_name = blob["p1"] if guest == blob["p1_guest_id"] else blob["p2"]
+            bot_name = blob["p1"] if other == blob["p1_guest_id"] else blob["p2"]
             new_gid, new_blob, new_state = _create_bot_sport_online_match(
                 conn,
                 sport,
@@ -9945,6 +9975,7 @@ def sport_online_rematch(sport: str, mode: str):
                 guest,
                 human_name,
                 preference,
+                bot=(other, bot_name),
             )
             conn.execute("INSERT INTO sport_online_rematch_links (original_game_id,new_game_id) VALUES (%s,%s)",(gid,new_gid))
             return jsonify({"status":"matched","game":_sport_online_state(conn,new_gid,new_blob,new_state,guest)})
@@ -9968,9 +9999,12 @@ def sport_online_postgame_leave(sport: str, mode: str):
         blob, _ = _sport_online_load(conn, sport, mode, gid)
         if blob:
             other = blob["p2_guest_id"] if guest == blob["p1_guest_id"] else blob["p1_guest_id"]
-            asked = conn.execute("SELECT 1 FROM sport_online_rematches WHERE original_game_id=%s AND requester_guest_id=%s", (gid, other)).fetchone()
-            if asked:
-                _sport_online_requeue(conn, sport, mode, other, guest)
+            if _is_bot_guest(blob, other):
+                _delete_transient_bot_guests(conn, blob, gid)
+            else:
+                asked = conn.execute("SELECT 1 FROM sport_online_rematches WHERE original_game_id=%s AND requester_guest_id=%s", (gid, other)).fetchone()
+                if asked:
+                    _sport_online_requeue(conn, sport, mode, other, guest)
     return jsonify({"status":"gone"})
 
 

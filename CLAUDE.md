@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.5.08`, deployed from the latest pushed `main`
+- Current display version is `0.5.09`, deployed from the latest pushed `main`
   commit.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -168,18 +168,23 @@ decision needs context.
 - `0.5.07`: added transient guest bots for normal Division Rivalry and
   Playoffs queues across Baseball, Basketball, Hockey, and Football. If a queue
   waits about `10`-`15` seconds without a human opponent, status polling creates
-  a one-game guest opponent, hides bot identity behind normal guest naming,
-  plays legal teammate moves from compact runtime proof data, and deletes the
-  transient guest after result save. Bot-owned ELO, result, usage, and
+  a temporary guest opponent, hides bot identity behind normal guest naming,
+  and plays legal teammate moves from compact runtime proof data. Bot-owned ELO,
+  result, usage, and
   leaderboard rows are skipped; human results against a bot save with no stored
   bot opponent UUID. Private challenge-code games still only match humans.
 - `0.5.08`: made bots more complete opponents. Bot rematch requests are accepted
-  immediately by creating a fresh transient guest for the new game. In Playoffs,
-  bots spend available powerups during their turns while still obeying normal
-  one-use/one-per-turn rules. Bot move selection now gives Playoffs
-  win-condition hits priority, takes an immediately winning condition most of
-  the time, and keeps a small miss chance plus the existing occasional obscure
-  pull so bot behavior is relevance-weighted but not deterministic.
+  immediately. In Playoffs, bots spend available powerups during their turns
+  while still obeying normal one-use/one-per-turn rules. Bot move selection now
+  gives Playoffs win-condition hits priority, takes an immediately winning
+  condition most of the time, and keeps a small miss chance plus the existing
+  occasional obscure pull so bot behavior is relevance-weighted but not
+  deterministic.
+- `0.5.09`: changed bot rematch lifecycle so the same temporary guest account
+  and guest name persist through rematches against the same human. Result saving
+  no longer deletes the bot guest; active-game leave and postgame exit are the
+  cleanup points. Cleanup skips deletion if that bot is already referenced by an
+  unfinished rematch game.
 
 ### Important implementation notes
 
