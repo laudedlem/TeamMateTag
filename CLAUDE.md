@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.5.00`
+- Current display version: `0.5.01`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog policy: production is runtime-only. Keep compact
@@ -103,6 +103,24 @@ without appearing in the same game. The active compact builder now includes
 and Supabase were patched with 109,979 additional compact Baseball rows.
 Verified `Clayton Kershaw -> Zack Greinke` links for 3 Dodgers seasons and
 `Tarik Skubal -> Shohei Ohtani` still links for the 2026 Dodgers.
+
+Update, 2026-08-29 (0.5.01 Film Review ease pass): rebuilt every stored Film
+Review puzzle from 2026-08-01 through 2026-08-29 with easier rules: stronger
+recent/current-player weighting, larger top-candidate windows, and 1-3 valid
+team-season answers per link instead of exactly one. The Basketball/Hockey/
+Football rebuild now uses `scripts/rebuild_static_cross_sport_film_review.py`,
+which generates decks from the local compact SQLite runtime, inserts compact
+static puzzle JSON into Supabase, and exports
+`raw/file_storage/teammatetag-runtime/gameplay/film_review_daily_puzzles.json`
+plus `.gz` as the file-storage mirror. Uploaded that static artifact to
+Supabase Storage. Production stored-puzzle counts after rebuild: 29 Baseball,
+29 Basketball, 29 Hockey, 29 Football Offense, and 29 Football Defense rows.
+Fixed the NBA team-name fallback that labeled 2021 Thunder rows as Seattle
+SuperSonics and 2021 Grizzlies rows as Vancouver Grizzlies; the active compact
+builder now normalizes renamed/moved NBA franchises by era. Also made Film hub
+preview names shrink client-side instead of clipping, and made Film archive/
+preview endpoints skip generator work when today's five static rows already
+exist.
 
 Update, 2026-08-28 (new Supabase recovery project): created/repointed local
 `.env` to the new Free Supabase project `npymptruhptacfmheobv` after the prior

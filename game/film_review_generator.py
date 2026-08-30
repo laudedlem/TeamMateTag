@@ -54,14 +54,13 @@ HOCKEY_ROLE_POSITIONS = {
 }
 
 QUALITY_FLOORS = {
-    "baseball": (250, 2000),
-    "football": (32, 2000),
-    # NHL roster-history rows currently count seasons rather than games.
-    "hockey": (5, 2000),
-    # The local NBA importer stores one row per player-team-season, so its
-    # career count is seasons rather than total games.
-    "basketball": (5, 2000),
+    "baseball": (350, 2008),
+    "football": (60, 2008),
+    "hockey": (250, 2008),
+    "basketball": (300, 2008),
 }
+
+MAX_FILM_REVIEW_LINKS = 3
 
 
 @dataclass(frozen=True)
@@ -96,10 +95,10 @@ def _player_score(sport: str, career_games: int, teammate_count: int, final_year
     # Film Review should open with recognizable players.  The runtime catalog's
     # searchable career count is not equally reliable for every sport, so this
     # score receives the curated career-games value from sport_player_traits.
-    recency = max(0, min(2026, final_year) - 2015) * 30
-    current = 250 if final_year >= 2024 else 0
-    modern = 125 if final_year >= 2020 else 0
-    return int(career_games or 0) * 3 + int(teammate_count or 0) * 2 + recency + current + modern + _photo_bonus(sport, provider)
+    recency = max(0, min(2026, final_year) - 2014) * 70
+    current = 650 if final_year >= 2024 else 0
+    modern = 350 if final_year >= 2020 else 0
+    return int(career_games or 0) * 5 + int(teammate_count or 0) * 3 + recency + current + modern + _photo_bonus(sport, provider)
 
 
 def _recency_score_sql() -> str:
@@ -112,14 +111,14 @@ def _recency_score_sql() -> str:
 
 def _choice_window(slot_index: int, total_slots: int, choices_len: int) -> int:
     if slot_index == 1:
-        return min(3, choices_len)
+        return min(10, choices_len)
     if slot_index <= 2:
-        return min(5, choices_len)
+        return min(14, choices_len)
     if slot_index <= max(4, total_slots // 2):
-        return min(18, choices_len)
+        return min(26, choices_len)
     if slot_index <= total_slots - 3:
-        return min(60, choices_len)
-    return min(140, choices_len)
+        return min(44, choices_len)
+    return min(70, choices_len)
 
 
 def _early_choice_floor(sport: str, slot_index: int) -> int:
@@ -128,9 +127,16 @@ def _early_choice_floor(sport: str, slot_index: int) -> int:
     # become more challenging without turning the opening link into a deep cut.
     if slot_index > 5:
         return 0
-    early = {"baseball": 2300, "basketball": 2250, "hockey": 2300, "football": 1300}
-    middle = {"baseball": 1800, "basketball": 1650, "hockey": 1950, "football": 1050}
+    early = {"baseball": 3600, "basketball": 3600, "hockey": 3300, "football": 1900}
+    middle = {"baseball": 2800, "basketball": 2600, "hockey": 2450, "football": 1500}
     return (early if slot_index <= 2 else middle).get(sport, 0)
+
+
+def _preferred_link(links: list[tuple[str, int]], used_links: set[tuple[str, int]]) -> tuple[str, int] | None:
+    usable = [link for link in links if link not in used_links]
+    if not usable:
+        return None
+    return sorted(usable, key=lambda link: (int(link[1]), link[0]), reverse=True)[0]
 
 
 def lineup_slots(sport: str, unit: str | None = None) -> tuple[str, ...]:
@@ -147,14 +153,26 @@ def _eligible(conn: sqlite3.Connection, sport: str, slot: str) -> dict[str, int]
     headshot_join = "LEFT JOIN player_headshots h ON h.sport_id=p.sport_id AND h.player_id=p.player_id" if has_headshots else ""
     provider_select = "h.provider" if has_headshots else "NULL"
     headshot_filter = "AND h.status='verified'" if has_headshots else ""
+    football_recent_filter = """
+              AND NOT (
+                  p.sport_id='football' AND p.final_year>=2025
+                  AND p.debut_year <= p.final_year - 4
+                  AND NOT EXISTS (
+                      SELECT 1 FROM sport_appearances recent_a
+                       WHERE recent_a.sport_id=p.sport_id
+                         AND recent_a.player_id=p.player_id
+                         AND recent_a.season BETWEEN p.final_year - 2 AND p.final_year - 1
+                  )
+              )
+    """ if sport == "football" else ""
     recency_sql = _recency_score_sql()
     if slot == "ANY":
         return {row[0]: row[1] for row in conn.execute(f"""
             SELECT p.player_id,
-                   (COALESCE(t.career_games, s.career_games) * 3 + s.teammate_count * 2
-                    + CASE WHEN p.final_year >= 2024 THEN 250 ELSE 0 END
-                    + CASE WHEN p.final_year >= 2020 THEN 125 ELSE 0 END
-                    + ({recency_sql}) * 30
+                   (COALESCE(t.career_games, s.career_games) * 5 + s.teammate_count * 3
+                    + CASE WHEN p.final_year >= 2024 THEN 650 ELSE 0 END
+                    + CASE WHEN p.final_year >= 2020 THEN 350 ELSE 0 END
+                    + ({recency_sql}) * 70
                     + CASE
                         WHEN {provider_select} IN ({",".join("?" for _ in STABLE_HEADSHOT_PROVIDERS.get(sport, set())) or "NULL"}) THEN 600
                         WHEN {provider_select} IN ({",".join("?" for _ in FALLBACK_HEADSHOT_PROVIDERS)}) THEN -450
@@ -166,6 +184,7 @@ def _eligible(conn: sqlite3.Connection, sport: str, slot: str) -> dict[str, int]
             {headshot_join}
             WHERE p.sport_id=? AND s.career_games>=? AND p.final_year>=?
               {headshot_filter}
+              {football_recent_filter}
         """, (*sorted(STABLE_HEADSHOT_PROVIDERS.get(sport, set())), *sorted(FALLBACK_HEADSHOT_PROVIDERS),
               sport, career_floor, modern_final_year))}
     if sport == "football":
@@ -177,10 +196,10 @@ def _eligible(conn: sqlite3.Connection, sport: str, slot: str) -> dict[str, int]
     placeholders = ",".join("?" for _ in expected)
     return {row[0]: row[1] for row in conn.execute(
         f"""SELECT DISTINCT pp.player_id,
-                    (COALESCE(t.career_games, s.career_games) * 3 + s.teammate_count * 2
-                     + CASE WHEN p.final_year >= 2024 THEN 250 ELSE 0 END
-                     + CASE WHEN p.final_year >= 2020 THEN 125 ELSE 0 END
-                     + ({recency_sql}) * 30
+                    (COALESCE(t.career_games, s.career_games) * 5 + s.teammate_count * 3
+                     + CASE WHEN p.final_year >= 2024 THEN 650 ELSE 0 END
+                     + CASE WHEN p.final_year >= 2020 THEN 350 ELSE 0 END
+                     + ({recency_sql}) * 70
                      + CASE
                          WHEN {provider_select} IN ({",".join("?" for _ in STABLE_HEADSHOT_PROVIDERS.get(sport, set())) or "NULL"}) THEN 600
                          WHEN {provider_select} IN ({",".join("?" for _ in FALLBACK_HEADSHOT_PROVIDERS)}) THEN -450
@@ -193,7 +212,8 @@ def _eligible(conn: sqlite3.Connection, sport: str, slot: str) -> dict[str, int]
              {headshot_join}
              WHERE pp.sport_id=? AND pp.position IN ({placeholders})
                AND s.career_games>=? AND p.final_year>=?
-               {headshot_filter}""",
+               {headshot_filter}
+               {football_recent_filter}""",
         (*sorted(STABLE_HEADSHOT_PROVIDERS.get(sport, set())), *sorted(FALLBACK_HEADSHOT_PROVIDERS),
          sport, *sorted(expected), career_floor, modern_final_year))}
 
@@ -202,6 +222,77 @@ def _candidate_links(conn: sqlite3.Connection, sport: str, player_id: str,
                      eligible: dict[str, int], used_players: set[str],
                      used_links: set[tuple[str, int]]) -> list[tuple[str, tuple[str, int]]]:
     _career_floor, modern_final_year = QUALITY_FLOORS[sport]
+    if _table_exists(conn, "teammate_team_seasons") and _table_exists(conn, "compact_player_keys"):
+        key_row = conn.execute(
+            "SELECT player_key FROM compact_player_keys WHERE scope=? AND player_id=?",
+            (sport, player_id),
+        ).fetchone()
+        if key_row:
+            player_key = key_row[0]
+            rows = conn.execute(
+                """
+                SELECT other.player_id, tk.team_id, tk.season
+                  FROM teammate_team_seasons proof
+                  JOIN compact_player_keys other
+                    ON other.scope = proof.scope
+                   AND other.player_key = proof.player_b_key
+                  JOIN compact_team_keys tk ON tk.team_key = proof.team_key
+                  JOIN sport_players other_player
+                    ON other_player.sport_id = proof.scope
+                   AND other_player.player_id = other.player_id
+                 WHERE proof.scope = ?
+                   AND proof.player_a_key = ?
+                   AND tk.season >= ?
+                   AND NOT (
+                       proof.scope='football' AND tk.season>=2025
+                       AND other_player.debut_year <= tk.season - 4
+                       AND NOT EXISTS (
+                           SELECT 1 FROM sport_appearances prior_other
+                            WHERE prior_other.sport_id=proof.scope
+                              AND prior_other.player_id=other.player_id
+                              AND prior_other.season BETWEEN tk.season - 2 AND tk.season - 1
+                       )
+                   )
+                UNION ALL
+                SELECT other.player_id, tk.team_id, tk.season
+                  FROM teammate_team_seasons proof
+                  JOIN compact_player_keys other
+                    ON other.scope = proof.scope
+                   AND other.player_key = proof.player_a_key
+                  JOIN compact_team_keys tk ON tk.team_key = proof.team_key
+                  JOIN sport_players other_player
+                    ON other_player.sport_id = proof.scope
+                   AND other_player.player_id = other.player_id
+                 WHERE proof.scope = ?
+                   AND proof.player_b_key = ?
+                   AND tk.season >= ?
+                   AND NOT (
+                       proof.scope='football' AND tk.season>=2025
+                       AND other_player.debut_year <= tk.season - 4
+                       AND NOT EXISTS (
+                           SELECT 1 FROM sport_appearances prior_other
+                            WHERE prior_other.sport_id=proof.scope
+                              AND prior_other.player_id=other.player_id
+                              AND prior_other.season BETWEEN tk.season - 2 AND tk.season - 1
+                       )
+                   )
+                """,
+                (sport, player_key, modern_final_year, sport, player_key, modern_final_year),
+            )
+            by_candidate: dict[str, list[tuple[str, int]]] = {}
+            for candidate, team_id, season in rows:
+                if candidate in eligible and candidate not in used_players:
+                    by_candidate.setdefault(candidate, []).append((team_id, season))
+            options = []
+            for candidate, links in by_candidate.items():
+                deduped_links = sorted(set(links), key=lambda link: (int(link[1]), link[0]), reverse=True)
+                if len(deduped_links) > MAX_FILM_REVIEW_LINKS:
+                    continue
+                link = _preferred_link(deduped_links, used_links)
+                if link is not None:
+                    options.append((candidate, link))
+            return sorted(options, key=lambda item: (eligible[item[0]], item[1][1]), reverse=True)
+
     exclusion_clause = ""
     matrix_exclusion_clause = ""
     if _table_exists(conn, "sport_teammate_exclusions"):
@@ -256,12 +347,14 @@ def _candidate_links(conn: sqlite3.Connection, sport: str, player_id: str,
         for candidate, team_id, season in rows:
             if candidate in eligible and candidate not in used_players:
                 by_candidate.setdefault(candidate, []).append((team_id, season))
-        unique = [
-            (candidate, links[0])
-            for candidate, links in by_candidate.items()
-            if len(links) == 1 and links[0] not in used_links
-        ]
-        return sorted(unique, key=lambda item: eligible[item[0]], reverse=True)
+        options = []
+        for candidate, links in by_candidate.items():
+            if len(links) > MAX_FILM_REVIEW_LINKS:
+                continue
+            link = _preferred_link(links, used_links)
+            if link is not None:
+                options.append((candidate, link))
+        return sorted(options, key=lambda item: (eligible[item[0]], item[1][1]), reverse=True)
     rows = conn.execute(f"""
         SELECT b.player_id, a.team_id, a.season
         FROM sport_appearances a
@@ -320,14 +413,14 @@ def _candidate_links(conn: sqlite3.Connection, sport: str, player_id: str,
     for candidate, team_id, season in rows:
         if candidate in eligible and candidate not in used_players:
             by_candidate.setdefault(candidate, []).append((team_id, season))
-    # Film Review has one answer per link. Multi-season connections belong in
-    # the other modes, where naming any valid teammate season is intentional.
-    unique = [
-        (candidate, links[0])
-        for candidate, links in by_candidate.items()
-        if len(links) == 1 and links[0] not in used_links
-    ]
-    return sorted(unique, key=lambda item: eligible[item[0]], reverse=True)
+    options = []
+    for candidate, links in by_candidate.items():
+        if len(links) > MAX_FILM_REVIEW_LINKS:
+            continue
+        link = _preferred_link(links, used_links)
+        if link is not None:
+            options.append((candidate, link))
+    return sorted(options, key=lambda item: (eligible[item[0]], item[1][1]), reverse=True)
 
 
 def _pair_key(first: str, second: str) -> tuple[str, str]:
@@ -372,7 +465,7 @@ def generate(conn: sqlite3.Connection, sport: str, puzzle_day: date | None = Non
             ]
         if not starters:
             starters = sorted(pools[slots[0]], key=pools[slots[0]].get, reverse=True)
-        deck = [rng.choice(starters[:min(5, len(starters))])]
+        deck = [rng.choice(starters[:min(12, len(starters))])]
         links: list[tuple[str, int]] = []
         used_players, used_links = {deck[0]}, set()
         failed = False

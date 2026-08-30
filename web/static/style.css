@@ -475,6 +475,8 @@ button.danger:hover:not(:disabled) {
   min-width: 0;
   color: var(--text);
   line-height: 1.1;
+  white-space: nowrap;
+  overflow: visible;
   overflow-wrap: normal;
   word-break: normal;
   hyphens: none;

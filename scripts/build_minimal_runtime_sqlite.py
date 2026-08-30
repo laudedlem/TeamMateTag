@@ -1049,9 +1049,19 @@ def backfill_raw_proof_catalog(conn: sqlite3.Connection) -> None:
         INSERT OR IGNORE INTO runtime_teams (scope, team_id, season, franchise_id, name)
         SELECT DISTINCT 'basketball', proof.team_id, proof.season, proof.team_id,
                COALESCE((
-                   SELECT MAX(t.name) FROM sportcat.sport_teams t
+                   SELECT t.name FROM sportcat.sport_teams t
                     WHERE t.sport_id = 'basketball'
                       AND t.team_id = proof.team_id
+                      AND t.season <= proof.season
+                    ORDER BY t.season DESC
+                    LIMIT 1
+               ), (
+                   SELECT t.name FROM sportcat.sport_teams t
+                    WHERE t.sport_id = 'basketball'
+                      AND t.team_id = proof.team_id
+                      AND t.season > proof.season
+                    ORDER BY t.season ASC
+                    LIMIT 1
                ), proof.team_id)
           FROM nbaraw.nba_teammate_game_proofs proof
          WHERE proof.season >= 2000;
@@ -1081,6 +1091,19 @@ def backfill_raw_proof_catalog(conn: sqlite3.Connection) -> None:
           FROM nhlraw.nhl_player_game_appearances
          WHERE season >= 2000
          GROUP BY player_id, team_id, season;
+
+        UPDATE runtime_teams
+           SET name = CASE
+               WHEN team_id = '1610612760' AND season >= 2008 THEN 'Oklahoma City Thunder'
+               WHEN team_id = '1610612760' AND season < 2008 THEN 'Seattle SuperSonics'
+               WHEN team_id = '1610612763' AND season >= 2001 THEN 'Memphis Grizzlies'
+               WHEN team_id = '1610612763' AND season < 2001 THEN 'Vancouver Grizzlies'
+               WHEN team_id = '1610612751' AND season >= 2012 THEN 'Brooklyn Nets'
+               WHEN team_id = '1610612751' AND season < 2012 THEN 'New Jersey Nets'
+               WHEN team_id = '1610612740' AND season >= 2013 THEN 'New Orleans Pelicans'
+               ELSE name
+           END
+         WHERE scope = 'basketball';
 
         INSERT OR IGNORE INTO runtime_players
             (scope, player_id, external_id, display_name, first_name, last_name,

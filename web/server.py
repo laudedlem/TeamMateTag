@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.5.00"
+APP_VERSION = "0.5.01"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -5867,6 +5867,23 @@ def _ensure_daily_film_puzzles(conn, puzzle_day: date | None = None) -> dict[str
     return generated
 
 
+def _daily_film_puzzles_ready(conn, puzzle_day: date) -> bool:
+    rows = conn.execute(
+        """SELECT sport_id, unit FROM film_review_daily_puzzles
+            WHERE puzzle_date=%s""",
+        (puzzle_day,),
+    ).fetchall()
+    found = {(sport_id, unit or "") for sport_id, unit in rows}
+    expected = {
+        ("baseball", ""),
+        ("basketball", ""),
+        ("hockey", ""),
+        ("football", "offense"),
+        ("football", "defense"),
+    }
+    return expected.issubset(found)
+
+
 @app.route("/api/film/archive_summary", methods=["POST"])
 def film_archive_summary():
     ensure_runtime_schema()
@@ -5876,7 +5893,8 @@ def film_archive_summary():
     sports = ["baseball", "basketball", "hockey", "football"]
     today = datetime.now(CENTRAL_TIME).date()
     with db() as conn:
-        _ensure_daily_film_puzzles(conn, today)
+        if not _daily_film_puzzles_ready(conn, today):
+            _ensure_daily_film_puzzles(conn, today)
         preview_map = _film_preview_map_for_day(conn, today)
         attempt_rows = {}
         if guest_id:
@@ -5921,7 +5939,8 @@ def film_previews():
     ensure_runtime_schema()
     today = datetime.now(CENTRAL_TIME).date()
     with db() as conn:
-        _ensure_daily_film_puzzles(conn, today)
+        if not _daily_film_puzzles_ready(conn, today):
+            _ensure_daily_film_puzzles(conn, today)
         preview_map = _film_preview_map_for_day(conn, today)
         payload = {}
         for sport in ("baseball", "basketball", "hockey", "football"):
@@ -7409,6 +7428,7 @@ def sport_bp_timeout(sport: str):
 BASEBALL_FR_SLOTS = ("DH", "1B", "SP", "2B", "3B", "SS", "LF", "CF", "RF", "C", "RP", "CP")
 
 FR_MAX_STRIKES = 3
+FR_MAX_LINK_OPTIONS = 3
 
 FR_STABLE_HEADSHOT_PROVIDERS = {
     "baseball": {"MLBAM", "OOTP Facepack"},
@@ -7424,21 +7444,21 @@ FR_FALLBACK_HEADSHOT_PROVIDERS = {
 
 def _fr_choice_window(slot_index: int, total_slots: int, choices_len: int) -> int:
     if slot_index == 1:
-        return min(3, choices_len)
+        return min(10, choices_len)
     if slot_index <= 2:
-        return min(5, choices_len)
+        return min(14, choices_len)
     if slot_index <= max(4, total_slots // 2):
-        return min(18, choices_len)
+        return min(26, choices_len)
     if slot_index <= total_slots - 3:
-        return min(60, choices_len)
-    return min(140, choices_len)
+        return min(44, choices_len)
+    return min(70, choices_len)
 
 
 def _fr_early_choice_floor(sport: str, slot_index: int) -> int:
     if slot_index > 5:
         return 0
-    early = {"baseball": 2300, "basketball": 2250, "hockey": 2300, "football": 1300}
-    middle = {"baseball": 1800, "basketball": 1650, "hockey": 1950, "football": 1050}
+    early = {"baseball": 3600, "basketball": 3600, "hockey": 3300, "football": 1900}
+    middle = {"baseball": 2800, "basketball": 2600, "hockey": 2450, "football": 1500}
     return (early if slot_index <= 2 else middle).get(sport, 0)
 
 
@@ -7453,10 +7473,17 @@ def _fr_photo_score(sport: str, provider: str | None) -> int:
 def _fr_player_quality(career_games: int | None, teammate_count: int | None, final_year: int | None,
                        provider: str | None, sport: str) -> int:
     final_year = final_year or 2000
-    recency = max(0, min(2026, final_year) - 2015) * 30
-    return int(career_games or 0) * 3 + int(teammate_count or 0) * 2 + recency \
-        + (250 if final_year >= 2024 else 0) + (125 if final_year >= 2020 else 0) \
+    recency = max(0, min(2026, final_year) - 2014) * 70
+    return int(career_games or 0) * 5 + int(teammate_count or 0) * 3 + recency \
+        + (650 if final_year >= 2024 else 0) + (350 if final_year >= 2020 else 0) \
         + _fr_photo_score(sport, provider)
+
+
+def _fr_preferred_link(links: list[tuple[str, int]], used_links: set[tuple[str, int]]) -> tuple[str, int] | None:
+    usable = [link for link in links if link not in used_links]
+    if not usable:
+        return None
+    return sorted(usable, key=lambda link: (int(link[1]), link[0]), reverse=True)[0]
 
 
 def _fr_compute_shared(conn, deck: list[str]) -> list[list[tuple[str, int, str]]]:
@@ -7599,12 +7626,14 @@ def generate_baseball_film_review(conn, puzzle_day: date, seed_suffix: str = "",
             for pid, team, season in rows:
                 if pid in eligible and pid not in used_players:
                     by_candidate.setdefault(pid, []).append((team, season))
-            unique = [
-                (pid, links[0])
-                for pid, links in by_candidate.items()
-                if len(links) == 1 and links[0] not in used_links
-            ]
-            return sorted(unique, key=lambda item: eligible[item[0]], reverse=True)
+            options = []
+            for pid, links in by_candidate.items():
+                if len(links) > FR_MAX_LINK_OPTIONS:
+                    continue
+                link = _fr_preferred_link(links, used_links)
+                if link is not None:
+                    options.append((pid, link))
+            return sorted(options, key=lambda item: (eligible[item[0]], item[1][1]), reverse=True)
         rows = conn.execute(
             """SELECT DISTINCT b.player_id, a.team_id, a.season
                  FROM appearances a
@@ -7661,12 +7690,14 @@ def generate_baseball_film_review(conn, puzzle_day: date, seed_suffix: str = "",
         for pid, team, season in rows:
             if pid in eligible and pid not in used_players:
                 by_candidate.setdefault(pid, []).append((team, season))
-        unique = [
-            (pid, links[0])
-            for pid, links in by_candidate.items()
-            if len(links) == 1 and links[0] not in used_links
-        ]
-        return sorted(unique, key=lambda item: eligible[item[0]], reverse=True)
+        options = []
+        for pid, links in by_candidate.items():
+            if len(links) > FR_MAX_LINK_OPTIONS:
+                continue
+            link = _fr_preferred_link(links, used_links)
+            if link is not None:
+                options.append((pid, link))
+        return sorted(options, key=lambda item: (eligible[item[0]], item[1][1]), reverse=True)
 
     banned_opening_players = banned_opening_players or set()
     banned_adjacent_pairs = banned_adjacent_pairs or set()
@@ -7685,7 +7716,7 @@ def generate_baseball_film_review(conn, puzzle_day: date, seed_suffix: str = "",
             ]
         if not first:
             first = sorted(pools[BASEBALL_FR_SLOTS[0]], key=pools[BASEBALL_FR_SLOTS[0]].get, reverse=True)
-        deck = [rng.choice(first[:min(5, len(first))])]
+        deck = [rng.choice(first[:min(12, len(first))])]
         used_players, used_links = {deck[0]}, set()
         failed = False
         for slot_index, slot in enumerate(BASEBALL_FR_SLOTS[1:], 1):
@@ -8210,7 +8241,7 @@ def _film_deck_has_verified_headshots(conn, sport: str, deck: list[str]) -> bool
 
 
 def _film_puzzle_connections_are_clean(conn, sport: str, deck: list[str]) -> bool:
-    """Film Review links must each have one answer and never reuse a team-season."""
+    """Film Review links should stay readable without forcing one exact answer."""
     if len(deck) < 2:
         return False
     all_shared = _fr_compute_shared(conn, deck) if sport == "baseball" else None
@@ -8219,13 +8250,12 @@ def _film_puzzle_connections_are_clean(conn, sport: str, deck: list[str]) -> boo
         shared = all_shared[index] if all_shared is not None else _sport_fr_shared(
             conn, sport, deck[index], deck[index + 1]
         )
-        if len(shared) != 1:
+        if not shared or len(shared) > FR_MAX_LINK_OPTIONS:
             return False
-        team_id, season = shared[0][0], shared[0][1]
-        key = (team_id, int(season))
-        if key in used_links:
+        link_keys = {(team_id, int(season)) for team_id, season, *_rest in shared}
+        if link_keys & used_links:
             return False
-        used_links.add(key)
+        used_links.update(link_keys)
     return True
 
 

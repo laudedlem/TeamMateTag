@@ -372,6 +372,7 @@ function renderFilmPreview(sport, data) {
         <small>${escapeHtml(player.name || 'Unknown')}</small>
       </span>`).join('')}</span>`;
   tile.appendChild(meta);
+  fitFilmPreviewNames(meta);
 }
 
 function renderFilmReviewHubSport(sport, data) {
@@ -393,6 +394,19 @@ function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (char) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   })[char]);
+}
+
+function fitFilmPreviewNames(root) {
+  requestAnimationFrame(() => {
+    root.querySelectorAll('.film-preview-player small').forEach((nameEl) => {
+      nameEl.style.fontSize = '';
+      let size = Number.parseFloat(getComputedStyle(nameEl).fontSize) || 12;
+      while (nameEl.scrollWidth > nameEl.clientWidth && size > 8.5) {
+        size -= 0.5;
+        nameEl.style.fontSize = `${size}px`;
+      }
+    });
+  });
 }
 
 function managerScore(run, emptyText = 'No Lineup Yet') {
