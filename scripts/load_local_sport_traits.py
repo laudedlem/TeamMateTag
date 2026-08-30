@@ -357,9 +357,13 @@ def load_nba_championships(conn: sqlite3.Connection) -> tuple[int, int]:
             date = (row.get("gameDate") or row.get("gameDateTimeEst") or "")[:10]
             if len(date) < 4:
                 continue
-            year = integer(date[:4])
-            # Finals end the season in the following calendar year.
-            season = year - 1 if len(date) >= 7 and integer(date[5:7]) <= 7 else year
+            game_id = (row.get("gameId") or "").strip()
+            # NBA playoff game IDs encode the season start year as 4YYxxxxx.
+            # This handles normal June Finals and delayed bubble seasons.
+            season = 2000 + integer(game_id[1:3]) if len(game_id) >= 3 and game_id.startswith("4") else 0
+            if not season:
+                year = integer(date[:4])
+                season = year - 1 if len(date) >= 7 and integer(date[5:7]) <= 7 else year
             candidate = (date, integer(row.get("seriesGameNumber")), row.get("playerteamId") or "")
             if candidate[2] and (season not in finalists or candidate[:2] > finalists[season][:2]):
                 finalists[season] = candidate

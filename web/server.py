@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.5.12"
+APP_VERSION = "0.5.13"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -4878,23 +4878,31 @@ def _local_po_state(game_id: str, game: dict, viewer_guest_id: str) -> dict:
     }
 
 
-def _local_po_create_game(sport: str, first: dict, second: dict, preferences: dict[str, str] | None = None) -> tuple[str, dict]:
-    p1, p2 = (first, second) if secrets.randbelow(2) == 0 else (second, first)
+def _local_po_create_game(sport: str, first: dict, second: dict, preferences: dict[str, str] | None = None,
+                          first_guest_id: str | None = None) -> tuple[str, dict]:
+    if first_guest_id == first["guest_id"]:
+        p1, p2 = first, second
+    elif first_guest_id == second["guest_id"]:
+        p1, p2 = second, first
+    else:
+        p1, p2 = (first, second) if secrets.randbelow(2) == 0 else (second, first)
     conditions = LOCAL_PLAYOFF_CONFIG[sport]["conditions"]
     preferences = preferences or {}
-    def selected(player: dict) -> str:
+    def selected(player: dict) -> tuple[str, str]:
         preference = preferences.get(player["guest_id"], "random")
         if preference in conditions:
-            return preference
+            return preference, preference
         history_key = (player["guest_id"], sport)
         recent = LOCAL_RANDOM_PLAYOFF_HISTORY.get(history_key, [])[-3:]
         options = [key for key in conditions if key not in recent] or list(conditions)
         choice = secrets.choice(options)
         LOCAL_RANDOM_PLAYOFF_HISTORY[history_key] = (recent + [choice])[-3:]
-        return choice
+        return choice, "random"
     with _local_sport_conn() as conn:
         state = seed_game(conn, LOCAL_SPORT_SEEDS[sport], sport=sport)
     game_id = str(uuid.uuid4())
+    p1_condition, p1_preference = selected(p1)
+    p2_condition, p2_preference = selected(p2)
     game = {
         "sport": sport, "state": state, "p1": p1["name"], "p2": p2["name"],
         "p1_guest_id": p1["guest_id"], "p2_guest_id": p2["guest_id"], "turn_index": 0,
@@ -4902,7 +4910,8 @@ def _local_po_create_game(sport: str, first: dict, second: dict, preferences: di
         "finished": False, "winner": None, "last_move": None, "active_turn_powerup": None,
         "next_turn_seconds_override": None, "turn_powerup_used": False,
         "p1_powerup_used_keys": [], "p2_powerup_used_keys": [],
-        "p1_win_condition_key": selected(p1), "p2_win_condition_key": selected(p2),
+        "p1_win_condition_key": p1_condition, "p2_win_condition_key": p2_condition,
+        "p1_win_condition_preference": p1_preference, "p2_win_condition_preference": p2_preference,
         "p1_win_progress": 0, "p2_win_progress": 0, "p1_win_completed": False, "p2_win_completed": False,
         "chain_win_condition_hits": [False], "chain_link_meta": [None],
     }
@@ -5108,7 +5117,13 @@ def local_po_rematch_request(sport: str):
         requests = LOCAL_PO_REMATCH_REQUESTS.setdefault(game_id, set()); requests.add(guest_id)
         if {game["p1_guest_id"], game["p2_guest_id"]} <= requests:
             first = {"guest_id": game["p1_guest_id"], "name": game["p1"]}; second = {"guest_id": game["p2_guest_id"], "name": game["p2"]}
-            linked, new_game = _local_po_create_game(sport, first, second)
+            linked, new_game = _local_po_create_game(
+                sport,
+                first,
+                second,
+                _sport_online_rematch_preferences(game),
+                first_guest_id=_sport_online_rematch_first_guest_id(game),
+            )
             LOCAL_PO_REMATCH_LINKS[game_id] = linked
             return jsonify({"status": "matched", "game": _local_po_state(linked, new_game, guest_id)})
         return jsonify({"status": "waiting"})
@@ -5138,7 +5153,11 @@ def local_po_postgame_leave(sport: str):
         other = game["p2_guest_id"] if guest_id == game["p1_guest_id"] else game["p1_guest_id"]
         if other in LOCAL_PO_REMATCH_REQUESTS.get(game_id, set()):
             LOCAL_PO_QUEUE[sport] = [row for row in LOCAL_PO_QUEUE[sport] if row["guest_id"] != other]
-            LOCAL_PO_QUEUE[sport].append({"guest_id": other, "name": game["p2"] if other == game["p2_guest_id"] else game["p1"], "preference": "random"})
+            LOCAL_PO_QUEUE[sport].append({
+                "guest_id": other,
+                "name": game["p2"] if other == game["p2_guest_id"] else game["p1"],
+                "preference": _sport_online_rematch_preferences(game).get(other, "random"),
+            })
         return jsonify({"status": "gone"})
 
 
@@ -5311,7 +5330,11 @@ def po_blob_from_state(state: GameState, p1: str, p2: str, turn_index: int,
                        winner: str | None = None,
                        last_move: dict | None = None,
                        p1_win_condition_key: str | None = None,
-                       p2_win_condition_key: str | None = None) -> dict:
+                       p2_win_condition_key: str | None = None,
+                       p1_win_condition_preference: str | None = None,
+                       p2_win_condition_preference: str | None = None) -> dict:
+    p1_condition = p1_win_condition_key or _random_playoff_win_condition()
+    p2_condition = p2_win_condition_key or _random_playoff_win_condition()
     return {
         **serialize_state(state),
         "p1": p1,
@@ -5339,8 +5362,10 @@ def po_blob_from_state(state: GameState, p1: str, p2: str, turn_index: int,
         "active_turn_powerup": None,
         "next_turn_seconds_override": None,
         "turn_powerup_used": False,
-        "p1_win_condition_key": p1_win_condition_key or _random_playoff_win_condition(),
-        "p2_win_condition_key": p2_win_condition_key or _random_playoff_win_condition(),
+        "p1_win_condition_key": p1_condition,
+        "p2_win_condition_key": p2_condition,
+        "p1_win_condition_preference": p1_win_condition_preference or p1_condition,
+        "p2_win_condition_preference": p2_win_condition_preference or p2_condition,
         "p1_win_progress": 0,
         "p2_win_progress": 0,
         "p1_win_completed": False,
@@ -6717,15 +6742,37 @@ def _po_status_payload(conn, guest_id: str):
     return {"status": "idle"}
 
 
-def _po_create_online_game(conn, guest_a_id: str, name_a: str, guest_b_id: str, name_b: str):
-    first_a = bool(secrets.randbelow(2) == 0)
-    p1_guest_id, p1_name, p2_guest_id, p2_name = (
-        (guest_a_id, name_a, guest_b_id, name_b) if first_a
-        else (guest_b_id, name_b, guest_a_id, name_a)
-    )
+def _po_create_online_game(conn, guest_a_id: str, name_a: str, guest_b_id: str, name_b: str,
+                           preferences: dict[str, str] | None = None,
+                           first_guest_id: str | None = None):
+    if first_guest_id == guest_a_id:
+        p1_guest_id, p1_name, p2_guest_id, p2_name = guest_a_id, name_a, guest_b_id, name_b
+    elif first_guest_id == guest_b_id:
+        p1_guest_id, p1_name, p2_guest_id, p2_name = guest_b_id, name_b, guest_a_id, name_a
+    else:
+        first_a = bool(secrets.randbelow(2) == 0)
+        p1_guest_id, p1_name, p2_guest_id, p2_name = (
+            (guest_a_id, name_a, guest_b_id, name_b) if first_a
+            else (guest_b_id, name_b, guest_a_id, name_a)
+        )
     engine_conn = PgEngineConn(conn)
     state = seed_game(engine_conn, DEFAULT_SEED)
     _record_player_usage(conn, DEFAULT_SEED, "dr")
+    preferences = preferences or {}
+    def selected(guest_id: str) -> tuple[str, str]:
+        preference = preferences.get(guest_id)
+        if preference in PLAYOFF_WIN_CONDITIONS:
+            return preference, preference
+        if preference == "random":
+            return _random_playoff_condition_for_guest(conn, guest_id, "baseball", PLAYOFF_WIN_CONDITIONS), "random"
+        key = _playoff_condition_for_guest(conn, guest_id)
+        row = conn.execute(
+            "SELECT playoff_win_condition_preference FROM guests WHERE guest_id = %s",
+            (guest_id,),
+        ).fetchone()
+        return key, _normalized_playoff_preference(row[0] if row else None)
+    p1_condition, p1_preference = selected(p1_guest_id)
+    p2_condition, p2_preference = selected(p2_guest_id)
     blob = po_blob_from_state(
         state,
         p1=p1_name,
@@ -6738,8 +6785,10 @@ def _po_create_online_game(conn, guest_a_id: str, name_a: str, guest_b_id: str, 
         p1_guest_id=p1_guest_id,
         p2_guest_id=p2_guest_id,
         seed_player_id=DEFAULT_SEED,
-        p1_win_condition_key=_playoff_condition_for_guest(conn, p1_guest_id),
-        p2_win_condition_key=_playoff_condition_for_guest(conn, p2_guest_id),
+        p1_win_condition_key=p1_condition,
+        p2_win_condition_key=p2_condition,
+        p1_win_condition_preference=p1_preference,
+        p2_win_condition_preference=p2_preference,
     )
     gid = _insert_game(conn, "po_games", blob)
     return gid, blob, state
@@ -7071,8 +7120,13 @@ def po_rematch_request():
         ).fetchall()}
         if {blob.get("p1_guest_id"), blob.get("p2_guest_id")} <= requesters:
             new_gid, new_blob, new_state = _po_create_online_game(
-                conn, blob.get("p1_guest_id"), blob.get("p1"),
-                blob.get("p2_guest_id"), blob.get("p2"),
+                conn,
+                blob.get("p1_guest_id"),
+                blob.get("p1"),
+                blob.get("p2_guest_id"),
+                blob.get("p2"),
+                _sport_online_rematch_preferences(blob),
+                first_guest_id=_sport_online_rematch_first_guest_id(blob),
             )
             conn.execute(
                 """INSERT INTO po_rematch_links (original_game_id, new_game_id)
@@ -8996,7 +9050,8 @@ def _ensure_transient_bot_guest(conn, guest_id: str, label: str) -> tuple[str, s
 
 def _create_bot_sport_online_match(conn, sport: str, mode: str, guest_id: str,
                                    display_name: str, preference: str | None = None,
-                                   bot: tuple[str, str] | None = None):
+                                   bot: tuple[str, str] | None = None,
+                                   first_guest_id: str | None = None):
     bot_id, bot_name = _ensure_transient_bot_guest(conn, bot[0], bot[1]) if bot else _create_transient_bot_guest(conn, mode)
     preferences = {guest_id: preference} if preference else {}
     return _sport_online_create(
@@ -9007,6 +9062,7 @@ def _create_bot_sport_online_match(conn, sport: str, mode: str, guest_id: str,
         (bot_id, bot_name),
         preferences,
         bot_guest_ids={bot_id},
+        first_guest_id=first_guest_id,
     )
 
 
@@ -9180,7 +9236,7 @@ def _bot_candidate_rows(conn, sport: str, current_player_id: str, used: list[str
               JOIN players_searchable ps ON ps.player_id=pk.player_id
              WHERE NOT (ps.player_id = ANY(%s))
              ORDER BY ps.career_games DESC, ps.player_id
-             LIMIT 350
+             LIMIT 1000
             """,
             (current_player_id, used),
         ).fetchall()
@@ -9210,7 +9266,7 @@ def _bot_candidate_rows(conn, sport: str, current_player_id: str, used: list[str
             ON ps.sport_id=%s AND ps.player_id=pk.player_id
          WHERE NOT (ps.player_id = ANY(%s))
          ORDER BY ps.career_games DESC, ps.player_id
-         LIMIT 350
+         LIMIT 1000
         """,
         (sport, current_player_id, sport, sport, sport, used),
     ).fetchall()
@@ -9273,7 +9329,8 @@ def _bot_prioritized_candidates(conn, sport: str, mode: str, blob: dict, side: s
 
 def _bot_powerup_candidates(conn, sport: str, state: GameState, powerup_key: str) -> list[str]:
     rows = _bot_candidate_rows(conn, sport, state.current_player_id, state.chain)
-    return _bot_ordered_candidates(rows, len(state.chain))[:100]
+    limit = 350 if len(state.chain) < 12 else 150
+    return _bot_ordered_candidates(rows, len(state.chain))[:limit]
 
 
 def _bot_try_powerup_move(conn, sport: str, blob: dict, state: GameState, powerup_key: str) -> dict | None:
@@ -9339,7 +9396,8 @@ def _bot_activate_powerup(conn, sport: str, blob: dict, state: GameState, side: 
 def _bot_choose_move(conn, sport: str, mode: str, blob: dict, side: str, state: GameState) -> MoveResult | None:
     rows = _bot_candidate_rows(conn, sport, state.current_player_id, state.chain)
     candidates = _bot_prioritized_candidates(conn, sport, mode, blob, side, rows, len(state.chain))
-    for candidate_id in candidates[:100]:
+    limit = 500 if len(state.chain) < 12 else 180
+    for candidate_id in candidates[:limit]:
         trial = validate_and_apply_move(
             state,
             PgEngineConn(conn),
@@ -9451,8 +9509,14 @@ def _sport_online_maybe_advance_bot(conn, game_id: str, blob: dict, state: GameS
 
 
 def _sport_online_create(conn, sport: str, mode: str, a: tuple[str, str], b: tuple[str, str],
-                         preferences=None, bot_guest_ids: set[str] | None = None):
-    (p1_id, p1), (p2_id, p2) = (a, b) if secrets.randbelow(2) else (b, a)
+                         preferences=None, bot_guest_ids: set[str] | None = None,
+                         first_guest_id: str | None = None):
+    if first_guest_id == a[0]:
+        (p1_id, p1), (p2_id, p2) = a, b
+    elif first_guest_id == b[0]:
+        (p1_id, p1), (p2_id, p2) = b, a
+    else:
+        (p1_id, p1), (p2_id, p2) = (a, b) if secrets.randbelow(2) else (b, a)
     seed_player_id = DEFAULT_SEED if sport == "baseball" else LOCAL_SPORT_SEEDS[sport]
     state = seed_game(PgEngineConn(conn), seed_player_id, sport=_engine_sport(sport))
     bot_guest_ids = set(bot_guest_ids or set())
@@ -9473,13 +9537,41 @@ def _sport_online_create(conn, sport: str, mode: str, a: tuple[str, str], b: tup
             if preferred in conditions:
                 return preferred
             return _random_playoff_condition_for_guest(conn, guest_id, sport, conditions)
+        def preference_marker(guest_id: str, chosen: str) -> str:
+            preferred = preferences.get(guest_id)
+            return "random" if preferred in {None, "", "random"} or preferred not in conditions else chosen
+        p1_condition = choose(p1_id)
+        p2_condition = choose(p2_id)
         blob.update({"active_turn_powerup": None, "next_turn_seconds_override": None, "turn_powerup_used": False,
                      "p1_powerup_used_keys": [], "p2_powerup_used_keys": [],
-                     "p1_win_condition_key": choose(p1_id), "p2_win_condition_key": choose(p2_id),
+                     "p1_win_condition_key": p1_condition, "p2_win_condition_key": p2_condition,
+                     "p1_win_condition_preference": preference_marker(p1_id, p1_condition),
+                     "p2_win_condition_preference": preference_marker(p2_id, p2_condition),
                      "p1_win_progress": 0, "p2_win_progress": 0, "p1_win_completed": False, "p2_win_completed": False,
                      "chain_win_condition_hits": [False], "chain_link_meta": [None]})
     _schedule_bot_turn_if_needed(blob)
     return _sport_online_insert(conn, sport, mode, blob), blob, state
+
+
+def _sport_online_rematch_first_guest_id(blob: dict) -> str | None:
+    return blob.get("p2_guest_id") if blob.get("p1_guest_id") else None
+
+
+def _sport_online_rematch_preferences(blob: dict) -> dict[str, str]:
+    if not blob.get("p1_win_condition_key") and not blob.get("p2_win_condition_key"):
+        return {}
+    preferences: dict[str, str] = {}
+    for side in ("p1", "p2"):
+        guest_id = blob.get(f"{side}_guest_id")
+        if not guest_id:
+            continue
+        marker = blob.get(f"{side}_win_condition_preference")
+        key = blob.get(f"{side}_win_condition_key")
+        if marker == "random":
+            preferences[guest_id] = "random"
+        elif key:
+            preferences[guest_id] = key
+    return preferences
 
 
 def _sport_online_status(conn, sport: str, mode: str, guest_id: str):
@@ -9520,14 +9612,16 @@ def _sport_online_status(conn, sport: str, mode: str, guest_id: str):
     return {"status": "waiting", "guest_id": guest_id} if waiting else {"status": "idle"}
 
 
-def _sport_online_requeue(conn, sport: str, mode: str, guest_id: str, avoid_guest_id: str | None):
+def _sport_online_requeue(conn, sport: str, mode: str, guest_id: str, avoid_guest_id: str | None,
+                          preference: str | None = None):
     conn.execute(
-        """INSERT INTO sport_online_queue (sport_id, mode, guest_id, display_name, avoid_guest_id)
-           VALUES (%s, %s, %s, %s, %s)
+        """INSERT INTO sport_online_queue (sport_id, mode, guest_id, display_name, preference, avoid_guest_id)
+           VALUES (%s, %s, %s, %s, %s, %s)
            ON CONFLICT (sport_id, mode, guest_id) DO UPDATE
-             SET display_name=EXCLUDED.display_name, avoid_guest_id=EXCLUDED.avoid_guest_id,
+             SET display_name=EXCLUDED.display_name, preference=EXCLUDED.preference,
+                 avoid_guest_id=EXCLUDED.avoid_guest_id,
                  enqueued_at=now()""",
-        (sport, mode, guest_id, _guest_label(conn, guest_id), avoid_guest_id),
+        (sport, mode, guest_id, _guest_label(conn, guest_id), preference, avoid_guest_id),
     )
 
 
@@ -10013,15 +10107,23 @@ def sport_online_rematch(sport: str, mode: str):
                 return jsonify({"status":"waiting","you_requested":guest in requesters,"opponent_requested":True,"opponent_present":True,"rematch_available":True})
             if other in exited:
                 if guest in requesters:
-                    _sport_online_requeue(conn, sport, mode, guest, other)
+                    _sport_online_requeue(
+                        conn,
+                        sport,
+                        mode,
+                        guest,
+                        other,
+                        _sport_online_rematch_preferences(blob).get(guest) if mode == "po" else None,
+                    )
                     return jsonify({"status":"requeued","you_requested":True,"opponent_requested":False,"opponent_present":False,"rematch_available":False})
                 return jsonify({"status":"abandoned","you_requested":False,"opponent_requested":False,"opponent_present":False,"rematch_available":False})
             return jsonify({"status":"waiting","you_requested":guest in requesters,"opponent_requested":other in requesters,"opponent_present":True,"rematch_available":True})
         if not blob["finished"] or (blob.get("last_move") or {}).get("outcome")=="forfeit": return jsonify({"error":"rematch unavailable"}),400
         if bot_rematch:
-            preference = data.get("win_condition_preference") if mode == "po" else None
             human_name = blob["p1"] if guest == blob["p1_guest_id"] else blob["p2"]
             bot_name = blob["p1"] if other == blob["p1_guest_id"] else blob["p2"]
+            preferences = _sport_online_rematch_preferences(blob)
+            preference = preferences.get(guest) if mode == "po" else None
             new_gid, new_blob, new_state = _create_bot_sport_online_match(
                 conn,
                 sport,
@@ -10030,16 +10132,32 @@ def sport_online_rematch(sport: str, mode: str):
                 human_name,
                 preference,
                 bot=(other, bot_name),
+                first_guest_id=_sport_online_rematch_first_guest_id(blob),
             )
             conn.execute("INSERT INTO sport_online_rematch_links (original_game_id,new_game_id) VALUES (%s,%s)",(gid,new_gid))
             return jsonify({"status":"matched","game":_sport_online_state(conn,new_gid,new_blob,new_state,guest)})
         if other in exited:
-            _sport_online_requeue(conn, sport, mode, guest, other)
+            _sport_online_requeue(
+                conn,
+                sport,
+                mode,
+                guest,
+                other,
+                _sport_online_rematch_preferences(blob).get(guest) if mode == "po" else None,
+            )
             return jsonify({"status":"requeued","you_requested":True,"opponent_requested":False,"opponent_present":False,"rematch_available":False})
         conn.execute("INSERT INTO sport_online_rematches (original_game_id,requester_guest_id) VALUES (%s,%s) ON CONFLICT DO NOTHING",(gid,guest))
         asked={r[0] for r in conn.execute("SELECT requester_guest_id::text FROM sport_online_rematches WHERE original_game_id=%s",(gid,)).fetchall()}
         if {blob["p1_guest_id"],blob["p2_guest_id"]} <= asked:
-            new_gid,new_blob,new_state=_sport_online_create(conn,sport,mode,(blob["p1_guest_id"],blob["p1"]),(blob["p2_guest_id"],blob["p2"]))
+            new_gid,new_blob,new_state=_sport_online_create(
+                conn,
+                sport,
+                mode,
+                (blob["p1_guest_id"],blob["p1"]),
+                (blob["p2_guest_id"],blob["p2"]),
+                _sport_online_rematch_preferences(blob),
+                first_guest_id=_sport_online_rematch_first_guest_id(blob),
+            )
             conn.execute("INSERT INTO sport_online_rematch_links (original_game_id,new_game_id) VALUES (%s,%s)",(gid,new_gid))
             return jsonify({"status":"matched","game":_sport_online_state(conn,new_gid,new_blob,new_state,guest)})
         return jsonify({"status":"waiting"})
@@ -10058,7 +10176,14 @@ def sport_online_postgame_leave(sport: str, mode: str):
             else:
                 asked = conn.execute("SELECT 1 FROM sport_online_rematches WHERE original_game_id=%s AND requester_guest_id=%s", (gid, other)).fetchone()
                 if asked:
-                    _sport_online_requeue(conn, sport, mode, other, guest)
+                    _sport_online_requeue(
+                        conn,
+                        sport,
+                        mode,
+                        other,
+                        guest,
+                        _sport_online_rematch_preferences(blob).get(other) if mode == "po" else None,
+                    )
     return jsonify({"status":"gone"})
 
 
