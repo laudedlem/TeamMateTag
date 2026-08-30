@@ -15,7 +15,8 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.5.06`, deployed from commit `f5e3fd8`.
+- Current display version is `0.5.07`, deployed from the latest pushed `main`
+  commit.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
 - The user playtests on the live site, not local. When deploying code changes,
@@ -164,6 +165,14 @@ decision needs context.
   the restored compact-runtime `575` career games. The hygiene audit now fails
   if local compact runtime or Supabase contains All-Star/exhibition team names
   in gameplay-facing team tables or search rows without franchise appearances.
+- `0.5.07`: added transient guest bots for normal Division Rivalry and
+  Playoffs queues across Baseball, Basketball, Hockey, and Football. If a queue
+  waits about `10`-`15` seconds without a human opponent, status polling creates
+  a one-game guest opponent, hides bot identity behind normal guest naming,
+  plays legal teammate moves from compact runtime proof data, and deletes the
+  transient guest after result save. Bot-owned ELO, result, usage, and
+  leaderboard rows are skipped; human results against a bot save with no stored
+  bot opponent UUID. Private challenge-code games still only match humans.
 
 ### Important implementation notes
 

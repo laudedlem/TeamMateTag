@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.5.06"
+APP_VERSION = "0.5.07"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -208,6 +208,18 @@ LOCAL_HEADSHOT_DIRS = {
     "hockey": ROOT / "raw" / "player_headshots" / "hockey",
     "football": ROOT / "raw" / "player_headshots" / "football",
 }
+BOT_MATCH_MIN_WAIT_SECONDS = 10
+BOT_MATCH_JITTER_SECONDS = 6
+BOT_TURN_MIN_THINK_SECONDS = 2.4
+BOT_TURN_JITTER_SECONDS = 4.2
+BOT_NAMES = [
+    "Guest b31d9a2c",
+    "Guest c84f6e10",
+    "Guest d927a4b5",
+    "Guest e15c8f30",
+    "Guest f06a7d91",
+    "Guest a49e2c73",
+]
 
 
 def _official_sport_headshot_url(sport: str, external_id: str | None) -> str | None:
@@ -8865,6 +8877,80 @@ def _sport_online_save(conn, game_id: str, blob: dict):
                  (Jsonb(blob), bool(blob.get("finished")), game_id))
 
 
+def _bot_guest_ids(blob: dict) -> set[str]:
+    return {str(item) for item in (blob.get("bot_guest_ids") or []) if item}
+
+
+def _is_bot_guest(blob: dict, guest_id: str | None) -> bool:
+    return bool(guest_id) and guest_id in _bot_guest_ids(blob)
+
+
+def _current_turn_guest_id(blob: dict) -> str:
+    return blob["p1_guest_id"] if blob["turn_index"] == 0 else blob["p2_guest_id"]
+
+
+def _bot_queue_wait_seconds(guest_id: str, mode: str, enqueued_at) -> float:
+    raw = f"{guest_id}:{mode}:{enqueued_at}".encode("utf-8")
+    jitter = int(hashlib.sha256(raw).hexdigest()[:4], 16) % BOT_MATCH_JITTER_SECONDS
+    return float(BOT_MATCH_MIN_WAIT_SECONDS + jitter)
+
+
+def _bot_match_due(guest_id: str, mode: str, enqueued_at) -> bool:
+    if not enqueued_at:
+        return False
+    return (now_utc() - enqueued_at).total_seconds() >= _bot_queue_wait_seconds(guest_id, mode, enqueued_at)
+
+
+def _bot_next_move_at(blob: dict | None = None) -> str:
+    jitter = secrets.randbelow(1000) / 1000 * BOT_TURN_JITTER_SECONDS
+    ready_at = now_utc()
+    if blob and blob.get("turn_started_at"):
+        turn_start = datetime.fromisoformat(blob["turn_started_at"])
+        ready_at = max(ready_at, turn_start + timedelta(seconds=float(blob.get("countdown_seconds") or 0)))
+    return (ready_at + timedelta(seconds=BOT_TURN_MIN_THINK_SECONDS + jitter)).isoformat()
+
+
+def _schedule_bot_turn_if_needed(blob: dict) -> None:
+    if blob.get("finished"):
+        blob.pop("bot_next_move_at", None)
+        return
+    if _is_bot_guest(blob, _current_turn_guest_id(blob)):
+        blob.setdefault("bot_next_move_at", _bot_next_move_at(blob))
+    else:
+        blob.pop("bot_next_move_at", None)
+
+
+def _create_transient_bot_guest(conn, mode: str) -> tuple[str, str]:
+    guest_id = str(uuid.uuid4())
+    label = BOT_NAMES[secrets.randbelow(len(BOT_NAMES))]
+    conn.execute(
+        "INSERT INTO guests (guest_id, display_name) VALUES (%s, %s)",
+        (guest_id, label),
+    )
+    return guest_id, label
+
+
+def _create_bot_sport_online_match(conn, sport: str, mode: str, guest_id: str,
+                                   display_name: str, preference: str | None = None):
+    bot_id, bot_name = _create_transient_bot_guest(conn, mode)
+    preferences = {guest_id: preference} if preference else {}
+    return _sport_online_create(
+        conn,
+        sport,
+        mode,
+        (guest_id, display_name),
+        (bot_id, bot_name),
+        preferences,
+        bot_guest_ids={bot_id},
+    )
+
+
+def _delete_transient_bot_guests(conn, blob: dict) -> None:
+    bot_ids = list(_bot_guest_ids(blob))
+    if bot_ids:
+        conn.execute("DELETE FROM guests WHERE guest_id = ANY(%s)", (bot_ids,))
+
+
 def _sport_online_expire(blob: dict):
     if blob.get("finished"):
         return
@@ -8902,15 +8988,19 @@ def _save_sport_online_result(conn, game_id: str, blob: dict, state: GameState):
     p1_id, p2_id = blob["p1_guest_id"], blob["p2_guest_id"]
     p1_won = blob.get("winner") == blob.get("p1")
     for owner, opponent, opponent_name, won in ((p1_id,p2_id,blob["p2"],p1_won),(p2_id,p1_id,blob["p1"],not p1_won)):
+        if _is_bot_guest(blob, owner):
+            continue
+        opponent_for_result = None if _is_bot_guest(blob, opponent) else opponent
         before_row = conn.execute("SELECT elo FROM guest_sport_ratings WHERE guest_id=%s AND sport_id=%s",(owner,sport)).fetchone()
         before = before_row[0] if before_row else 1200; after = max(800,before+(16 if won else -16))
         conn.execute("""INSERT INTO guest_sport_ratings (guest_id,sport_id,elo) VALUES (%s,%s,%s)
                         ON CONFLICT (guest_id,sport_id) DO UPDATE SET elo=EXCLUDED.elo""",(owner,sport,after))
         conn.execute("""INSERT INTO dr_results (game_id,owner_guest_id,opponent_guest_id,opponent_name,chain_length,won,elo_before,elo_after,sport_id)
                         VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (owner_guest_id,game_id) WHERE game_id IS NOT NULL DO NOTHING""",
-                     (game_id,owner,opponent,opponent_name,len(state.chain),won,before,after,sport))
+                     (game_id,owner,opponent_for_result,opponent_name,len(state.chain),won,before,after,sport))
         _record_sport_struck_out_teams(conn,owner,sport,blob["mode"],state)
     blob["result_saved"] = True
+    _delete_transient_bot_guests(conn, blob)
 
 
 def _sport_online_state(conn, game_id: str, blob: dict, state: GameState, viewer: str) -> dict:
@@ -8966,16 +9056,222 @@ def _sport_online_state(conn, game_id: str, blob: dict, state: GameState, viewer
     return output
 
 
-def _sport_online_create(conn, sport: str, mode: str, a: tuple[str, str], b: tuple[str, str], preferences=None):
+def _bot_loss_chance(chain_length: int) -> float:
+    if chain_length < 12:
+        return 0.0
+    if chain_length < 18:
+        return 0.05
+    if chain_length < 28:
+        return 0.11
+    if chain_length < 40:
+        return 0.22
+    if chain_length < 52:
+        return 0.36
+    return 0.52
+
+
+def _bot_candidate_rows(conn, sport: str, current_player_id: str, used: list[str]) -> list[tuple[str, str, int]]:
+    used = used or [current_player_id]
+    if sport == "baseball":
+        return conn.execute(
+            """
+            WITH current_key AS (
+                SELECT player_key FROM compact_player_keys
+                 WHERE scope='baseball' AND player_id=%s
+            ),
+            candidate_keys AS (
+                SELECT CASE
+                         WHEN proof.player_a_key = current_key.player_key THEN proof.player_b_key
+                         ELSE proof.player_a_key
+                       END AS player_key
+                  FROM compact_mlb_teammate_game_proofs proof
+                  JOIN current_key
+                    ON proof.player_a_key = current_key.player_key
+                    OR proof.player_b_key = current_key.player_key
+                 GROUP BY 1
+            )
+            SELECT ps.player_id, ps.display_name, ps.career_games
+              FROM candidate_keys ck
+              JOIN compact_player_keys pk
+                ON pk.scope='baseball' AND pk.player_key=ck.player_key
+              JOIN players_searchable ps ON ps.player_id=pk.player_id
+             WHERE NOT (ps.player_id = ANY(%s))
+             ORDER BY ps.career_games DESC, ps.player_id
+             LIMIT 350
+            """,
+            (current_player_id, used),
+        ).fetchall()
+    return conn.execute(
+        """
+        WITH current_key AS (
+            SELECT player_key FROM compact_player_keys
+             WHERE scope=%s AND player_id=%s
+        ),
+        candidate_keys AS (
+            SELECT CASE
+                     WHEN proof.player_a_key = current_key.player_key THEN proof.player_b_key
+                     ELSE proof.player_a_key
+                   END AS player_key
+              FROM compact_sport_teammates proof
+              JOIN current_key
+                ON proof.sport_id = %s
+               AND (proof.player_a_key = current_key.player_key
+                    OR proof.player_b_key = current_key.player_key)
+             GROUP BY 1
+        )
+        SELECT ps.player_id, ps.display_name, ps.career_games
+          FROM candidate_keys ck
+          JOIN compact_player_keys pk
+            ON pk.scope=%s AND pk.player_key=ck.player_key
+          JOIN sport_players_searchable ps
+            ON ps.sport_id=%s AND ps.player_id=pk.player_id
+         WHERE NOT (ps.player_id = ANY(%s))
+         ORDER BY ps.career_games DESC, ps.player_id
+         LIMIT 350
+        """,
+        (sport, current_player_id, sport, sport, sport, used),
+    ).fetchall()
+
+
+def _bot_ordered_candidates(rows: list[tuple[str, str, int]], chain_length: int) -> list[str]:
+    if not rows:
+        return []
+    top = rows[:24]
+    middle = rows[24:120]
+    deep = rows[120:]
+    obscure_pull = secrets.randbelow(100) < min(24, 4 + max(0, chain_length - 10))
+    if obscure_pull and (middle or deep):
+        primary = (deep[:120] if deep and secrets.randbelow(100) < 45 else middle) or top
+    elif chain_length >= 28 and middle and secrets.randbelow(100) < 35:
+        primary = middle
+    else:
+        primary = top or middle or deep
+    picked = [row[0] for row in primary]
+    random.shuffle(picked)
+    fallback = [row[0] for row in rows if row[0] not in set(picked)]
+    random.shuffle(fallback)
+    return picked + fallback
+
+
+def _bot_choose_move(conn, sport: str, state: GameState) -> MoveResult | None:
+    rows = _bot_candidate_rows(conn, sport, state.current_player_id, state.chain)
+    for candidate_id in _bot_ordered_candidates(rows, len(state.chain))[:80]:
+        trial = validate_and_apply_move(
+            state,
+            PgEngineConn(conn),
+            player_id=candidate_id,
+            track_strikes=True,
+            sport=_engine_sport(sport),
+        )
+        if trial.outcome == MoveOutcome.VALID:
+            return trial
+    return None
+
+
+def _sport_online_apply_valid_payload(conn, sport: str, mode: str, blob: dict, state: GameState,
+                                      payload: dict, mover: str, record_usage: bool) -> None:
+    if mode == "po":
+        if sport == "baseball":
+            update = _apply_playoff_win_condition_hit(conn, blob, payload["player_id"], mover)
+            payload["win_condition_hit"] = update["hit"]
+            payload["win_condition_label"] = update["label"]
+            payload["win_condition_progress"] = update["progress"]
+            payload["win_condition_target"] = update["target"]
+            payload["win_condition_completed"] = update["completed"]
+            if len(blob.get("chain_link_meta", [])) < len(state.chain):
+                blob.setdefault("chain_link_meta", []).append(None)
+            if update["completed"]:
+                blob["finished"] = True
+                blob["winner"] = blob[mover]
+        else:
+            condition_key = blob[f"{mover}_win_condition_key"]
+            condition = LOCAL_PLAYOFF_CONFIG[sport]["conditions"][condition_key]
+            inc = _local_po_condition_increment(PgEngineConn(conn), sport, condition_key, payload["player_id"])
+            blob[f"{mover}_win_progress"] += inc
+            blob["chain_win_condition_hits"].append(bool(inc))
+            blob["chain_link_meta"].append(None)
+            completed = blob[f"{mover}_win_progress"] >= condition["target"]
+            payload["win_condition_hit"] = bool(inc)
+            payload["win_condition_label"] = condition["label"]
+            payload["win_condition_progress"] = blob[f"{mover}_win_progress"]
+            payload["win_condition_target"] = condition["target"]
+            payload["win_condition_completed"] = completed
+            if completed:
+                blob[f"{mover}_win_completed"] = True
+                blob["finished"] = True
+                blob["winner"] = blob[mover]
+    if record_usage:
+        if sport == "baseball":
+            _record_player_usage(conn, payload["player_id"], mode)
+        _record_sport_player_usage(conn, sport, payload["player_id"], mode)
+    if not blob["finished"]:
+        blob["turn_index"] = 1 - blob["turn_index"]
+        blob["turn_started_at"] = now_utc().isoformat()
+        blob["countdown_seconds"] = 0.0
+        if mode == "po":
+            blob["turn_seconds"] = float(blob.get("next_turn_seconds_override") or APP_TURN_SECONDS)
+            blob["next_turn_seconds_override"] = None
+            blob["active_turn_powerup"] = None
+            blob["turn_powerup_used"] = False
+    _schedule_bot_turn_if_needed(blob)
+
+
+def _sport_online_maybe_advance_bot(conn, game_id: str, blob: dict, state: GameState) -> None:
+    _sport_online_expire(blob)
+    if blob.get("finished"):
+        _save_sport_online_result(conn, game_id, blob, state)
+        return
+    if not _is_bot_guest(blob, _current_turn_guest_id(blob)):
+        before = blob.get("bot_next_move_at")
+        _schedule_bot_turn_if_needed(blob)
+        if before != blob.get("bot_next_move_at"):
+            _sport_online_save(conn, game_id, blob)
+        return
+    next_move = blob.get("bot_next_move_at")
+    if not next_move:
+        _schedule_bot_turn_if_needed(blob)
+        _sport_online_save(conn, game_id, blob)
+        return
+    if now_utc() < datetime.fromisoformat(next_move):
+        return
+    sport, mode = blob["sport"], blob["mode"]
+    bot_side = "p1" if blob["turn_index"] == 0 else "p2"
+    if secrets.randbelow(100) < int(_bot_loss_chance(len(state.chain)) * 100):
+        blob["finished"] = True
+        blob["winner"] = blob["p2"] if bot_side == "p1" else blob["p1"]
+        blob["last_move"] = {"outcome": "timeout"}
+    else:
+        result = _bot_choose_move(conn, sport, state)
+        if result is None:
+            blob["finished"] = True
+            blob["winner"] = blob["p2"] if bot_side == "p1" else blob["p1"]
+            blob["last_move"] = {"outcome": "timeout"}
+        else:
+            payload = result_to_dict(result)
+            blob.update(serialize_state(state))
+            blob["last_move"] = payload
+            _sport_online_apply_valid_payload(conn, sport, mode, blob, state, payload, bot_side, record_usage=False)
+    if blob.get("finished"):
+        blob.pop("bot_next_move_at", None)
+        _save_sport_online_result(conn, game_id, blob, state)
+    _sport_online_save(conn, game_id, blob)
+
+
+def _sport_online_create(conn, sport: str, mode: str, a: tuple[str, str], b: tuple[str, str],
+                         preferences=None, bot_guest_ids: set[str] | None = None):
     (p1_id, p1), (p2_id, p2) = (a, b) if secrets.randbelow(2) else (b, a)
     seed_player_id = DEFAULT_SEED if sport == "baseball" else LOCAL_SPORT_SEEDS[sport]
     state = seed_game(PgEngineConn(conn), seed_player_id, sport=_engine_sport(sport))
-    if sport == "baseball":
-        _record_player_usage(conn, state.current_player_id, mode)
-    _record_sport_player_usage(conn, sport, state.current_player_id, mode)
+    bot_guest_ids = set(bot_guest_ids or set())
+    if not bot_guest_ids:
+        if sport == "baseball":
+            _record_player_usage(conn, state.current_player_id, mode)
+        _record_sport_player_usage(conn, sport, state.current_player_id, mode)
     blob = dr_blob_from_state(state, p1, p2, 0, APP_TURN_SECONDS, now_utc(), OPENING_COUNTDOWN_SECONDS,
                               p1_guest_id=p1_id, p2_guest_id=p2_id, seed_player_id=state.current_player_id)
     blob.update({"sport": sport, "mode": mode})
+    if bot_guest_ids:
+        blob["bot_guest_ids"] = sorted(bot_guest_ids)
     if mode == "po":
         conditions = PLAYOFF_WIN_CONDITIONS if sport == "baseball" else LOCAL_PLAYOFF_CONFIG[sport]["conditions"]
         preferences = preferences or {}
@@ -8989,6 +9285,7 @@ def _sport_online_create(conn, sport: str, mode: str, a: tuple[str, str], b: tup
                      "p1_win_condition_key": choose(p1_id), "p2_win_condition_key": choose(p2_id),
                      "p1_win_progress": 0, "p2_win_progress": 0, "p1_win_completed": False, "p2_win_completed": False,
                      "chain_win_condition_hits": [False], "chain_link_meta": [None]})
+    _schedule_bot_turn_if_needed(blob)
     return _sport_online_insert(conn, sport, mode, blob), blob, state
 
 
@@ -9000,8 +9297,33 @@ def _sport_online_status(conn, sport: str, mode: str, guest_id: str):
                          ORDER BY created_at DESC LIMIT 1""", (sport, mode, guest_id, guest_id)).fetchone()
     if row:
         gid, blob, finished = row; blob["finished"] = finished
-        return {"status": "matched", "game": _sport_online_state(conn, gid, blob, deserialize_state(blob), guest_id)}
-    waiting = conn.execute("SELECT 1 FROM sport_online_queue WHERE sport_id=%s AND mode=%s AND guest_id=%s", (sport, mode, guest_id)).fetchone()
+        state = deserialize_state(blob)
+        _sport_online_maybe_advance_bot(conn, gid, blob, state)
+        return {"status": "matched", "game": _sport_online_state(conn, gid, blob, state, guest_id)}
+    waiting = conn.execute(
+        """SELECT display_name, preference, enqueued_at
+             FROM sport_online_queue
+            WHERE sport_id=%s AND mode=%s AND guest_id=%s""",
+        (sport, mode, guest_id),
+    ).fetchone()
+    if waiting and _bot_match_due(guest_id, mode, waiting[2]):
+        with conn.transaction():
+            conn.execute("SELECT pg_advisory_xact_lock(4412000 + %s)", (0 if mode == "dr" else 1,))
+            locked = conn.execute(
+                """SELECT display_name, preference, enqueued_at
+                     FROM sport_online_queue
+                    WHERE sport_id=%s AND mode=%s AND guest_id=%s
+                    FOR UPDATE""",
+                (sport, mode, guest_id),
+            ).fetchone()
+            if locked and _bot_match_due(guest_id, mode, locked[2]):
+                conn.execute(
+                    "DELETE FROM sport_online_queue WHERE sport_id=%s AND mode=%s AND guest_id=%s",
+                    (sport, mode, guest_id),
+                )
+                conn.execute("DELETE FROM multi_sport_queue WHERE guest_id=%s", (guest_id,))
+                gid, blob, state = _create_bot_sport_online_match(conn, sport, mode, guest_id, locked[0], locked[1])
+                return {"status": "matched", "game": _sport_online_state(conn, gid, blob, state, guest_id)}
     return {"status": "waiting", "guest_id": guest_id} if waiting else {"status": "idle"}
 
 
@@ -9185,9 +9507,44 @@ def multi_sport_status(mode: str):
                 "redirect": _multi_redirect(sport, queue_mode, game_id),
             })
         waiting = conn.execute(
-            "SELECT 1 FROM multi_sport_queue WHERE guest_id = %s AND mode = %s",
+            "SELECT sports, display_name, preference, enqueued_at FROM multi_sport_queue WHERE guest_id = %s AND mode = %s",
             (guest_id, queue_mode),
         ).fetchone()
+        if waiting and _bot_match_due(guest_id, queue_mode, waiting[3]):
+            with conn.transaction():
+                conn.execute("SELECT pg_advisory_xact_lock(4412000 + %s)", (0 if queue_mode == "dr" else 1,))
+                locked = conn.execute(
+                    """SELECT sports, display_name, preference, enqueued_at
+                         FROM multi_sport_queue
+                        WHERE guest_id = %s AND mode = %s
+                        FOR UPDATE""",
+                    (guest_id, queue_mode),
+                ).fetchone()
+                if locked and _bot_match_due(guest_id, queue_mode, locked[3]):
+                    queued_sports = _normalize_multi_sports(locked[0])
+                    overlap = [sport for sport in sports if sport in queued_sports]
+                    if overlap:
+                        sport = overlap[secrets.randbelow(len(overlap))]
+                        preference = (locked[2] or {}).get(sport) if isinstance(locked[2], dict) else None
+                        conn.execute("DELETE FROM multi_sport_queue WHERE guest_id = %s", (guest_id,))
+                        conn.execute(
+                            "DELETE FROM sport_online_queue WHERE mode=%s AND guest_id=%s",
+                            (queue_mode, guest_id),
+                        )
+                        game_id, _blob, _state = _create_bot_sport_online_match(
+                            conn,
+                            sport,
+                            queue_mode,
+                            guest_id,
+                            locked[1],
+                            preference,
+                        )
+                        return jsonify({
+                            "status": "matched",
+                            "sport": sport,
+                            "game_id": game_id,
+                            "redirect": _multi_redirect(sport, queue_mode, game_id),
+                        })
     return jsonify({"status": "waiting", "guest_id": guest_id} if waiting else {"status": "idle", "guest_id": guest_id})
 
 
@@ -9258,7 +9615,8 @@ def sport_online_game(sport: str, mode: str):
         blob, state = _sport_online_load(conn, sport, mode, gid)
         if not blob: return jsonify({"error": "unknown game_id"}), 404
         if guest not in {blob["p1_guest_id"], blob["p2_guest_id"]}: return jsonify({"error": "unauthorized"}), 403
-        _sport_online_expire(blob); _sport_online_save(conn, gid, blob)
+        _sport_online_maybe_advance_bot(conn, gid, blob, state)
+        _sport_online_save(conn, gid, blob)
         return jsonify(_sport_online_state(conn, gid, blob, state, guest))
 
 
@@ -9299,42 +9657,7 @@ def sport_online_move(sport: str, mode: str):
         blob.update(serialize_state(state)); blob["last_move"] = payload
         if payload.get("outcome") == "valid":
             mover = "p1" if guest == blob["p1_guest_id"] else "p2"
-            if mode == "po":
-                if sport == "baseball":
-                    update = _apply_playoff_win_condition_hit(conn, blob, payload["player_id"], mover)
-                    payload["win_condition_hit"] = update["hit"]
-                    payload["win_condition_label"] = update["label"]
-                    payload["win_condition_progress"] = update["progress"]
-                    payload["win_condition_target"] = update["target"]
-                    payload["win_condition_completed"] = update["completed"]
-                    if len(blob.get("chain_link_meta", [])) < len(state.chain):
-                        blob.setdefault("chain_link_meta", []).append(None)
-                    if update["completed"]:
-                        blob["finished"] = True
-                        blob["winner"] = blob[mover]
-                else:
-                    condition_key = blob[f"{mover}_win_condition_key"]
-                    condition = LOCAL_PLAYOFF_CONFIG[sport]["conditions"][condition_key]
-                    inc = _local_po_condition_increment(PgEngineConn(conn), sport, condition_key, payload["player_id"])
-                    blob[f"{mover}_win_progress"] += inc
-                    blob["chain_win_condition_hits"].append(bool(inc))
-                    blob["chain_link_meta"].append(None)
-                    completed = blob[f"{mover}_win_progress"] >= condition["target"]
-                    payload["win_condition_hit"] = bool(inc)
-                    payload["win_condition_label"] = condition["label"]
-                    payload["win_condition_progress"] = blob[f"{mover}_win_progress"]
-                    payload["win_condition_target"] = condition["target"]
-                    payload["win_condition_completed"] = completed
-                    if completed:
-                        blob[f"{mover}_win_completed"] = True; blob["finished"] = True; blob["winner"] = blob[mover]
-            if sport == "baseball":
-                _record_player_usage(conn, payload["player_id"], mode)
-            _record_sport_player_usage(conn, sport, payload["player_id"], mode)
-            if not blob["finished"]:
-                blob["turn_index"] = 1 - blob["turn_index"]; blob["turn_started_at"] = now_utc().isoformat(); blob["countdown_seconds"] = 0.0
-                if mode == "po":
-                    blob["turn_seconds"] = float(blob.get("next_turn_seconds_override") or APP_TURN_SECONDS)
-                    blob["next_turn_seconds_override"] = None; blob["active_turn_powerup"] = None; blob["turn_powerup_used"] = False
+            _sport_online_apply_valid_payload(conn, sport, mode, blob, state, payload, mover, record_usage=True)
         _save_sport_online_result(conn,gid,blob,state)
         _sport_online_save(conn, gid, blob)
         return jsonify(_sport_online_state(conn, gid, blob, state, guest))
