@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.5.02"
+APP_VERSION = "0.5.03"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -2645,7 +2645,15 @@ def local_file_storage_object(bucket: str, sport: str, filename: str):
 
 @app.route("/")
 def index():
-    return render_template("index.html", sport=None, sport_ready=False, cross_sports_online=CROSS_SPORTS_ONLINE, app_version=APP_VERSION, launch={})
+    return render_template(
+        "index.html",
+        sport=None,
+        sport_ready=False,
+        cross_sports_online=CROSS_SPORTS_ONLINE,
+        app_version=APP_VERSION,
+        launch={},
+        supabase_url=SUPABASE_URL or "",
+    )
 
 
 MODE_HUBS = {
@@ -2706,7 +2714,14 @@ def legacy_mode_hub():
 @app.route("/playoffs")
 def mode_hub():
     slug = request.path.strip("/")
-    return render_template("mode_hub.html", hub=MODE_HUBS[slug], slug=slug, sports=SPORT_HUBS, app_version=APP_VERSION)
+    return render_template(
+        "mode_hub.html",
+        hub=MODE_HUBS[slug],
+        slug=slug,
+        sports=SPORT_HUBS,
+        app_version=APP_VERSION,
+        supabase_url=SUPABASE_URL or "",
+    )
 
 
 @app.route("/manager-mode/<sport_key>")
@@ -2758,6 +2773,7 @@ def sport_hub():
         cross_sports_online=CROSS_SPORTS_ONLINE,
         app_version=APP_VERSION,
         launch=_launch_from_request(),
+        supabase_url=SUPABASE_URL or "",
     ))
     return _clear_launch_cookies(response)
 

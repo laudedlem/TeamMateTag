@@ -4,6 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ hub.title }} | TeamMateTag</title>
+  {% if supabase_url %}
+  <link rel="preconnect" href="{{ supabase_url }}" crossorigin>
+  {% endif %}
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ app_version }}">
 </head>
 <body data-mode-hub="{{ slug }}">

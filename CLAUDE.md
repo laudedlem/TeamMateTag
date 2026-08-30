@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.5.02`
+- Current display version: `0.5.03`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog policy: production is runtime-only. Keep compact
@@ -128,6 +128,12 @@ puzzle payloads after a lightweight shape check instead of re-running
 headshot/history/link validation against the large runtime tables. This keeps
 the archived-start path aligned with Baseball's sub-second behavior while still
 requiring full `card_map` and `shared_per_pair` data in the stored puzzle JSON.
+
+Update, 2026-08-29 (0.5.03 headshot load priority): made visible Film Review
+headshots load sooner by preconnecting game/hub pages to Supabase Storage,
+preloading Film Review headshot URLs as soon as puzzle state arrives, and
+marking rendered game/lineup/Film hub preview images as eager, async, and
+high-priority instead of lazy.
 
 Update, 2026-08-28 (new Supabase recovery project): created/repointed local
 `.env` to the new Free Supabase project `npymptruhptacfmheobv` after the prior

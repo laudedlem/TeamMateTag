@@ -196,6 +196,7 @@ let teamAcHighlight = -1;
 let teamAcFetchSeq = 0;
 let userTypedTeamQuery = '';
 let friendsData = null;
+const preloadedHeadshots = new Set();
 
 const GUEST_ID_KEY = 'tt_guest_id';
 const CURRENT_SPORT = document.body.dataset.sport || '';
@@ -208,6 +209,20 @@ const SPORT_START_LABELS = {
   football: 'Snapper',
   hockey: 'Faceoff',
 };
+
+function preloadHeadshotUrl(url) {
+  if (!url || preloadedHeadshots.has(url)) return;
+  preloadedHeadshots.add(url);
+  const img = new Image();
+  img.decoding = 'async';
+  img.fetchPriority = 'high';
+  img.src = url;
+}
+
+function preloadFilmReviewHeadshots(state) {
+  const cards = Array.isArray(state?.revealed_cards) ? state.revealed_cards : [];
+  cards.forEach((card) => preloadHeadshotUrl(card?.headshot_url));
+}
 const CROSS_YEAR_CAREER_SPORTS = new Set(['basketball', 'football', 'hockey']);
 
 function normalize(value) {
@@ -1330,6 +1345,7 @@ async function startFr(unit = null, options = {}) {
     alert('error: ' + frGame.error);
     return;
   }
+  preloadFilmReviewHeadshots(frGame);
   renderFrGame(true);
   if (frGame.finished) {
     showFrSummaryBanner();
@@ -2300,9 +2316,11 @@ function makePlayerCard(player, isSeed, options = {}) {
   headshot.innerHTML = `<span class="initials">${escapeHtml(initials)}</span>`;
   if (player.headshot_url) {
     const img = document.createElement('img');
-    img.src = player.headshot_url;
     img.alt = player.name;
-    img.loading = 'lazy';
+    img.decoding = 'async';
+    img.loading = 'eager';
+    img.fetchPriority = 'high';
+    img.src = player.headshot_url;
     img.onload = () => headshot.querySelector('.initials')?.remove();
     img.onerror = () => img.remove();
     headshot.appendChild(img);
@@ -2530,6 +2548,7 @@ async function frSubmit(e) {
     team,
     year,
   });
+  preloadFilmReviewHeadshots(frGame);
   els.frTeamInput.value = '';
   clearFrSeasonInputs();
   closeTeamAutocomplete();
@@ -2660,6 +2679,7 @@ async function loadFrAnswers() {
     frGame.revealed_count = res.full_cards.length;
     frGame.earned_count = earnedCount;
     frGame.solved_links = res.answers || res.canonical_links;
+    preloadFilmReviewHeadshots(frGame);
     renderFrGame(true);
   }
   els.frAnswerReveal.innerHTML = '';
@@ -2924,6 +2944,7 @@ async function loadFrArchive() {
           return;
         }
         frGame = result;
+        preloadFilmReviewHeadshots(frGame);
         frBoardCollapsed = true;
         hideFrSummaryBanner();
         renderFrGame(true);
@@ -2936,6 +2957,7 @@ async function loadFrArchive() {
           return;
         }
         frGame = result;
+        preloadFilmReviewHeadshots(frGame);
         frBoardCollapsed = true;
         hideFrSummaryBanner();
         renderFrGame(true);
@@ -3166,7 +3188,7 @@ function renderFrLineupBoard() {
         const resultClass = frGame.finished && player ? (index < earnedCount ? 'earned' : 'missed') : '';
         const style = `--slot-x:${placement.x}%; --slot-y:${placement.y}%;`;
         return `<div class="fr-board-slot zone-${escapeHtml(placement.zone)} slot-${slot.toLowerCase()} slot-index-${index} ${player ? 'filled' : ''} ${resultClass}" style="${style}">
-          ${player?.headshot_url ? `<img class="fr-board-headshot" src="${escapeHtml(player.headshot_url)}" alt="">` : ''}
+          ${player?.headshot_url ? `<img class="fr-board-headshot" src="${escapeHtml(player.headshot_url)}" alt="" loading="eager" decoding="async" fetchpriority="high">` : ''}
           <span class="fr-board-role">${escapeHtml(role)}</span>
           <span class="fr-board-player">${player ? escapeHtml(player.name) : ''}</span>
         </div>`;

@@ -3,6 +3,16 @@ const hub = document.body.dataset.modeHub;
 let hubProfile = null;
 let queuePoll = null;
 let activeQueueSports = [];
+const preloadedPreviewImages = new Set();
+
+function preloadPreviewImage(url) {
+  if (!url || preloadedPreviewImages.has(url)) return;
+  preloadedPreviewImages.add(url);
+  const img = new Image();
+  img.decoding = 'async';
+  img.fetchPriority = 'high';
+  img.src = url;
+}
 
 const PLAYOFF_OPTIONS = {
   baseball: [
@@ -363,12 +373,13 @@ function renderFilmPreview(sport, data) {
   if (!tile) return;
   tile.querySelector('.film-hub-meta')?.remove();
   const preview = data.preview || [];
+  preview.forEach((player) => preloadPreviewImage(player.headshot_url));
   const compact = preview.some((player) => String(player.name || '').length > 16);
   const meta = document.createElement('span');
   meta.className = `film-hub-meta ${compact ? 'compact-names' : ''}`;
   meta.innerHTML = `<span class="film-preview-pair">${preview.map((player) => `
       <span class="film-preview-player">
-        <span class="film-preview-photo">${player.headshot_url ? `<img src="${escapeHtml(player.headshot_url)}" alt="" loading="lazy" decoding="async">` : ''}</span>
+        <span class="film-preview-photo">${player.headshot_url ? `<img src="${escapeHtml(player.headshot_url)}" alt="" loading="eager" decoding="async" fetchpriority="high">` : ''}</span>
         <small>${escapeHtml(player.name || 'Unknown')}</small>
       </span>`).join('')}</span>`;
   tile.appendChild(meta);
