@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.5.01"
+APP_VERSION = "0.5.02"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -8362,6 +8362,53 @@ def _valid_daily_film_puzzle(conn, puzzle: dict, sport: str, puzzle_day: date, u
     return True
 
 
+def _static_film_puzzle_payload_ready(puzzle: dict, sport: str, puzzle_day: date, unit: str | None) -> bool:
+    deck = puzzle.get("deck")
+    slots = puzzle.get("slots")
+    if not isinstance(deck, list) or not isinstance(slots, list):
+        return False
+    if len(deck) < 2 or len(deck) != len(slots) or len(set(deck)) != len(deck):
+        return False
+    if sport == "baseball" and tuple(slots) != BASEBALL_FR_SLOTS:
+        return False
+    if puzzle.get("puzzle_date") != puzzle_day.isoformat():
+        return False
+    expected_unit = unit or None
+    if (puzzle.get("unit") or None) != expected_unit:
+        return False
+    if sport == "football" and expected_unit not in {"offense", "defense"}:
+        return False
+    preview = puzzle.get("preview_cards")
+    if not isinstance(preview, list) or len(preview) < 2:
+        return False
+    card_map = puzzle.get("card_map")
+    if _film_card_map_missing_team_stints(card_map, deck):
+        return False
+    shared = puzzle.get("shared_per_pair")
+    if not isinstance(shared, list) or len(shared) != len(deck) - 1:
+        return False
+    used_links: set[tuple[str, int]] = set()
+    for pair in shared:
+        if not isinstance(pair, list) or not pair or len(pair) > FR_MAX_LINK_OPTIONS:
+            return False
+        pair_links: set[tuple[str, int]] = set()
+        for row in pair:
+            if not isinstance(row, list) or len(row) < 3:
+                return False
+            team_id, season = row[0], row[1]
+            if not team_id:
+                return False
+            try:
+                season = int(season)
+            except (TypeError, ValueError):
+                return False
+            pair_links.add((str(team_id), season))
+        if pair_links & used_links:
+            return False
+        used_links.update(pair_links)
+    return True
+
+
 def _build_film_review_puzzle_with_history(conn, sport: str, puzzle_day: date, unit: str | None) -> dict:
     banned_opening_players, banned_adjacent_pairs = _film_history_constraints(conn, sport, puzzle_day)
     last_error: Exception | None = None
@@ -8415,6 +8462,8 @@ def _daily_film_review_puzzle(conn, sport: str, puzzle_day: date, unit: str | No
     ).fetchone()
     if row:
         puzzle = dict(row[0])
+        if _static_film_puzzle_payload_ready(puzzle, sport, puzzle_day, unit):
+            return puzzle
         if _valid_daily_film_puzzle(conn, puzzle, sport, puzzle_day, unit):
             puzzle = _film_puzzle_with_preview(conn, sport, puzzle_day, unit, puzzle)
             deck = list(puzzle.get("deck") or [])

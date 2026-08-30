@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.5.01`
+- Current display version: `0.5.02`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog policy: production is runtime-only. Keep compact
@@ -121,6 +121,13 @@ builder now normalizes renamed/moved NBA franchises by era. Also made Film hub
 preview names shrink client-side instead of clipping, and made Film archive/
 preview endpoints skip generator work when today's five static rows already
 exist.
+
+Update, 2026-08-29 (0.5.02 Film archive open speed): fixed cross-sport archived
+Film Review opens so Basketball, Hockey, and Football trust complete static
+puzzle payloads after a lightweight shape check instead of re-running
+headshot/history/link validation against the large runtime tables. This keeps
+the archived-start path aligned with Baseball's sub-second behavior while still
+requiring full `card_map` and `shared_per_pair` data in the stored puzzle JSON.
 
 Update, 2026-08-28 (new Supabase recovery project): created/repointed local
 `.env` to the new Free Supabase project `npymptruhptacfmheobv` after the prior
