@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.5.05"
+APP_VERSION = "0.5.06"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -3521,6 +3521,8 @@ def _local_sport_cards(conn: sqlite3.Connection, sport: str, player_ids: list[st
         ).fetchall()
         spans_by_team = {}
         games_by_team = {}
+        teams_by_season: dict[int, set[tuple]] = {}
+        games_by_team_season = {}
         seen_team_seasons = set()
         for team_id, franchise_id, team, season, games_total in appearances:
             if sport == "hockey":
@@ -3530,25 +3532,36 @@ def _local_sport_cards(conn: sqlite3.Connection, sport: str, player_ids: list[st
                 continue
             seen_team_seasons.add(key)
             team_key = (team_id, franchise_id or team_id, team)
+            season = int(season)
+            teams_by_season.setdefault(season, set()).add(team_key)
+            games_by_team_season[(team_key, season)] = games_by_team_season.get((team_key, season), 0) + int(games_total or 0)
             games_by_team[team_key] = games_by_team.get(team_key, 0) + int(games_total or 0)
             spans = spans_by_team.setdefault(team_key, [])
             if spans and spans[-1][1] == season - 1:
                 spans[-1][1] = season
             else:
                 spans.append([season, season])
+        overlap_years_by_team = _team_overlap_calendar_years(spans_by_team, teams_by_season, games_by_team_season)
         teams = []
         team_stints = []
+        seen_team_labels = set()
         for (team_id, franchise_id, team), ranges in spans_by_team.items():
+            team_key = (team_id, franchise_id, team)
+            overlap_years = overlap_years_by_team.get(team_key, {})
             years = ", ".join(
-                _sport_card_stint_label(sport, start, end)
+                _sport_card_display_stint_label(sport, start, end, overlap_years)
                 for start, end in ranges
             )
-            teams.append(f"{team} {years}")
+            label = f"{team} {years}"
+            if label in seen_team_labels:
+                continue
+            seen_team_labels.add(label)
+            teams.append(label)
             team_stints.append({
                 "team_id": team_id,
                 "color_team_id": franchise_id or team_id,
                 "team_name": team,
-                "label": f"{team} {years}",
+                "label": label,
                 "start": ranges[0][0],
                 "end": ranges[-1][1],
                 "seasons": sum(end - start + 1 for start, end in ranges),
@@ -3665,6 +3678,46 @@ def _sport_card_stint_label(sport: str, start: int, end: int) -> str:
     if start == end:
         return _sport_season_label(sport, start)
     return _sport_team_span_label(sport, start, end)
+
+
+def _range_contains_season(ranges: list[list[int]], season: int) -> bool:
+    return any(start <= season <= end for start, end in ranges)
+
+
+def _team_overlap_calendar_years(spans_by_team: dict, teams_by_season: dict[int, set],
+                                 games_by_team_season: dict[tuple, int]) -> dict[tuple, dict[int, int]]:
+    years_by_team: dict[tuple, dict[int, int]] = {}
+    for season, team_keys in teams_by_season.items():
+        if len({team_key[-1] for team_key in team_keys}) <= 1:
+            continue
+        max_games = max(games_by_team_season.get((team_key, season), 0) for team_key in team_keys)
+        for team_key in team_keys:
+            ranges = spans_by_team.get(team_key, [])
+            if _range_contains_season(ranges, season - 1):
+                display_year = season
+            elif _range_contains_season(ranges, season + 1):
+                display_year = season + 1
+            else:
+                display_year = season if games_by_team_season.get((team_key, season), 0) >= max_games else season + 1
+            years_by_team.setdefault(team_key, {})[season] = display_year
+    return years_by_team
+
+
+def _format_calendar_year_span(start: int, end: int) -> str:
+    if start == end:
+        return str(start)
+    return f"{start}-{end}"
+
+
+def _sport_card_display_stint_label(sport: str, start: int, end: int,
+                                    overlap_years: dict[int, int] | None = None) -> str:
+    if not _cross_year_season_sports(sport) or not overlap_years:
+        return _sport_card_stint_label(sport, start, end)
+    display_start = overlap_years.get(start, start)
+    display_end = overlap_years.get(end, end + 1)
+    if start not in overlap_years and end not in overlap_years:
+        return _sport_card_stint_label(sport, start, end)
+    return _format_calendar_year_span(display_start, display_end)
 
 
 def _parse_cross_year_season_guess(year_text: str) -> tuple[int | None, int | None]:
@@ -3811,6 +3864,8 @@ def _sport_cards(conn, sport: str, player_ids: list[str]) -> dict[str, dict]:
         (sport, missing),
     ).fetchall()
     teams_by_player: dict[str, dict[tuple[str, str, str], list[list[int]]]] = {}
+    teams_by_player_season: dict[tuple[str, int], set[tuple]] = {}
+    games_by_player_team_season = {}
     games_by_player_team: dict[tuple[str, str, str, str], int] = {}
     seen_player_team_seasons = set()
     for player_id, team_id, franchise_id, team, season, games_total in appearances:
@@ -3821,6 +3876,11 @@ def _sport_cards(conn, sport: str, player_ids: list[str]) -> dict[str, dict]:
             continue
         seen_player_team_seasons.add(key)
         team_key = (team_id, franchise_id or team_id, team)
+        season = int(season)
+        teams_by_player_season.setdefault((player_id, season), set()).add(team_key)
+        games_by_player_team_season[(player_id, team_key, season)] = (
+            games_by_player_team_season.get((player_id, team_key, season), 0) + int(games_total or 0)
+        )
         games_key = (player_id, team_id, franchise_id or team_id, team)
         games_by_player_team[games_key] = games_by_player_team.get(games_key, 0) + int(games_total or 0)
         ranges = teams_by_player.setdefault(player_id, {}).setdefault(team_key, [])
@@ -3833,16 +3893,37 @@ def _sport_cards(conn, sport: str, player_ids: list[str]) -> dict[str, dict]:
     for player_id, external_id, debut, final, first, last, primary_pos, canonical_name in rows:
         teams = []
         team_stints = []
+        player_spans = teams_by_player.get(player_id, {})
+        player_teams_by_season = {
+            season: season_teams
+            for (season_player_id, season), season_teams in teams_by_player_season.items()
+            if season_player_id == player_id
+        }
+        player_games_by_team_season = {
+            (team_key, season): games
+            for (games_player_id, team_key, season), games in games_by_player_team_season.items()
+            if games_player_id == player_id
+        }
+        overlap_years_by_team = _team_overlap_calendar_years(
+            player_spans,
+            player_teams_by_season,
+            player_games_by_team_season,
+        )
         for (team_id, franchise_id, team), ranges in teams_by_player.get(player_id, {}).items():
+            team_key = (team_id, franchise_id, team)
+            overlap_years = overlap_years_by_team.get(team_key, {})
             years = ", ".join(
-                _sport_card_stint_label(sport, a, b)
+                _sport_card_display_stint_label(sport, a, b, overlap_years)
                 for a, b in ranges
             )
-            teams.append(f"{team} {years}")
+            label = f"{team} {years}"
+            if label in teams:
+                continue
+            teams.append(label)
             team_stints.append({
                 "team_id": team_id, "team_name": team,
                 "color_team_id": franchise_id or team_id,
-                "label": f"{team} {years}",
+                "label": label,
                 "start": ranges[0][0], "end": ranges[-1][1],
                 "seasons": sum(end - start + 1 for start, end in ranges),
                 "games": games_by_player_team.get((player_id, team_id, franchise_id or team_id, team), 0),

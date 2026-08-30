@@ -489,8 +489,9 @@ function renderManagerTiles(summary) {
     const starterTarget = document.querySelector(`[data-manager-starter="${sport}"]`);
     if (starterTarget) {
       const starter = data.starter || {};
+      preloadPreviewImage(starter.headshot_url);
       const photo = starter.headshot_url
-        ? `<img src="${escapeHtml(starter.headshot_url)}" alt="">`
+        ? `<img src="${escapeHtml(starter.headshot_url)}" alt="" loading="eager" decoding="async" fetchpriority="high">`
         : '';
       starterTarget.innerHTML = `<span class="manager-starter-photo ${photo ? '' : 'placeholder'}">${photo}</span>
         <span><small>Today's Starter</small>${managerStarterNameHtml(starter.name)}</span>`;

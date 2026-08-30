@@ -223,6 +223,12 @@ function preloadFilmReviewHeadshots(state) {
   const cards = Array.isArray(state?.revealed_cards) ? state.revealed_cards : [];
   cards.forEach((card) => preloadHeadshotUrl(card?.headshot_url));
 }
+
+function preloadGameHeadshots(state) {
+  const cards = Array.isArray(state?.chain) ? state.chain : [];
+  cards.forEach((card) => preloadHeadshotUrl(card?.headshot_url));
+  preloadHeadshotUrl(state?.current_player?.headshot_url);
+}
 const CROSS_YEAR_CAREER_SPORTS = new Set(['basketball', 'football', 'hockey']);
 
 function normalize(value) {
@@ -1181,6 +1187,7 @@ function startMpPolling() {
         next.last_move?.player_id !== previousGame.last_move?.player_id ||
         next.last_move?.outcome !== previousGame.last_move?.outcome;
       game = next;
+      preloadGameHeadshots(game);
       lastChainLength = prevChain;
       animateNewestCard = nextChain > prevChain;
       if (needsRender) renderMpGame();
@@ -1206,6 +1213,7 @@ async function enterMatchedGame(nextGame) {
   els.cancelMatchBtn.hidden = true;
   els.challengeStatusText.textContent = '';
   game = nextGame;
+  preloadGameHeadshots(game);
   animateNewestCard = false;
   renderMpGame();
   syncMpClock(null, game, { force: true });
@@ -1323,6 +1331,7 @@ async function startBp() {
     alert('error: ' + game.error);
     return;
   }
+  preloadGameHeadshots(game);
   els.guessInput.value = '';
   animateNewestCard = false;
   renderBpGame();
@@ -1589,6 +1598,7 @@ async function onMpTimeout() {
     game_id: game.game_id,
     guest_id: profile?.guest_id || storedGuestId(),
   });
+  preloadGameHeadshots(game);
   if (game.finished) {
     renderMpGame();
     showGameOverBanner();
@@ -1608,6 +1618,7 @@ async function onBpTimeout() {
       const next = await api(path, { game_id: game.game_id });
       if (next?.error) throw new Error(next.error);
       game = next;
+      preloadGameHeadshots(game);
       renderBpGame();
       if (game.finished) {
         showGameOverBanner();
@@ -1646,6 +1657,7 @@ async function submitMove({ raw, player_id }) {
     return;
   }
   game = nextGame;
+  preloadGameHeadshots(game);
   if (isOnlineMode()) {
     animateNewestCard = (game.chain?.length || 0) > previousChainLength;
     renderMpGame();
@@ -2193,6 +2205,7 @@ async function usePowerup(powerupKey) {
     return;
   }
   game = next;
+  preloadGameHeadshots(game);
   renderMpGame();
   syncMpClock(null, game, { force: true });
 }

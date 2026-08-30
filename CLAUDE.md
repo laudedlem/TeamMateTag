@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.5.05`
+- Current display version: `0.5.06`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog policy: production is runtime-only. Keep compact
@@ -157,6 +157,18 @@ file-storage mirror was refreshed at
 `raw/file_storage/teammatetag-runtime/gameplay/film_review_daily_puzzles.json`
 and uploaded to Supabase Storage. Film Review pair answer limits are now 1-4
 team-season links.
+
+Update, 2026-08-30 (0.5.06 headshot preload + overlap stint labels): extended
+the eager headshot preload path beyond Film Review to Manager Mode, Division
+Rivalry, and Playoffs card stacks, and made Manager hub daily-starter images
+load eager/high-priority. Cross-year sports now adjust player-card display
+labels for multi-team seasons so one season does not appear as two overlapping
+full-year stints. Example verified: Connor Murphy now displays Chicago
+Blackhawks `2017-2025` and Edmonton Oilers `2026` after his March 2, 2026
+trade, while the underlying `2025-26` teammate season remains intact for
+gameplay. Rehydrated all stored Film Review payload `card_map` rows from
+2026-08-01 through 2026-08-30 with the new labels and refreshed/uploaded the
+static Film Review storage mirror.
 
 Update, 2026-08-28 (new Supabase recovery project): created/repointed local
 `.env` to the new Free Supabase project `npymptruhptacfmheobv` after the prior
