@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.5.07"
+APP_VERSION = "0.5.08"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -212,6 +212,7 @@ BOT_MATCH_MIN_WAIT_SECONDS = 10
 BOT_MATCH_JITTER_SECONDS = 6
 BOT_TURN_MIN_THINK_SECONDS = 2.4
 BOT_TURN_JITTER_SECONDS = 4.2
+BOT_WIN_CONDITION_MISS_PERCENT = 8
 BOT_NAMES = [
     "Guest b31d9a2c",
     "Guest c84f6e10",
@@ -9153,9 +9154,110 @@ def _bot_ordered_candidates(rows: list[tuple[str, str, int]], chain_length: int)
     return picked + fallback
 
 
-def _bot_choose_move(conn, sport: str, state: GameState) -> MoveResult | None:
+def _bot_condition_increment(conn, sport: str, condition_key: str | None, player_id: str) -> int:
+    if not condition_key:
+        return 0
+    if sport == "baseball":
+        return _playoff_condition_increment(condition_key, _playoff_trait_row(conn, player_id))
+    if sport in LOCAL_PLAYOFF_CONFIG and condition_key in LOCAL_PLAYOFF_CONFIG[sport]["conditions"]:
+        return _local_po_condition_increment(PgEngineConn(conn), sport, condition_key, player_id)
+    return 0
+
+
+def _bot_prioritized_candidates(conn, sport: str, mode: str, blob: dict, side: str,
+                                rows: list[tuple[str, str, int]], chain_length: int) -> list[str]:
+    ordered = _bot_ordered_candidates(rows, chain_length)
+    if mode != "po" or not ordered:
+        return ordered
+    condition_key = blob.get(f"{side}_win_condition_key")
+    condition = (PLAYOFF_WIN_CONDITIONS if sport == "baseball" else LOCAL_PLAYOFF_CONFIG[sport]["conditions"]).get(condition_key, {})
+    target = int(condition.get("target") or 0)
+    progress = int(blob.get(f"{side}_win_progress") or 0)
+    hits: list[tuple[int, str]] = []
+    rest: list[str] = []
+    for candidate_id in ordered[:120]:
+        inc = _bot_condition_increment(conn, sport, condition_key, candidate_id)
+        if inc > 0:
+            priority = 0 if target and progress + inc >= target else 1
+            hits.append((priority, candidate_id))
+        else:
+            rest.append(candidate_id)
+    tail = ordered[120:] + [candidate_id for candidate_id in ordered[:120] if candidate_id not in rest and all(candidate_id != hit[1] for hit in hits)]
+    if hits and hits[0][0] == 0 and secrets.randbelow(100) < BOT_WIN_CONDITION_MISS_PERCENT:
+        return rest + [candidate_id for _priority, candidate_id in hits] + tail
+    random.shuffle(hits)
+    return [candidate_id for _priority, candidate_id in sorted(hits, key=lambda item: item[0])] + rest + tail
+
+
+def _bot_powerup_candidates(conn, sport: str, state: GameState, powerup_key: str) -> list[str]:
     rows = _bot_candidate_rows(conn, sport, state.current_player_id, state.chain)
-    for candidate_id in _bot_ordered_candidates(rows, len(state.chain))[:80]:
+    return _bot_ordered_candidates(rows, len(state.chain))[:100]
+
+
+def _bot_try_powerup_move(conn, sport: str, blob: dict, state: GameState, powerup_key: str) -> dict | None:
+    original_key = blob.get("active_turn_powerup")
+    blob["active_turn_powerup"] = powerup_key
+    moved = False
+    try:
+        for candidate_id in _bot_powerup_candidates(conn, sport, state, powerup_key):
+            if sport == "baseball":
+                payload = _apply_playoff_powerup_move(conn, state, blob, player_id=candidate_id)
+            else:
+                payload = _local_po_powerup_move(PgEngineConn(conn), blob, raw="", player_id=candidate_id)
+            if payload and payload.get("outcome") == "valid":
+                moved = True
+                return payload
+        return None
+    finally:
+        if not moved:
+            blob["active_turn_powerup"] = original_key
+
+
+def _bot_activate_powerup(conn, sport: str, blob: dict, state: GameState, side: str) -> dict | None:
+    if blob.get("turn_powerup_used") or blob.get("active_turn_powerup"):
+        return None
+    powers = PLAYOFF_POWERUPS if sport == "baseball" else LOCAL_PLAYOFF_CONFIG[sport]["powerups"]
+    used = set(blob.get(f"{side}_powerup_used_keys") or [])
+    available = [key for key in powers if key not in used]
+    if not available:
+        return None
+    low_clock = float(blob.get("turn_seconds") or APP_TURN_SECONDS) <= 12
+    def rank(key: str) -> tuple[int, int]:
+        kind = powers[key].get("kind")
+        if kind in {"time", "timer"} and (low_clock or len(state.chain) >= 10):
+            return (0, secrets.randbelow(100))
+        if kind == "pressure" or key == "quick_pitch":
+            return (1, secrets.randbelow(100))
+        if kind in {"skill", "stat", "same_position", "position", "veteran"}:
+            return (2, secrets.randbelow(100))
+        return (3, secrets.randbelow(100))
+    for key in sorted(available, key=rank):
+        meta = powers[key]
+        blob[f"{side}_powerup_used_keys"].append(key)
+        blob["turn_powerup_used"] = True
+        kind = meta.get("kind")
+        if kind in {"time", "timer"} and key != "quick_pitch":
+            blob["turn_seconds"] += float(meta.get("bonus_seconds") or 0)
+            return {"outcome": "powerup_activated", "powerup_key": key, "powerup_label": meta["label"]}
+        if kind == "pressure" or key == "quick_pitch":
+            blob["next_turn_seconds_override"] = QUICK_PITCH_TURN_SECONDS
+            return {"outcome": "powerup_activated", "powerup_key": key, "powerup_label": meta["label"]}
+        blob["turn_seconds"] += float(meta.get("bonus_seconds") or 0)
+        blob["active_turn_powerup"] = key
+        payload = _bot_try_powerup_move(conn, sport, blob, state, key)
+        if payload:
+            return payload
+        blob["active_turn_powerup"] = None
+        blob["turn_powerup_used"] = False
+        blob[f"{side}_powerup_used_keys"].remove(key)
+        blob["turn_seconds"] -= float(meta.get("bonus_seconds") or 0)
+    return None
+
+
+def _bot_choose_move(conn, sport: str, mode: str, blob: dict, side: str, state: GameState) -> MoveResult | None:
+    rows = _bot_candidate_rows(conn, sport, state.current_player_id, state.chain)
+    candidates = _bot_prioritized_candidates(conn, sport, mode, blob, side, rows, len(state.chain))
+    for candidate_id in candidates[:100]:
         trial = validate_and_apply_move(
             state,
             PgEngineConn(conn),
@@ -9189,7 +9291,8 @@ def _sport_online_apply_valid_payload(conn, sport: str, mode: str, blob: dict, s
             inc = _local_po_condition_increment(PgEngineConn(conn), sport, condition_key, payload["player_id"])
             blob[f"{mover}_win_progress"] += inc
             blob["chain_win_condition_hits"].append(bool(inc))
-            blob["chain_link_meta"].append(None)
+            if len(blob.get("chain_link_meta", [])) < len(state.chain):
+                blob.setdefault("chain_link_meta", []).append(None)
             completed = blob[f"{mover}_win_progress"] >= condition["target"]
             payload["win_condition_hit"] = bool(inc)
             payload["win_condition_label"] = condition["label"]
@@ -9241,13 +9344,21 @@ def _sport_online_maybe_advance_bot(conn, game_id: str, blob: dict, state: GameS
         blob["winner"] = blob["p2"] if bot_side == "p1" else blob["p1"]
         blob["last_move"] = {"outcome": "timeout"}
     else:
-        result = _bot_choose_move(conn, sport, state)
-        if result is None:
+        payload = _bot_activate_powerup(conn, sport, blob, state, bot_side) if mode == "po" else None
+        if not payload or payload.get("outcome") != "valid":
+            result = _bot_choose_move(conn, sport, mode, blob, bot_side, state)
+            payload = result_to_dict(result) if result else None
+            if mode == "po" and result and result.outcome != MoveOutcome.VALID:
+                if sport == "baseball":
+                    alternate = _apply_playoff_powerup_move(conn, state, blob, player_id=result.player_id)
+                else:
+                    alternate = _local_po_powerup_move(PgEngineConn(conn), blob, raw="", player_id=result.player_id)
+                payload = alternate or payload
+        if not payload or payload.get("outcome") != "valid":
             blob["finished"] = True
             blob["winner"] = blob["p2"] if bot_side == "p1" else blob["p1"]
             blob["last_move"] = {"outcome": "timeout"}
         else:
-            payload = result_to_dict(result)
             blob.update(serialize_state(state))
             blob["last_move"] = payload
             _sport_online_apply_valid_payload(conn, sport, mode, blob, state, payload, bot_side, record_usage=False)
@@ -9807,6 +9918,7 @@ def sport_online_rematch(sport: str, mode: str):
         if link:
             new_blob,new_state=_sport_online_load(conn,sport,mode,link[0]); return jsonify({"status":"matched","game":_sport_online_state(conn,link[0],new_blob,new_state,guest)})
         other = blob["p2_guest_id"] if guest == blob["p1_guest_id"] else blob["p1_guest_id"]
+        bot_rematch = _is_bot_guest(blob, other)
         requesters = {row[0] for row in conn.execute(
             "SELECT requester_guest_id::text FROM sport_online_rematches WHERE original_game_id=%s", (gid,)
         ).fetchall()}
@@ -9814,6 +9926,8 @@ def sport_online_rematch(sport: str, mode: str):
             "SELECT guest_id::text FROM sport_online_postgame_exits WHERE original_game_id=%s", (gid,)
         ).fetchall()}
         if request.path.endswith("rematch_status"):
+            if bot_rematch:
+                return jsonify({"status":"waiting","you_requested":guest in requesters,"opponent_requested":guest in requesters,"opponent_present":True,"rematch_available":True})
             if other in exited:
                 if guest in requesters:
                     _sport_online_requeue(conn, sport, mode, guest, other)
@@ -9821,6 +9935,19 @@ def sport_online_rematch(sport: str, mode: str):
                 return jsonify({"status":"abandoned","you_requested":False,"opponent_requested":False,"opponent_present":False,"rematch_available":False})
             return jsonify({"status":"waiting","you_requested":guest in requesters,"opponent_requested":other in requesters,"opponent_present":True,"rematch_available":True})
         if not blob["finished"] or blob.get("last_move",{}).get("outcome")=="forfeit": return jsonify({"error":"rematch unavailable"}),400
+        if bot_rematch:
+            preference = data.get("win_condition_preference") if mode == "po" else None
+            human_name = blob["p1"] if guest == blob["p1_guest_id"] else blob["p2"]
+            new_gid, new_blob, new_state = _create_bot_sport_online_match(
+                conn,
+                sport,
+                mode,
+                guest,
+                human_name,
+                preference,
+            )
+            conn.execute("INSERT INTO sport_online_rematch_links (original_game_id,new_game_id) VALUES (%s,%s)",(gid,new_gid))
+            return jsonify({"status":"matched","game":_sport_online_state(conn,new_gid,new_blob,new_state,guest)})
         if other in exited:
             _sport_online_requeue(conn, sport, mode, guest, other)
             return jsonify({"status":"requeued","you_requested":True,"opponent_requested":False,"opponent_present":False,"rematch_available":False})

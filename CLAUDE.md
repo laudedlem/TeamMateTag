@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.5.07`, deployed from the latest pushed `main`
+- Current display version is `0.5.08`, deployed from the latest pushed `main`
   commit.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -173,6 +173,13 @@ decision needs context.
   transient guest after result save. Bot-owned ELO, result, usage, and
   leaderboard rows are skipped; human results against a bot save with no stored
   bot opponent UUID. Private challenge-code games still only match humans.
+- `0.5.08`: made bots more complete opponents. Bot rematch requests are accepted
+  immediately by creating a fresh transient guest for the new game. In Playoffs,
+  bots spend available powerups during their turns while still obeying normal
+  one-use/one-per-turn rules. Bot move selection now gives Playoffs
+  win-condition hits priority, takes an immediately winning condition most of
+  the time, and keeps a small miss chance plus the existing occasional obscure
+  pull so bot behavior is relevance-weighted but not deterministic.
 
 ### Important implementation notes
 
