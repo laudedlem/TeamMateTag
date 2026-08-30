@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.5.03"
+APP_VERSION = "0.5.04"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -197,7 +197,10 @@ LOCAL_PO_LOCK = Lock()
 HEADSHOT_URL = "https://midfield.mlbstatic.com/v1/people/{}/spots/120"
 FILE_STORAGE_ROOT = ROOT / "raw" / "file_storage"
 FILE_STORAGE_HEADSHOT_BUCKET = "player-headshots"
-FILE_STORAGE_HEADSHOT_BASE_URL = os.environ.get("TEAMMATETAG_HEADSHOT_BASE_URL", "").rstrip("/")
+FILE_STORAGE_HEADSHOT_BASE_URL = (
+    os.environ.get("TEAMMATETAG_HEADSHOT_BASE_URL")
+    or (f"{SUPABASE_URL.rstrip('/')}/storage/v1/object/public" if SUPABASE_URL else "")
+).rstrip("/")
 FILE_STORAGE_HEADSHOT_MANIFEST_CACHE: dict[str, dict[str, str]] = {}
 LOCAL_HEADSHOT_DIRS = {
     "baseball": ROOT / "raw" / "player_headshots" / "baseball",
@@ -214,10 +217,6 @@ def _official_sport_headshot_url(sport: str, external_id: str | None) -> str | N
         return f"https://cdn.nba.com/headshots/nba/latest/1040x760/{external_id}.png"
     if sport == "hockey" and external_id.isdigit():
         return f"https://assets.nhle.com/mugs/nhl/latest/{external_id}.png"
-    if sport == "football" and external_id.startswith("http"):
-        return external_id
-    if sport == "football" and external_id.isdigit():
-        return f"https://a.espncdn.com/i/headshots/nfl/players/full/{external_id}.png"
     return None
 
 
@@ -3561,11 +3560,11 @@ def _local_sport_cards(conn: sqlite3.Connection, sport: str, player_ids: list[st
             headshot = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{external_id}.png"
         elif sport == "hockey" and external_id:
             headshot = f"https://assets.nhle.com/mugs/nhl/latest/{external_id}.png"
-        elif sport == "football" and external_id:
-            headshot = external_id if str(external_id).startswith("http") else f"https://a.espncdn.com/i/headshots/nfl/players/full/{external_id}.png"
+        elif sport == "football" and image_row:
+            headshot = f"/api/local/headshot/{sport}/{player_id}"
         else:
             headshot = None
-        if image_row:
+        if image_row and sport != "football":
             headshot = f"/api/local/headshot/{sport}/{player_id}"
         out[player_id] = {
             "mlbam_id": None, "headshot_url": headshot,
@@ -3852,7 +3851,7 @@ def _sport_cards(conn, sport: str, player_ids: list[str]) -> dict[str, dict]:
         # source-image catalog. Broken URLs still fall through to the UI's
         # existing placeholder without affecting gameplay.
         headshot_url = registry_urls.get(player_id) if player_id in registry_urls else images.get(player_id)
-        if not headshot_url and player_id not in registry_urls:
+        if sport != "football" and not headshot_url and player_id not in registry_urls:
             headshot_url = _official_sport_headshot_url(sport, external_id)
         card = {
             "mlbam_id": None,
@@ -8400,6 +8399,10 @@ def _static_film_puzzle_payload_ready(puzzle: dict, sport: str, puzzle_day: date
     card_map = puzzle.get("card_map")
     if _film_card_map_missing_team_stints(card_map, deck):
         return False
+    for player_id in deck:
+        card = card_map.get(player_id) if isinstance(card_map, dict) else None
+        if not isinstance(card, dict) or not card.get("headshot_url"):
+            return False
     shared = puzzle.get("shared_per_pair")
     if not isinstance(shared, list) or len(shared) != len(deck) - 1:
         return False

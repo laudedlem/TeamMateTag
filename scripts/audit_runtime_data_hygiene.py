@@ -494,6 +494,38 @@ def audit_supabase(failures: list[str]) -> None:
                 if exists:
                     rows = int(cur.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0])
                     check(rows == 0, f"Supabase {table} staging rows pruned ({rows:,})", failures)
+            film_rows = cur.execute(
+                """SELECT sport_id, puzzle_date::text, COALESCE(unit, ''), puzzle
+                     FROM film_review_daily_puzzles
+                    WHERE puzzle_date >= DATE '2026-08-01'"""
+            ).fetchall()
+            bad_film_headshots = []
+            for sport_id, puzzle_date, unit, puzzle in film_rows:
+                deck = list((puzzle or {}).get("deck") or [])
+                card_map = (puzzle or {}).get("card_map") or {}
+                if not deck:
+                    continue
+                verified = {
+                    player_id
+                    for player_id, in cur.execute(
+                        """SELECT player_id FROM player_headshots
+                            WHERE sport_id=%s AND status='verified' AND player_id = ANY(%s)""",
+                        (sport_id, deck),
+                    ).fetchall()
+                }
+                for player_id in deck:
+                    card = card_map.get(player_id) or {}
+                    if player_id not in verified or not card.get("headshot_url"):
+                        bad_film_headshots.append(
+                            f"{sport_id} {puzzle_date} {unit} {player_id} {card.get('name') or ''}".strip()
+                        )
+            check(
+                not bad_film_headshots,
+                f"Supabase Film Review puzzles have verified headshots for every deck player ({len(bad_film_headshots)} gaps)",
+                failures,
+            )
+            for row in bad_film_headshots[:20]:
+                print(f"  missing Film Review headshot: {row}")
             cur.execute("SELECT pg_size_pretty(pg_database_size(current_database()))")
             print(f"INFO: Supabase database size {cur.fetchone()[0]}")
 

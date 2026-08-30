@@ -150,6 +150,9 @@ def payload_is_clean(payload: dict) -> bool:
     deck = payload.get("deck") or []
     if len(shared) != max(0, len(deck) - 1):
         return False
+    card_map = payload.get("card_map") or {}
+    if any(not (isinstance(card_map.get(pid), dict) and card_map[pid].get("headshot_url")) for pid in deck):
+        return False
     used_links = set()
     for pair in shared:
         if not pair or len(pair) > server.FR_MAX_LINK_OPTIONS:
@@ -221,7 +224,7 @@ def main() -> int:
             for puzzle_day in day_range(start, end):
                 for unit in units:
                     last_error = None
-                    for salt in range(80):
+                    for salt in range(300):
                         seed_suffix = "" if salt == 0 else f"easy{salt}"
                         try:
                             payload = build_payload(local_conn, sport, puzzle_day, unit, seed_suffix)

@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.5.03`
+- Current display version: `0.5.04`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog policy: production is runtime-only. Keep compact
@@ -134,6 +134,14 @@ headshots load sooner by preconnecting game/hub pages to Supabase Storage,
 preloading Film Review headshot URLs as soon as puzzle state arrives, and
 marking rendered game/lineup/Film hub preview images as eager, async, and
 high-priority instead of lazy.
+
+Update, 2026-08-29 (0.5.04 Football Film Review headshot guard): Corey Ivy
+appeared in stored Football Film Review puzzles because Football card hydration
+fell back to `sport_players.external_id`, which can be a generic NFL silhouette
+URL even when the canonical headshot registry has no verified image. Football
+cards now use only canonical/headshot-table URLs, static Film Review payloads
+must include a headshot URL for every deck player, and the static rebuild script
+rejects puzzles with any missing headshot card.
 
 Update, 2026-08-28 (new Supabase recovery project): created/repointed local
 `.env` to the new Free Supabase project `npymptruhptacfmheobv` after the prior
