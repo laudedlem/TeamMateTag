@@ -102,10 +102,13 @@ def rows_from_sqlite(conn: sqlite3.Connection, sql: str, params: tuple = ()):
 def transformed_headshot_rows(conn: sqlite3.Connection, base_url: str):
     for row in conn.execute(
         """
-        SELECT scope, player_id, provider, status
-          FROM runtime_headshots
-         WHERE status = 'verified'
-         ORDER BY scope, player_id
+        SELECT h.scope, h.player_id, h.provider, h.status
+          FROM runtime_headshots h
+          JOIN runtime_players p
+            ON p.scope = h.scope
+           AND p.player_id = h.player_id
+         WHERE h.status = 'verified'
+         ORDER BY h.scope, h.player_id
         """
     ):
         sport, player_id, provider, status = row
@@ -116,10 +119,14 @@ def transformed_headshot_rows(conn: sqlite3.Connection, base_url: str):
 def transformed_sport_images(conn: sqlite3.Connection, base_url: str):
     for sport, player_id in conn.execute(
         """
-        SELECT scope, player_id
-          FROM runtime_headshots
-         WHERE scope <> 'baseball' AND status = 'verified'
-         ORDER BY scope, player_id
+        SELECT h.scope, h.player_id
+          FROM runtime_headshots h
+          JOIN runtime_players p
+            ON p.scope = h.scope
+           AND p.player_id = h.player_id
+         WHERE h.scope <> 'baseball'
+           AND h.status = 'verified'
+         ORDER BY h.scope, h.player_id
         """
     ):
         yield (sport, player_id, public_storage_url(base_url, sport, player_id), "image/webp")

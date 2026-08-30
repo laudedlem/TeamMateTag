@@ -29,6 +29,8 @@ except ImportError:
 ROOT = Path(__file__).resolve().parent.parent
 COMPACT_DB = ROOT / "raw" / "runtime_compact" / "teammatetag_runtime_minimal.sqlite"
 MLB_LIVE_DB = ROOT / "raw" / "mlb_live_runtime" / "mlb_live_2026.sqlite"
+NBA_PROOFS_DB = ROOT / "raw" / "nba_game_teammates" / "nba_espn_game_teammates.sqlite"
+NHL_PROOFS_DB = ROOT / "raw" / "nhl_game_teammates" / "nhl_game_teammates.sqlite"
 BASEBALL_HEADSHOT_REGISTRY_DB = ROOT / "raw" / "headshot_registry" / "baseball_headshots.sqlite"
 BASKETBALL_HEADSHOT_REGISTRY_DB = ROOT / "raw" / "headshot_registry" / "basketball_headshots.sqlite"
 HOCKEY_HEADSHOT_REGISTRY_DB = ROOT / "raw" / "headshot_registry" / "hockey_headshots.sqlite"
@@ -315,17 +317,26 @@ def audit_local_compact(failures: list[str]) -> None:
         )
         check(HOCKEY_HEADSHOT_REGISTRY_DB.exists(), "canonical Hockey headshot registry exists locally", failures)
         if HOCKEY_HEADSHOT_REGISTRY_DB.exists():
+            runtime_hockey_ids = {
+                player_id
+                for player_id, in conn.execute(
+                    "SELECT player_id FROM runtime_players WHERE scope = 'hockey'"
+                )
+            }
             with sqlite3.connect(HOCKEY_HEADSHOT_REGISTRY_DB) as registry:
                 registry_players = sqlite_count(registry, "SELECT COUNT(*) FROM hockey_headshots")
-                registry_verified = sqlite_count(
-                    registry,
+                registry_verified_ids = {
+                    player_id
+                    for player_id, in registry.execute(
                     """
-                    SELECT COUNT(*)
+                    SELECT player_id
                       FROM hockey_headshots
                      WHERE status = 'verified'
                        AND COALESCE(source_url, '') <> ''
                     """,
-                )
+                    )
+                }
+                registry_verified = len(runtime_hockey_ids & registry_verified_ids)
             check(
                 registry_players >= hockey_players,
                 f"canonical Hockey registry covers runtime players ({registry_players:,}/{hockey_players:,})",
@@ -471,6 +482,77 @@ def audit_local_compact(failures: list[str]) -> None:
         )
         for scope, player_id, display_name in orphan_runtime_players:
             print(f"  runtime player without franchise appearance: {scope} {player_id} {display_name}")
+        for scope, db_path, schema, table in (
+            ("basketball", NBA_PROOFS_DB, "nbaraw", "nba_player_game_appearances"),
+            ("hockey", NHL_PROOFS_DB, "nhlraw", "nhl_player_game_appearances"),
+        ):
+            check(db_path.exists(), f"{scope} game-level appearance proof DB exists locally", failures)
+            if not db_path.exists():
+                continue
+            conn.execute(f"ATTACH DATABASE ? AS {schema}", (str(db_path),))
+            bad_rows = conn.execute(
+                f"""
+                SELECT pts.player_id, p.display_name, pts.team_id, pts.season, pts.games_total
+                  FROM runtime_player_team_seasons pts
+                  JOIN runtime_players p
+                    ON p.scope = pts.scope
+                   AND p.player_id = pts.player_id
+                 WHERE pts.scope = ?
+                   AND pts.season IN (
+                       SELECT DISTINCT season FROM {schema}.{table}
+                        WHERE season >= 2000
+                   )
+                   AND NOT EXISTS (
+                       SELECT 1
+                         FROM {schema}.{table} proof
+                        WHERE proof.player_id = pts.player_id
+                          AND proof.team_id = pts.team_id
+                          AND proof.season = pts.season
+                   )
+                 ORDER BY pts.season DESC, p.display_name, pts.team_id
+                 LIMIT 20
+                """,
+                (scope,),
+            ).fetchall()
+            check(
+                not bad_rows,
+                f"{scope} strict game seasons have only game-backed player team-seasons ({len(bad_rows)} bad samples)",
+                failures,
+            )
+            for player_id, display_name, team_id, season, games_total in bad_rows:
+                print(f"  {scope} non-game-backed card row: {player_id} {display_name} {team_id} {season} games={games_total}")
+            mismatches = conn.execute(
+                f"""
+                SELECT pts.player_id, p.display_name, pts.team_id, pts.season, pts.games_total,
+                       proof.games
+                  FROM runtime_player_team_seasons pts
+                  JOIN runtime_players p
+                    ON p.scope = pts.scope
+                   AND p.player_id = pts.player_id
+                  JOIN (
+                       SELECT player_id, team_id, season, COUNT(DISTINCT game_id) AS games
+                         FROM {schema}.{table}
+                        WHERE season >= 2000
+                        GROUP BY player_id, team_id, season
+                  ) proof
+                    ON proof.player_id = pts.player_id
+                   AND proof.team_id = pts.team_id
+                   AND proof.season = pts.season
+                 WHERE pts.scope = ?
+                   AND pts.games_total <> proof.games
+                 ORDER BY pts.season DESC, p.display_name, pts.team_id
+                 LIMIT 20
+                """,
+                (scope,),
+            ).fetchall()
+            check(
+                not mismatches,
+                f"{scope} strict game-season appearance counts match game-level proof ({len(mismatches)} bad samples)",
+                failures,
+            )
+            for player_id, display_name, team_id, season, got, expected in mismatches:
+                print(f"  {scope} games mismatch: {player_id} {display_name} {team_id} {season} got={got} expected={expected}")
+            conn.execute(f"DETACH DATABASE {schema}")
 
 
 def audit_mlb_live(failures: list[str]) -> None:

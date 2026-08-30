@@ -1086,9 +1086,82 @@ def remove_exhibition_runtime_teams(conn: sqlite3.Connection) -> int:
     return int(affected or 0)
 
 
+def remove_orphan_runtime_players(conn: sqlite3.Connection) -> int:
+    affected = conn.execute(
+        """
+        SELECT COUNT(*)
+          FROM runtime_players p
+         WHERE NOT EXISTS (
+               SELECT 1
+                 FROM runtime_player_team_seasons pts
+                WHERE pts.scope = p.scope
+                  AND pts.player_id = p.player_id
+         )
+        """
+    ).fetchone()[0]
+    conn.execute(
+        """
+        DELETE FROM runtime_positions
+         WHERE (scope, player_id) IN (
+               SELECT p.scope, p.player_id
+                 FROM runtime_players p
+                WHERE NOT EXISTS (
+                      SELECT 1
+                        FROM runtime_player_team_seasons pts
+                       WHERE pts.scope = p.scope
+                         AND pts.player_id = p.player_id
+                )
+         )
+        """
+    )
+    conn.execute(
+        """
+        DELETE FROM runtime_headshots
+         WHERE (scope, player_id) IN (
+               SELECT p.scope, p.player_id
+                 FROM runtime_players p
+                WHERE NOT EXISTS (
+                      SELECT 1
+                        FROM runtime_player_team_seasons pts
+                       WHERE pts.scope = p.scope
+                         AND pts.player_id = p.player_id
+                )
+         )
+        """
+    )
+    conn.execute(
+        """
+        DELETE FROM runtime_players
+         WHERE NOT EXISTS (
+               SELECT 1
+                 FROM runtime_player_team_seasons pts
+                WHERE pts.scope = runtime_players.scope
+                  AND pts.player_id = runtime_players.player_id
+         )
+        """
+    )
+    return int(affected or 0)
+
+
 def backfill_raw_proof_catalog(conn: sqlite3.Connection) -> None:
     conn.executescript(
         """
+        DELETE FROM runtime_player_team_seasons
+         WHERE scope = 'basketball'
+           AND season IN (
+               SELECT DISTINCT season
+                 FROM nbaraw.nba_player_game_appearances
+                WHERE season >= 2000
+           );
+
+        DELETE FROM runtime_player_team_seasons
+         WHERE scope = 'hockey'
+           AND season IN (
+               SELECT DISTINCT season
+                 FROM nhlraw.nhl_player_game_appearances
+                WHERE season >= 2000
+           );
+
         INSERT OR IGNORE INTO runtime_teams (scope, team_id, season, franchise_id, name)
         SELECT DISTINCT 'basketball', proof.team_id, proof.season, proof.team_id,
                COALESCE((
@@ -1119,7 +1192,7 @@ def backfill_raw_proof_catalog(conn: sqlite3.Connection) -> None:
           FROM nhlraw.nhl_teammate_game_proofs proof
          WHERE proof.season >= 2000;
 
-        INSERT OR IGNORE INTO runtime_player_team_seasons
+        INSERT OR REPLACE INTO runtime_player_team_seasons
             (scope, player_id, team_id, season, games_total, games_pitched, games_batted)
         SELECT 'basketball', player_id, team_id, season, COUNT(DISTINCT game_id)
                , 0, 0
@@ -1127,7 +1200,7 @@ def backfill_raw_proof_catalog(conn: sqlite3.Connection) -> None:
          WHERE season >= 2000
          GROUP BY player_id, team_id, season;
 
-        INSERT OR IGNORE INTO runtime_player_team_seasons
+        INSERT OR REPLACE INTO runtime_player_team_seasons
             (scope, player_id, team_id, season, games_total, games_pitched, games_batted)
         SELECT 'hockey', player_id, team_id, season, COUNT(DISTINCT game_id)
                , 0, 0
@@ -1632,6 +1705,7 @@ def build(output: Path) -> dict[str, int]:
         loaded_headshots = load_headshot_registry(conn)
         backfill_raw_proof_catalog(conn)
         exhibition_team_rows += remove_exhibition_runtime_teams(conn)
+        orphan_player_rows_removed = remove_orphan_runtime_players(conn)
         build_keys(conn)
         insert_proofs(conn)
         baseball_pitcher_exception_rows = insert_baseball_pitcher_exceptions(conn)
@@ -1643,6 +1717,7 @@ def build(output: Path) -> dict[str, int]:
         checks["registry_rows_read"] = loaded_headshots
         checks["baseball_pitcher_exception_rows"] = baseball_pitcher_exception_rows
         checks["exhibition_team_rows_removed"] = exhibition_team_rows
+        checks["orphan_player_rows_removed"] = orphan_player_rows_removed
         checks.update(baseball_support)
         report(conn)
         return checks

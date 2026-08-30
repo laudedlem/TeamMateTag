@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.5.09`, deployed from the latest pushed `main`
+- Current display version is `0.5.10`, deployed from the latest pushed `main`
   commit.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -75,10 +75,12 @@ decision needs context.
   - Football: `1,550,846`
 - Headshot coverage:
   - Baseball: `7,389/7,389` verified.
-  - Basketball: `2,600/2,600` verified for active runtime players. The local
+  - Basketball: `2,468/2,468` verified for active runtime players. The local
     canonical registry may retain extra offline photo metadata such as players
     removed from runtime because they only had exhibition appearances.
-  - Hockey: `4,655/4,655` verified.
+  - Hockey: `4,509/4,509` verified for active runtime players. The local
+    canonical registry may retain extra offline photo metadata such as players
+    removed from runtime because they only had roster-only/unplayed appearances.
   - Football: `8,642/11,775` verified overall, `3,951/4,692` verified among
     players with 50+ games. The `3,133` unresolved Football players are listed
     in file-storage missing manifests and should be excluded from photo-required
@@ -185,6 +187,15 @@ decision needs context.
   no longer deletes the bot guest; active-game leave and postgame exit are the
   cleanup points. Cleanup skips deletion if that bot is already referenced by an
   unfinished rematch game.
+- `0.5.10`: rebuilt the compact runtime so Basketball and Hockey seasons with
+  local game-level appearance proof replace the old roster-derived catalog rows
+  instead of merging around them. This removes traded-but-not-yet-played and
+  roster-only card/search stints, such as Brady Tkachuk incorrectly showing a
+  Florida Panthers 2025-26/2026 row. The rebuild prunes runtime players left
+  without game-backed franchise appearances while keeping extra raw/proof data
+  local only. The hygiene audit now enforces that Basketball and Hockey compact
+  player-team-seasons in proof-covered years exist in the local game appearance
+  DBs and that their `games_total` values match those proofs.
 
 ### Important implementation notes
 
@@ -288,7 +299,7 @@ decision needs context.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.5.06`
+- Current display version: `0.5.10`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog policy: production is runtime-only. Keep compact
