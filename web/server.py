@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.5.11"
+APP_VERSION = "0.5.12"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -3532,6 +3532,16 @@ def _local_sport_cards(conn: sqlite3.Connection, sport: str, player_ids: list[st
                 ORDER BY a.season, t.name""",
             (sport, player_id),
         ).fetchall()
+        stint_rows = conn.execute(
+            """SELECT team_id, season, first_label, last_label
+                 FROM sport_player_stints
+                WHERE sport_id = ? AND player_id = ?""",
+            (sport, player_id),
+        ).fetchall()
+        stint_labels_by_team_season = {
+            (team_id, int(season)): (first_label, last_label)
+            for team_id, season, first_label, last_label in stint_rows
+        }
         spans_by_team = {}
         games_by_team = {}
         teams_by_season: dict[int, set[tuple]] = {}
@@ -3562,7 +3572,14 @@ def _local_sport_cards(conn: sqlite3.Connection, sport: str, player_ids: list[st
             team_key = (team_id, franchise_id, team)
             overlap_years = overlap_years_by_team.get(team_key, {})
             years = ", ".join(
-                _sport_card_display_stint_label(sport, start, end, overlap_years)
+                _sport_card_display_stint_label(
+                    sport,
+                    start,
+                    end,
+                    overlap_years,
+                    stint_labels_by_team_season.get((team_id, start), (None, None))[0],
+                    stint_labels_by_team_season.get((team_id, end), (None, None))[1],
+                )
                 for start, end in ranges
             )
             label = f"{team} {years}"
@@ -3726,8 +3743,24 @@ def _format_calendar_year_span(start: int, end: int) -> str:
     return f"{start}-{end}"
 
 
+def _calendar_year_from_label(label: str | None) -> int | None:
+    if not label:
+        return None
+    match = re.match(r"^\s*(\d{4})", str(label))
+    return int(match.group(1)) if match else None
+
+
 def _sport_card_display_stint_label(sport: str, start: int, end: int,
-                                    overlap_years: dict[int, int] | None = None) -> str:
+                                    overlap_years: dict[int, int] | None = None,
+                                    first_label: str | None = None,
+                                    last_label: str | None = None) -> str:
+    if _cross_year_season_sports(sport):
+        first_year = _calendar_year_from_label(first_label)
+        last_year = _calendar_year_from_label(last_label)
+        if first_year is not None or last_year is not None:
+            display_start = first_year if first_year is not None else start
+            display_end = last_year if last_year is not None else end + 1
+            return _format_calendar_year_span(display_start, display_end)
     if not _cross_year_season_sports(sport) or not overlap_years:
         return _sport_card_stint_label(sport, start, end)
     display_start = overlap_years.get(start, start)
@@ -3880,6 +3913,16 @@ def _sport_cards(conn, sport: str, player_ids: list[str]) -> dict[str, dict]:
             ORDER BY a.player_id, a.season, t.name""",
         (sport, missing),
     ).fetchall()
+    stint_rows = conn.execute(
+        """SELECT player_id, team_id, season, first_label, last_label
+             FROM sport_player_stints
+            WHERE sport_id=%s AND player_id = ANY(%s)""",
+        (sport, missing),
+    ).fetchall()
+    stint_labels_by_player_team_season = {
+        (player_id, team_id, int(season)): (first_label, last_label)
+        for player_id, team_id, season, first_label, last_label in stint_rows
+    }
     teams_by_player: dict[str, dict[tuple[str, str, str], list[list[int]]]] = {}
     teams_by_player_season: dict[tuple[str, int], set[tuple]] = {}
     games_by_player_team_season = {}
@@ -3930,7 +3973,14 @@ def _sport_cards(conn, sport: str, player_ids: list[str]) -> dict[str, dict]:
             team_key = (team_id, franchise_id, team)
             overlap_years = overlap_years_by_team.get(team_key, {})
             years = ", ".join(
-                _sport_card_display_stint_label(sport, a, b, overlap_years)
+                _sport_card_display_stint_label(
+                    sport,
+                    a,
+                    b,
+                    overlap_years,
+                    stint_labels_by_player_team_season.get((player_id, team_id, a), (None, None))[0],
+                    stint_labels_by_player_team_season.get((player_id, team_id, b), (None, None))[1],
+                )
                 for a, b in ranges
             )
             label = f"{team} {years}"

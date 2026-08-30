@@ -159,6 +159,19 @@ def create_schema(conn: sqlite3.Connection) -> None:
             PRIMARY KEY (scope, season)
         ) WITHOUT ROWID;
 
+        CREATE TABLE sport_player_stints (
+            sport_id TEXT NOT NULL,
+            player_id TEXT NOT NULL,
+            team_id TEXT NOT NULL,
+            season INTEGER NOT NULL,
+            first_unit INTEGER NOT NULL DEFAULT 1,
+            last_unit INTEGER NOT NULL DEFAULT 1,
+            first_label TEXT,
+            last_label TEXT,
+            source TEXT,
+            PRIMARY KEY (sport_id, player_id, team_id, season)
+        ) WITHOUT ROWID;
+
         CREATE TABLE runtime_player_traits (
             scope TEXT NOT NULL,
             player_id TEXT NOT NULL,
@@ -468,6 +481,20 @@ def copy_cross_sport_catalog(conn: sqlite3.Connection, sport: str, source_schema
         """,
         (sport,),
     )
+    if source_table_exists(conn, source_schema, "sport_player_stints"):
+        conn.execute(
+            f"""
+            INSERT OR REPLACE INTO sport_player_stints
+                (sport_id, player_id, team_id, season, first_unit, last_unit,
+                 first_label, last_label, source)
+            SELECT sport_id, player_id, team_id, season, first_unit, last_unit,
+                   first_label, last_label, source
+              FROM {source_schema}.sport_player_stints
+             WHERE sport_id = ?
+               AND season >= 2000
+            """,
+            (sport,),
+        )
     trait_schema = source_schema if source_table_exists(conn, source_schema, "sport_player_traits") else "sportcat"
     if source_table_exists(conn, trait_schema, "sport_player_traits"):
         conn.execute(
@@ -1101,6 +1128,19 @@ def remove_orphan_runtime_players(conn: sqlite3.Connection) -> int:
     ).fetchone()[0]
     conn.execute(
         """
+        DELETE FROM sport_player_stints
+         WHERE NOT EXISTS (
+               SELECT 1
+                 FROM runtime_player_team_seasons pts
+                WHERE pts.scope = sport_player_stints.sport_id
+                  AND pts.player_id = sport_player_stints.player_id
+                  AND pts.team_id = sport_player_stints.team_id
+                  AND pts.season = sport_player_stints.season
+         )
+        """
+    )
+    conn.execute(
+        """
         DELETE FROM runtime_positions
          WHERE (scope, player_id) IN (
                SELECT p.scope, p.player_id
@@ -1162,6 +1202,22 @@ def backfill_raw_proof_catalog(conn: sqlite3.Connection) -> None:
                 WHERE season >= 2000
            );
 
+        DELETE FROM sport_player_stints
+         WHERE sport_id = 'basketball'
+           AND season IN (
+               SELECT DISTINCT season
+                 FROM nbaraw.nba_player_game_appearances
+                WHERE season >= 2000
+           );
+
+        DELETE FROM sport_player_stints
+         WHERE sport_id = 'hockey'
+           AND season IN (
+               SELECT DISTINCT season
+                 FROM nhlraw.nhl_player_game_appearances
+                WHERE season >= 2000
+           );
+
         INSERT OR IGNORE INTO runtime_teams (scope, team_id, season, franchise_id, name)
         SELECT DISTINCT 'basketball', proof.team_id, proof.season, proof.team_id,
                COALESCE((
@@ -1204,6 +1260,28 @@ def backfill_raw_proof_catalog(conn: sqlite3.Connection) -> None:
             (scope, player_id, team_id, season, games_total, games_pitched, games_batted)
         SELECT 'hockey', player_id, team_id, season, COUNT(DISTINCT game_id)
                , 0, 0
+          FROM nhlraw.nhl_player_game_appearances
+         WHERE season >= 2000
+         GROUP BY player_id, team_id, season;
+
+        INSERT OR REPLACE INTO sport_player_stints
+            (sport_id, player_id, team_id, season, first_unit, last_unit,
+             first_label, last_label, source)
+        SELECT 'basketball', player_id, team_id, season,
+               CAST(REPLACE(MIN(game_date), '-', '') AS INTEGER),
+               CAST(REPLACE(MAX(game_date), '-', '') AS INTEGER),
+               MIN(game_date), MAX(game_date), 'nba_game_appearance_dates'
+          FROM nbaraw.nba_player_game_appearances
+         WHERE season >= 2000
+         GROUP BY player_id, team_id, season;
+
+        INSERT OR REPLACE INTO sport_player_stints
+            (sport_id, player_id, team_id, season, first_unit, last_unit,
+             first_label, last_label, source)
+        SELECT 'hockey', player_id, team_id, season,
+               CAST(REPLACE(MIN(game_date), '-', '') AS INTEGER),
+               CAST(REPLACE(MAX(game_date), '-', '') AS INTEGER),
+               MIN(game_date), MAX(game_date), 'nhl_game_appearance_dates'
           FROM nhlraw.nhl_player_game_appearances
          WHERE season >= 2000
          GROUP BY player_id, team_id, season;
@@ -1490,19 +1568,6 @@ def create_compatibility_views(conn: sqlite3.Connection) -> None:
             last_label TEXT,
             source TEXT,
             PRIMARY KEY (player_id, team_id, season)
-        ) WITHOUT ROWID;
-
-        CREATE TABLE sport_player_stints (
-            sport_id TEXT NOT NULL,
-            player_id TEXT NOT NULL,
-            team_id TEXT NOT NULL,
-            season INTEGER NOT NULL,
-            first_unit INTEGER NOT NULL DEFAULT 1,
-            last_unit INTEGER NOT NULL DEFAULT 1,
-            first_label TEXT,
-            last_label TEXT,
-            source TEXT,
-            PRIMARY KEY (sport_id, player_id, team_id, season)
         ) WITHOUT ROWID;
 
         CREATE TABLE teammate_exclusions (

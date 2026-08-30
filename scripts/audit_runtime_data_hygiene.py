@@ -552,6 +552,44 @@ def audit_local_compact(failures: list[str]) -> None:
             )
             for player_id, display_name, team_id, season, got, expected in mismatches:
                 print(f"  {scope} games mismatch: {player_id} {display_name} {team_id} {season} got={got} expected={expected}")
+            stint_mismatches = conn.execute(
+                f"""
+                SELECT s.player_id, p.display_name, s.team_id, s.season,
+                       s.first_label, s.last_label,
+                       proof.first_game_date, proof.last_game_date
+                  FROM sport_player_stints s
+                  JOIN runtime_players p
+                    ON p.scope = s.sport_id
+                   AND p.player_id = s.player_id
+                  JOIN (
+                       SELECT player_id, team_id, season,
+                              MIN(game_date) AS first_game_date,
+                              MAX(game_date) AS last_game_date
+                         FROM {schema}.{table}
+                        WHERE season >= 2000
+                        GROUP BY player_id, team_id, season
+                  ) proof
+                    ON proof.player_id = s.player_id
+                   AND proof.team_id = s.team_id
+                   AND proof.season = s.season
+                 WHERE s.sport_id = ?
+                   AND (s.first_label <> proof.first_game_date
+                        OR s.last_label <> proof.last_game_date)
+                 ORDER BY s.season DESC, p.display_name, s.team_id
+                 LIMIT 20
+                """,
+                (scope,),
+            ).fetchall()
+            check(
+                not stint_mismatches,
+                f"{scope} compact card stints match game-date proof ({len(stint_mismatches)} bad samples)",
+                failures,
+            )
+            for player_id, display_name, team_id, season, got_first, got_last, expected_first, expected_last in stint_mismatches:
+                print(
+                    f"  {scope} stint date mismatch: {player_id} {display_name} {team_id} {season} "
+                    f"got={got_first}..{got_last} expected={expected_first}..{expected_last}"
+                )
             conn.execute(f"DETACH DATABASE {schema}")
 
 
