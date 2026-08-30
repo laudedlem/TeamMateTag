@@ -50,6 +50,21 @@ def normalize(value: str | None) -> str:
     return re.sub(r"[^a-z0-9]", "", value.lower())
 
 
+def bad_runtime_team_sql(alias: str = "t") -> str:
+    normalized_name = f"replace(lower(COALESCE({alias}.name, '')), '-', ' ')"
+    raw_name = f"lower(COALESCE({alias}.name, ''))"
+    return f"""
+        ({alias}.scope = 'baseball' AND {alias}.team_id IN ('AL', 'NL'))
+        OR {normalized_name} LIKE '%all star%'
+        OR {normalized_name} LIKE '%rising star%'
+        OR {normalized_name} LIKE '%young star%'
+        OR {normalized_name} LIKE '%rookie challenge%'
+        OR {raw_name} IN ('world', 'usa')
+        OR ({alias}.scope = 'basketball' AND {raw_name} IN ('ogs', 'stripes'))
+        OR ({alias}.scope = 'basketball' AND {raw_name} LIKE 'team %')
+    """
+
+
 def db_size_mb(path: Path) -> float:
     return path.stat().st_size / 1024 / 1024 if path.exists() else 0.0
 
@@ -1043,6 +1058,34 @@ def build_keys(conn: sqlite3.Connection) -> None:
     )
 
 
+def remove_exhibition_runtime_teams(conn: sqlite3.Connection) -> int:
+    bad_team_sql = bad_runtime_team_sql("t")
+    affected = conn.execute(
+        f"""
+        SELECT COUNT(*)
+          FROM runtime_teams t
+         WHERE {bad_team_sql}
+        """
+    ).fetchone()[0]
+    conn.execute(
+        f"""
+        DELETE FROM runtime_player_team_seasons
+         WHERE (scope, team_id, season) IN (
+               SELECT scope, team_id, season
+                 FROM runtime_teams t
+                WHERE {bad_team_sql}
+         )
+        """
+    )
+    conn.execute(
+        f"""
+        DELETE FROM runtime_teams
+         WHERE {bad_runtime_team_sql("runtime_teams")}
+        """
+    )
+    return int(affected or 0)
+
+
 def backfill_raw_proof_catalog(conn: sqlite3.Connection) -> None:
     conn.executescript(
         """
@@ -1205,7 +1248,7 @@ def insert_baseball_pitcher_exceptions(conn: sqlite3.Connection) -> int:
     ).fetchone()[0]
     conn.executescript(
         """
-        CREATE TEMP INDEX IF NOT EXISTS tmp_runtime_pts_baseball_pitchers
+        CREATE INDEX IF NOT EXISTS tmp_runtime_pts_baseball_pitchers
             ON runtime_player_team_seasons(scope, team_id, season, player_id, games_pitched);
         """
     )
@@ -1584,9 +1627,11 @@ def build(output: Path) -> dict[str, int]:
         copy_cross_sport_catalog(conn, "basketball", "sportcat")
         copy_cross_sport_catalog(conn, "hockey", "sportcat")
         copy_cross_sport_catalog(conn, "football", "nflrt")
+        exhibition_team_rows = remove_exhibition_runtime_teams(conn)
         baseball_support = build_baseball_playoff_support(conn)
         loaded_headshots = load_headshot_registry(conn)
         backfill_raw_proof_catalog(conn)
+        exhibition_team_rows += remove_exhibition_runtime_teams(conn)
         build_keys(conn)
         insert_proofs(conn)
         baseball_pitcher_exception_rows = insert_baseball_pitcher_exceptions(conn)
@@ -1597,6 +1642,7 @@ def build(output: Path) -> dict[str, int]:
         checks = verify(conn)
         checks["registry_rows_read"] = loaded_headshots
         checks["baseball_pitcher_exception_rows"] = baseball_pitcher_exception_rows
+        checks["exhibition_team_rows_removed"] = exhibition_team_rows
         checks.update(baseball_support)
         report(conn)
         return checks

@@ -57,10 +57,16 @@ decision needs context.
 - Runtime schema migrations are skipped during ordinary gameplay. Set
   `TEAMMATETAG_AUTO_MIGRATE=1` only for an intentional migration run, then
   remove it again.
+- All-Star/exhibition teams must never appear in player cards, searches,
+  team-season answers, or gameplay-facing team tables. Honors counts such as
+  NBA All-Star, NHL All-Star, or NFL Pro Bowl selections may be preserved as
+  compact traits for Powerups/Win Conditions, but team names like `Young Stars`,
+  `Team LeBron`, `Rising Stars`, `World`, `USA`, or league All-Star teams must
+  stay out of Supabase runtime catalogs and compact rebuild outputs.
 
 ### Current data/runtime facts
 
-- Supabase database size after the latest hygiene audit: about `394 MB`.
+- Supabase database size after the latest hygiene audit: about `395 MB`.
 - Local compact teammate rows:
   - Baseball: `833,431`
   - Basketball: `106,107`
@@ -68,7 +74,9 @@ decision needs context.
   - Football: `1,550,846`
 - Headshot coverage:
   - Baseball: `7,389/7,389` verified.
-  - Basketball: `2,601/2,601` verified.
+  - Basketball: `2,600/2,600` verified for active runtime players. The local
+    canonical registry may retain extra offline photo metadata such as players
+    removed from runtime because they only had exhibition appearances.
   - Hockey: `4,655/4,655` verified.
   - Football: `8,642/11,775` verified overall, `3,951/4,692` verified among
     players with 50+ games. The `3,133` unresolved Football players are listed
@@ -146,6 +154,16 @@ decision needs context.
   Verified example: Connor Murphy displays `Chicago Blackhawks 2017-2025` and
   `Edmonton Oilers 2026`, while the underlying `2025-26` season remains intact
   for gameplay.
+- Post-`0.5.06` data cleanup: removed Basketball exhibition team-seasons from
+  local source, compact runtime, and Supabase after Jalen Brunson showed
+  `Young Stars 2024` on his card. Supabase removed 37 exhibition appearances
+  across 13 Basketball team-seasons (`Young Stars`, `Team LeBron`, `Team
+  Giannis`, `Team Durant`, `Team Stephen`, `Team Melo`, `Team Vince`, `Team
+  T-Mac`, `Team Austin`). Jalen Brunson production appearances now show only
+  Mavericks/Knicks rows, and live Basketball autocomplete returns Jalen with
+  the restored compact-runtime `575` career games. The hygiene audit now fails
+  if local compact runtime or Supabase contains All-Star/exhibition team names
+  in gameplay-facing team tables or search rows without franchise appearances.
 
 ### Important implementation notes
 

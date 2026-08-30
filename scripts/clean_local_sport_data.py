@@ -11,20 +11,61 @@ DATABASE = ROOT / "db" / "teammatetag_local.sqlite"
 NBA_EXHIBITION_SQL = """
     lower(replace(name, '-', ' ')) LIKE '%all star%'
     OR lower(replace(name, '-', ' ')) LIKE '%rising star%'
-    OR lower(name) = 'world'
-    OR lower(name) IN ('ogs', 'stripes')
+    OR lower(replace(name, '-', ' ')) LIKE '%young star%'
+    OR lower(replace(name, '-', ' ')) LIKE '%rookie challenge%'
+    OR lower(name) IN ('world', 'usa', 'ogs', 'stripes')
     OR lower(name) LIKE 'team %'
 """
+
+
+def table_exists(conn: sqlite3.Connection, table: str) -> bool:
+    return bool(conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)).fetchone())
 
 
 def main() -> None:
     conn = sqlite3.connect(DATABASE)
     try:
         # Exhibition selections are not NBA franchise memberships.
+        affected_players = [
+            row[0]
+            for row in conn.execute(f"""SELECT DISTINCT player_id FROM sport_appearances
+                WHERE sport_id = 'basketball' AND team_id IN (
+                    SELECT team_id FROM sport_teams WHERE sport_id = 'basketball' AND ({NBA_EXHIBITION_SQL})
+                )""").fetchall()
+        ]
         conn.execute(f"""DELETE FROM sport_appearances WHERE sport_id = 'basketball' AND team_id IN (
             SELECT team_id FROM sport_teams WHERE sport_id = 'basketball' AND ({NBA_EXHIBITION_SQL})
         )""")
+        conn.execute(f"""DELETE FROM sport_player_stints WHERE sport_id = 'basketball' AND team_id IN (
+            SELECT team_id FROM sport_teams WHERE sport_id = 'basketball' AND ({NBA_EXHIBITION_SQL})
+        )""")
+        if table_exists(conn, "sport_teammates"):
+            conn.execute(f"""DELETE FROM sport_teammates WHERE sport_id = 'basketball' AND team_id IN (
+                SELECT team_id FROM sport_teams WHERE sport_id = 'basketball' AND ({NBA_EXHIBITION_SQL})
+            )""")
         conn.execute(f"""DELETE FROM sport_teams WHERE sport_id = 'basketball' AND ({NBA_EXHIBITION_SQL})""")
+        if affected_players:
+            placeholders = ",".join("?" for _ in affected_players)
+            conn.execute(
+                f"""DELETE FROM sport_players_searchable
+                     WHERE sport_id = 'basketball'
+                       AND player_id IN ({placeholders})
+                       AND NOT EXISTS (
+                           SELECT 1 FROM sport_appearances a
+                            WHERE a.sport_id = sport_players_searchable.sport_id
+                              AND a.player_id = sport_players_searchable.player_id
+                       )""",
+                affected_players,
+            )
+        conn.execute(
+            """DELETE FROM sport_players_searchable
+                 WHERE sport_id = 'basketball'
+                   AND NOT EXISTS (
+                       SELECT 1 FROM sport_appearances a
+                        WHERE a.sport_id = sport_players_searchable.sport_id
+                          AND a.player_id = sport_players_searchable.player_id
+                   )"""
+        )
 
         # nflverse exposes an ESPN ID that works with ESPN's player headshots.
         nfl_images = {}

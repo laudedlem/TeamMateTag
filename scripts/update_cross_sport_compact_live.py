@@ -89,6 +89,23 @@ def split_name(display_name: str) -> tuple[str | None, str | None]:
     return parts[0], parts[-1]
 
 
+def is_exhibition_team(sport: str, team_id: str | None, team_name: str | None) -> bool:
+    normalized = (team_name or "").replace("-", " ").lower()
+    raw = (team_name or "").lower()
+    if "all star" in normalized or "rising star" in normalized:
+        return True
+    if "young star" in normalized or "rookie challenge" in normalized:
+        return True
+    if raw in {"world", "usa"}:
+        return True
+    if sport == "basketball":
+        if raw in {"ogs", "stripes"}:
+            return True
+        if raw.startswith("team "):
+            return True
+    return False
+
+
 def local_db_path(sport: str, season: int) -> Path:
     return ROOT / "raw" / f"{sport}_live_runtime" / f"{sport}_live_{season}.sqlite"
 
@@ -405,6 +422,15 @@ def scheduled(sport: str, start: date, end: date, season: int) -> list[dict[str,
 
 
 def upsert_local_game(conn: sqlite3.Connection, sport: str, source: str, game: dict[str, Any], rows: list[LocalAppearance], teams: dict[str, str], status: str) -> int:
+    teams = {
+        team_id: team_name
+        for team_id, team_name in teams.items()
+        if not is_exhibition_team(sport, team_id, team_name)
+    }
+    rows = [
+        row for row in rows
+        if row.team_id in teams and not is_exhibition_team(sport, row.team_id, row.team_name)
+    ]
     if not rows:
         return 0
     game_id = rows[0].game_id

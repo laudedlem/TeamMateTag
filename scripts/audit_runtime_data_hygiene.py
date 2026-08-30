@@ -38,6 +38,42 @@ FILE_STORAGE_HEADSHOT_ROOT = FILE_STORAGE_ROOT / "player-headshots"
 WORKFLOW_DIR = ROOT / ".github" / "workflows"
 
 
+def sqlite_bad_runtime_team_sql(alias: str = "t") -> str:
+    normalized_name = f"replace(lower(COALESCE({alias}.name, '')), '-', ' ')"
+    raw_name = f"lower(COALESCE({alias}.name, ''))"
+    return f"""
+        ({alias}.scope = 'baseball' AND {alias}.team_id IN ('AL', 'NL'))
+        OR {normalized_name} LIKE '%all star%'
+        OR {normalized_name} LIKE '%rising star%'
+        OR {normalized_name} LIKE '%young star%'
+        OR {normalized_name} LIKE '%rookie challenge%'
+        OR {raw_name} IN ('world', 'usa')
+        OR ({alias}.scope = 'basketball' AND {raw_name} IN ('ogs', 'stripes'))
+        OR ({alias}.scope = 'basketball' AND {raw_name} LIKE 'team %')
+    """
+
+
+def pg_bad_baseball_team_sql(alias: str = "t") -> str:
+    return f"""
+        {alias}.team_id IN ('AL', 'NL')
+        OR replace(lower(COALESCE({alias}.name, '')), '-', ' ') LIKE '%all star%'
+    """
+
+
+def pg_bad_sport_team_sql(alias: str = "t") -> str:
+    normalized_name = f"replace(lower(COALESCE({alias}.name, '')), '-', ' ')"
+    raw_name = f"lower(COALESCE({alias}.name, ''))"
+    return f"""
+        {normalized_name} LIKE '%all star%'
+        OR {normalized_name} LIKE '%rising star%'
+        OR {normalized_name} LIKE '%young star%'
+        OR {normalized_name} LIKE '%rookie challenge%'
+        OR {raw_name} IN ('world', 'usa')
+        OR ({alias}.sport_id = 'basketball' AND {raw_name} IN ('ogs', 'stripes'))
+        OR ({alias}.sport_id = 'basketball' AND {raw_name} LIKE 'team %')
+    """
+
+
 def check(condition: bool, label: str, failures: list[str]) -> None:
     prefix = "OK" if condition else "FAIL"
     print(f"{prefix}: {label}")
@@ -224,17 +260,26 @@ def audit_local_compact(failures: list[str]) -> None:
         )
         check(BASKETBALL_HEADSHOT_REGISTRY_DB.exists(), "canonical Basketball headshot registry exists locally", failures)
         if BASKETBALL_HEADSHOT_REGISTRY_DB.exists():
+            runtime_basketball_ids = {
+                player_id
+                for player_id, in conn.execute(
+                    "SELECT player_id FROM runtime_players WHERE scope = 'basketball'"
+                )
+            }
             with sqlite3.connect(BASKETBALL_HEADSHOT_REGISTRY_DB) as registry:
                 registry_players = sqlite_count(registry, "SELECT COUNT(*) FROM basketball_headshots")
-                registry_verified = sqlite_count(
-                    registry,
+                registry_verified_ids = {
+                    player_id
+                    for player_id, in registry.execute(
                     """
-                    SELECT COUNT(*)
+                    SELECT player_id
                       FROM basketball_headshots
                      WHERE status = 'verified'
                        AND COALESCE(source_url, '') <> ''
                     """,
-                )
+                    )
+                }
+                registry_verified = len(runtime_basketball_ids & registry_verified_ids)
             check(
                 registry_players >= basketball_players,
                 f"canonical Basketball registry covers runtime players ({registry_players:,}/{basketball_players:,})",
@@ -383,6 +428,49 @@ def audit_local_compact(failures: list[str]) -> None:
         )
         check(missing_players == 0, "compact teammate rows have valid player keys", failures)
         check(missing_teams == 0, "compact teammate rows have valid team keys", failures)
+        bad_runtime_teams = conn.execute(
+            f"""
+            SELECT scope, team_id, season, name
+              FROM runtime_teams t
+             WHERE {sqlite_bad_runtime_team_sql('t')}
+             ORDER BY scope, season, name
+             LIMIT 20
+            """
+        ).fetchall()
+        check(
+            not bad_runtime_teams,
+            (
+                "compact runtime has only franchise team names in display/search tables "
+                f"({len(bad_runtime_teams)} bad samples)"
+            ),
+            failures,
+        )
+        for scope, team_id, season, name in bad_runtime_teams:
+            print(f"  bad runtime team: {scope} {team_id} {season} {name}")
+        orphan_runtime_players = conn.execute(
+            """
+            SELECT scope, player_id, display_name
+              FROM runtime_players p
+             WHERE NOT EXISTS (
+                   SELECT 1
+                     FROM runtime_player_team_seasons pts
+                    WHERE pts.scope = p.scope
+                      AND pts.player_id = p.player_id
+             )
+             ORDER BY scope, display_name
+             LIMIT 20
+            """
+        ).fetchall()
+        check(
+            not orphan_runtime_players,
+            (
+                "compact runtime search/card players all have franchise appearances "
+                f"({len(orphan_runtime_players)} bad samples)"
+            ),
+            failures,
+        )
+        for scope, player_id, display_name in orphan_runtime_players:
+            print(f"  runtime player without franchise appearance: {scope} {player_id} {display_name}")
 
 
 def audit_mlb_live(failures: list[str]) -> None:
@@ -495,6 +583,68 @@ def audit_supabase(failures: list[str]) -> None:
                 if exists:
                     rows = int(cur.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0])
                     check(rows == 0, f"Supabase {table} staging rows pruned ({rows:,})", failures)
+            bad_baseball_teams = cur.execute(
+                f"""
+                SELECT team_id, season, name
+                  FROM teams t
+                 WHERE {pg_bad_baseball_team_sql('t')}
+                 ORDER BY season, name
+                 LIMIT 20
+                """
+            ).fetchall()
+            check(
+                not bad_baseball_teams,
+                (
+                    "Supabase Baseball teams contain only franchise display names "
+                    f"({len(bad_baseball_teams)} bad samples)"
+                ),
+                failures,
+            )
+            for team_id, season, name in bad_baseball_teams:
+                print(f"  bad Supabase Baseball team: {team_id} {season} {name}")
+            bad_sport_teams = cur.execute(
+                f"""
+                SELECT sport_id, team_id, season, name
+                  FROM sport_teams t
+                 WHERE {pg_bad_sport_team_sql('t')}
+                 ORDER BY sport_id, season, name
+                 LIMIT 20
+                """
+            ).fetchall()
+            check(
+                not bad_sport_teams,
+                (
+                    "Supabase cross-sport teams contain only franchise display names "
+                    f"({len(bad_sport_teams)} bad samples)"
+                ),
+                failures,
+            )
+            for sport_id, team_id, season, name in bad_sport_teams:
+                print(f"  bad Supabase team: {sport_id} {team_id} {season} {name}")
+            orphan_sport_search_rows = cur.execute(
+                """
+                SELECT s.sport_id, s.player_id, s.display_name
+                  FROM sport_players_searchable s
+                 WHERE NOT EXISTS (
+                       SELECT 1
+                         FROM sport_appearances a
+                        WHERE a.sport_id = s.sport_id
+                          AND a.player_id = s.player_id
+                 )
+                 ORDER BY s.sport_id, s.display_name
+                 LIMIT 20
+                """
+            ).fetchall()
+            check(
+                not orphan_sport_search_rows,
+                (
+                    "Supabase cross-sport search rows all have franchise appearances "
+                    f"({len(orphan_sport_search_rows)} bad samples)"
+                ),
+                failures,
+            )
+            for sport_id, player_id, display_name in orphan_sport_search_rows:
+                print(f"  Supabase search player without franchise appearance: {sport_id} {player_id} {display_name}")
             film_rows = cur.execute(
                 """SELECT sport_id, puzzle_date::text, COALESCE(unit, ''), puzzle
                      FROM film_review_daily_puzzles

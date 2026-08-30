@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import sqlite3
 import sys
 from pathlib import Path
 
@@ -20,6 +21,7 @@ except ImportError:
     pass
 
 ROOT = Path(__file__).resolve().parent.parent
+COMPACT_DB = ROOT / "raw" / "runtime_compact" / "teammatetag_runtime_minimal.sqlite"
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from name_normalize import normalize  # noqa: E402
@@ -36,7 +38,9 @@ def sport_bad_team_sql(alias: str) -> str:
     return f"""
         replace(lower(COALESCE({alias}.name, '')), '-', ' ') LIKE '%all star%'
         OR replace(lower(COALESCE({alias}.name, '')), '-', ' ') LIKE '%rising star%'
-        OR lower(COALESCE({alias}.name, '')) = 'world'
+        OR replace(lower(COALESCE({alias}.name, '')), '-', ' ') LIKE '%young star%'
+        OR replace(lower(COALESCE({alias}.name, '')), '-', ' ') LIKE '%rookie challenge%'
+        OR lower(COALESCE({alias}.name, '')) IN ('world', 'usa')
         OR ({alias}.sport_id = 'basketball' AND lower(COALESCE({alias}.name, '')) IN ('ogs', 'stripes'))
         OR ({alias}.sport_id = 'basketball' AND lower(COALESCE({alias}.name, '')) LIKE 'team %')
     """
@@ -128,6 +132,41 @@ def refresh_sport_search(conn: "psycopg.Connection", affected: list[tuple[str, s
     by_sport: dict[str, list[str]] = {}
     for sport_id, player_id in affected:
         by_sport.setdefault(sport_id, []).append(player_id)
+    if COMPACT_DB.exists():
+        with sqlite3.connect(COMPACT_DB) as runtime:
+            for sport_id, player_ids in by_sport.items():
+                placeholders = ",".join("?" for _ in player_ids)
+                rows = runtime.execute(
+                    f"""
+                    SELECT scope, player_id, display_name,
+                           COALESCE(primary_pos, UPPER(scope)) || ', ' ||
+                           COALESCE(debut_year, '?') || '-' || COALESCE(final_year, '?'),
+                           search_key, last_key, career_games, teammate_count
+                      FROM runtime_players
+                     WHERE scope = ?
+                       AND player_id IN ({placeholders})
+                    """,
+                    (sport_id, *player_ids),
+                ).fetchall()
+                if rows:
+                    with conn.cursor() as cur:
+                        cur.executemany(
+                            """
+                            INSERT INTO sport_players_searchable
+                                (sport_id, player_id, display_name, disambiguation, search_key,
+                                 last_key, career_games, teammate_count)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                            ON CONFLICT (sport_id, player_id) DO UPDATE
+                            SET display_name = EXCLUDED.display_name,
+                                disambiguation = EXCLUDED.disambiguation,
+                                search_key = EXCLUDED.search_key,
+                                last_key = EXCLUDED.last_key,
+                                career_games = EXCLUDED.career_games,
+                                teammate_count = EXCLUDED.teammate_count
+                            """,
+                            rows,
+                        )
+        return
     with conn.cursor() as cur:
         for sport_id, player_ids in by_sport.items():
             cur.execute(
@@ -211,9 +250,9 @@ def refresh_sport_search(conn: "psycopg.Connection", affected: list[tuple[str, s
 
 
 def main() -> int:
-    database_url = os.environ.get("DATABASE_URL")
+    database_url = os.environ.get("DATABASE_URL") or os.environ.get("DIRECT_URL")
     if not database_url:
-        print("ERROR: DATABASE_URL is required.", file=sys.stderr)
+        print("ERROR: DATABASE_URL or DIRECT_URL is required.", file=sys.stderr)
         return 1
 
     with psycopg.connect(database_url, autocommit=False, prepare_threshold=None) as conn:
@@ -226,6 +265,20 @@ def main() -> int:
                     FROM appearances a
                     JOIN teams t ON t.team_id = a.team_id AND t.season = a.season
                     WHERE {baseball_bad_team_sql('t')}
+                    """
+                ).fetchall()
+            ]
+            baseball_bad_team_keys = [
+                row[0]
+                for row in cur.execute(
+                    f"""
+                    SELECT tk.team_key
+                      FROM compact_team_keys tk
+                      JOIN teams t
+                        ON t.team_id = tk.team_id
+                       AND t.season = tk.season
+                     WHERE tk.scope = 'baseball'
+                       AND ({baseball_bad_team_sql('t')})
                     """
                 ).fetchall()
             ]
@@ -267,6 +320,16 @@ def main() -> int:
                   AND ({baseball_bad_team_sql('t')})
                 """
             )
+            if baseball_bad_team_keys:
+                if cur.execute("SELECT to_regclass('compact_mlb_teammate_game_proofs')").fetchone()[0]:
+                    cur.execute(
+                        "DELETE FROM compact_mlb_teammate_game_proofs WHERE team_key = ANY(%s)",
+                        (baseball_bad_team_keys,),
+                    )
+                cur.execute(
+                    "DELETE FROM compact_team_keys WHERE scope='baseball' AND team_key = ANY(%s)",
+                    (baseball_bad_team_keys,),
+                )
             baseball_teams = cur.execute(f"DELETE FROM teams t WHERE {baseball_bad_team_sql('t')}").rowcount
             cur.execute(
                 """
@@ -297,6 +360,20 @@ def main() -> int:
                      AND t.team_id = a.team_id
                      AND t.season = a.season
                     WHERE {sport_bad_team_sql('t')}
+                    """
+                ).fetchall()
+            ]
+            sport_bad_team_keys = [
+                row[0]
+                for row in cur.execute(
+                    f"""
+                    SELECT tk.team_key
+                      FROM compact_team_keys tk
+                      JOIN sport_teams t
+                        ON t.sport_id = tk.scope
+                       AND t.team_id = tk.team_id
+                       AND t.season = tk.season
+                     WHERE {sport_bad_team_sql('t')}
                     """
                 ).fetchall()
             ]
@@ -353,7 +430,46 @@ def main() -> int:
                   AND ({sport_bad_team_sql('t')})
                 """
             )
+            if sport_bad_team_keys:
+                if cur.execute("SELECT to_regclass('compact_sport_teammates')").fetchone()[0]:
+                    cur.execute(
+                        "DELETE FROM compact_sport_teammates WHERE team_key = ANY(%s)",
+                        (sport_bad_team_keys,),
+                    )
+                cur.execute(
+                    "DELETE FROM compact_team_keys WHERE team_key = ANY(%s)",
+                    (sport_bad_team_keys,),
+                )
             sport_teams = cur.execute(f"DELETE FROM sport_teams t WHERE {sport_bad_team_sql('t')}").rowcount
+            if sport_affected:
+                affected_by_sport: dict[str, list[str]] = {}
+                for sport_id, player_id in sport_affected:
+                    affected_by_sport.setdefault(sport_id, []).append(player_id)
+                for sport_id, player_ids in affected_by_sport.items():
+                    cur.execute(
+                        """
+                        DELETE FROM sport_players_searchable s
+                         WHERE s.sport_id = %s
+                           AND s.player_id = ANY(%s)
+                           AND NOT EXISTS (
+                               SELECT 1 FROM sport_appearances a
+                                WHERE a.sport_id = s.sport_id
+                                  AND a.player_id = s.player_id
+                           )
+                        """,
+                        (sport_id, player_ids),
+                    )
+            cur.execute(
+                """
+                DELETE FROM sport_players_searchable s
+                 WHERE s.sport_id = 'basketball'
+                   AND NOT EXISTS (
+                       SELECT 1 FROM sport_appearances a
+                        WHERE a.sport_id = s.sport_id
+                          AND a.player_id = s.player_id
+                   )
+                """
+            )
             cur.execute(
                 """
                 UPDATE sport_data_provenance
