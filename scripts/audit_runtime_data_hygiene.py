@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 import json
 import sqlite3
+from collections import Counter
 from pathlib import Path
 
 try:
@@ -500,9 +501,12 @@ def audit_supabase(failures: list[str]) -> None:
                     WHERE puzzle_date >= DATE '2026-08-01'"""
             ).fetchall()
             bad_film_headshots = []
+            film_player_counts: dict[str, Counter] = {}
             for sport_id, puzzle_date, unit, puzzle in film_rows:
                 deck = list((puzzle or {}).get("deck") or [])
                 card_map = (puzzle or {}).get("card_map") or {}
+                repeat_key = f"{sport_id}:{unit}" if sport_id == "football" else sport_id
+                film_player_counts.setdefault(repeat_key, Counter()).update(deck)
                 if not deck:
                     continue
                 verified = {
@@ -526,6 +530,55 @@ def audit_supabase(failures: list[str]) -> None:
             )
             for row in bad_film_headshots[:20]:
                 print(f"  missing Film Review headshot: {row}")
+            film_player_limits = {"baseball": 1, "basketball": 1, "hockey": 1, "football:offense": 8, "football:defense": 8}
+            repeated_film_players = []
+            for repeat_key, counter in film_player_counts.items():
+                sport_id = repeat_key.split(":", 1)[0]
+                for player_id, count in counter.items():
+                    allowed = film_player_limits.get(repeat_key, 1)
+                    if sport_id == "football" and count > 1:
+                        row = cur.execute(
+                            """
+                            SELECT COALESCE(t.career_games, s.career_games, 0),
+                                   COALESCE(t.career_touchdowns, 0),
+                                   COALESCE(t.passing_touchdowns, 0),
+                                   COALESCE(t.rushing_touchdowns, 0),
+                                   COALESCE(t.receiving_touchdowns, 0),
+                                   COALESCE(t.career_sacks, 0),
+                                   COALESCE(t.career_interceptions, 0),
+                                   COALESCE(t.all_star_count, 0),
+                                   COALESCE(t.mvp_count, 0),
+                                   COALESCE(t.championship_count, 0)
+                              FROM sport_players_searchable s
+                              LEFT JOIN sport_player_traits t
+                                ON t.sport_id=s.sport_id AND t.player_id=s.player_id
+                             WHERE s.sport_id='football' AND s.player_id=%s
+                            """,
+                            (player_id,),
+                        ).fetchone()
+                        notable = bool(row) and (
+                            int(row[0] or 0) >= 60
+                            or int(row[1] or 0) >= 20
+                            or int(row[2] or 0) >= 30
+                            or int(row[3] or 0) >= 15
+                            or int(row[4] or 0) >= 15
+                            or float(row[5] or 0) >= 20
+                            or int(row[6] or 0) >= 10
+                            or int(row[7] or 0) > 0
+                            or int(row[8] or 0) > 0
+                            or int(row[9] or 0) > 0
+                        )
+                        if not notable:
+                            allowed = 1
+                    if count > allowed:
+                        repeated_film_players.append(f"{repeat_key} {player_id} x{count}")
+            check(
+                not repeated_film_players,
+                f"Supabase Film Review puzzles stay under player-use caps ({len(repeated_film_players)} over cap)",
+                failures,
+            )
+            for row in repeated_film_players[:20]:
+                print(f"  repeated Film Review player: {row}")
             cur.execute("SELECT pg_size_pretty(pg_database_size(current_database()))")
             print(f"INFO: Supabase database size {cur.fetchone()[0]}")
 

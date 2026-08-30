@@ -34,8 +34,8 @@ LINEUP_SLOTS = {
 }
 
 FOOTBALL_UNITS = {
-    "offense": ("QB", "RB", "WR", "WR", "WR", "TE", "OL", "OL", "OL", "OL", "OL", "K"),
-    "defense": ("DL", "DL", "DL", "DL", "LB", "LB", "LB", "CB", "CB", "S", "S", "P"),
+    "offense": ("QB", "WR", "OL", "RB", "OL", "WR", "OL", "TE", "OL", "WR", "OL", "K"),
+    "defense": ("DL", "LB", "CB", "DL", "LB", "S", "DL", "CB", "LB", "DL", "S", "P"),
 }
 
 FOOTBALL_ROLE_POSITIONS = {
@@ -60,7 +60,7 @@ QUALITY_FLOORS = {
     "basketball": (300, 2008),
 }
 
-MAX_FILM_REVIEW_LINKS = 3
+MAX_FILM_REVIEW_LINKS = 4
 
 
 @dataclass(frozen=True)
@@ -430,6 +430,7 @@ def _pair_key(first: str, second: str) -> tuple[str, str]:
 def generate(conn: sqlite3.Connection, sport: str, puzzle_day: date | None = None,
              attempts: int = 300, unit: str | None = None, seed_suffix: str = "",
              banned_opening_players: set[str] | None = None,
+             banned_players: set[str] | None = None,
              banned_adjacent_pairs: set[tuple[str, str]] | None = None) -> GeneratedPuzzle:
     if sport not in LINEUP_SLOTS:
         raise ValueError(f"unsupported sport {sport!r}")
@@ -449,22 +450,27 @@ def generate(conn: sqlite3.Connection, sport: str, puzzle_day: date | None = Non
     }
     rng = random.Random(f"{sport}:{puzzle_day.isoformat()}:{unit or ''}:{seed_suffix}")
     banned_opening_players = banned_opening_players or set()
+    banned_players = banned_players or set()
     banned_adjacent_pairs = banned_adjacent_pairs or set()
 
     for _ in range(attempts):
         starters = [
             player_id
             for player_id in sorted(pools[slots[0]], key=pools[slots[0]].get, reverse=True)
-            if player_id not in banned_opening_players and player_id in recent_players
+            if player_id not in banned_players and player_id not in banned_opening_players and player_id in recent_players
         ]
         if not starters:
             starters = [
                 player_id
                 for player_id in sorted(pools[slots[0]], key=pools[slots[0]].get, reverse=True)
-                if player_id not in banned_opening_players
+                if player_id not in banned_players and player_id not in banned_opening_players
             ]
         if not starters:
-            starters = sorted(pools[slots[0]], key=pools[slots[0]].get, reverse=True)
+            starters = [
+                player_id
+                for player_id in sorted(pools[slots[0]], key=pools[slots[0]].get, reverse=True)
+                if player_id not in banned_players
+            ]
         deck = [rng.choice(starters[:min(12, len(starters))])]
         links: list[tuple[str, int]] = []
         used_players, used_links = {deck[0]}, set()
@@ -475,6 +481,7 @@ def generate(conn: sqlite3.Connection, sport: str, puzzle_day: date | None = Non
                 if _pair_key(deck[-1], item[0]) not in banned_adjacent_pairs
                    and not (slot_index == 1 and item[0] in banned_opening_players)
                    and not (slot_index == 1 and item[0] not in recent_players)
+                   and item[0] not in banned_players
             ]
             preferred_floor = _early_choice_floor(sport, slot_index)
             if preferred_floor:

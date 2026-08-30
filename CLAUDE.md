@@ -9,7 +9,7 @@ changes. It is the concise source of truth for another coding assistant.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.5.04`
+- Current display version: `0.5.05`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog policy: production is runtime-only. Keep compact
@@ -142,6 +142,21 @@ URL even when the canonical headshot registry has no verified image. Football
 cards now use only canonical/headshot-table URLs, static Film Review payloads
 must include a headshot URL for every deck player, and the static rebuild script
 rejects puzzles with any missing headshot card.
+
+Update, 2026-08-30 (0.5.05 Film Review repeat guard): rebuilt stored Film
+Review puzzles from 2026-08-01 through 2026-08-30 after adding archive-wide
+player usage caps. Baseball, Basketball, and Hockey now require zero player
+repeats across the rebuilt archive range. Football now interleaves lineup slots
+when generating Offense/Defense chains so it does not overuse consecutive
+OL/DL connector paths; missing-headshot Football players are banned before
+generation, ordinary Football players are one-use per unit, and notable
+long-career/stat-qualified Football players are capped at eight uses per unit.
+The rebuilt production set has 150 rows, 0 Corey Ivy appearances, 0 missing or
+unverified Film Review headshots, and 0 repeat-cap violations. The static
+file-storage mirror was refreshed at
+`raw/file_storage/teammatetag-runtime/gameplay/film_review_daily_puzzles.json`
+and uploaded to Supabase Storage. Film Review pair answer limits are now 1-4
+team-season links.
 
 Update, 2026-08-28 (new Supabase recovery project): created/repointed local
 `.env` to the new Free Supabase project `npymptruhptacfmheobv` after the prior

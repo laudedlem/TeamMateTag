@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.5.04"
+APP_VERSION = "0.5.05"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -7443,7 +7443,7 @@ def sport_bp_timeout(sport: str):
 BASEBALL_FR_SLOTS = ("DH", "1B", "SP", "2B", "3B", "SS", "LF", "CF", "RF", "C", "RP", "CP")
 
 FR_MAX_STRIKES = 3
-FR_MAX_LINK_OPTIONS = 3
+FR_MAX_LINK_OPTIONS = 4
 
 FR_STABLE_HEADSHOT_PROVIDERS = {
     "baseball": {"MLBAM", "OOTP Facepack"},
@@ -7514,12 +7514,11 @@ def _film_pair_key(first: str, second: str) -> tuple[str, str]:
     return tuple(sorted((first, second)))
 
 
-def _film_history_constraints(conn, sport: str, puzzle_day: date) -> tuple[set[str], set[tuple[str, str]]]:
-    """Return prior Film Review openings and adjacent pairs for this sport.
+def _film_history_constraints(conn, sport: str, puzzle_day: date) -> tuple[set[str], set[str], set[tuple[str, str]]]:
+    """Return prior Film Review players, openings, and adjacent pairs for this sport.
 
     The archive is intentionally stable, so future daily puzzles should avoid
-    reusing the same opening players or exact teammate pairings from earlier
-    stored tapes.
+    reusing players or exact teammate pairings from earlier stored tapes.
     """
     rows = conn.execute(
         """SELECT puzzle FROM film_review_daily_puzzles
@@ -7527,28 +7526,34 @@ def _film_history_constraints(conn, sport: str, puzzle_day: date) -> tuple[set[s
         (sport, puzzle_day),
     ).fetchall()
     opening_players: set[str] = set()
+    all_players: set[str] = set()
     adjacent_pairs: set[tuple[str, str]] = set()
     for (puzzle,) in rows:
         deck = list((puzzle or {}).get("deck") or [])
         if len(deck) >= 2:
             opening_players.update(deck[:2])
+        all_players.update(deck)
         for index in range(len(deck) - 1):
             adjacent_pairs.add(_film_pair_key(deck[index], deck[index + 1]))
-    return opening_players, adjacent_pairs
+    return all_players, opening_players, adjacent_pairs
 
 
 def _film_puzzle_repeats_history(conn, sport: str, puzzle_day: date, puzzle: dict) -> bool:
     deck = list(puzzle.get("deck") or [])
     if len(deck) < 2:
         return True
-    opening_players, adjacent_pairs = _film_history_constraints(conn, sport, puzzle_day)
-    if any(player_id in opening_players for player_id in deck[:2]):
+    all_players, opening_players, adjacent_pairs = _film_history_constraints(conn, sport, puzzle_day)
+    if sport == "football":
+        if any(player_id in opening_players for player_id in deck[:2]):
+            return True
+    elif any(player_id in all_players for player_id in deck):
         return True
     return any(_film_pair_key(deck[index], deck[index + 1]) in adjacent_pairs for index in range(len(deck) - 1))
 
 
 def generate_baseball_film_review(conn, puzzle_day: date, seed_suffix: str = "",
                                   banned_opening_players: set[str] | None = None,
+                                  banned_players: set[str] | None = None,
                                   banned_adjacent_pairs: set[tuple[str, str]] | None = None) -> dict:
     """Build one stable, role-aware baseball lineup for a calendar day.
 
@@ -7715,22 +7720,27 @@ def generate_baseball_film_review(conn, puzzle_day: date, seed_suffix: str = "",
         return sorted(options, key=lambda item: (eligible[item[0]], item[1][1]), reverse=True)
 
     banned_opening_players = banned_opening_players or set()
+    banned_players = banned_players or set()
     banned_adjacent_pairs = banned_adjacent_pairs or set()
     rng = random.Random(f"baseball:{puzzle_day.isoformat()}:{seed_suffix}")
     for _ in range(500):
         first = [
             player_id
             for player_id in sorted(pools[BASEBALL_FR_SLOTS[0]], key=pools[BASEBALL_FR_SLOTS[0]].get, reverse=True)
-            if player_id not in banned_opening_players and player_id in recent_players
+            if player_id not in banned_players and player_id not in banned_opening_players and player_id in recent_players
         ]
         if not first:
             first = [
                 player_id
                 for player_id in sorted(pools[BASEBALL_FR_SLOTS[0]], key=pools[BASEBALL_FR_SLOTS[0]].get, reverse=True)
-                if player_id not in banned_opening_players
+                if player_id not in banned_players and player_id not in banned_opening_players
             ]
         if not first:
-            first = sorted(pools[BASEBALL_FR_SLOTS[0]], key=pools[BASEBALL_FR_SLOTS[0]].get, reverse=True)
+            first = [
+                player_id
+                for player_id in sorted(pools[BASEBALL_FR_SLOTS[0]], key=pools[BASEBALL_FR_SLOTS[0]].get, reverse=True)
+                if player_id not in banned_players
+            ]
         deck = [rng.choice(first[:min(12, len(first))])]
         used_players, used_links = {deck[0]}, set()
         failed = False
@@ -7740,6 +7750,7 @@ def generate_baseball_film_review(conn, puzzle_day: date, seed_suffix: str = "",
                 if _film_pair_key(deck[-1], item[0]) not in banned_adjacent_pairs
                    and not (slot_index == 1 and item[0] in banned_opening_players)
                    and not (slot_index == 1 and item[0] not in recent_players)
+                   and item[0] not in banned_players
             ]
             preferred_floor = _fr_early_choice_floor("baseball", slot_index)
             if preferred_floor:
@@ -8260,17 +8271,12 @@ def _film_puzzle_connections_are_clean(conn, sport: str, deck: list[str]) -> boo
     if len(deck) < 2:
         return False
     all_shared = _fr_compute_shared(conn, deck) if sport == "baseball" else None
-    used_links: set[tuple[str, int]] = set()
     for index in range(len(deck) - 1):
         shared = all_shared[index] if all_shared is not None else _sport_fr_shared(
             conn, sport, deck[index], deck[index + 1]
         )
         if not shared or len(shared) > FR_MAX_LINK_OPTIONS:
             return False
-        link_keys = {(team_id, int(season)) for team_id, season, *_rest in shared}
-        if link_keys & used_links:
-            return False
-        used_links.update(link_keys)
     return True
 
 
@@ -8406,11 +8412,9 @@ def _static_film_puzzle_payload_ready(puzzle: dict, sport: str, puzzle_day: date
     shared = puzzle.get("shared_per_pair")
     if not isinstance(shared, list) or len(shared) != len(deck) - 1:
         return False
-    used_links: set[tuple[str, int]] = set()
     for pair in shared:
         if not isinstance(pair, list) or not pair or len(pair) > FR_MAX_LINK_OPTIONS:
             return False
-        pair_links: set[tuple[str, int]] = set()
         for row in pair:
             if not isinstance(row, list) or len(row) < 3:
                 return False
@@ -8418,18 +8422,15 @@ def _static_film_puzzle_payload_ready(puzzle: dict, sport: str, puzzle_day: date
             if not team_id:
                 return False
             try:
-                season = int(season)
+                int(season)
             except (TypeError, ValueError):
                 return False
-            pair_links.add((str(team_id), season))
-        if pair_links & used_links:
-            return False
-        used_links.update(pair_links)
     return True
 
 
 def _build_film_review_puzzle_with_history(conn, sport: str, puzzle_day: date, unit: str | None) -> dict:
-    banned_opening_players, banned_adjacent_pairs = _film_history_constraints(conn, sport, puzzle_day)
+    banned_players, banned_opening_players, banned_adjacent_pairs = _film_history_constraints(conn, sport, puzzle_day)
+    generator_banned_players = set() if sport == "football" else banned_players
     last_error: Exception | None = None
     for salt in range(80):
         seed_suffix = "" if salt == 0 else f"alt{salt}"
@@ -8440,6 +8441,7 @@ def _build_film_review_puzzle_with_history(conn, sport: str, puzzle_day: date, u
                     puzzle_day,
                     seed_suffix=seed_suffix,
                     banned_opening_players=banned_opening_players,
+                    banned_players=generator_banned_players,
                     banned_adjacent_pairs=banned_adjacent_pairs,
                 )
             else:
@@ -8450,6 +8452,7 @@ def _build_film_review_puzzle_with_history(conn, sport: str, puzzle_day: date, u
                     puzzle_day=puzzle_day,
                     seed_suffix=seed_suffix,
                     banned_opening_players=banned_opening_players,
+                    banned_players=generator_banned_players,
                     banned_adjacent_pairs=banned_adjacent_pairs,
                 )
                 puzzle = {
