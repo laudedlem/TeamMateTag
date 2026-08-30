@@ -3,6 +3,167 @@
 Update this file whenever product behavior, deployment, data, or active work
 changes. It is the concise source of truth for another coding assistant.
 
+## TMT5 quick handoff
+
+This is the recommended starting context for a new TeamMateTag chat. Read this
+section first, then use the detailed dated log below only when a specific older
+decision needs context.
+
+### Current production state
+
+- Production is `https://teammatetag.com`; Vercel deployment alias is
+  `https://teammatetag.vercel.app`.
+- Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
+  `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
+- Current display version is `0.5.06`, deployed from commit `f5e3fd8`.
+- Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
+  Storage, Supabase Auth, and a server-side session cookie.
+- The user playtests on the live site, not local. When deploying code changes,
+  commit and push to `main`, then verify the live page shows the new version.
+- Do not print or commit `.env`, Supabase passwords, Vercel tokens, or service
+  role keys. `.env.example` documents required variables.
+
+### Product shape
+
+- Main sports: Baseball, Basketball, Football, Hockey.
+- Main modes:
+  - Manager Mode: solo timed teammate chain.
+  - Film Review: daily puzzle where users guess the team and season linking
+    adjacent players.
+  - Division Rivalry: multiplayer shared chain.
+  - Playoffs: multiplayer shared chain with Powerups and Win Conditions.
+- The user cares a lot about visual polish, compact mobile-friendly layouts,
+  capitalization consistency, player-card clarity, and fast live-site loading.
+- The app should feel like a usable game first, not a landing page. Root home
+  and mode hubs should stay colorful and direct.
+
+### Non-negotiable data policy
+
+- Production Supabase must stay compact. Full raw boxscores, player-game rows,
+  snap data, source downloads, and large working files stay local under `raw/`.
+- New data must be fetched locally, refined into compact runtime artifacts, and
+  only then uploaded to Supabase.
+- Supabase Postgres should hold compact query-critical gameplay data:
+  players, teams, appearances/stints, compact teammate team-season proofs,
+  search/card rollups, coverage flags, headshot status/object paths, mutable
+  game/profile/friend/leaderboard state, and small derived qualifiers where
+  query speed needs them.
+- Supabase Storage should hold optimized static/file payloads:
+  headshot WebPs, static Film Review puzzle mirrors, manifests, and other
+  small runtime JSON/gzip artifacts.
+- Do not recreate old direct-to-Supabase importers, emergency purge scripts,
+  raw-data upload paths, or redundant proof tables. Cleanup should delete
+  replaced obsolete scripts/data, not merely add more guards around them.
+- Runtime schema migrations are skipped during ordinary gameplay. Set
+  `TEAMMATETAG_AUTO_MIGRATE=1` only for an intentional migration run, then
+  remove it again.
+
+### Current data/runtime facts
+
+- Supabase database size after the latest hygiene audit: about `394 MB`.
+- Local compact teammate rows:
+  - Baseball: `833,431`
+  - Basketball: `106,107`
+  - Hockey: `399,622`
+  - Football: `1,550,846`
+- Headshot coverage:
+  - Baseball: `7,389/7,389` verified.
+  - Basketball: `2,601/2,601` verified.
+  - Hockey: `4,655/4,655` verified.
+  - Football: `8,642/11,775` verified overall, `3,951/4,692` verified among
+    players with 50+ games. The `3,133` unresolved Football players are listed
+    in file-storage missing manifests and should be excluded from photo-required
+    starters and Film Review puzzles.
+- Optimized file-storage headshots are mirrored locally under
+  `raw/file_storage/player-headshots/` and in Supabase Storage:
+  Baseball about `20.1 MB`, Basketball `13.3 MB`, Hockey `32.7 MB`,
+  Football `38.3 MB`.
+- Active local audit command: `python -u scripts\audit_runtime_data_hygiene.py`.
+  It should pass before deploying data-related work.
+
+### Recent deployed work
+
+- `0.5.00`: replaced the bloated Supabase runtime with compact locally refined
+  data and uploaded optimized file-storage headshots/static artifacts.
+- `0.5.01`: rebuilt Film Review puzzles to be easier: more recent/popular
+  players, wider candidate pools, 1-3 or later 1-4 acceptable links.
+- `0.5.02`: made cross-sport Film Review archives fast by trusting complete
+  static puzzle payloads instead of regenerating validation-heavy payloads.
+- `0.5.03`: improved Film Review headshot load priority.
+- `0.5.04`: fixed Corey Ivy/generic NFL silhouette issue by requiring canonical
+  verified headshots for Football Film Review payloads.
+- `0.5.05`: rebuilt Film Review archive/today rows through `2026-08-30` with
+  player-repeat caps. Baseball, Basketball, and Hockey have no repeated players
+  across that rebuilt range. Football allows controlled repeats only for
+  notable long-career/stat-qualified players and bans missing-headshot players.
+- `0.5.06`: extended eager headshot preloading to Manager Mode, Division
+  Rivalry, Playoffs, and Manager hub starters. Also fixed cross-year card
+  labels for traded players so overlapping stints do not display confusingly.
+  Verified example: Connor Murphy displays `Chicago Blackhawks 2017-2025` and
+  `Edmonton Oilers 2026`, while the underlying `2025-26` season remains intact
+  for gameplay.
+
+### Important implementation notes
+
+- Shared app code is mostly in:
+  - `web/server.py`
+  - `web/static/main.js`
+  - `web/static/mode_hub.js`
+  - `web/static/style.css`
+- Film Review generator is in `game/film_review_generator.py`.
+- Static Film Review rebuild script:
+  `scripts/rebuild_static_cross_sport_film_review.py`.
+- File-storage upload helper:
+  `scripts/upload_file_storage_to_supabase.py`.
+- Active compact live updaters:
+  - `scripts/update_mlb_compact_live.py`
+  - `scripts/update_cross_sport_compact_live.py`
+  - `scripts/update_nfl_compact_live.py`
+- Active canonical headshot refresh:
+  `scripts/refresh_canonical_headshot_artifacts.py`.
+- Player-card cross-year display logic is intentionally display-only. Do not
+  change underlying teammate proof seasons just to make card text look cleaner.
+- Baseball has a pitcher exception: same-team-season pitcher pairs are added as
+  teammates even when same-game proof is absent because starting pitchers can be
+  true teammates without appearing in the same game.
+- The true teammate rule elsewhere is strict same-game appearance/snap/time on
+  team where available.
+
+### Verification checklist before claiming a deploy is good
+
+- `python -m py_compile web\server.py`
+- Use bundled Node if system Node is unavailable:
+  `C:\Users\laude\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe --check web\static\main.js`
+  and `--check web\static\mode_hub.js`.
+- For data/storage changes: `python -u scripts\audit_runtime_data_hygiene.py`.
+- After push, verify live HTML contains the new version string.
+- Smoke test live endpoints as relevant:
+  - `/api/manager/tiles`
+  - `/api/bp/new`
+  - `/api/sports/<sport>/bp/new`
+  - `/api/film/archive_summary`
+  - `/api/film/previews`
+  - `/api/fr/new`
+  - `/api/sports/<sport>/fr/new`
+  - multiplayer queue/cancel endpoints for Division and Playoffs.
+
+### Suggested next priorities
+
+- Finish launch-readiness QA: desktop/mobile route and mode checklist for home,
+  Manager, Film Review, Division Rivalry, Playoffs, Profile/Friends, guest flow,
+  login/register/logout, archives, rematches, Powerups, and Win Conditions.
+- Build a lightweight Film Review puzzle QA/review dashboard showing upcoming
+  puzzles, headshots, links, difficulty, repeats, missing-photo flags, and a
+  regenerate/approve flow.
+- Harden daily updater monitoring for all sports: local fetch/refine, compact
+  upload, headshot refresh, qualifiers/search/player-card updates, and alerting
+  when an update fails or Supabase size drifts.
+- Continue mobile polish, especially Playoffs panels, search ergonomics,
+  modals, archives, and card stack sizing.
+- Decide what "launch" means: recommended soft-launch standard is that a
+  stranger can visit, understand the basics, play Manager and Film Review
+  smoothly, keep a profile, and return tomorrow with updated daily content.
+
 ## Product and deployment
 
 - Production: `https://teammatetag.com`
