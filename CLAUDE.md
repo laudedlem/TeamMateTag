@@ -83,6 +83,50 @@ decision needs context.
 
 ### Recent deployed work
 
+- `0.4.20`: visible version bumps resumed after the compact Supabase recovery.
+  Manager hub starter overlap/crowding began getting cleaned up, Film Review
+  hub labels got more room, and the MLB live updater was adapted to the compact
+  Supabase proof schema.
+- `0.4.21`-`0.4.23`: Manager hub sport tiles were iterated after Basketball
+  overlapped the starter card. The final preferred direction restored the old
+  side-by-side tile layout and simply moved Basketball/Football starter content
+  toward the right-side icon space, while Baseball/Hockey remain more centered.
+- `0.4.24`: major offline-only compact runtime build. The local artifact
+  `raw/runtime_compact/teammatetag_runtime_minimal.sqlite` was created to hold
+  only essential runtime data: players, teams, card/search rollups,
+  player-team-season stints, headshots, position/trait helpers, coverage, and
+  compact teammate team-season proofs. No raw boxscore/game/snap rows should be
+  copied into this artifact or Supabase.
+- `0.4.25`: built the local-first compact MLB 2026 live updater. It fetches
+  completed MLB games locally, stores raw/source rows under
+  `raw/mlb_live_runtime/`, derives compact appearances/stints/stats/proofs, and
+  uploads only compact runtime rows. It verified current-player links such as
+  Tarik Skubal to Shohei Ohtani/Mookie Betts/Freddie Freeman.
+- `0.4.26`: tightened the local-first data contract. Legacy direct MLB live
+  updater paths were made to refuse production writes, 2026 Baseball Playoffs
+  traits/powerup qualifications were moved into the local compact build, and
+  `scripts/audit_runtime_data_hygiene.py` became the guardrail for compact data,
+  local source rows, workflows, and empty staging tables.
+- `0.4.27`: added matching local-first compact live updaters for upcoming NBA,
+  NHL, and NFL seasons. Basketball/Hockey use
+  `scripts/update_cross_sport_compact_live.py`; Football uses
+  `scripts/update_nfl_compact_live.py` from nflverse snap counts. The scheduled
+  GitHub workflows now call compact updaters with upload/prune flags instead of
+  legacy direct writers. Offseason no-op behavior is expected.
+- `0.4.28`: added Baseball pitcher-only teammate exceptions to the compact
+  matrix. Strict same-game proof remains the default, but pitcher pairs on the
+  same team-season are valid even without shared-game proof because starting
+  pitchers can be true teammates without appearing in the same game. Verified
+  Kershaw/Greinke.
+- `0.4.29`: cleaned live-data script architecture. Source fetching/date/parsing
+  helpers moved into neutral clients like `scripts/live_mlb_client.py` and
+  `scripts/live_nhl_client.py`, and compact updaters import those instead of
+  legacy direct writers. Obsolete direct-to-Supabase live scripts and old
+  playoff loaders were deleted; the audit verifies they stay deleted.
+- `0.4.30`: repo/data bloat cleanup. Removed large/generated tracked review
+  artifacts, emergency Supabase purge/trim scripts, and SQL helpers that are no
+  longer part of the active compact loadout. The top-level deployment policy now
+  explicitly says production is runtime-only and raw data stays local.
 - `0.5.00`: replaced the bloated Supabase runtime with compact locally refined
   data and uploaded optimized file-storage headshots/static artifacts.
 - `0.5.01`: rebuilt Film Review puzzles to be easier: more recent/popular
@@ -128,6 +172,41 @@ decision needs context.
   true teammates without appearing in the same game.
 - The true teammate rule elsewhere is strict same-game appearance/snap/time on
   team where available.
+
+### Earlier UI/UX context worth preserving
+
+- Player cards went through extensive polish before the data rebuild. They
+  should keep the color-washed background based on the player's three longest
+  team tenures, should never force the player name into awkward wrapping or
+  clipping, and should show team-season rows chronologically: fill the left side
+  first, then the right side. Team-season text should be aligned to the side it
+  lives on, without boxed year pills.
+- Cross-year season labels should be clear but not corrupt gameplay. Links and
+  Film Review answers still use the true season (`2025-26`), while player-card
+  stint labels can use display-only calendar ranges to avoid overlap confusion
+  for traded players.
+- Film Review lineup graphics were rebuilt sport by sport and should remain
+  simple sport-surface diagrams:
+  - Baseball: red site-themed diamond, bases/mound, outfield wall, dugout and
+    bullpen areas, 12 cards including DH/RP/CP.
+  - Basketball: flattened half court with bench column at left, hoop/baseline at
+    bottom, starters on court and bench in the side area.
+  - Hockey: blue rink theme, bench off-ice at left, red center/icing line, blue
+    line, faceoff dots/circles, crease/net at bottom, goalie in net.
+  - Football: compact field with distinct end zone and uprights at bottom,
+    side hashmarks, offense attacking the end zone and defense protecting it.
+- Film Review graphics default collapsed when opening archived/review games.
+- The root homepage's eight main tiles should stay colorful/vibrant with smoky
+  color texture, thick colored borders, larger sport/mode names, readable white
+  text, and bottom-left description placement. Do not drift back to washed-out
+  diagonal gradients.
+- Playoffs in-game panels were repeatedly adjusted: Powerups and Win Conditions
+  should use horizontal space efficiently, avoid awkward left-aligned summaries,
+  avoid overlapping icons/text, and keep opponent Powerups visually secondary.
+- Copy style matters. Use the user's capitalization style consistently across
+  boxes, queues, modals, feedback, and game-over screens: terms like TeamMates,
+  Team-Season, Lineup, Player, Powerups, Win Conditions should not randomly
+  appear lowercase in polished UI.
 
 ### Verification checklist before claiming a deploy is good
 
