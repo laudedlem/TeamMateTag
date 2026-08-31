@@ -188,6 +188,7 @@ let launchReturnPath = '';
 let feedbackExpandedKey = '';
 let feedbackRenderedKey = '';
 const expandedWinBoxes = new Set();
+let renderedWinGameId = '';
 
 let acItems = [];
 let acHighlight = -1;
@@ -1441,12 +1442,12 @@ function showGameOverBanner() {
     const outSummary = ({ baseball: 'Struck Out', basketball: 'Fouled Out', football: 'Punted', hockey: 'with Game Misconducts' })[CURRENT_SPORT] || 'Out';
     els.winnerText.textContent = game.winner ? `${game.winner} Wins!` : 'Game Over.';
     if (currentMode === 'po' && game.last_move?.win_condition_completed) {
-      const playerName = game.last_move.display_name || game.chain[game.chain.length - 1]?.name || 'The Final Player';
-      els.gameOverSummary.textContent =
-        `${playerName} Completed ${game.last_move.win_condition_label}. Lineup of ${game.chain.length}. ${teamsOut} Team${teamsOut === 1 ? '' : 's'} ${outSummary}.`;
+      els.gameOverSummary.innerHTML =
+        `${gameOverWinConditionHtml()}<span class="game-over-detail">Lineup of ${game.chain.length}. ${teamsOut} Team${teamsOut === 1 ? '' : 's'} ${outSummary}.</span>`;
     } else {
+      const reason = game.last_move?.outcome === 'timeout' && game.winner ? `${game.winner} won on time. ` : '';
       els.gameOverSummary.textContent =
-        `Lineup of ${game.chain.length}. ${teamsOut} Team${teamsOut === 1 ? '' : 's'} ${outSummary}.`;
+        `${reason}Lineup of ${game.chain.length}. ${teamsOut} Team${teamsOut === 1 ? '' : 's'} ${outSummary}.`;
     }
     if (game.last_move?.outcome === 'forfeit') {
       els.playAgainBtn.hidden = true;
@@ -1880,32 +1881,32 @@ function powerupIconHtml(key) {
 }
 
 function compactPowerupHint(powerup) {
-  const key = powerup?.key || '';
+  const key = powerup?.key || powerup?.powerup_key || '';
   const sport = CURRENT_SPORT || 'baseball';
   const map = {
     bubblegum: '40+ HR same franchise. +5s',
     pine_tar: '200+ K same franchise. +5s',
-    bat_donut: 'Silver Slugger link. +5s',
-    sunglasses: 'All-Star link. +5s',
-    backup_mitt: 'Gold Glove link. +5s',
+    bat_donut: 'Silver Slugger same franchise. +5s',
+    sunglasses: 'All-Star same franchise. +5s',
+    backup_mitt: 'Gold Glove same franchise. +5s',
     abs: '+15s now',
     quick_pitch: 'Opponent gets 10s',
     heat_check: '2,000-point season. +5s',
     sixth_man: '7,000 assists. +5s',
-    switch: 'Same position link. +5s',
-    mvp_badge: sport === 'hockey' ? 'Hart winner link. +5s' : 'MVP link. +5s',
-    all_star_callup: 'All-Star link. +5s',
+    switch: 'Same position, same franchise. +5s',
+    mvp_badge: sport === 'hockey' ? 'Hart winner same franchise. +5s' : 'MVP same franchise. +5s',
+    all_star_callup: 'All-Star same franchise. +5s',
     timeout: '+15s now',
     full_court_press: 'Opponent gets 10s',
     trick_play: '20+ TD season. +5s',
     iron_man: '100+ games. +5s',
-    package_change: 'Same position link. +5s',
-    pro_bowl_callup: 'Pro Bowl link. +5s',
+    package_change: 'Same position, same franchise. +5s',
+    pro_bowl_callup: 'Pro Bowl same franchise. +5s',
     blitz: 'Opponent gets 10s',
     breakaway: '400+ goals. +5s',
     veteran_presence: '800+ points. +5s',
-    line_change: 'Same position link. +5s',
-    hart_honor: 'Hart winner link. +5s',
+    line_change: 'Same position, same franchise. +5s',
+    hart_honor: 'Hart winner same franchise. +5s',
     forecheck: 'Opponent gets 10s',
   };
   return map[key] || gameCopyStyle(powerup?.description || '');
@@ -1913,6 +1914,7 @@ function compactPowerupHint(powerup) {
 
 function powerupLockedLabel() {
   if (game?.finished) return 'Game Over';
+  if (playoffOpeningLocked()) return 'Move 5 Unlocks';
   if ((game?.countdown_seconds_remaining || 0) > 0) {
     return ({
       baseball: 'After Leadoff',
@@ -1930,8 +1932,8 @@ function powerupActivationText(move) {
   const powerups = game?.powerups?.your_powerups || [];
   const powerup = powerups.find((item) => item.key === move?.powerup_key);
   const label = move?.powerup_label || powerup?.label || 'Powerup';
-  const description = gameCopyStyle(powerup?.description || '');
-  if (description) return `${label} Activated. ${description}`;
+  const description = compactPowerupHint(powerup || move);
+  if (description) return `${label} Powerup: ${description}`;
   return gameCopyStyle(move?.message || `${label} Activated.`);
 }
 
@@ -2004,6 +2006,22 @@ function renderWinPips(progress, target) {
   return pips.join('');
 }
 
+function playoffMoveCount() {
+  return Math.max(0, (game?.chain?.length || 1) - 1);
+}
+
+function playoffOpeningLockMoves() {
+  return Number(game?.powerups?.opening_lock_moves || 4);
+}
+
+function playoffOpeningLocked() {
+  return currentMode === 'po' && playoffMoveCount() < playoffOpeningLockMoves();
+}
+
+function playoffWinConditionsLocked() {
+  return currentMode === 'po' && playoffMoveCount() <= playoffOpeningLockMoves();
+}
+
 function chainSideForIndex(index) {
   if (index <= 0) return null;
   return index % 2 === 1 ? 'p1' : 'p2';
@@ -2028,6 +2046,33 @@ function fulfilledWinPlayersHtml(players) {
   }).join('')}</div>`;
 }
 
+function gameOverConditionSide() {
+  if (!game?.last_move?.win_condition_completed) return null;
+  if (game.winner === game.p1) return 'p1';
+  if (game.winner === game.p2) return 'p2';
+  return chainSideForIndex((game.chain || []).length - 1);
+}
+
+function conditionForSide(side) {
+  if (!side || !game?.win_conditions) return null;
+  if (side === game.your_side) return game.win_conditions.your_condition;
+  return game.win_conditions.opponent_condition;
+}
+
+function gameOverWinConditionHtml() {
+  const side = gameOverConditionSide();
+  const condition = conditionForSide(side);
+  if (!condition) return '';
+  const players = fulfilledWinPlayers(side);
+  const finalPlayer = game.last_move?.display_name || game.chain?.[game.chain.length - 1]?.name || 'Final Player';
+  const progress = Number(condition.progress || game.last_move?.win_condition_progress || 0);
+  const target = Number(condition.target || game.last_move?.win_condition_target || 0);
+  return `<span class="game-over-detail"><strong>${escapeHtml(finalPlayer)}</strong> finished <strong>${escapeHtml(condition.label || game.last_move?.win_condition_label || 'Win Condition')}</strong>.</span>
+    <span class="game-over-detail">${escapeHtml(gameCopyStyle(condition.description || ''))}</span>
+    <span class="game-over-detail">${progress}/${target} complete.</span>
+    ${fulfilledWinPlayersHtml(players)}`;
+}
+
 function renderWinBox(box, nameEl, descEl, pipsEl, condition, boxKey, side) {
   if (!box) return;
   const expanded = expandedWinBoxes.has(boxKey);
@@ -2039,7 +2084,7 @@ function renderWinBox(box, nameEl, descEl, pipsEl, condition, boxKey, side) {
   nameEl.textContent = label;
   pipsEl.innerHTML = condition ? renderWinPips(Math.min(progress, target), target) : '';
   descEl.innerHTML = condition
-    ? `<span class="win-progress-count">${progress}/${target}</span>${expanded ? `<em>${escapeHtml(gameCopyStyle(condition.description || ''))}</em>${fulfilledWinPlayersHtml(fulfilledWinPlayers(side))}` : ''}`
+    ? (expanded ? `<span class="win-progress-count">${progress}/${target}</span><em>${escapeHtml(gameCopyStyle(condition.description || ''))}</em>${fulfilledWinPlayersHtml(fulfilledWinPlayers(side))}` : '')
     : '';
 }
 
@@ -2048,6 +2093,10 @@ function renderWinConditions() {
   els.winPanel.hidden = !isPo;
   els.winPanel.style.display = isPo ? '' : 'none';
   if (!isPo) return;
+  if (renderedWinGameId !== game.game_id) {
+    expandedWinBoxes.clear();
+    renderedWinGameId = game.game_id || '';
+  }
   const your = game.win_conditions.your_condition;
   const opp = game.win_conditions.opponent_condition;
   const yourSide = game.your_side;
@@ -2061,6 +2110,15 @@ function renderMpGame() {
   els.currentPlayerName.textContent = game.current_player.name;
   els.turnCard.classList.toggle('your-turn', !!game.your_turn);
   els.turnCard.classList.toggle('opponent-turn', !game.your_turn);
+  els.turnCard.classList.toggle('playoffs-opening-locked', playoffOpeningLocked());
+  els.turnCard.classList.toggle('playoffs-powerup-active', currentMode === 'po' && !!(game.powerups?.active_turn_powerup || game.last_move?.powerup_key));
+  Object.values(POWERUP_UI).forEach((ui) => {
+    if (ui?.className) els.turnCard.classList.remove('powerup-' + ui.className);
+  });
+  const activePowerupKey = currentMode === 'po'
+    ? (game.powerups?.active_turn_powerup?.key || game.last_move?.powerup_key || '')
+    : '';
+  if (activePowerupKey) els.turnCard.classList.add('powerup-' + powerupClass(activePowerupKey));
   els.timer.classList.toggle('your-turn', !!game.your_turn);
   els.timer.classList.toggle('opponent-turn', !game.your_turn);
   setGuessDisabled(game.finished || (game.countdown_seconds_remaining || 0) > 0 || !game.your_turn);
@@ -2240,16 +2298,20 @@ function renderPowerups() {
   const opp = game.powerups.opponent_powerups || [];
   const unused = your.filter((powerup) => !powerup.used).length;
   const oppUnused = opp.filter((powerup) => !powerup.used).length;
+  const openingLocked = playoffOpeningLocked();
   const summary = els.powerupPanel.querySelector('summary');
   if (summary) {
     summary.innerHTML = `<span class="powerup-summary-main">Powerups</span><span>${unused} Unused</span><small>${oppUnused} Opponent</small>`;
   }
-  const buttonsDisabled = !game.your_turn || game.finished || !!game.powerups.turn_powerup_used || (game.countdown_seconds_remaining || 0) > 0;
+  els.powerupPanel.classList.toggle('powerups-opening-locked', openingLocked);
+  const buttonsDisabled = openingLocked || !game.your_turn || game.finished || !!game.powerups.turn_powerup_used || (game.countdown_seconds_remaining || 0) > 0;
   const buttonState = powerupLockedLabel();
-  const availability = game.your_turn
+  const availability = openingLocked
+    ? `Locked Until Move ${playoffOpeningLockMoves() + 1}`
+    : game.your_turn
     ? (game.powerups.turn_powerup_used ? 'Powerup Used This Turn' : 'One Use Each Game')
     : ((game.countdown_seconds_remaining || 0) > 0 ? 'Powerups Open After the First Play' : 'Available On Your Turn');
-  els.yourPowerupName.textContent = `Your Powerups - ${availability}`;
+  els.yourPowerupName.textContent = `Your Powerups - ${availability}${openingLocked ? '' : ' - Same Franchise Plays'}`;
   els.oppPowerupName.textContent = 'Opponent Powerups';
   els.yourPowerupDesc.innerHTML = your.length
     ? your.map((powerup) => powerupButtonHtml(powerup, buttonsDisabled || powerup.used, buttonState)).join('')

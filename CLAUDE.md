@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.5.14`, deployed from the latest pushed `main`
+- Current display version is `0.5.15`, deployed from the latest pushed `main`
   commit.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -220,6 +220,14 @@ decision needs context.
   buttons use terse action hints, powerup chain badges show only the name in
   their powerup color, Win Condition boxes collapse by default and expand on
   click to show progress, description, and qualifying players.
+- `0.5.15`: Playoffs opening turns now block both Powerups and Win Condition
+  scoring until move 5, matching the “each player plays twice first” rule and
+  preventing bots from opening with pressure Powerups. Collapsed Win Condition
+  boxes show only the condition name and progress dots; expanded boxes show
+  progress text, wrapped description, and qualifying players on a bottom row.
+  Powerup activation and lock states are more visible with matching colored
+  turn-card borders, and Playoffs game-over summaries now explain condition
+  wins with the target and qualifying players.
 
 ### Important implementation notes
 
@@ -323,7 +331,7 @@ decision needs context.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.5.14`
+- Current display version: `0.5.15`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog policy: production is runtime-only. Keep compact

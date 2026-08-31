@@ -9619,7 +9619,7 @@ body[data-mode-hub="manager"] .manager-starter-name span {
   font-feature-settings: "tnum" 1;
 }
 
-/* 0.5.14: compact Playoffs controls for shorter screens. */
+/* 0.5.14/0.5.15: compact Playoffs controls for shorter screens. */
 .turn-card {
   padding: 0.82rem 0.92rem 0.95rem;
 }
@@ -9654,6 +9654,7 @@ body[data-mode-hub="manager"] .manager-starter-name span {
   color: var(--text);
   font: inherit;
   cursor: pointer;
+  overflow: visible;
 }
 
 .win-box:hover {
@@ -9694,9 +9695,14 @@ body[data-mode-hub="manager"] .manager-starter-name span {
 }
 
 .win-box em {
+  display: block;
   margin-top: 0.26rem;
-  font-size: 0.74rem;
-  line-height: 1.22;
+  max-width: 100%;
+  white-space: normal;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  line-height: 1.18;
+  overflow-wrap: anywhere;
 }
 
 .win-box.expanded {
@@ -9709,6 +9715,7 @@ body[data-mode-hub="manager"] .manager-starter-name span {
   grid-template-columns: repeat(auto-fit, minmax(5.7rem, 1fr));
   gap: 0.32rem;
   margin-top: 0.4rem;
+  width: 100%;
 }
 
 .win-hit-player {
@@ -9780,8 +9787,9 @@ body[data-mode-hub="manager"] .manager-starter-name span {
 }
 
 .powerup-panel[open] #your-powerup-desc .powerup-desc {
-  font-size: 0.66rem;
-  line-height: 1.04;
+  font-size: 0.62rem;
+  line-height: 1.08;
+  overflow-wrap: anywhere;
 }
 
 .powerup-panel[open] #your-powerup-desc .powerup-state {
@@ -9795,6 +9803,52 @@ body[data-mode-hub="manager"] .manager-starter-name span {
   color: color-mix(in srgb, var(--badge-color) 58%, #ffffff);
   letter-spacing: 0;
   text-transform: none;
+}
+
+.turn-card.playoffs-opening-locked {
+  border-color: color-mix(in srgb, #facc15 72%, var(--border));
+  box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.34), var(--shadow-sm);
+}
+
+.turn-card.playoffs-opening-locked .turn-header::after {
+  content: "Powerups and Win Conditions unlock on move 5";
+  color: #facc15;
+  font-size: 0.68rem;
+  font-weight: 900;
+  line-height: 1.1;
+  margin-left: auto;
+  max-width: 11rem;
+  text-align: right;
+}
+
+.turn-card.playoffs-powerup-active {
+  border-color: color-mix(in srgb, var(--chip-color, var(--accent)) 78%, var(--border));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--chip-color, var(--accent)) 38%, transparent), var(--shadow-sm);
+}
+
+.powerups-opening-locked > summary {
+  border-color: rgba(250, 204, 21, 0.58);
+  color: #facc15;
+}
+
+.powerups-opening-locked .powerup-chip {
+  opacity: 0.52;
+}
+
+.feedback .bad,
+.feedback .burn {
+  border-left: 3px solid currentColor;
+  display: inline-block;
+  padding-left: 0.45rem;
+}
+
+.game-over-detail {
+  display: block;
+  margin-top: 0.22rem;
+}
+
+#game-over-summary .win-hit-list {
+  margin-top: 0.48rem;
 }
 
 @media (max-width: 760px) {

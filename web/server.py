@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.5.14"
+APP_VERSION = "0.5.15"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -213,6 +213,7 @@ BOT_MATCH_JITTER_SECONDS = 3
 BOT_TURN_MIN_THINK_SECONDS = 2.4
 BOT_TURN_JITTER_SECONDS = 4.2
 BOT_WIN_CONDITION_MISS_PERCENT = 8
+PLAYOFF_OPENING_LOCK_MOVES = 4
 BOT_NAMES = [
     "Guest b31d9a2c",
     "Guest c84f6e10",
@@ -1839,6 +1840,7 @@ def _playoff_powerup_state(blob: dict, viewer_guest_id: str | None) -> dict:
         } if active_key else None,
         "next_turn_seconds_override": blob.get("next_turn_seconds_override"),
         "turn_powerup_used": bool(blob.get("turn_powerup_used")),
+        "opening_lock_moves": PLAYOFF_OPENING_LOCK_MOVES,
     }
 
 
@@ -4829,6 +4831,7 @@ def _local_po_powerup_state(game: dict, viewer_guest_id: str) -> dict:
         "your_powerups": payload(your_side), "opponent_powerups": payload(other),
         "active_turn_powerup": {"key": active, "label": config[active]["label"]} if active else None,
         "turn_powerup_used": bool(game.get("turn_powerup_used")),
+        "opening_lock_moves": PLAYOFF_OPENING_LOCK_MOVES,
     }
 
 
@@ -5041,6 +5044,8 @@ def local_po_powerup(sport: str):
         _local_dr_expire(game)
         side = "p1" if guest_id == game["p1_guest_id"] else "p2"
         config = LOCAL_PLAYOFF_CONFIG[sport]["powerups"]
+        if not _playoff_powerups_unlocked(game["state"]):
+            return jsonify({"error": "Powerups unlock after each player has played twice.", **_local_po_state(game_id, game, guest_id)}), 409
         if game["finished"] or game["turn_index"] != (0 if side == "p1" else 1) or game["turn_powerup_used"] or key not in config or key in game[f"{side}_powerup_used_keys"]:
             return jsonify({"error": "powerup is not available", **_local_po_state(game_id, game, guest_id)}), 409
         meta = config[key]; game[f"{side}_powerup_used_keys"].append(key); game["turn_powerup_used"] = True
@@ -5074,13 +5079,21 @@ def local_po_move(sport: str):
                 power_move = _local_po_powerup_move(conn, game, raw, player_id)
                 if power_move: payload = power_move
             if payload["outcome"] == "valid":
-                key = game[f"{side}_win_condition_key"]; increment = _local_po_condition_increment(conn, sport, key, payload["player_id"])
-                game["chain_win_condition_hits"].append(increment > 0)
-                game[f"{side}_win_progress"] += increment
-                target = LOCAL_PLAYOFF_CONFIG[sport]["conditions"][key]["target"]
-                completed = game[f"{side}_win_progress"] >= target
-                game[f"{side}_win_completed"] = completed
-                payload.update({"win_condition_hit": increment > 0, "win_condition_label": LOCAL_PLAYOFF_CONFIG[sport]["conditions"][key]["label"], "win_condition_progress": game[f"{side}_win_progress"], "win_condition_target": target, "win_condition_completed": completed})
+                key = game[f"{side}_win_condition_key"]
+                condition = LOCAL_PLAYOFF_CONFIG[sport]["conditions"][key]
+                if _playoff_win_conditions_unlocked(game["state"]):
+                    increment = _local_po_condition_increment(conn, sport, key, payload["player_id"])
+                    game["chain_win_condition_hits"].append(increment > 0)
+                    game[f"{side}_win_progress"] += increment
+                    target = condition["target"]
+                    completed = game[f"{side}_win_progress"] >= target
+                    game[f"{side}_win_completed"] = completed
+                else:
+                    increment = 0
+                    target = condition["target"]
+                    completed = False
+                    _append_no_win_condition_hit(game, game["state"])
+                payload.update({"win_condition_hit": increment > 0, "win_condition_label": condition["label"], "win_condition_progress": game[f"{side}_win_progress"], "win_condition_target": target, "win_condition_completed": completed})
                 if completed:
                     game["finished"] = True; game["winner"] = game[side]
                 else:
@@ -6925,6 +6938,8 @@ def po_powerup():
             return jsonify({"error": "no powerup assigned", **po_state_dict(gid, blob, state, conn=conn)}), 409
         if blob.get("turn_powerup_used"):
             return jsonify({"error": "you already used a powerup this turn", **po_state_dict(gid, blob, state, conn=conn)}), 409
+        if not _playoff_powerups_unlocked(state):
+            return jsonify({"error": "Powerups unlock after each player has played twice.", **po_state_dict(gid, blob, state, conn=conn)}), 409
         if not requested_key or requested_key not in keys:
             return jsonify({"error": "choose a valid powerup", **po_state_dict(gid, blob, state, conn=conn)}), 409
         if requested_key in used_keys:
@@ -7033,7 +7048,18 @@ def po_move():
         blob.update(serialize_state(state))
         blob["last_move"] = move_payload
         if move_payload.get("outcome") == "valid":
-            win_update = _apply_playoff_win_condition_hit(conn, blob, move_payload["player_id"], mover_side)
+            if _playoff_win_conditions_unlocked(state):
+                win_update = _apply_playoff_win_condition_hit(conn, blob, move_payload["player_id"], mover_side)
+            else:
+                meta = PLAYOFF_WIN_CONDITIONS.get(blob.get(f"{mover_side}_win_condition_key"), {})
+                _append_no_win_condition_hit(blob, state)
+                win_update = {
+                    "hit": False,
+                    "progress": int(blob.get(f"{mover_side}_win_progress") or 0),
+                    "target": meta.get("target", 0),
+                    "completed": False,
+                    "label": meta.get("label"),
+                }
             move_payload["win_condition_hit"] = win_update["hit"]
             move_payload["win_condition_label"] = win_update["label"]
             move_payload["win_condition_progress"] = win_update["progress"]
@@ -9010,6 +9036,23 @@ def _bot_match_due(guest_id: str, mode: str, enqueued_at) -> bool:
     return (now_utc() - enqueued_at).total_seconds() >= _bot_queue_wait_seconds(guest_id, mode, enqueued_at)
 
 
+def _playoff_powerups_unlocked(state: GameState) -> bool:
+    return max(0, len(state.chain) - 1) >= PLAYOFF_OPENING_LOCK_MOVES
+
+
+def _playoff_win_conditions_unlocked(state: GameState) -> bool:
+    return max(0, len(state.chain) - 1) > PLAYOFF_OPENING_LOCK_MOVES
+
+
+def _append_no_win_condition_hit(blob: dict, state: GameState) -> None:
+    hits = list(blob.get("chain_win_condition_hits") or [])
+    while len(hits) < len(state.chain) - 1:
+        hits.append(False)
+    if len(hits) < len(state.chain):
+        hits.append(False)
+    blob["chain_win_condition_hits"] = hits
+
+
 def _bot_next_move_at(blob: dict | None = None) -> str:
     jitter = secrets.randbelow(1000) / 1000 * BOT_TURN_JITTER_SECONDS
     ready_at = now_utc()
@@ -9190,7 +9233,8 @@ def _sport_online_state(conn, game_id: str, blob: dict, state: GameState, viewer
         output["default_turn_seconds"] = APP_TURN_SECONDS
         output["powerups"] = {"your_powerups": pp(side), "opponent_powerups": pp(other),
             "active_turn_powerup": ({"key": blob["active_turn_powerup"], "label": powers[blob["active_turn_powerup"]]["label"]} if blob.get("active_turn_powerup") else None),
-            "turn_powerup_used": bool(blob.get("turn_powerup_used"))}
+            "turn_powerup_used": bool(blob.get("turn_powerup_used")),
+            "opening_lock_moves": PLAYOFF_OPENING_LOCK_MOVES}
         output["win_conditions"] = {"your_condition": cp(side), "opponent_condition": cp(other)}
     return output
 
@@ -9353,6 +9397,8 @@ def _bot_try_powerup_move(conn, sport: str, blob: dict, state: GameState, poweru
 
 
 def _bot_activate_powerup(conn, sport: str, blob: dict, state: GameState, side: str) -> dict | None:
+    if not _playoff_powerups_unlocked(state):
+        return None
     if blob.get("turn_powerup_used") or blob.get("active_turn_powerup"):
         return None
     powers = PLAYOFF_POWERUPS if sport == "baseball" else LOCAL_PLAYOFF_CONFIG[sport]["powerups"]
@@ -9365,10 +9411,10 @@ def _bot_activate_powerup(conn, sport: str, blob: dict, state: GameState, side: 
         kind = powers[key].get("kind")
         if kind in {"time", "timer"} and (low_clock or len(state.chain) >= 10):
             return (0, secrets.randbelow(100))
-        if kind == "pressure" or key == "quick_pitch":
-            return (1, secrets.randbelow(100))
         if kind in {"skill", "stat", "same_position", "position", "veteran"}:
-            return (2, secrets.randbelow(100))
+            return (1, secrets.randbelow(100))
+        if kind == "pressure" or key == "quick_pitch":
+            return (2 if len(state.chain) >= 8 or secrets.randbelow(100) < 30 else 3, secrets.randbelow(100))
         return (3, secrets.randbelow(100))
     for key in sorted(available, key=rank):
         meta = powers[key]
@@ -9414,7 +9460,14 @@ def _sport_online_apply_valid_payload(conn, sport: str, mode: str, blob: dict, s
                                       payload: dict, mover: str, record_usage: bool) -> None:
     if mode == "po":
         if sport == "baseball":
-            update = _apply_playoff_win_condition_hit(conn, blob, payload["player_id"], mover)
+            if _playoff_win_conditions_unlocked(state):
+                update = _apply_playoff_win_condition_hit(conn, blob, payload["player_id"], mover)
+            else:
+                condition = PLAYOFF_WIN_CONDITIONS.get(blob.get(f"{mover}_win_condition_key"), {})
+                _append_no_win_condition_hit(blob, state)
+                update = {"hit": False, "label": condition.get("label"),
+                          "progress": int(blob.get(f"{mover}_win_progress") or 0),
+                          "target": condition.get("target", 0), "completed": False}
             payload["win_condition_hit"] = update["hit"]
             payload["win_condition_label"] = update["label"]
             payload["win_condition_progress"] = update["progress"]
@@ -9428,9 +9481,13 @@ def _sport_online_apply_valid_payload(conn, sport: str, mode: str, blob: dict, s
         else:
             condition_key = blob[f"{mover}_win_condition_key"]
             condition = LOCAL_PLAYOFF_CONFIG[sport]["conditions"][condition_key]
-            inc = _local_po_condition_increment(PgEngineConn(conn), sport, condition_key, payload["player_id"])
-            blob[f"{mover}_win_progress"] += inc
-            blob["chain_win_condition_hits"].append(bool(inc))
+            if _playoff_win_conditions_unlocked(state):
+                inc = _local_po_condition_increment(PgEngineConn(conn), sport, condition_key, payload["player_id"])
+                blob[f"{mover}_win_progress"] += inc
+                blob["chain_win_condition_hits"].append(bool(inc))
+            else:
+                inc = 0
+                _append_no_win_condition_hit(blob, state)
             if len(blob.get("chain_link_meta", [])) < len(state.chain):
                 blob.setdefault("chain_link_meta", []).append(None)
             completed = blob[f"{mover}_win_progress"] >= condition["target"]
@@ -9960,6 +10017,8 @@ def sport_online_powerup(sport: str):
         if not side: return jsonify({"error":"unauthorized"}), 403
         if blob["finished"] or blob["turn_index"] != (0 if side == "p1" else 1): return jsonify({"error":"not your turn"}), 409
         powers = PLAYOFF_POWERUPS if sport == "baseball" else LOCAL_PLAYOFF_CONFIG[sport]["powerups"]
+        if not _playoff_powerups_unlocked(state):
+            return jsonify({"error":"Powerups unlock after each player has played twice.", **_sport_online_state(conn,gid,blob,state,guest)}), 409
         if key not in powers or key in blob.get(f"{side}_powerup_used_keys", []) or blob.get("turn_powerup_used"): return jsonify({"error":"powerup unavailable"}), 409
         blob[f"{side}_powerup_used_keys"].append(key); blob["turn_powerup_used"] = True
         meta = powers[key]
