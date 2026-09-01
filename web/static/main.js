@@ -2400,6 +2400,9 @@ function renderCardStack(chain, allStrikes, showStrikes, animateNewest = false) 
 
     if (useMobileCurtain && i === 2) {
       els.cardStack.appendChild(makeMobileChainCurtain(reversed.length - 3));
+      if (!mobileChainExpanded && reversed[3]) {
+        els.cardStack.appendChild(makeMobileChainFadePreview(reversed[3]));
+      }
     }
 
     const nextCardVisible = i < visibleCount - 1;
@@ -2424,15 +2427,23 @@ function makeMobileChainCurtain(hiddenCount) {
   button.type = 'button';
   button.className = 'mobile-chain-curtain';
   button.setAttribute('aria-expanded', mobileChainExpanded ? 'true' : 'false');
-  const countLabel = `${hiddenCount} Older Player${hiddenCount === 1 ? '' : 's'}`;
-  button.innerHTML = `
-    <span class="mobile-chain-arrow" aria-hidden="true">${mobileChainExpanded ? '&#9652;' : '&#9662;'}</span>
-    <span class="mobile-chain-label">${mobileChainExpanded ? 'Collapse Chain' : countLabel}</span>`;
+  button.setAttribute('aria-label', mobileChainExpanded ? 'Collapse full chain' : `Show ${hiddenCount} older player${hiddenCount === 1 ? '' : 's'}`);
+  button.innerHTML = `<span class="mobile-chain-arrow" aria-hidden="true">${mobileChainExpanded ? '&#9652;' : '&#9662;'}</span>`;
   button.addEventListener('click', () => {
     mobileChainExpanded = !mobileChainExpanded;
     renderMpGame();
   });
   return button;
+}
+
+function makeMobileChainFadePreview(player) {
+  const preview = document.createElement('div');
+  preview.className = 'mobile-chain-fade-preview';
+  preview.setAttribute('aria-hidden', 'true');
+  const playerCard = makePlayerCard(player, false);
+  playerCard.classList.add('mobile-chain-fade-card');
+  preview.appendChild(playerCard);
+  return preview;
 }
 
 const TEAM_PRIMARY_COLORS = {

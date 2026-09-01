@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.5.18`, deployed from the latest pushed `main`
+- Current display version is `0.5.19`, deployed from the latest pushed `main`
   commit.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -239,6 +239,9 @@ decision needs context.
   translucent curtain after the three newest player cards once the chain is
   longer than four. Tapping the wide arrow expands/collapses the full chain;
   desktop and solo modes keep the full stack.
+- `0.5.19`: the mobile online chain curtain now renders as a wide transparent
+  arrow instead of a labeled button, with the next hidden player card clipped
+  and faded underneath so the older chain visually disappears behind it.
 
 ### Important implementation notes
 
@@ -342,7 +345,7 @@ decision needs context.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.5.18`
+- Current display version: `0.5.19`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog policy: production is runtime-only. Keep compact

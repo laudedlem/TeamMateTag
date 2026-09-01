@@ -9877,48 +9877,69 @@ body[data-mode-hub="manager"] .manager-starter-name span {
 
   .card-stack.mobile-chain-collapsible .mobile-chain-curtain {
     align-items: center;
-    backdrop-filter: blur(9px);
+    backdrop-filter: blur(8px);
     background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.07)),
-      color-mix(in srgb, var(--sport-accent, var(--accent)) 24%, rgba(11, 17, 26, 0.78));
-    border: 1px solid color-mix(in srgb, var(--sport-accent, var(--accent)) 42%, rgba(255, 255, 255, 0.22));
-    border-radius: var(--radius-sm);
-    box-shadow: 0 12px 26px rgba(0, 0, 0, 0.28);
+      linear-gradient(180deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.05)),
+      color-mix(in srgb, var(--sport-accent, var(--accent)) 15%, rgba(11, 17, 26, 0.42));
+    border: 1px solid color-mix(in srgb, var(--sport-accent, var(--accent)) 38%, rgba(255, 255, 255, 0.2));
+    border-radius: 999px;
+    box-shadow: 0 10px 22px rgba(0, 0, 0, 0.24);
     color: #ffffff;
     cursor: pointer;
     display: flex;
-    gap: 0.55rem;
     justify-content: center;
-    margin: 0.2rem auto 0.55rem;
-    min-height: 3.05rem;
+    margin: 0.05rem auto 0.35rem;
+    min-height: 2.15rem;
     overflow: hidden;
-    padding: 0.56rem 1rem;
+    padding: 0.1rem 1rem;
     position: relative;
-    width: calc(100% - 1rem);
+    width: calc(100% - 0.5rem);
+    z-index: 2;
   }
 
   .card-stack.mobile-chain-collapsed .mobile-chain-curtain::before {
-    background: linear-gradient(180deg, transparent, rgba(11, 17, 26, 0.78));
+    background: linear-gradient(180deg, transparent, rgba(11, 17, 26, 0.68));
     content: "";
-    height: 1.5rem;
+    height: 1.15rem;
     left: 0;
     pointer-events: none;
     position: absolute;
     right: 0;
-    top: -1.5rem;
+    top: -1.15rem;
   }
 
   .mobile-chain-arrow {
-    font-size: 1.45rem;
+    color: rgba(255, 255, 255, 0.82);
+    font-size: 2.35rem;
     font-weight: 900;
-    line-height: 1;
+    line-height: 0.7;
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.36);
+    transform: scaleX(2.9);
   }
 
-  .mobile-chain-label {
-    font-size: 0.72rem;
-    font-weight: 900;
-    letter-spacing: 0.04em;
-    line-height: 1;
-    text-transform: uppercase;
+  .mobile-chain-fade-preview {
+    height: 4.65rem;
+    margin: -0.92rem auto 0;
+    overflow: hidden;
+    pointer-events: none;
+    position: relative;
+    width: 100%;
+    z-index: 1;
+    -webkit-mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.56), rgba(0, 0, 0, 0));
+    mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.56), rgba(0, 0, 0, 0));
+  }
+
+  .mobile-chain-fade-preview::before {
+    background: linear-gradient(180deg, rgba(11, 17, 26, 0), rgba(11, 17, 26, 0.88));
+    content: "";
+    inset: 0;
+    position: absolute;
+    z-index: 2;
+  }
+
+  .mobile-chain-fade-card {
+    opacity: 0.52;
+    transform: scale(0.985) translateY(-0.2rem);
+    transform-origin: top center;
   }
 }
