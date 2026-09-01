@@ -1552,6 +1552,27 @@ function setGuessDisabled(disabled) {
   els.guessBtn.disabled = disabled;
 }
 
+function shouldAutoFocusGuessInput() {
+  if (!els.guessInput || els.guessInput.disabled || game?.finished) return false;
+  if (!(currentMode === 'bp' || (isOnlineMode() && game?.your_turn))) return false;
+  if (!window.matchMedia?.('(hover: hover) and (pointer: fine)').matches) return false;
+  if (!els.gameScreen || els.gameScreen.hidden) return false;
+  if (els.rulesModal && !els.rulesModal.hidden) return false;
+  const active = document.activeElement;
+  if (!active || active === document.body || active === els.guessInput) return true;
+  if (els.guessForm?.contains(active) || els.autocompleteList?.contains(active)) return true;
+  return !active.matches?.('input, textarea, select, button, [contenteditable="true"]');
+}
+
+function autoFocusGuessInput(opts = {}) {
+  if (!shouldAutoFocusGuessInput()) return;
+  window.setTimeout(() => {
+    if (!shouldAutoFocusGuessInput()) return;
+    els.guessInput.focus({ preventScroll: true });
+    if (opts.select !== false) els.guessInput.select();
+  }, 0);
+}
+
 function clientRemainingSeconds() {
   if (!game || !activeTimerKey || typeof game.remaining_seconds !== 'number') return null;
   const elapsed = performance.now() / 1000 - turnLocalStart;
@@ -1566,7 +1587,7 @@ function runOpeningCountdown() {
     activeCountdownKey = '';
     setGuessDisabled(isOnlineMode() && !game?.your_turn);
     resetTurnTimer();
-    if (!isOnlineMode() || game?.your_turn) els.guessInput.focus();
+    autoFocusGuessInput();
     return;
   }
 
@@ -1585,7 +1606,7 @@ function runOpeningCountdown() {
       activeCountdownKey = '';
       setGuessDisabled(isOnlineMode() && !game?.your_turn);
       resetTurnTimer();
-      if (!isOnlineMode() || game?.your_turn) els.guessInput.focus();
+      autoFocusGuessInput();
       return;
     }
     els.timer.textContent = String(Math.ceil(left));
@@ -1680,7 +1701,7 @@ async function submitMove({ raw, player_id }) {
       bootstrapProfile();
     }
   }
-  if (!game.finished) els.guessInput.focus();
+  if (!game.finished) autoFocusGuessInput();
 }
 
 function onGuessSubmit(e) {
@@ -2140,6 +2161,7 @@ function renderMpGame() {
   els.outSection.hidden = !els.toggleOut.checked;
   lastChainLength = game.chain.length;
   animateNewestCard = false;
+  autoFocusGuessInput();
 }
 
 function countdownKey(state) {
@@ -2283,6 +2305,7 @@ function renderBpGame() {
   els.outSection.hidden = !els.toggleOut.checked;
   lastChainLength = game.chain.length;
   animateNewestCard = false;
+  autoFocusGuessInput();
 }
 
 function renderPowerups() {
