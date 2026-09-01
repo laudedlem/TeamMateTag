@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.5.17`, deployed from the latest pushed `main`
+- Current display version is `0.5.18`, deployed from the latest pushed `main`
   commit.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -235,6 +235,10 @@ decision needs context.
   Bot losses now resolve as actual clock timeouts instead of instant post-think
   losses. Bot rematches remain available only for a deterministic 25-35 second
   postgame window; after that the temporary opponent is treated as gone.
+- `0.5.18`: mobile Division Rivalry and Playoffs chains collapse behind a
+  translucent curtain after the three newest player cards once the chain is
+  longer than four. Tapping the wide arrow expands/collapses the full chain;
+  desktop and solo modes keep the full stack.
 
 ### Important implementation notes
 
@@ -338,7 +342,7 @@ decision needs context.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.5.17`
+- Current display version: `0.5.18`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog policy: production is runtime-only. Keep compact

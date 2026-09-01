@@ -189,6 +189,8 @@ let feedbackExpandedKey = '';
 let feedbackRenderedKey = '';
 const expandedWinBoxes = new Set();
 let renderedWinGameId = '';
+let mobileChainExpanded = false;
+let mobileChainGameId = '';
 
 let acItems = [];
 let acHighlight = -1;
@@ -1210,6 +1212,8 @@ async function enterMatchedGame(nextGame) {
   currentMode = nextGame.mode || currentMode || 'mp';
   lastChainLength = 0;
   expandedWinBoxes.clear();
+  mobileChainExpanded = false;
+  mobileChainGameId = nextGame.game_id || '';
   clearInterval(mpRematchPollInterval);
   hideGameOverBanner();
   showScreen(currentMode === 'po' ? 'po-game' : 'mp-game');
@@ -2377,18 +2381,58 @@ async function usePowerup(powerupKey) {
 function renderCardStack(chain, allStrikes, showStrikes, animateNewest = false) {
   // Do not erase the visible lineup for a transient polling response.
   const reversed = Array.isArray(chain) ? chain.slice().reverse() : [];
+  const currentGameId = game?.game_id || '';
+  if (currentGameId && currentGameId !== mobileChainGameId) {
+    mobileChainExpanded = false;
+    mobileChainGameId = currentGameId;
+  }
+  const useMobileCurtain = usesMobileChainCurtain(reversed.length);
+  const visibleCount = useMobileCurtain && !mobileChainExpanded ? 3 : reversed.length;
   els.cardStack.innerHTML = '';
-  reversed.forEach((player, i) => {
+  els.cardStack.classList.toggle('mobile-chain-collapsible', useMobileCurtain);
+  els.cardStack.classList.toggle('mobile-chain-collapsed', useMobileCurtain && !mobileChainExpanded);
+  els.cardStack.classList.toggle('mobile-chain-expanded', useMobileCurtain && mobileChainExpanded);
+  reversed.slice(0, visibleCount).forEach((player, i) => {
     const isSeed = i === reversed.length - 1;
     const playerCard = makePlayerCard(player, isSeed);
     if (animateNewest && i === 0) playerCard.classList.add('slide-in');
     els.cardStack.appendChild(playerCard);
-    if (i < reversed.length - 1) {
+
+    if (useMobileCurtain && i === 2) {
+      els.cardStack.appendChild(makeMobileChainCurtain(reversed.length - 3));
+    }
+
+    const nextCardVisible = i < visibleCount - 1;
+    const nextCardExists = i < reversed.length - 1;
+    const showBoundaryConnection = !useMobileCurtain || nextCardVisible || mobileChainExpanded;
+    if (nextCardExists && showBoundaryConnection) {
       const bar = makeConnectionBar(player.shared_with_prev, allStrikes, showStrikes, player.link_meta_with_prev);
       if (animateNewest && i === 0) bar.classList.add('slide-in');
       els.cardStack.appendChild(bar);
     }
   });
+}
+
+function usesMobileChainCurtain(chainLength) {
+  return (currentMode === 'mp' || currentMode === 'po')
+    && chainLength > 4
+    && window.matchMedia?.('(max-width: 760px)').matches;
+}
+
+function makeMobileChainCurtain(hiddenCount) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'mobile-chain-curtain';
+  button.setAttribute('aria-expanded', mobileChainExpanded ? 'true' : 'false');
+  const countLabel = `${hiddenCount} Older Player${hiddenCount === 1 ? '' : 's'}`;
+  button.innerHTML = `
+    <span class="mobile-chain-arrow" aria-hidden="true">${mobileChainExpanded ? '&#9652;' : '&#9662;'}</span>
+    <span class="mobile-chain-label">${mobileChainExpanded ? 'Collapse Chain' : countLabel}</span>`;
+  button.addEventListener('click', () => {
+    mobileChainExpanded = !mobileChainExpanded;
+    renderMpGame();
+  });
+  return button;
 }
 
 const TEAM_PRIMARY_COLORS = {
@@ -3642,6 +3686,12 @@ on(els.friendTargetInput, 'keydown', (e) => {
 
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && els.rulesModal && !els.rulesModal.hidden) closeRules();
+});
+
+window.addEventListener('resize', () => {
+  if ((currentMode === 'mp' || currentMode === 'po') && game?.chain?.length) {
+    renderCardStack(game.chain, game.strikes, true, false);
+  }
 });
 
 const launchParams = new URLSearchParams(window.location.search);
