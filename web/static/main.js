@@ -1409,6 +1409,10 @@ async function rematch() {
     if (res.error) {
       els.mpRematchStatus.hidden = false;
       els.mpRematchStatus.textContent = res.error;
+      if (/rematch unavailable/i.test(res.error)) {
+        els.playAgainBtn.hidden = true;
+        els.requeueBtn.hidden = false;
+      }
       return;
     }
     if (res.status === 'matched' && res.game) {
@@ -2256,12 +2260,16 @@ function startRematchPolling() {
       if (res.you_requested) {
         els.mpRematchStatus.hidden = false;
         els.mpRematchStatus.textContent = 'Opponent Left. Finding a New Match...';
+        els.playAgainBtn.hidden = true;
+        els.requeueBtn.hidden = false;
         await requeueForNewMatch('Opponent Left. Searching for a New Opponent...', {
           avoidLastOpponent: true,
         });
       } else {
         els.mpRematchStatus.hidden = false;
         els.mpRematchStatus.textContent = 'Opponent Left the Game.';
+        els.playAgainBtn.hidden = true;
+        els.requeueBtn.hidden = false;
       }
       return;
     }
@@ -2269,6 +2277,8 @@ function startRematchPolling() {
       clearInterval(mpRematchPollInterval);
       els.mpRematchStatus.hidden = false;
       els.mpRematchStatus.textContent = 'Rematch Is Unavailable After a Player Leaves.';
+      els.playAgainBtn.hidden = true;
+      els.requeueBtn.hidden = false;
       return;
     }
     if (res.opponent_requested && !res.you_requested) {

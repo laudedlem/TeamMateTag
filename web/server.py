@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.5.16"
+APP_VERSION = "0.5.17"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -210,10 +210,10 @@ LOCAL_HEADSHOT_DIRS = {
 }
 BOT_MATCH_MIN_WAIT_SECONDS = 8
 BOT_MATCH_JITTER_SECONDS = 3
-BOT_TURN_MIN_THINK_SECONDS = 2.4
-BOT_TURN_JITTER_SECONDS = 4.2
 BOT_WIN_CONDITION_MISS_PERCENT = 8
 PLAYOFF_OPENING_LOCK_MOVES = 4
+BOT_POSTGAME_REMATCH_MIN_SECONDS = 25
+BOT_POSTGAME_REMATCH_JITTER_SECONDS = 11
 BOT_NAMES = [
     "Guest b31d9a2c",
     "Guest c84f6e10",
@@ -9008,6 +9008,7 @@ def _sport_online_load(conn, sport: str, mode: str, game_id: str):
 
 
 def _sport_online_save(conn, game_id: str, blob: dict):
+    _stamp_sport_online_finished(blob, game_id)
     conn.execute("UPDATE sport_online_games SET state=%s, finished=%s WHERE game_id=%s",
                  (Jsonb(blob), bool(blob.get("finished")), game_id))
 
@@ -9018,6 +9019,30 @@ def _bot_guest_ids(blob: dict) -> set[str]:
 
 def _is_bot_guest(blob: dict, guest_id: str | None) -> bool:
     return bool(guest_id) and guest_id in _bot_guest_ids(blob)
+
+
+def _bot_postgame_window_seconds(game_id: str) -> float:
+    jitter = int(hashlib.sha256(str(game_id).encode("utf-8")).hexdigest()[:4], 16) % BOT_POSTGAME_REMATCH_JITTER_SECONDS
+    return float(BOT_POSTGAME_REMATCH_MIN_SECONDS + jitter)
+
+
+def _stamp_sport_online_finished(blob: dict, game_id: str | None = None) -> None:
+    if not blob.get("finished"):
+        return
+    finished_at = blob.get("finished_at")
+    if not finished_at:
+        finished_at = now_utc().isoformat()
+        blob["finished_at"] = finished_at
+    if _bot_guest_ids(blob) and game_id and not blob.get("bot_rematch_expires_at"):
+        expires = datetime.fromisoformat(finished_at) + timedelta(seconds=_bot_postgame_window_seconds(game_id))
+        blob["bot_rematch_expires_at"] = expires.isoformat()
+
+
+def _bot_rematch_window_open(blob: dict) -> bool:
+    expires_at = blob.get("bot_rematch_expires_at")
+    if not expires_at:
+        return True
+    return now_utc() < datetime.fromisoformat(expires_at)
 
 
 def _current_turn_guest_id(blob: dict) -> str:
@@ -9054,22 +9079,63 @@ def _append_no_win_condition_hit(blob: dict, state: GameState) -> None:
 
 
 def _bot_next_move_at(blob: dict | None = None) -> str:
-    jitter = secrets.randbelow(1000) / 1000 * BOT_TURN_JITTER_SECONDS
     ready_at = now_utc()
+    chain_length = 1
+    low_clock = False
     if blob and blob.get("turn_started_at"):
         turn_start = datetime.fromisoformat(blob["turn_started_at"])
         ready_at = max(ready_at, turn_start + timedelta(seconds=float(blob.get("countdown_seconds") or 0)))
-    return (ready_at + timedelta(seconds=BOT_TURN_MIN_THINK_SECONDS + jitter)).isoformat()
+        chain_length = len(blob.get("chain") or []) or 1
+        low_clock = float(blob.get("turn_seconds") or APP_TURN_SECONDS) <= 12
+    if low_clock:
+        floor, spread = 1.1, 3.2
+    elif chain_length < 6:
+        floor, spread = 1.6, 4.4
+    elif chain_length < 16:
+        floor, spread = 2.4, 6.8
+    elif chain_length < 32:
+        floor, spread = 3.2, 8.6
+    else:
+        floor, spread = 4.0, 10.5
+    think_seconds = floor + (secrets.randbelow(1000) / 1000 * spread)
+    return (ready_at + timedelta(seconds=think_seconds)).isoformat()
 
 
 def _schedule_bot_turn_if_needed(blob: dict) -> None:
     if blob.get("finished"):
         blob.pop("bot_next_move_at", None)
+        blob.pop("bot_timeout_at", None)
         return
     if _is_bot_guest(blob, _current_turn_guest_id(blob)):
         blob.setdefault("bot_next_move_at", _bot_next_move_at(blob))
     else:
         blob.pop("bot_next_move_at", None)
+        blob.pop("bot_timeout_at", None)
+
+
+def _bot_turn_timeout_at(blob: dict) -> str:
+    turn_start = datetime.fromisoformat(blob["turn_started_at"])
+    timeout_at = turn_start + timedelta(
+        seconds=float(blob.get("countdown_seconds") or 0) + float(blob.get("turn_seconds") or APP_TURN_SECONDS) + 0.35
+    )
+    return timeout_at.isoformat()
+
+
+def _finish_bot_timeout_if_due(blob: dict, bot_side: str) -> bool:
+    timeout_at = blob.get("bot_timeout_at")
+    if not timeout_at:
+        return False
+    if now_utc() < datetime.fromisoformat(timeout_at):
+        return True
+    blob["finished"] = True
+    blob["winner"] = blob["p2"] if bot_side == "p1" else blob["p1"]
+    blob["last_move"] = {"outcome": "timeout"}
+    blob.pop("bot_timeout_at", None)
+    return True
+
+
+def _schedule_bot_timeout_loss(blob: dict) -> None:
+    blob["bot_timeout_at"] = _bot_turn_timeout_at(blob)
 
 
 def _create_transient_bot_guest(conn, mode: str) -> tuple[str, str]:
@@ -9142,6 +9208,7 @@ def _sport_online_expire(blob: dict):
         blob["finished"] = True
         blob["winner"] = blob["p2"] if blob["turn_index"] == 0 else blob["p1"]
         blob["last_move"] = {"outcome": "timeout"}
+        blob.pop("bot_timeout_at", None)
 
 
 def _reap_expired_sport_games(conn, sport: str, mode: str):
@@ -9536,10 +9603,14 @@ def _sport_online_maybe_advance_bot(conn, game_id: str, blob: dict, state: GameS
         return
     sport, mode = blob["sport"], blob["mode"]
     bot_side = "p1" if blob["turn_index"] == 0 else "p2"
+    if _finish_bot_timeout_if_due(blob, bot_side):
+        if blob.get("finished"):
+            blob.pop("bot_next_move_at", None)
+            _save_sport_online_result(conn, game_id, blob, state)
+        _sport_online_save(conn, game_id, blob)
+        return
     if secrets.randbelow(100) < int(_bot_loss_chance(len(state.chain)) * 100):
-        blob["finished"] = True
-        blob["winner"] = blob["p2"] if bot_side == "p1" else blob["p1"]
-        blob["last_move"] = {"outcome": "timeout"}
+        _schedule_bot_timeout_loss(blob)
     else:
         payload = _bot_activate_powerup(conn, sport, blob, state, bot_side) if mode == "po" else None
         if not payload or payload.get("outcome") != "valid":
@@ -9552,10 +9623,9 @@ def _sport_online_maybe_advance_bot(conn, game_id: str, blob: dict, state: GameS
                     alternate = _local_po_powerup_move(PgEngineConn(conn), blob, raw="", player_id=result.player_id)
                 payload = alternate or payload
         if not payload or payload.get("outcome") != "valid":
-            blob["finished"] = True
-            blob["winner"] = blob["p2"] if bot_side == "p1" else blob["p1"]
-            blob["last_move"] = {"outcome": "timeout"}
+            _schedule_bot_timeout_loss(blob)
         else:
+            blob.pop("bot_timeout_at", None)
             blob.update(serialize_state(state))
             blob["last_move"] = payload
             _sport_online_apply_valid_payload(conn, sport, mode, blob, state, payload, bot_side, record_usage=False)
@@ -10150,6 +10220,11 @@ def sport_online_rematch(sport: str, mode: str):
         blob,state=_sport_online_load(conn,sport,mode,gid)
         if not blob: return jsonify({"error":"unknown game_id"}),404
         if guest not in {blob["p1_guest_id"],blob["p2_guest_id"]}: return jsonify({"error":"unauthorized"}),403
+        if blob.get("finished"):
+            before_expires = blob.get("bot_rematch_expires_at")
+            _stamp_sport_online_finished(blob, gid)
+            if blob.get("bot_rematch_expires_at") != before_expires:
+                _sport_online_save(conn, gid, blob)
         link=conn.execute("SELECT new_game_id::text FROM sport_online_rematch_links WHERE original_game_id=%s",(gid,)).fetchone()
         if link:
             new_blob,new_state=_sport_online_load(conn,sport,mode,link[0]); return jsonify({"status":"matched","game":_sport_online_state(conn,link[0],new_blob,new_state,guest)})
@@ -10163,6 +10238,9 @@ def sport_online_rematch(sport: str, mode: str):
         ).fetchall()}
         if request.path.endswith("rematch_status"):
             if bot_rematch:
+                if not _bot_rematch_window_open(blob):
+                    _delete_transient_bot_guests(conn, blob, gid)
+                    return jsonify({"status":"abandoned","you_requested":guest in requesters,"opponent_requested":False,"opponent_present":False,"rematch_available":False})
                 return jsonify({"status":"waiting","you_requested":guest in requesters,"opponent_requested":True,"opponent_present":True,"rematch_available":True})
             if other in exited:
                 if guest in requesters:
@@ -10179,6 +10257,9 @@ def sport_online_rematch(sport: str, mode: str):
             return jsonify({"status":"waiting","you_requested":guest in requesters,"opponent_requested":other in requesters,"opponent_present":True,"rematch_available":True})
         if not blob["finished"] or (blob.get("last_move") or {}).get("outcome")=="forfeit": return jsonify({"error":"rematch unavailable"}),400
         if bot_rematch:
+            if not _bot_rematch_window_open(blob):
+                _delete_transient_bot_guests(conn, blob, gid)
+                return jsonify({"error":"rematch unavailable"}),400
             human_name = blob["p1"] if guest == blob["p1_guest_id"] else blob["p2"]
             bot_name = blob["p1"] if other == blob["p1_guest_id"] else blob["p2"]
             preferences = _sport_online_rematch_preferences(blob)

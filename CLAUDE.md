@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.5.16`, deployed from the latest pushed `main`
+- Current display version is `0.5.17`, deployed from the latest pushed `main`
   commit.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -231,6 +231,10 @@ decision needs context.
 - `0.5.16`: desktop gameplay now auto-focuses and selects the answer input
   whenever Division Rivalry, Playoffs, or Manager Mode renders an active user
   turn, including when polling flips an online game back to the player.
+- `0.5.17`: bot timing is more variable by game depth and clock pressure.
+  Bot losses now resolve as actual clock timeouts instead of instant post-think
+  losses. Bot rematches remain available only for a deterministic 25-35 second
+  postgame window; after that the temporary opponent is treated as gone.
 
 ### Important implementation notes
 
@@ -334,7 +338,7 @@ decision needs context.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.5.16`
+- Current display version: `0.5.17`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog policy: production is runtime-only. Keep compact
