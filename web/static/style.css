@@ -9922,12 +9922,6 @@ body[data-mode-hub="manager"] .manager-starter-name span {
     row-gap: 0.5rem;
   }
 
-  .playoffs-side-info .powerup-panel[open] > summary {
-    grid-column: 1;
-    grid-template-columns: minmax(0, 1fr) auto auto;
-    padding: 0;
-  }
-
   .playoffs-side-info .powerup-box {
     padding: 0.52rem;
   }
@@ -9939,27 +9933,6 @@ body[data-mode-hub="manager"] .manager-starter-name span {
   .playoffs-side-info #your-powerup-desc.powerup-list {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0.32rem;
-  }
-
-  .playoffs-side-info .powerup-panel[open] > summary {
-    gap: 0.32rem;
-    grid-template-columns: max-content max-content max-content;
-    justify-content: space-between;
-    white-space: nowrap;
-  }
-
-  .playoffs-side-info .powerup-panel[open] > summary .powerup-summary-main,
-  .playoffs-side-info .powerup-panel[open] > summary span,
-  .playoffs-side-info .powerup-panel[open] > summary small {
-    grid-column: auto;
-    min-width: 0;
-    white-space: nowrap;
-  }
-
-  .playoffs-side-info .powerup-panel[open] > summary span,
-  .playoffs-side-info .powerup-panel[open] > summary small {
-    font-size: 0.58rem;
-    padding: 0.22rem 0.3rem;
   }
 
   .playoffs-side-info .powerup-panel[open] #your-powerup-desc .powerup-chip {
