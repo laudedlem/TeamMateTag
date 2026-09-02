@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.5.32`, deployed from the latest pushed `main`
+- Current display version is `0.5.33`, deployed from the latest pushed `main`
   commit.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -296,6 +296,10 @@ decision needs context.
   logic to the known `0.5.27` state, then bumped the display version. This backs
   out the broken 0.5.28-0.5.31 bot timeout/reaper experiments that caused
   Playoffs queue KeyError/server errors. UI/CSS changes after 0.5.27 remain.
+- `0.5.33`: Targeted Playoffs bot timing fix: opponent-turn browser timer
+  expiry now polls the game instead of submitting `/timeout`, and the bot
+  advance loop checks a bot's scheduled move before expiring it. Bots still lose
+  on time if their own scheduled decision is after the deadline.
 
 ### Important implementation notes
 
@@ -399,7 +403,7 @@ decision needs context.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.5.32`
+- Current display version: `0.5.33`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog policy: production is runtime-only. Keep compact

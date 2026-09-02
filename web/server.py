@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.5.32"
+APP_VERSION = "0.5.33"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -9121,6 +9121,13 @@ def _bot_turn_timeout_at(blob: dict) -> str:
     return timeout_at.isoformat()
 
 
+def _bot_turn_deadline(blob: dict) -> datetime:
+    turn_start = datetime.fromisoformat(blob["turn_started_at"])
+    return turn_start + timedelta(
+        seconds=float(blob.get("countdown_seconds") or 0) + float(blob.get("turn_seconds") or APP_TURN_SECONDS) + 0.35
+    )
+
+
 def _finish_bot_timeout_if_due(blob: dict, bot_side: str) -> bool:
     timeout_at = blob.get("bot_timeout_at")
     if not timeout_at:
@@ -9626,11 +9633,11 @@ def _sport_online_apply_valid_payload(conn, sport: str, mode: str, blob: dict, s
 
 
 def _sport_online_maybe_advance_bot(conn, game_id: str, blob: dict, state: GameState) -> None:
-    _sport_online_expire(blob)
-    if blob.get("finished"):
-        _save_sport_online_result(conn, game_id, blob, state)
-        return
     if not _is_bot_guest(blob, _current_turn_guest_id(blob)):
+        _sport_online_expire(blob)
+        if blob.get("finished"):
+            _save_sport_online_result(conn, game_id, blob, state)
+            return
         before = blob.get("bot_next_move_at")
         _schedule_bot_turn_if_needed(blob)
         if before != blob.get("bot_next_move_at"):
@@ -9641,14 +9648,25 @@ def _sport_online_maybe_advance_bot(conn, game_id: str, blob: dict, state: GameS
         _schedule_bot_turn_if_needed(blob)
         _sport_online_save(conn, game_id, blob)
         return
-    if now_utc() < datetime.fromisoformat(next_move):
-        return
     sport, mode = blob["sport"], blob["mode"]
     bot_side = "p1" if blob["turn_index"] == 0 else "p2"
     if _finish_bot_timeout_if_due(blob, bot_side):
         if blob.get("finished"):
             blob.pop("bot_next_move_at", None)
             _save_sport_online_result(conn, game_id, blob, state)
+        _sport_online_save(conn, game_id, blob)
+        return
+    next_move_at = datetime.fromisoformat(next_move)
+    now = now_utc()
+    if now < next_move_at:
+        return
+    if next_move_at > _bot_turn_deadline(blob):
+        blob["finished"] = True
+        blob["winner"] = blob["p2"] if bot_side == "p1" else blob["p1"]
+        blob["last_move"] = {"outcome": "timeout"}
+        blob.pop("bot_next_move_at", None)
+        blob.pop("bot_timeout_at", None)
+        _save_sport_online_result(conn, game_id, blob, state)
         _sport_online_save(conn, game_id, blob)
         return
     if _bot_should_schedule_timeout_loss(sport, mode, blob, state, bot_side):

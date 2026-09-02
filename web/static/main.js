@@ -1627,12 +1627,23 @@ function runOpeningCountdown() {
 }
 
 async function onMpTimeout() {
+  const guestId = profile?.guest_id || storedGuestId();
+  if (!game?.your_turn) {
+    game = await api(onlineApiBase() + '/game', {
+      game_id: game.game_id,
+      guest_id: guestId,
+    });
+    preloadGameHeadshots(game);
+    renderMpGame();
+    syncMpClock(null, game, { force: true });
+    return;
+  }
   const timeoutPath = currentMode === 'po'
     ? (usesLocalPlayoffs() ? onlineApiBase() + '/game' : onlineApiBase() + '/timeout')
     : (USE_LOCAL_CROSS_SPORTS ? onlineApiBase() + '/game' : onlineApiBase() + '/timeout');
   game = await api(timeoutPath, {
     game_id: game.game_id,
-    guest_id: profile?.guest_id || storedGuestId(),
+    guest_id: guestId,
   });
   preloadGameHeadshots(game);
   if (game.finished) {
