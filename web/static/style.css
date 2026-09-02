@@ -9858,7 +9858,7 @@ body[data-mode-hub="manager"] .manager-starter-name span {
 
 @media (min-width: 901px) {
   .game-layout.playoffs-wide-side-rail {
-    grid-template-columns: minmax(0, 1fr) minmax(410px, 460px);
+    grid-template-columns: minmax(0, 1fr) minmax(340px, 370px);
   }
 
   .playoffs-side-info {
@@ -9874,8 +9874,10 @@ body[data-mode-hub="manager"] .manager-starter-name span {
     border: 1px solid color-mix(in srgb, var(--mode-playoffs) 32%, var(--border));
     border-radius: var(--radius);
     box-shadow: var(--shadow-sm);
+    box-sizing: border-box;
     margin: 0;
     padding: 0.7rem;
+    width: 100%;
   }
 
   .playoffs-side-info .win-panel {
@@ -9947,12 +9949,15 @@ body[data-mode-hub="manager"] .manager-starter-name span {
   }
 
   .playoffs-side-info .powerup-box {
-    margin-inline: 0.7rem;
-    padding: 0.52rem;
+    box-sizing: border-box;
+    margin-inline: 0.5rem;
+    min-width: 0;
+    padding: 0.46rem;
+    width: auto;
   }
 
   .playoffs-side-info .powerup-box:last-child {
-    margin-bottom: 0.7rem;
+    margin-bottom: 0.5rem;
   }
 
   .playoffs-side-info .powerup-list {
@@ -9961,26 +9966,28 @@ body[data-mode-hub="manager"] .manager-starter-name span {
 
   .playoffs-side-info .powerup-panel[open] #your-powerup-desc.powerup-list {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.38rem;
+    gap: 0.28rem;
   }
 
   .playoffs-side-info .powerup-panel[open] #your-powerup-desc .powerup-chip {
     align-items: center;
-    column-gap: 0.34rem;
-    grid-template-columns: 1.45rem minmax(0, 1fr);
+    box-sizing: border-box;
+    column-gap: 0.24rem;
+    grid-template-columns: 1.2rem minmax(0, 1fr);
     grid-template-rows: auto auto;
-    min-height: 2.28rem;
-    padding: 0.3rem 0.42rem;
+    min-height: 2.12rem;
+    padding: 0.26rem 0.3rem;
     text-align: left;
+    width: 100%;
   }
 
   .playoffs-side-info .powerup-panel[open] #your-powerup-desc .powerup-icon {
     align-self: center;
     display: inline-grid;
     grid-row: 1 / span 2;
-    height: 1.45rem;
-    min-width: 1.45rem;
-    width: 1.45rem;
+    height: 1.2rem;
+    min-width: 1.2rem;
+    width: 1.2rem;
   }
 
   .playoffs-side-info .powerup-panel[open] #your-powerup-desc .powerup-state {
@@ -9988,12 +9995,12 @@ body[data-mode-hub="manager"] .manager-starter-name span {
   }
 
   .playoffs-side-info .powerup-panel[open] #your-powerup-desc .powerup-label {
-    font-size: 0.68rem;
+    font-size: 0.62rem;
     line-height: 1.05;
   }
 
   .playoffs-side-info .powerup-panel[open] #your-powerup-desc .powerup-desc {
-    font-size: 0.55rem;
+    font-size: 0.5rem;
     line-height: 1.05;
     overflow-wrap: normal;
     white-space: normal;

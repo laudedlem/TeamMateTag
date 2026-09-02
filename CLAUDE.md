@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.5.26`, deployed from the latest pushed `main`
+- Current display version is `0.5.27`, deployed from the latest pushed `main`
   commit.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -269,6 +269,10 @@ decision needs context.
 - `0.5.26`: Desktop Playoffs Your Powerups grid now uses a higher-specificity
   side-rail selector so the intended 3-across layout beats older global open
   powerup grid rules.
+- `0.5.27`: Desktop Playoffs keeps the 3-across powerup grid but narrows the
+  side rail and trims chip spacing/padding so the right column is less wide.
+  Side-rail powerup boxes now use border-box sizing to prevent right-edge
+  clipping in the expanded panel, including opponent powerups.
 
 ### Important implementation notes
 
@@ -372,7 +376,7 @@ decision needs context.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.5.26`
+- Current display version: `0.5.27`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog policy: production is runtime-only. Keep compact
