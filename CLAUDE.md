@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.5.19`, deployed from the latest pushed `main`
+- Current display version is `0.5.20`, deployed from the latest pushed `main`
   commit.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -242,6 +242,11 @@ decision needs context.
 - `0.5.19`: the mobile online chain curtain now renders as a wide transparent
   arrow instead of a labeled button, with the next hidden player card clipped
   and faded underneath so the older chain visually disappears behind it.
+- `0.5.20`: compact runtime display-name builds now preserve generational
+  suffixes from Chadwick Baseball and NFL source display names, plus curated
+  feed misses such as Ronald Acuna Jr., Vladimir Guerrero Jr., Fernando Tatis
+  Jr., and Michael Pittman Jr. Local runtime and Supabase searchable/card rows
+  were repaired for suffix-bearing players.
 
 ### Important implementation notes
 
@@ -345,7 +350,7 @@ decision needs context.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.5.19`
+- Current display version: `0.5.20`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog policy: production is runtime-only. Keep compact

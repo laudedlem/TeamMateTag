@@ -50,6 +50,49 @@ def normalize(value: str | None) -> str:
     return re.sub(r"[^a-z0-9]", "", value.lower())
 
 
+GENERATIONAL_SUFFIXES = {
+    "jr": "Jr.",
+    "sr": "Sr.",
+    "ii": "II",
+    "iii": "III",
+    "iv": "IV",
+    "v": "V",
+}
+
+CURATED_DISPLAY_NAME_OVERRIDES = {
+    ("baseball", "guerrvl02"): "Vladimir Guerrero Jr.",
+    ("baseball", "tatisfe02"): "Fernando Tatis Jr.",
+    ("football", "nfl:00-0036252"): "Michael Pittman Jr.",
+}
+
+CURATED_SUFFIX_OVERRIDES = {
+    ("baseball", "acunaro01"): "Jr.",
+}
+
+
+def normalize_baseball_search(value: str | None) -> str:
+    value = unicodedata.normalize("NFKD", value or "")
+    value = "".join(ch for ch in value if not unicodedata.combining(ch))
+    value = re.sub(r"[^\w\s]", "", value, flags=re.UNICODE)
+    return re.sub(r"\s+", " ", value).strip().lower()
+
+
+def canonical_generational_suffix(value: str | None) -> str:
+    key = normalize(value)
+    return GENERATIONAL_SUFFIXES.get(key, "")
+
+
+def has_generational_suffix(value: str | None) -> bool:
+    parts = (value or "").replace(",", " ").replace(".", " ").split()
+    return bool(parts and canonical_generational_suffix(parts[-1]))
+
+
+def append_generational_suffix(display_name: str, suffix: str) -> str:
+    if has_generational_suffix(display_name):
+        return display_name.strip()
+    return f"{display_name.strip()} {suffix}".strip()
+
+
 def bad_runtime_team_sql(alias: str = "t") -> str:
     normalized_name = f"replace(lower(COALESCE({alias}.name, '')), '-', ' ')"
     raw_name = f"lower(COALESCE({alias}.name, ''))"
@@ -1703,6 +1746,77 @@ def update_teammate_counts(conn: sqlite3.Connection) -> None:
     )
 
 
+def chadwick_baseball_suffixes() -> dict[str, str]:
+    suffixes: dict[str, str] = {}
+    for path in sorted((ROOT / "raw" / "chadwick").glob("people-*.csv")):
+        with path.open(newline="", encoding="utf-8-sig") as handle:
+            for row in csv.DictReader(handle):
+                player_id = (row.get("key_bbref") or "").strip()
+                suffix = canonical_generational_suffix(row.get("name_suffix"))
+                if player_id and suffix:
+                    suffixes[player_id] = suffix
+    return suffixes
+
+
+def nfl_source_display_names_with_suffix() -> dict[str, str]:
+    path = ROOT / "raw" / "nfl" / "players.csv"
+    if not path.exists():
+        return {}
+    display_names: dict[str, str] = {}
+    with path.open(newline="", encoding="utf-8-sig") as handle:
+        for row in csv.DictReader(handle):
+            gsis_id = (row.get("gsis_id") or "").strip()
+            display_name = " ".join((row.get("display_name") or "").split())
+            if gsis_id and display_name and has_generational_suffix(display_name):
+                display_names[f"nfl:{gsis_id}"] = display_name
+    return display_names
+
+
+def apply_runtime_display_name_corrections(conn: sqlite3.Connection) -> int:
+    corrections: dict[tuple[str, str], str] = dict(CURATED_DISPLAY_NAME_OVERRIDES)
+    for player_id, suffix in chadwick_baseball_suffixes().items():
+        row = conn.execute(
+            "SELECT display_name FROM runtime_players WHERE scope = 'baseball' AND player_id = ?",
+            (player_id,),
+        ).fetchone()
+        if row:
+            corrections[("baseball", player_id)] = append_generational_suffix(row[0], suffix)
+    for (scope, player_id), suffix in CURATED_SUFFIX_OVERRIDES.items():
+        row = conn.execute(
+            "SELECT display_name FROM runtime_players WHERE scope = ? AND player_id = ?",
+            (scope, player_id),
+        ).fetchone()
+        if row:
+            corrections[(scope, player_id)] = append_generational_suffix(row[0], suffix)
+    for player_id, display_name in nfl_source_display_names_with_suffix().items():
+        corrections[("football", player_id)] = display_name
+
+    changed = 0
+    for (scope, player_id), display_name in sorted(corrections.items()):
+        row = conn.execute(
+            "SELECT display_name, last_name, last_key FROM runtime_players WHERE scope = ? AND player_id = ?",
+            (scope, player_id),
+        ).fetchone()
+        if not row:
+            continue
+        current_display, last_name, last_key = row
+        if current_display == display_name:
+            continue
+        search_key = normalize_baseball_search(display_name) if scope == "baseball" else normalize(display_name)
+        conn.execute(
+            """
+            UPDATE runtime_players
+               SET display_name = ?,
+                   search_key = ?,
+                   last_key = COALESCE(NULLIF(?, ''), last_key)
+             WHERE scope = ? AND player_id = ?
+            """,
+            (display_name, search_key, last_key or normalize(last_name or display_name), scope, player_id),
+        )
+        changed += 1
+    return changed
+
+
 def verify(conn: sqlite3.Connection) -> dict[str, int]:
     checks: dict[str, int] = {}
     for label, sql in {
@@ -1775,12 +1889,14 @@ def build(output: Path) -> dict[str, int]:
         insert_proofs(conn)
         baseball_pitcher_exception_rows = insert_baseball_pitcher_exceptions(conn)
         update_teammate_counts(conn)
+        display_name_corrections = apply_runtime_display_name_corrections(conn)
         create_compatibility_views(conn)
         create_indexes(conn)
         conn.execute("VACUUM")
         checks = verify(conn)
         checks["registry_rows_read"] = loaded_headshots
         checks["baseball_pitcher_exception_rows"] = baseball_pitcher_exception_rows
+        checks["display_name_corrections"] = display_name_corrections
         checks["exhibition_team_rows_removed"] = exhibition_team_rows
         checks["orphan_player_rows_removed"] = orphan_player_rows_removed
         checks.update(baseball_support)
