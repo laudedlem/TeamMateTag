@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.5.27"
+APP_VERSION = "0.5.28"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -9138,6 +9138,16 @@ def _schedule_bot_timeout_loss(blob: dict) -> None:
     blob["bot_timeout_at"] = _bot_turn_timeout_at(blob)
 
 
+def _retry_bot_turn_before_timeout(blob: dict, max_retries: int = 3) -> bool:
+    retries = int(blob.get("bot_empty_move_retries") or 0)
+    if retries >= max_retries:
+        return False
+    blob["bot_empty_move_retries"] = retries + 1
+    blob.pop("bot_next_move_at", None)
+    _schedule_bot_turn_if_needed(blob)
+    return True
+
+
 def _create_transient_bot_guest(conn, mode: str) -> tuple[str, str]:
     guest_id = str(uuid.uuid4())
     label = BOT_NAMES[secrets.randbelow(len(BOT_NAMES))]
@@ -9362,8 +9372,19 @@ def _bot_should_schedule_timeout_loss(sport: str, mode: str, blob: dict, state: 
     return secrets.randbelow(10000) < int(chance * 10000)
 
 
-def _bot_candidate_rows(conn, sport: str, current_player_id: str, used: list[str]) -> list[tuple[str, str, int]]:
+def _bot_protected_from_empty_timeout(sport: str, mode: str, blob: dict, state: GameState, side: str) -> bool:
+    if mode != "po":
+        return False
+    unused = _bot_unused_powerup_count(sport, blob, side)
+    if not _playoff_powerups_unlocked(state):
+        return len(state.chain) < 12
+    return unused > 0 or len(state.chain) < 12
+
+
+def _bot_candidate_rows(conn, sport: str, current_player_id: str, used: list[str],
+                        limit: int = 1000) -> list[tuple[str, str, int]]:
     used = used or [current_player_id]
+    limit = max(100, min(int(limit or 1000), 5000))
     if sport == "baseball":
         return conn.execute(
             """
@@ -9389,9 +9410,9 @@ def _bot_candidate_rows(conn, sport: str, current_player_id: str, used: list[str
               JOIN players_searchable ps ON ps.player_id=pk.player_id
              WHERE NOT (ps.player_id = ANY(%s))
              ORDER BY ps.career_games DESC, ps.player_id
-             LIMIT 1000
+             LIMIT %s
             """,
-            (current_player_id, used),
+            (current_player_id, used, limit),
         ).fetchall()
     return conn.execute(
         """
@@ -9419,9 +9440,59 @@ def _bot_candidate_rows(conn, sport: str, current_player_id: str, used: list[str
             ON ps.sport_id=%s AND ps.player_id=pk.player_id
          WHERE NOT (ps.player_id = ANY(%s))
          ORDER BY ps.career_games DESC, ps.player_id
-         LIMIT 1000
+         LIMIT %s
         """,
-        (sport, current_player_id, sport, sport, sport, used),
+        (sport, current_player_id, sport, sport, sport, used, limit),
+    ).fetchall()
+
+
+def _bot_validation_visible_candidate_rows(conn, sport: str, current_player_id: str, used: list[str],
+                                           limit: int = 2500) -> list[tuple[str, str, int]]:
+    if sport == "baseball":
+        return []
+    used = used or [current_player_id]
+    limit = max(100, min(int(limit or 2500), 5000))
+    return conn.execute(
+        """
+        WITH candidate_ids AS (
+            SELECT CASE
+                     WHEN t.player_a_id = %s THEN t.player_b_id
+                     ELSE t.player_a_id
+                   END AS player_id
+              FROM sport_teammates t
+             WHERE t.sport_id = %s
+               AND (t.player_a_id = %s OR t.player_b_id = %s)
+            UNION
+            SELECT live_b.player_id
+              FROM sport_live_player_games live_a
+              JOIN sport_live_player_games live_b
+                ON live_b.sport_id = live_a.sport_id
+               AND live_b.game_id = live_a.game_id
+               AND live_b.team_id = live_a.team_id
+             WHERE live_a.sport_id = %s
+               AND live_a.player_id = %s
+            UNION
+            SELECT b.player_id
+              FROM sport_appearances a
+              JOIN sport_appearances b
+                ON b.sport_id = a.sport_id
+               AND b.team_id = a.team_id
+               AND b.season = a.season
+             WHERE a.sport_id = %s
+               AND a.player_id = %s
+        )
+        SELECT ps.player_id, ps.display_name, ps.career_games
+          FROM candidate_ids c
+          JOIN sport_players_searchable ps
+            ON ps.sport_id = %s AND ps.player_id = c.player_id
+         WHERE NOT (ps.player_id = ANY(%s))
+         ORDER BY ps.career_games DESC, ps.player_id
+         LIMIT %s
+        """,
+        (
+            current_player_id, sport, current_player_id, current_player_id,
+            sport, current_player_id, sport, current_player_id, sport, used, limit,
+        ),
     ).fetchall()
 
 
@@ -9548,10 +9619,17 @@ def _bot_activate_powerup(conn, sport: str, blob: dict, state: GameState, side: 
     return None
 
 
-def _bot_choose_move(conn, sport: str, mode: str, blob: dict, side: str, state: GameState) -> MoveResult | None:
-    rows = _bot_candidate_rows(conn, sport, state.current_player_id, state.chain)
+def _bot_choose_move(conn, sport: str, mode: str, blob: dict, side: str, state: GameState,
+                     protected: bool = False) -> MoveResult | None:
+    rows = _bot_candidate_rows(conn, sport, state.current_player_id, state.chain, limit=3500 if protected else 1000)
+    if protected:
+        seen = {row[0] for row in rows}
+        for row in _bot_validation_visible_candidate_rows(conn, sport, state.current_player_id, state.chain):
+            if row[0] not in seen:
+                rows.append(row)
+                seen.add(row[0])
     candidates = _bot_prioritized_candidates(conn, sport, mode, blob, side, rows, len(state.chain))
-    limit = 500 if len(state.chain) < 12 else 180
+    limit = len(candidates) if protected else (500 if len(state.chain) < 12 else 180)
     for candidate_id in candidates[:limit]:
         trial = validate_and_apply_move(
             state,
@@ -9563,6 +9641,36 @@ def _bot_choose_move(conn, sport: str, mode: str, blob: dict, side: str, state: 
         if trial.outcome == MoveOutcome.VALID:
             return trial
     return None
+
+
+def _bot_activate_non_move_powerup(conn, sport: str, blob: dict, state: GameState, side: str) -> dict | None:
+    if not _playoff_powerups_unlocked(state):
+        return None
+    if blob.get("turn_powerup_used") or blob.get("active_turn_powerup"):
+        return None
+    powers = PLAYOFF_POWERUPS if sport == "baseball" else LOCAL_PLAYOFF_CONFIG[sport]["powerups"]
+    used = set(blob.get(f"{side}_powerup_used_keys") or [])
+    available = [key for key, meta in powers.items()
+                 if key not in used and (meta.get("kind") in {"time", "timer", "pressure"} or key == "quick_pitch")]
+    if not available:
+        return None
+
+    def rank(key: str) -> tuple[int, int]:
+        kind = powers[key].get("kind")
+        return (0 if kind in {"time", "timer"} and key != "quick_pitch" else 1, secrets.randbelow(100))
+
+    key = sorted(available, key=rank)[0]
+    meta = powers[key]
+    blob[f"{side}_powerup_used_keys"].append(key)
+    blob["turn_powerup_used"] = True
+    if meta.get("kind") in {"time", "timer"} and key != "quick_pitch":
+        bonus = float(meta.get("bonus_seconds") or 0)
+        blob["turn_seconds"] += bonus
+        message = f"{meta['label']} activated. +{int(bonus)} seconds."
+    else:
+        blob["next_turn_seconds_override"] = QUICK_PITCH_TURN_SECONDS
+        message = f"{meta['label']} activated. Opponent gets 10 seconds next turn."
+    return {"outcome": "powerup_activated", "powerup_key": key, "powerup_label": meta["label"], "message": message}
 
 
 def _sport_online_apply_valid_payload(conn, sport: str, mode: str, blob: dict, state: GameState,
@@ -9645,6 +9753,7 @@ def _sport_online_maybe_advance_bot(conn, game_id: str, blob: dict, state: GameS
         return
     sport, mode = blob["sport"], blob["mode"]
     bot_side = "p1" if blob["turn_index"] == 0 else "p2"
+    protected_turn = _bot_protected_from_empty_timeout(sport, mode, blob, state, bot_side)
     if _finish_bot_timeout_if_due(blob, bot_side):
         if blob.get("finished"):
             blob.pop("bot_next_move_at", None)
@@ -9656,7 +9765,7 @@ def _sport_online_maybe_advance_bot(conn, game_id: str, blob: dict, state: GameS
     else:
         payload = _bot_activate_powerup(conn, sport, blob, state, bot_side) if mode == "po" else None
         if not payload or payload.get("outcome") != "valid":
-            result = _bot_choose_move(conn, sport, mode, blob, bot_side, state)
+            result = _bot_choose_move(conn, sport, mode, blob, bot_side, state, protected=protected_turn)
             payload = result_to_dict(result) if result else None
             if mode == "po" and result and result.outcome != MoveOutcome.VALID:
                 if sport == "baseball":
@@ -9665,9 +9774,18 @@ def _sport_online_maybe_advance_bot(conn, game_id: str, blob: dict, state: GameS
                     alternate = _local_po_powerup_move(PgEngineConn(conn), blob, raw="", player_id=result.player_id)
                 payload = alternate or payload
         if not payload or payload.get("outcome") != "valid":
-            _schedule_bot_timeout_loss(blob)
+            activated = _bot_activate_non_move_powerup(conn, sport, blob, state, bot_side) if protected_turn else None
+            if activated:
+                blob["last_move"] = activated
+                blob.pop("bot_next_move_at", None)
+                _schedule_bot_turn_if_needed(blob)
+            elif protected_turn and _retry_bot_turn_before_timeout(blob):
+                pass
+            else:
+                _schedule_bot_timeout_loss(blob)
         else:
             blob.pop("bot_timeout_at", None)
+            blob.pop("bot_empty_move_retries", None)
             blob.update(serialize_state(state))
             blob["last_move"] = payload
             _sport_online_apply_valid_payload(conn, sport, mode, blob, state, payload, bot_side, record_usage=False)

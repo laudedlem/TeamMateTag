@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.5.27`, deployed from the latest pushed `main`
+- Current display version is `0.5.28`, deployed from the latest pushed `main`
   commit.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -273,6 +273,12 @@ decision needs context.
   side rail and trims chip spacing/padding so the right column is less wide.
   Side-rail powerup boxes now use border-box sizing to prevent right-edge
   clipping in the expanded panel, including opponent powerups.
+- `0.5.28`: Playoffs bots now run a protected deeper teammate search on early
+  or unused-powerup turns and retry rather than immediately timing out if a
+  protected search comes up empty. If unlocked and still stuck, they can burn a
+  non-linking time/pressure powerup before trying again. Desktop expanded
+  Powerups now uses symmetric inner padding, a thinner right rail, and smaller
+  landscape chips to avoid right-edge clipping.
 
 ### Important implementation notes
 
@@ -376,7 +382,7 @@ decision needs context.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.5.27`
+- Current display version: `0.5.28`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog policy: production is runtime-only. Keep compact
