@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.5.21"
+APP_VERSION = "0.5.22"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -9320,6 +9320,41 @@ def _bot_loss_chance(chain_length: int) -> float:
     return 0.52
 
 
+def _bot_unused_powerup_count(sport: str, blob: dict, side: str) -> int:
+    if blob.get("mode") != "po":
+        return 0
+    powers = PLAYOFF_POWERUPS if sport == "baseball" else LOCAL_PLAYOFF_CONFIG[sport]["powerups"]
+    used = set(blob.get(f"{side}_powerup_used_keys") or [])
+    return max(0, len(powers) - len(used))
+
+
+def _bot_planned_loss_chance(sport: str, mode: str, blob: dict, state: GameState, side: str) -> float:
+    if mode != "po":
+        return _bot_loss_chance(len(state.chain))
+
+    if not _playoff_powerups_unlocked(state):
+        if len(state.chain) < max(3, PLAYOFF_OPENING_LOCK_MOVES):
+            return 0.0
+        return 0.015
+
+    chance = _bot_loss_chance(len(state.chain))
+    unused = _bot_unused_powerup_count(sport, blob, side)
+    if unused >= 5:
+        return chance * 0.12
+    if unused >= 3:
+        return chance * 0.22
+    if unused >= 1:
+        return chance * 0.45
+    return chance
+
+
+def _bot_should_schedule_timeout_loss(sport: str, mode: str, blob: dict, state: GameState, side: str) -> bool:
+    chance = _bot_planned_loss_chance(sport, mode, blob, state, side)
+    if chance <= 0:
+        return False
+    return secrets.randbelow(10000) < int(chance * 10000)
+
+
 def _bot_candidate_rows(conn, sport: str, current_player_id: str, used: list[str]) -> list[tuple[str, str, int]]:
     used = used or [current_player_id]
     if sport == "baseball":
@@ -9609,7 +9644,7 @@ def _sport_online_maybe_advance_bot(conn, game_id: str, blob: dict, state: GameS
             _save_sport_online_result(conn, game_id, blob, state)
         _sport_online_save(conn, game_id, blob)
         return
-    if secrets.randbelow(100) < int(_bot_loss_chance(len(state.chain)) * 100):
+    if _bot_should_schedule_timeout_loss(sport, mode, blob, state, bot_side):
         _schedule_bot_timeout_loss(blob)
     else:
         payload = _bot_activate_powerup(conn, sport, blob, state, bot_side) if mode == "po" else None

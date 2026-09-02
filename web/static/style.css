@@ -9932,9 +9932,61 @@ body[data-mode-hub="manager"] .manager-starter-name span {
     padding: 0.52rem;
   }
 
-  .playoffs-side-info #your-powerup-desc.powerup-list,
   .playoffs-side-info .powerup-list {
     grid-template-columns: 1fr;
+  }
+
+  .playoffs-side-info #your-powerup-desc.powerup-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.32rem;
+  }
+
+  .playoffs-side-info .powerup-panel[open] > summary {
+    gap: 0.32rem;
+    grid-template-columns: max-content max-content max-content;
+    justify-content: space-between;
+    white-space: nowrap;
+  }
+
+  .playoffs-side-info .powerup-panel[open] > summary .powerup-summary-main,
+  .playoffs-side-info .powerup-panel[open] > summary span,
+  .playoffs-side-info .powerup-panel[open] > summary small {
+    grid-column: auto;
+    min-width: 0;
+    white-space: nowrap;
+  }
+
+  .playoffs-side-info .powerup-panel[open] > summary span,
+  .playoffs-side-info .powerup-panel[open] > summary small {
+    font-size: 0.58rem;
+    padding: 0.22rem 0.3rem;
+  }
+
+  .playoffs-side-info .powerup-panel[open] #your-powerup-desc .powerup-chip {
+    gap: 0.12rem;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    min-height: 2.7rem;
+    padding: 0.34rem 0.3rem;
+    text-align: center;
+  }
+
+  .playoffs-side-info .powerup-panel[open] #your-powerup-desc .powerup-icon,
+  .playoffs-side-info .powerup-panel[open] #your-powerup-desc .powerup-state {
+    display: none;
+  }
+
+  .playoffs-side-info .powerup-panel[open] #your-powerup-desc .powerup-label {
+    font-size: 0.64rem;
+    line-height: 1.05;
+  }
+
+  .playoffs-side-info .powerup-panel[open] #your-powerup-desc .powerup-desc {
+    font-size: 0.55rem;
+    line-height: 1.05;
+    overflow-wrap: normal;
+    white-space: normal;
+    word-break: normal;
   }
 }
 
