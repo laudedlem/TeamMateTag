@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.5.29`, deployed from the latest pushed `main`
+- Current display version is `0.5.30`, deployed from the latest pushed `main`
   commit.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -284,6 +284,10 @@ decision needs context.
   the visible timer before the server bot loop can move, retry, or use powerups.
   The desktop Playoffs right rail was narrowed again, with a small right-side
   cushion and visible overflow so expanded powerup content is not clipped.
+- `0.5.30`: Bot turns are clock-aware again. Browser timeout/reaper requests now
+  route bot turns through the bot advance loop: the bot moves if its scheduled
+  decision was before the deadline, and loses on time if its own scheduled move
+  or planned timeout misses the deadline. Human turns still use normal expiry.
 
 ### Important implementation notes
 
@@ -387,7 +391,7 @@ decision needs context.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.5.29`
+- Current display version: `0.5.30`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog policy: production is runtime-only. Keep compact
