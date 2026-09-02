@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.5.34"
+APP_VERSION = "0.5.35"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -9370,6 +9370,30 @@ def _bot_should_schedule_timeout_loss(sport: str, mode: str, blob: dict, state: 
     return secrets.randbelow(10000) < int(chance * 10000)
 
 
+def _bot_should_try_powerup(sport: str, blob: dict, state: GameState, side: str) -> bool:
+    if blob.get("mode") != "po" or not _playoff_powerups_unlocked(state):
+        return False
+    # The first unlocked turn was causing the bot to leave the stable normal
+    # chain path. Let the game breathe before powerups enter the simulation.
+    if len(state.chain) < 12:
+        return False
+    total = _bot_total_powerup_count(sport, blob)
+    unused = _bot_unused_powerup_count(sport, blob, side)
+    if total <= 0 or unused <= 0:
+        return False
+    spent = total - unused
+    chain_length = len(state.chain)
+    if spent == 0:
+        chance = 45 if chain_length < 18 else 70
+    elif chain_length < 22:
+        chance = 34
+    elif chain_length < 36:
+        chance = 48
+    else:
+        chance = 64
+    return secrets.randbelow(100) < chance
+
+
 def _bot_candidate_rows(conn, sport: str, current_player_id: str, used: list[str]) -> list[tuple[str, str, int]]:
     used = used or [current_player_id]
     if sport == "baseball":
@@ -9516,6 +9540,8 @@ def _bot_try_powerup_move(conn, sport: str, blob: dict, state: GameState, poweru
 def _bot_activate_powerup(conn, sport: str, blob: dict, state: GameState, side: str) -> dict | None:
     if not _playoff_powerups_unlocked(state):
         return None
+    if not _bot_should_try_powerup(sport, blob, state, side):
+        return None
     if blob.get("turn_powerup_used") or blob.get("active_turn_powerup"):
         return None
     powers = PLAYOFF_POWERUPS if sport == "baseball" else LOCAL_PLAYOFF_CONFIG[sport]["powerups"]
@@ -9559,7 +9585,10 @@ def _bot_activate_powerup(conn, sport: str, blob: dict, state: GameState, side: 
 def _bot_choose_move(conn, sport: str, mode: str, blob: dict, side: str, state: GameState) -> MoveResult | None:
     rows = _bot_candidate_rows(conn, sport, state.current_player_id, state.chain)
     candidates = _bot_prioritized_candidates(conn, sport, mode, blob, side, rows, len(state.chain))
-    limit = 500 if len(state.chain) < 12 else 180
+    if mode == "po" and len(state.chain) < 12:
+        limit = len(candidates)
+    else:
+        limit = 500 if len(state.chain) < 12 else 220
     for candidate_id in candidates[:limit]:
         trial = validate_and_apply_move(
             state,
