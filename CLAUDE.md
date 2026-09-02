@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.5.33`, deployed from the latest pushed `main`
+- Current display version is `0.5.34`, deployed from the latest pushed `main`
   commit.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -300,6 +300,11 @@ decision needs context.
   expiry now polls the game instead of submitting `/timeout`, and the bot
   advance loop checks a bot's scheduled move before expiring it. Bots still lose
   on time if their own scheduled decision is after the deadline.
+- `0.5.34`: Fixed the Playoffs bot 0.0-second deadlock. Bot-turn state
+  serialization no longer applies generic human expiry, and the bot loop now
+  resolves expired clocks by comparing the scheduled bot decision against the
+  turn deadline instead of returning unfinished at 0.0. The client also waits a
+  beat and polls once when an opponent-turn timer reaches zero.
 
 ### Important implementation notes
 
@@ -403,7 +408,7 @@ decision needs context.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.5.33`
+- Current display version: `0.5.34`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog policy: production is runtime-only. Keep compact

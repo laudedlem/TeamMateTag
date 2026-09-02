@@ -179,6 +179,7 @@ let friendsPollInterval = null;
 let mpRequeueRelaxTimeout = null;
 let mpPollInFlight = false;
 let moveSubmissionInFlight = false;
+let mpOpponentTimeoutPollInFlight = false;
 let bpTimeoutInFlight = false;
 let turnLocalStart = 0;
 let lastChainLength = 0;
@@ -1629,13 +1630,25 @@ function runOpeningCountdown() {
 async function onMpTimeout() {
   const guestId = profile?.guest_id || storedGuestId();
   if (!game?.your_turn) {
-    game = await api(onlineApiBase() + '/game', {
-      game_id: game.game_id,
-      guest_id: guestId,
-    });
-    preloadGameHeadshots(game);
-    renderMpGame();
-    syncMpClock(null, game, { force: true });
+    if (mpOpponentTimeoutPollInFlight) return;
+    mpOpponentTimeoutPollInFlight = true;
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 350));
+      game = await api(onlineApiBase() + '/game', {
+        game_id: game.game_id,
+        guest_id: guestId,
+      });
+      preloadGameHeadshots(game);
+      renderMpGame();
+      if (game.finished) {
+        showGameOverBanner();
+        bootstrapProfile();
+      } else {
+        syncMpClock(null, game, { force: true });
+      }
+    } finally {
+      mpOpponentTimeoutPollInFlight = false;
+    }
     return;
   }
   const timeoutPath = currentMode === 'po'

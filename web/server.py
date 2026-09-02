@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.5.33"
+APP_VERSION = "0.5.34"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -9260,7 +9260,8 @@ def _save_sport_online_result(conn, game_id: str, blob: dict, state: GameState):
 
 
 def _sport_online_state(conn, game_id: str, blob: dict, state: GameState, viewer: str) -> dict:
-    _sport_online_expire(blob)
+    if not _is_bot_guest(blob, _current_turn_guest_id(blob)):
+        _sport_online_expire(blob)
     sport = blob["sport"]
     elapsed = (now_utc() - datetime.fromisoformat(blob["turn_started_at"])).total_seconds()
     countdown = max(0.0, blob["countdown_seconds"] - elapsed) if not blob["finished"] else 0.0
@@ -9658,9 +9659,10 @@ def _sport_online_maybe_advance_bot(conn, game_id: str, blob: dict, state: GameS
         return
     next_move_at = datetime.fromisoformat(next_move)
     now = now_utc()
-    if now < next_move_at:
+    deadline = _bot_turn_deadline(blob)
+    if now < next_move_at and now < deadline:
         return
-    if next_move_at > _bot_turn_deadline(blob):
+    if next_move_at > deadline and now >= deadline:
         blob["finished"] = True
         blob["winner"] = blob["p2"] if bot_side == "p1" else blob["p1"]
         blob["last_move"] = {"outcome": "timeout"}
