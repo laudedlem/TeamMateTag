@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.5.30`, deployed from the latest pushed `main`
+- Current display version is `0.5.31`, deployed from the latest pushed `main`
   commit.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -288,6 +288,10 @@ decision needs context.
   route bot turns through the bot advance loop: the bot moves if its scheduled
   decision was before the deadline, and loses on time if its own scheduled move
   or planned timeout misses the deadline. Human turns still use normal expiry.
+- `0.5.31`: Hotfix: the global expired-game reaper no longer advances bot turns
+  while queue/status requests are running. This keeps matchmaking from crashing
+  because of unrelated active bot games; active game polls still advance their
+  own bot turns.
 
 ### Important implementation notes
 
@@ -391,7 +395,7 @@ decision needs context.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.5.30`
+- Current display version: `0.5.31`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog policy: production is runtime-only. Keep compact

@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.5.30"
+APP_VERSION = "0.5.31"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -9245,7 +9245,7 @@ def _reap_expired_sport_games(conn, sport: str, mode: str):
         blob["finished"] = finished
         state = deserialize_state(blob)
         if _is_bot_guest(blob, _current_turn_guest_id(blob)):
-            _sport_online_maybe_advance_bot(conn, game_id, blob, state)
+            continue
         else:
             _sport_online_expire(blob)
         if blob["finished"]:
