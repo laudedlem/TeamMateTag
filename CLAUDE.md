@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.5.25`, deployed from the latest pushed `main`
+- Current display version is `0.5.26`, deployed from the latest pushed `main`
   commit.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -266,6 +266,9 @@ decision needs context.
   visible so expanded Your Powerups can render as a true 3x3 landscape grid with
   compact icons. The Powerups summary row is explicitly pinned to the same
   layout in collapsed and expanded states.
+- `0.5.26`: Desktop Playoffs Your Powerups grid now uses a higher-specificity
+  side-rail selector so the intended 3-across layout beats older global open
+  powerup grid rules.
 
 ### Important implementation notes
 
@@ -369,7 +372,7 @@ decision needs context.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.5.25`
+- Current display version: `0.5.26`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog policy: production is runtime-only. Keep compact

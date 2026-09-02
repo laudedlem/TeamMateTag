@@ -9959,7 +9959,7 @@ body[data-mode-hub="manager"] .manager-starter-name span {
     grid-template-columns: 1fr;
   }
 
-  .playoffs-side-info #your-powerup-desc.powerup-list {
+  .playoffs-side-info .powerup-panel[open] #your-powerup-desc.powerup-list {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0.38rem;
   }
