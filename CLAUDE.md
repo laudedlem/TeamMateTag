@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.5.24`, deployed from the latest pushed `main`
+- Current display version is `0.5.25`, deployed from the latest pushed `main`
   commit.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -262,6 +262,10 @@ decision needs context.
 - `0.5.24`: Desktop Playoffs expanded Powerups now reuses the same summary pill
   styling as the collapsed state so `Powerups`, unused count, and opponent count
   do not shrink or spread out when opened.
+- `0.5.25`: Desktop Playoffs now widens the right rail while side-rail info is
+  visible so expanded Your Powerups can render as a true 3x3 landscape grid with
+  compact icons. The Powerups summary row is explicitly pinned to the same
+  layout in collapsed and expanded states.
 
 ### Important implementation notes
 
@@ -365,7 +369,7 @@ decision needs context.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.5.24`
+- Current display version: `0.5.25`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog policy: production is runtime-only. Keep compact

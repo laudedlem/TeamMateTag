@@ -2144,6 +2144,7 @@ function playoffsInfoBelongsInSideRail() {
 function placePlayoffsInfoPanels() {
   const sideRail = playoffsInfoBelongsInSideRail();
   const target = sideRail ? els.playoffsSideInfo : els.playoffsMobileInfoSlot;
+  els.sidePanel?.parentElement?.classList.toggle('playoffs-wide-side-rail', !!sideRail);
   if (!target || !els.winPanel || !els.powerupPanel) return;
   if (els.winPanel.parentElement !== target) target.appendChild(els.winPanel);
   if (els.powerupPanel.parentElement !== target) target.appendChild(els.powerupPanel);
