@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.5.22`, deployed from the latest pushed `main`
+- Current display version is `0.5.23`, deployed from the latest pushed `main`
   commit.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -255,6 +255,10 @@ decision needs context.
   losses rare except on genuinely hard chains. Desktop side-rail Your Powerups
   expands into a flatter 3-column deck with a stable one-line summary row while
   leaving the opponent scout layout unchanged.
+- `0.5.23`: Playoffs bots no longer take planned timeout losses before
+  powerups unlock or while still holding a full powerup hand. Desktop expanded
+  Your Powerups keeps the 3-column grid but restores compact icons inside each
+  flatter button.
 
 ### Important implementation notes
 
@@ -358,7 +362,7 @@ decision needs context.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.5.22`
+- Current display version: `0.5.23`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog policy: production is runtime-only. Keep compact

@@ -9963,26 +9963,33 @@ body[data-mode-hub="manager"] .manager-starter-name span {
   }
 
   .playoffs-side-info .powerup-panel[open] #your-powerup-desc .powerup-chip {
-    gap: 0.12rem;
-    grid-template-columns: minmax(0, 1fr);
+    column-gap: 0.2rem;
+    grid-template-columns: 1.1rem minmax(0, 1fr);
     grid-template-rows: auto auto;
-    min-height: 2.7rem;
-    padding: 0.34rem 0.3rem;
-    text-align: center;
+    min-height: 2.42rem;
+    padding: 0.28rem 0.24rem;
+    text-align: left;
   }
 
-  .playoffs-side-info .powerup-panel[open] #your-powerup-desc .powerup-icon,
+  .playoffs-side-info .powerup-panel[open] #your-powerup-desc .powerup-icon {
+    align-self: center;
+    display: inline-grid;
+    grid-row: 1 / span 2;
+    height: 1.1rem;
+    width: 1.1rem;
+  }
+
   .playoffs-side-info .powerup-panel[open] #your-powerup-desc .powerup-state {
     display: none;
   }
 
   .playoffs-side-info .powerup-panel[open] #your-powerup-desc .powerup-label {
-    font-size: 0.64rem;
+    font-size: 0.56rem;
     line-height: 1.05;
   }
 
   .playoffs-side-info .powerup-panel[open] #your-powerup-desc .powerup-desc {
-    font-size: 0.55rem;
+    font-size: 0.49rem;
     line-height: 1.05;
     overflow-wrap: normal;
     white-space: normal;

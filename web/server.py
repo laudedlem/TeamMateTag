@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.5.22"
+APP_VERSION = "0.5.23"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -9328,17 +9328,24 @@ def _bot_unused_powerup_count(sport: str, blob: dict, side: str) -> int:
     return max(0, len(powers) - len(used))
 
 
+def _bot_total_powerup_count(sport: str, blob: dict) -> int:
+    if blob.get("mode") != "po":
+        return 0
+    powers = PLAYOFF_POWERUPS if sport == "baseball" else LOCAL_PLAYOFF_CONFIG[sport]["powerups"]
+    return len(powers)
+
+
 def _bot_planned_loss_chance(sport: str, mode: str, blob: dict, state: GameState, side: str) -> float:
     if mode != "po":
         return _bot_loss_chance(len(state.chain))
 
     if not _playoff_powerups_unlocked(state):
-        if len(state.chain) < max(3, PLAYOFF_OPENING_LOCK_MOVES):
-            return 0.0
-        return 0.015
+        return 0.0
 
     chance = _bot_loss_chance(len(state.chain))
     unused = _bot_unused_powerup_count(sport, blob, side)
+    if unused >= _bot_total_powerup_count(sport, blob):
+        return 0.0
     if unused >= 5:
         return chance * 0.12
     if unused >= 3:
