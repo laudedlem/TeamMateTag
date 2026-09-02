@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.5.28"
+APP_VERSION = "0.5.29"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -9212,6 +9212,8 @@ def _delete_transient_bot_guests(conn, blob: dict, current_game_id: str | None =
 
 def _sport_online_expire(blob: dict):
     if blob.get("finished"):
+        return
+    if _is_bot_guest(blob, _current_turn_guest_id(blob)):
         return
     elapsed = (now_utc() - datetime.fromisoformat(blob["turn_started_at"])).total_seconds()
     if max(0.0, elapsed - blob["countdown_seconds"]) >= blob["turn_seconds"]:
