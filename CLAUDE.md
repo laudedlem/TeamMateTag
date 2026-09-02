@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.5.31`, deployed from the latest pushed `main`
+- Current display version is `0.5.32`, deployed from the latest pushed `main`
   commit.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -292,6 +292,10 @@ decision needs context.
   while queue/status requests are running. This keeps matchmaking from crashing
   because of unrelated active bot games; active game polls still advance their
   own bot turns.
+- `0.5.32`: Rollback hotfix: restored `web/server.py` backend bot/matchmaking
+  logic to the known `0.5.27` state, then bumped the display version. This backs
+  out the broken 0.5.28-0.5.31 bot timeout/reaper experiments that caused
+  Playoffs queue KeyError/server errors. UI/CSS changes after 0.5.27 remain.
 
 ### Important implementation notes
 
@@ -395,7 +399,7 @@ decision needs context.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.5.31`
+- Current display version: `0.5.32`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog policy: production is runtime-only. Keep compact
