@@ -2399,7 +2399,7 @@ function renderPowerups() {
     : game.your_turn
     ? (game.powerups.turn_powerup_used ? 'Powerup Used This Turn' : 'One Use Each Game')
     : ((game.countdown_seconds_remaining || 0) > 0 ? 'Powerups Open After the First Play' : 'Available On Your Turn');
-  els.yourPowerupName.textContent = `Your Powerups - ${availability}${openingLocked ? '' : ' - Same Franchise Plays'}`;
+  els.yourPowerupName.textContent = `Your Powerups - ${availability}`;
   els.oppPowerupName.textContent = 'Opponent Powerups';
   els.yourPowerupDesc.innerHTML = your.length
     ? your.map((powerup) => powerupButtonHtml(powerup, buttonsDisabled || powerup.used, buttonState)).join('')
