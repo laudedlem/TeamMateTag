@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.5.35"
+APP_VERSION = "0.5.36"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -4817,19 +4817,20 @@ def _local_po_condition_increment(conn: sqlite3.Connection, sport: str, key: str
 
 
 def _local_po_powerup_state(game: dict, viewer_guest_id: str) -> dict:
-    config = LOCAL_PLAYOFF_CONFIG[game["sport"]]["powerups"]
+    config = (LOCAL_PLAYOFF_CONFIG.get(game.get("sport")) or {}).get("powerups") or {}
     def payload(side: str) -> list[dict]:
         used = set(game.get(f"{side}_powerup_used_keys") or [])
-        return [{"key": key, "label": meta["label"], "description": meta["description"],
-                 "kind": meta["kind"], "used": key in used,
+        return [{"key": key, "label": meta.get("label", key), "description": meta.get("description", ""),
+                 "kind": meta.get("kind", ""), "used": key in used,
                  "owner": game[side]}
                 for key, meta in config.items()]
     your_side = "p1" if viewer_guest_id == game["p1_guest_id"] else "p2"
     other = "p2" if your_side == "p1" else "p1"
     active = game.get("active_turn_powerup")
+    active_meta = config.get(active) if active else None
     return {
         "your_powerups": payload(your_side), "opponent_powerups": payload(other),
-        "active_turn_powerup": {"key": active, "label": config[active]["label"]} if active else None,
+        "active_turn_powerup": {"key": active, "label": active_meta.get("label", active)} if active_meta else None,
         "turn_powerup_used": bool(game.get("turn_powerup_used")),
         "opening_lock_moves": PLAYOFF_OPENING_LOCK_MOVES,
     }
@@ -4945,11 +4946,47 @@ def _local_po_pick(conn: sqlite3.Connection, sport: str, raw: str, player_id: st
     return (matches[0][0], matches[0][1], matches[0][2], len(matches)) if matches else (None, None, None, 0)
 
 
+def _local_po_stat_label(stat_key: str | None) -> str:
+    labels = {
+        "career_points": "career points",
+        "career_goals": "career goals",
+        "career_assists": "career assists",
+        "career_touchdowns": "career touchdowns",
+        "passing_touchdowns": "passing touchdowns",
+        "rushing_touchdowns": "rushing touchdowns",
+        "receiving_touchdowns": "receiving touchdowns",
+        "career_sacks": "career sacks",
+        "career_interceptions": "career interceptions",
+        "career_games": "career games",
+    }
+    return labels.get(stat_key or "", "required stat")
+
+
+def _local_po_powerup_ineligible_reason(name: str, label: str, meta: dict, traits: dict) -> str:
+    if meta.get("kind") == "stat":
+        stat_key = meta.get("stat")
+        threshold = int(meta.get("threshold") or 0)
+        current = int(traits.get(stat_key, 0)) if stat_key else 0
+        if threshold:
+            return f"{name} has {current:,} {_local_po_stat_label(stat_key)}; {label} requires {threshold:,}."
+    if meta.get("kind") == "veteran":
+        threshold = int(meta.get("career_games") or 0)
+        current = int(traits.get("career_games", 0))
+        if threshold:
+            return f"{name} has {current:,} career games; {label} requires {threshold:,}."
+    return f"{name} is not eligible for {label}."
+
+
 def _local_po_powerup_move(conn: sqlite3.Connection, game: dict, raw: str, player_id: str | None) -> dict | None:
     key = game.get("active_turn_powerup")
     if not key:
         return None
-    sport, state, meta = game["sport"], game["state"], LOCAL_PLAYOFF_CONFIG[game["sport"]]["powerups"][key]
+    sport, state = game.get("sport"), game.get("state")
+    powers = (LOCAL_PLAYOFF_CONFIG.get(sport) or {}).get("powerups") or {}
+    meta = powers.get(key)
+    if not sport or not state or not meta:
+        return None
+    label = meta.get("label") or "That Powerup"
     candidate_id, name, disambiguation, ambiguous_count = _local_po_pick(conn, sport, raw, player_id)
     if not candidate_id or candidate_id in state.chain:
         return None
@@ -4959,20 +4996,22 @@ def _local_po_powerup_move(conn: sqlite3.Connection, game: dict, raw: str, playe
              WHERE a.sport_id=? AND a.player_id=? AND a.season >= 2000""", (sport, state.current_player_id))}
     traits = _local_po_traits(conn, sport, candidate_id)
     eligible = bool(current_franchises)
-    if meta["kind"] == "veteran":
-        eligible = eligible and traits["career_games"] >= meta["career_games"]
-    elif meta["kind"] == "stat":
-        eligible = eligible and int(traits.get(meta["stat"], 0)) >= int(meta["threshold"])
-    elif meta["kind"] == "position":
+    kind = meta.get("kind")
+    if kind == "veteran":
+        eligible = eligible and int(traits.get("career_games", 0)) >= int(meta.get("career_games") or 0)
+    elif kind == "stat":
+        stat_key = meta.get("stat")
+        eligible = eligible and bool(stat_key) and int(traits.get(stat_key, 0)) >= int(meta.get("threshold") or 0)
+    elif kind == "position":
         current_traits = _local_po_traits(conn, sport, state.current_player_id)
-        eligible = eligible and _local_position_group(sport, traits["position"]) == _local_position_group(sport, current_traits["position"])
-    elif meta["kind"] == "same_position":
+        eligible = eligible and _local_position_group(sport, traits.get("position")) == _local_position_group(sport, current_traits.get("position"))
+    elif kind == "same_position":
         current_traits = _local_po_traits(conn, sport, state.current_player_id)
-        eligible = eligible and bool(_local_position_tokens(traits["position"]) & _local_position_tokens(current_traits["position"]))
+        eligible = eligible and bool(_local_position_tokens(traits.get("position")) & _local_position_tokens(current_traits.get("position")))
     if not eligible:
         return {"outcome": "powerup_not_eligible", "player_id": candidate_id, "display_name": name,
                 "disambiguation": disambiguation, "ambiguous_count": ambiguous_count, "powerup_key": key,
-                "powerup_label": meta["label"], "reason": f"{name} is not eligible for {meta['label']}."}
+                "powerup_label": label, "reason": _local_po_powerup_ineligible_reason(name, label, meta, traits)}
     rows = conn.execute(
         """SELECT a.team_id, a.season FROM sport_appearances a JOIN sport_teams t
                ON t.sport_id=a.sport_id AND t.team_id=a.team_id AND t.season=a.season
@@ -4983,15 +5022,17 @@ def _local_po_powerup_move(conn: sqlite3.Connection, game: dict, raw: str, playe
     if not available:
         return {"outcome": "blocked_by_burned", "player_id": candidate_id, "display_name": name,
                 "disambiguation": disambiguation, "ambiguous_count": ambiguous_count, "powerup_key": key,
-                "powerup_label": meta["label"], "shared_seasons": [{"team_id": team, "season": season} for team, season in rows],
+                "powerup_label": label, "shared_seasons": [{"team_id": team, "season": season} for team, season in rows],
                 "burned_seasons": [{"team_id": team, "season": season} for team, season in rows]}
     team, season = available[0]
     state.strikes[(team, season)] = state.strikes.get((team, season), 0) + 1
     state.chain.append(candidate_id); state.chain_names.append(name); state.chain_shared_with_prev.append([(team, season)])
-    game["chain_link_meta"].append({"type": "powerup", "powerup_key": key, "powerup_label": meta["label"]})
+    chain_link_meta = list(game.get("chain_link_meta") or [None] * (len(state.chain) - 1))
+    chain_link_meta.append({"type": "powerup", "powerup_key": key, "powerup_label": label})
+    game["chain_link_meta"] = chain_link_meta
     return {"outcome": "valid", "player_id": candidate_id, "display_name": name, "disambiguation": disambiguation,
             "ambiguous_count": ambiguous_count, "shared_seasons": [{"team_id": team, "season": season}], "burned_seasons": [],
-            "powerup_key": key, "powerup_label": meta["label"], "move_via_powerup": True}
+            "powerup_key": key, "powerup_label": label, "move_via_powerup": True}
 
 
 @app.route("/api/local/<sport>/po/queue", methods=["POST"])
