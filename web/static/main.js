@@ -88,6 +88,8 @@ const els = {
   timer: document.getElementById('timer'),
   currentPlayerName: document.getElementById('current-player-name'),
   winPanel: document.getElementById('win-panel'),
+  playoffsMobileInfoSlot: document.getElementById('playoffs-mobile-info-slot'),
+  playoffsSideInfo: document.getElementById('playoffs-side-info'),
   yourWinBox: document.getElementById('your-win-box'),
   yourWinName: document.getElementById('your-win-name'),
   yourWinDesc: document.getElementById('your-win-desc'),
@@ -2119,6 +2121,7 @@ function renderWinBox(box, nameEl, descEl, pipsEl, condition, boxKey, side) {
 
 function renderWinConditions() {
   const isPo = currentMode === 'po' && game?.win_conditions;
+  placePlayoffsInfoPanels();
   els.winPanel.hidden = !isPo;
   els.winPanel.style.display = isPo ? '' : 'none';
   if (!isPo) return;
@@ -2132,6 +2135,28 @@ function renderWinConditions() {
   const oppSide = yourSide === 'p1' ? 'p2' : yourSide === 'p2' ? 'p1' : null;
   renderWinBox(els.yourWinBox, els.yourWinName, els.yourWinDesc, els.yourWinPips, your, 'your', yourSide);
   renderWinBox(els.oppWinBox, els.oppWinName, els.oppWinDesc, els.oppWinPips, opp, 'opp', oppSide);
+}
+
+function playoffsInfoBelongsInSideRail() {
+  return currentMode === 'po' && window.matchMedia?.('(min-width: 901px)').matches;
+}
+
+function placePlayoffsInfoPanels() {
+  const sideRail = playoffsInfoBelongsInSideRail();
+  const target = sideRail ? els.playoffsSideInfo : els.playoffsMobileInfoSlot;
+  if (!target || !els.winPanel || !els.powerupPanel) return;
+  if (els.winPanel.parentElement !== target) target.appendChild(els.winPanel);
+  if (els.powerupPanel.parentElement !== target) target.appendChild(els.powerupPanel);
+  if (sideRail) {
+    els.powerupPanel.open = true;
+    els.powerupPanel.dataset.sideRailOpen = 'true';
+  } else if (els.powerupPanel.dataset.sideRailOpen) {
+    els.powerupPanel.open = false;
+    delete els.powerupPanel.dataset.sideRailOpen;
+  }
+  if (els.playoffsSideInfo) {
+    els.playoffsSideInfo.hidden = !(currentMode === 'po' && sideRail);
+  }
 }
 
 function renderMpGame() {
@@ -2159,6 +2184,7 @@ function renderMpGame() {
   if (promptLabel) promptLabel.textContent = prompt;
   renderWinConditions();
   renderPowerups();
+  placePlayoffsInfoPanels();
 
   renderMoveFeedbackInto(els.feedback, game.last_move, game);
   renderCardStack(game.chain, game.strikes, true, animateNewestCard);
@@ -3701,6 +3727,7 @@ document.addEventListener('keydown', (e) => {
 
 window.addEventListener('resize', () => {
   if ((currentMode === 'mp' || currentMode === 'po') && game?.chain?.length) {
+    placePlayoffsInfoPanels();
     renderCardStack(game.chain, game.strikes, true, false);
   }
 });

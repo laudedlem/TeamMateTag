@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.5.20`, deployed from the latest pushed `main`
+- Current display version is `0.5.21`, deployed from the latest pushed `main`
   commit.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -247,6 +247,9 @@ decision needs context.
   feed misses such as Ronald Acuna Jr., Vladimir Guerrero Jr., Fernando Tatis
   Jr., and Michael Pittman Jr. Local runtime and Supabase searchable/card rows
   were repaired for suffix-bearing players.
+- `0.5.21`: Playoffs on desktop now docks Win Conditions and open Powerups in
+  the right rail above Lineup and Strike Out/Punted/etc., reducing the vertical
+  height of the turn/search card. Mobile keeps the previous in-card flow.
 
 ### Important implementation notes
 
@@ -350,7 +353,7 @@ decision needs context.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.5.20`
+- Current display version: `0.5.21`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog policy: production is runtime-only. Keep compact

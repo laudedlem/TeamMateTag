@@ -9851,6 +9851,93 @@ body[data-mode-hub="manager"] .manager-starter-name span {
   margin-top: 0.48rem;
 }
 
+/* 0.5.21: desktop Playoffs info lives in the side rail above lineup/out. */
+.playoffs-side-info[hidden] {
+  display: none;
+}
+
+@media (min-width: 901px) {
+  .playoffs-side-info {
+    display: grid;
+    gap: 0.72rem;
+  }
+
+  .playoffs-side-info .win-panel,
+  .playoffs-side-info .powerup-panel[open] {
+    background:
+      linear-gradient(145deg, color-mix(in srgb, var(--mode-playoffs) 14%, transparent), transparent 64%),
+      var(--bg-elevated);
+    border: 1px solid color-mix(in srgb, var(--mode-playoffs) 32%, var(--border));
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    margin: 0;
+    padding: 0.7rem;
+  }
+
+  .playoffs-side-info .win-panel {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+
+  .playoffs-side-info .win-box {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "label"
+      "name"
+      "pips"
+      "desc";
+    padding: 0.46rem 0.5rem;
+  }
+
+  .playoffs-side-info .win-box .powerup-box-label {
+    font-size: 0.58rem;
+  }
+
+  .playoffs-side-info .win-box .powerup-name {
+    font-size: 0.82rem;
+    white-space: normal;
+  }
+
+  .playoffs-side-info .win-pips {
+    grid-template-columns: repeat(auto-fit, minmax(0.42rem, 0.42rem));
+    justify-content: start;
+    margin-top: 0.12rem;
+  }
+
+  .playoffs-side-info .win-pip {
+    height: 0.42rem;
+    width: 0.42rem;
+  }
+
+  .playoffs-side-info .win-box em {
+    white-space: normal;
+  }
+
+  .playoffs-side-info .win-hit-list {
+    grid-template-columns: 1fr;
+  }
+
+  .playoffs-side-info .powerup-panel[open] {
+    grid-template-columns: 1fr;
+    row-gap: 0.5rem;
+  }
+
+  .playoffs-side-info .powerup-panel[open] > summary {
+    grid-column: 1;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    padding: 0;
+  }
+
+  .playoffs-side-info .powerup-box {
+    padding: 0.52rem;
+  }
+
+  .playoffs-side-info #your-powerup-desc.powerup-list,
+  .playoffs-side-info .powerup-list {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 760px) {
   .turn-card {
     padding: 0.68rem 0.72rem 0.78rem;
