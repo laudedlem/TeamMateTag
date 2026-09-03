@@ -2095,11 +2095,13 @@ function fulfilledWinPlayersHtml(players) {
   if (!players.length) return '<div class="win-hit-empty">No hits yet.</div>';
   return `<div class="win-hit-list">${players.map((player) => {
     const name = player?.name || 'Player';
+    const value = Number(player?.win_condition_value || 0);
     const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
     const image = player?.headshot_url
       ? `<img src="${escapeHtml(player.headshot_url)}" alt="" loading="lazy" decoding="async">`
       : `<span>${escapeHtml(initials || 'P')}</span>`;
-    return `<span class="win-hit-player">${image}<strong>${escapeHtml(name)}</strong></span>`;
+    const valueBadge = value > 0 ? `<small>${value}x</small>` : '';
+    return `<span class="win-hit-player">${image}<strong>${escapeHtml(name)}</strong>${valueBadge}</span>`;
   }).join('')}</div>`;
 }
 
@@ -2197,7 +2199,7 @@ function renderMpGame() {
     if (ui?.className) els.turnCard.classList.remove('powerup-' + ui.className);
   });
   const activePowerupKey = currentMode === 'po'
-    ? (game.powerups?.active_turn_powerup?.key || game.last_move?.powerup_key || '')
+    ? (game.powerups?.active_turn_powerup?.key || game.last_move?.powerup_key || game.last_move?.activated_powerup_key || '')
     : '';
   if (activePowerupKey) els.turnCard.classList.add('powerup-' + powerupClass(activePowerupKey));
   els.timer.classList.toggle('your-turn', !!game.your_turn);
@@ -2739,8 +2741,10 @@ function renderMoveFeedback(m, g) {
 
   switch (m.outcome) {
     case 'valid': {
-      const activatedNotice = m.activated_powerup_label
-        ? `<span class="ok powerup-feedback-line powerup-${powerupClass(m.activated_powerup_key)}">${escapeHtml(m.activated_powerup_label)} Powerup Activated.</span><br>`
+      const noticePowerupKey = m.activated_powerup_key || (m.move_via_powerup ? m.powerup_key : '');
+      const noticePowerupLabel = m.activated_powerup_label || (m.move_via_powerup ? m.powerup_label : '');
+      const activatedNotice = noticePowerupLabel
+        ? `<span class="ok powerup-feedback-line powerup-${powerupClass(noticePowerupKey)}">${escapeHtml(noticePowerupLabel)} Powerup Played.</span><br>`
         : '';
       const newOut = m.shared_seasons
         .filter((s) => {
@@ -2752,7 +2756,7 @@ function renderMoveFeedback(m, g) {
         ? `${escapeHtml(m.powerup_label || 'Powerup')}: ${name}${ambig}.${(m.shared_seasons || []).length ? ' Linked Through:' : ' Powerup Link.'}`
         : `${name}${ambig}. TeamMates on:`;
       const winNote = m.win_condition_hit
-        ? `<br><span class="ok">${escapeHtml(m.win_condition_label)}: ${m.win_condition_progress}/${m.win_condition_target}</span>`
+        ? `<br><span class="ok">${escapeHtml(m.win_condition_label)}: ${m.win_condition_progress}/${m.win_condition_target}${Number(m.win_condition_value || 0) > 0 ? ` (+${Number(m.win_condition_value || 0)}x)` : ''}</span>`
         : '';
       const winFinish = m.win_condition_completed
         ? `<br><span class="burn">${escapeHtml(m.win_condition_label)} Completed.</span>`

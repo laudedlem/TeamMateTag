@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.5.41`, deployed from the latest pushed `main`
+- Current display version is `0.5.42`, deployed from the latest pushed `main`
   commit.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -337,6 +337,10 @@ decision needs context.
   candidate pools per powerup from the active player's franchises when needed,
   prefer playable move powerups before timeout/pressure buttons, and attempt
   powerups more aggressively as unused buttons pile up.
+- `0.5.42`: Forced Hockey Playoffs bots to attempt playable non-clock powerups
+  after the opening lock until their set is spent, made powerup feedback more
+  visible, added per-player win-condition contribution badges, and updated the
+  legacy Playoffs queue dropdown copy to current targets.
 
 ### Important implementation notes
 
@@ -440,7 +444,7 @@ decision needs context.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.5.41`
+- Current display version: `0.5.42`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog policy: production is runtime-only. Keep compact

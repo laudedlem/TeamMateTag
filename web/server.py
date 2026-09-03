@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.5.41"
+APP_VERSION = "0.5.42"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -1943,8 +1943,11 @@ def _apply_playoff_win_condition_hit(conn, blob: dict, player_id: str, mover_sid
     traits = _playoff_trait_row(conn, player_id)
     increment = _playoff_condition_increment(key, traits)
     hits = list(blob.get("chain_win_condition_hits") or [False] * (len(blob.get("chain") or [])))
+    values = list(blob.get("chain_win_condition_values") or [0] * len(hits))
     hits.append(increment > 0)
     blob["chain_win_condition_hits"] = hits
+    values.append(int(increment or 0))
+    blob["chain_win_condition_values"] = values
     if increment <= 0:
         return {
             "hit": False,
@@ -4846,9 +4849,11 @@ def _local_po_state(game_id: str, game: dict, viewer_guest_id: str) -> dict:
     chain, strikes = _local_dr_chain(state, sport)
     link_meta = game.get("chain_link_meta") or [None] * len(chain)
     hits = game.get("chain_win_condition_hits") or [False] * len(chain)
+    values = game.get("chain_win_condition_values") or [0] * len(chain)
     for index, player in enumerate(chain):
         player["link_meta_with_prev"] = link_meta[index] if index < len(link_meta) else None
         player["win_condition_hit"] = bool(hits[index]) if index < len(hits) else False
+        player["win_condition_value"] = int(values[index]) if index < len(values) else 0
     your_side = "p1" if viewer_guest_id == game["p1_guest_id"] else "p2"
     other_side = "p2" if your_side == "p1" else "p1"
     conditions = LOCAL_PLAYOFF_CONFIG[sport]["conditions"]
@@ -4917,7 +4922,7 @@ def _local_po_create_game(sport: str, first: dict, second: dict, preferences: di
         "p1_win_condition_key": p1_condition, "p2_win_condition_key": p2_condition,
         "p1_win_condition_preference": p1_preference, "p2_win_condition_preference": p2_preference,
         "p1_win_progress": 0, "p2_win_progress": 0, "p1_win_completed": False, "p2_win_completed": False,
-        "chain_win_condition_hits": [False], "chain_link_meta": [None],
+        "chain_win_condition_hits": [False], "chain_win_condition_values": [0], "chain_link_meta": [None],
     }
     LOCAL_PO_GAMES[game_id] = game
     LOCAL_PO_MATCH_BY_PLAYER[_local_dr_player_key(sport, p1["guest_id"])] = game_id
@@ -5149,7 +5154,15 @@ def local_po_move(sport: str):
                     target = condition["target"]
                     completed = False
                     _append_no_win_condition_hit(game, game["state"])
-                payload.update({"win_condition_hit": increment > 0, "win_condition_label": condition["label"], "win_condition_progress": game[f"{side}_win_progress"], "win_condition_target": target, "win_condition_completed": completed})
+                values = list(game.get("chain_win_condition_values") or [])
+                while len(values) < len(game["state"].chain) - 1:
+                    values.append(0)
+                if len(values) < len(game["state"].chain):
+                    values.append(int(increment or 0))
+                else:
+                    values[-1] = int(increment or 0)
+                game["chain_win_condition_values"] = values
+                payload.update({"win_condition_hit": increment > 0, "win_condition_value": int(increment or 0), "win_condition_label": condition["label"], "win_condition_progress": game[f"{side}_win_progress"], "win_condition_target": target, "win_condition_completed": completed})
                 if completed:
                     game["finished"] = True; game["winner"] = game[side]
                 else:
@@ -5440,6 +5453,7 @@ def po_blob_from_state(state: GameState, p1: str, p2: str, turn_index: int,
         "p1_win_completed": False,
         "p2_win_completed": False,
         "chain_win_condition_hits": [False],
+        "chain_win_condition_values": [0],
         "chain_link_meta": [None],
     }
 
@@ -5462,9 +5476,11 @@ def po_state_dict(gid: str, blob: dict, state: GameState, conn=None) -> dict:
     chain = chain_dict(state, cards=cards)
     link_meta = blob.get("chain_link_meta") or [None] * len(chain)
     win_hits = blob.get("chain_win_condition_hits") or [False] * len(chain)
+    win_values = blob.get("chain_win_condition_values") or [0] * len(chain)
     for i, player in enumerate(chain):
         player["link_meta_with_prev"] = link_meta[i] if i < len(link_meta) else None
         player["win_condition_hit"] = bool(win_hits[i]) if i < len(win_hits) else False
+        player["win_condition_value"] = int(win_values[i]) if i < len(win_values) else 0
     return {
         "game_id": gid,
         "mode": "po",
@@ -9127,11 +9143,17 @@ def _playoff_win_conditions_unlocked(state: GameState) -> bool:
 
 def _append_no_win_condition_hit(blob: dict, state: GameState) -> None:
     hits = list(blob.get("chain_win_condition_hits") or [])
+    values = list(blob.get("chain_win_condition_values") or [])
     while len(hits) < len(state.chain) - 1:
         hits.append(False)
+    while len(values) < len(state.chain) - 1:
+        values.append(0)
     if len(hits) < len(state.chain):
         hits.append(False)
+    if len(values) < len(state.chain):
+        values.append(0)
     blob["chain_win_condition_hits"] = hits
+    blob["chain_win_condition_values"] = values
 
 
 def _bot_next_move_at(blob: dict | None = None) -> str:
@@ -9347,9 +9369,11 @@ def _sport_online_state(conn, game_id: str, blob: dict, state: GameState, viewer
     }
     if blob["mode"] == "po":
         links, hits = blob.get("chain_link_meta", []), blob.get("chain_win_condition_hits", [])
+        values = blob.get("chain_win_condition_values", [])
         for i, player in enumerate(chain):
             player["link_meta_with_prev"] = links[i] if i < len(links) else None
             player["win_condition_hit"] = bool(hits[i]) if i < len(hits) else False
+            player["win_condition_value"] = int(values[i]) if i < len(values) else 0
         if sport == "baseball":
             conditions, powers = PLAYOFF_WIN_CONDITIONS, PLAYOFF_POWERUPS
         else:
@@ -9437,6 +9461,8 @@ def _bot_should_try_powerup(sport: str, blob: dict, state: GameState, side: str)
         return False
     spent = total - unused
     chain_length = len(state.chain)
+    if sport == "hockey" and chain_length >= 8:
+        return True
     if spent == 0:
         chance = 65 if chain_length < 18 else 88
     elif chain_length < 22:
@@ -9785,6 +9811,7 @@ def _sport_online_apply_valid_payload(conn, sport: str, mode: str, blob: dict, s
             payload["win_condition_progress"] = update["progress"]
             payload["win_condition_target"] = update["target"]
             payload["win_condition_completed"] = update["completed"]
+            payload["win_condition_value"] = int(update.get("increment") or 0)
             if len(blob.get("chain_link_meta", [])) < len(state.chain):
                 blob.setdefault("chain_link_meta", []).append(None)
             if update["completed"]:
@@ -9797,6 +9824,7 @@ def _sport_online_apply_valid_payload(conn, sport: str, mode: str, blob: dict, s
                 inc = _local_po_condition_increment(PgEngineConn(conn), sport, condition_key, payload["player_id"])
                 blob[f"{mover}_win_progress"] += inc
                 blob["chain_win_condition_hits"].append(bool(inc))
+                blob.setdefault("chain_win_condition_values", []).append(int(inc or 0))
             else:
                 inc = 0
                 _append_no_win_condition_hit(blob, state)
@@ -9808,6 +9836,7 @@ def _sport_online_apply_valid_payload(conn, sport: str, mode: str, blob: dict, s
             payload["win_condition_progress"] = blob[f"{mover}_win_progress"]
             payload["win_condition_target"] = condition["target"]
             payload["win_condition_completed"] = completed
+            payload["win_condition_value"] = int(inc or 0)
             if completed:
                 blob[f"{mover}_win_completed"] = True
                 blob["finished"] = True
@@ -9938,7 +9967,7 @@ def _sport_online_create(conn, sport: str, mode: str, a: tuple[str, str], b: tup
                      "p1_win_condition_preference": preference_marker(p1_id, p1_condition),
                      "p2_win_condition_preference": preference_marker(p2_id, p2_condition),
                      "p1_win_progress": 0, "p2_win_progress": 0, "p1_win_completed": False, "p2_win_completed": False,
-                     "chain_win_condition_hits": [False], "chain_link_meta": [None]})
+                     "chain_win_condition_hits": [False], "chain_win_condition_values": [0], "chain_link_meta": [None]})
     _schedule_bot_turn_if_needed(blob)
     return _sport_online_insert(conn, sport, mode, blob), blob, state
 

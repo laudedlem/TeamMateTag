@@ -9721,7 +9721,7 @@ body[data-mode-hub="manager"] .manager-starter-name span {
 .win-hit-player {
   align-items: center;
   display: grid;
-  grid-template-columns: 1.6rem minmax(0, 1fr);
+  grid-template-columns: 1.6rem minmax(0, 1fr) auto;
   gap: 0.28rem;
   min-width: 0;
 }
@@ -9750,6 +9750,19 @@ body[data-mode-hub="manager"] .manager-starter-name span {
   font-weight: 800;
   line-height: 1.08;
   overflow-wrap: anywhere;
+}
+
+.win-hit-player small {
+  align-self: center;
+  background: rgba(250, 204, 21, 0.16);
+  border: 1px solid rgba(250, 204, 21, 0.5);
+  border-radius: 999px;
+  color: #ffe49a;
+  font-size: 0.62rem;
+  font-weight: 950;
+  line-height: 1;
+  padding: 0.14rem 0.28rem;
+  white-space: nowrap;
 }
 
 .powerup-panel {
@@ -9822,8 +9835,11 @@ body[data-mode-hub="manager"] .manager-starter-name span {
 }
 
 .turn-card.playoffs-powerup-active {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--chip-color, var(--accent)) 18%, transparent), transparent 58%),
+    var(--surface-2);
   border-color: color-mix(in srgb, var(--chip-color, var(--accent)) 78%, var(--border));
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--chip-color, var(--accent)) 38%, transparent), var(--shadow-sm);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--chip-color, var(--accent)) 42%, transparent), var(--shadow-sm);
 }
 
 .powerups-opening-locked > summary {
@@ -9843,10 +9859,13 @@ body[data-mode-hub="manager"] .manager-starter-name span {
 }
 
 .powerup-feedback-line {
-  border-left: 3px solid var(--chip-color, currentColor);
-  display: inline-block;
+  background: color-mix(in srgb, var(--chip-color, currentColor) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--chip-color, currentColor) 70%, transparent);
+  border-left-width: 5px;
+  border-radius: 8px;
+  display: inline-flex;
   font-weight: 900;
-  padding-left: 0.45rem;
+  padding: 0.22rem 0.52rem;
 }
 
 .game-over-detail {
