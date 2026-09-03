@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.5.43"
+APP_VERSION = "0.5.44"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -9701,6 +9701,9 @@ def _bot_powerup_candidates(conn, sport: str, state: GameState, powerup_key: str
 def _bot_try_powerup_move(conn, sport: str, blob: dict, state: GameState, powerup_key: str,
                           candidates: list[str] | None = None) -> dict | None:
     original_key = blob.get("active_turn_powerup")
+    missing_state = object()
+    original_state = blob.get("state", missing_state)
+    blob["state"] = state
     blob["active_turn_powerup"] = powerup_key
     moved = False
     try:
@@ -9716,6 +9719,10 @@ def _bot_try_powerup_move(conn, sport: str, blob: dict, state: GameState, poweru
     finally:
         if not moved:
             blob["active_turn_powerup"] = original_key
+        if original_state is missing_state:
+            blob.pop("state", None)
+        else:
+            blob["state"] = original_state
 
 
 def _bot_activate_powerup(conn, sport: str, blob: dict, state: GameState, side: str) -> dict | None:
@@ -9749,7 +9756,17 @@ def _bot_activate_powerup(conn, sport: str, blob: dict, state: GameState, side: 
         if kind == "pressure" or key == "quick_pitch":
             return (2 if len(state.chain) >= 8 or secrets.randbelow(100) < 30 else 3, secrets.randbelow(100))
         return (3, secrets.randbelow(100))
-    for key in sorted(available, key=rank):
+    ranked_available = sorted(available, key=rank)
+    if sport == "hockey":
+        forced_move_keys = [
+            key for key in available
+            if powers[key].get("kind") in {"skill", "stat", "same_position", "position", "veteran"}
+            and move_candidates(key)
+        ]
+        if forced_move_keys:
+            random.shuffle(forced_move_keys)
+            ranked_available = forced_move_keys
+    for key in ranked_available:
         meta = powers[key]
         blob[f"{side}_powerup_used_keys"].append(key)
         blob["turn_powerup_used"] = True
