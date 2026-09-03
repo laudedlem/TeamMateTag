@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.5.38"
+APP_VERSION = "0.5.39"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -305,50 +305,50 @@ CENTRAL_TIME = ZoneInfo("America/Chicago")
 LOCAL_PLAYOFF_CONFIG = {
     "basketball": {
         "powerups": {
-            "heat_check": {"label": "Heat Check", "description": "Name a Player from the same franchise with a 2,000+ point season. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "peak_points", "threshold": 2000},
-            "sixth_man": {"label": "Sixth Man", "description": "Name a Player from the same franchise with 7,000+ career assists. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "career_assists", "threshold": 7000},
+            "heat_check": {"label": "Heat Check", "description": "Name a Player with a 2,000+ point season. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "peak_points", "threshold": 2000, "requires_franchise": False},
+            "sixth_man": {"label": "Sixth Man", "description": "Name a Player with 7,000+ career assists. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "career_assists", "threshold": 7000, "requires_franchise": False},
             "switch": {"label": "Switch", "description": "Name a Player from the same franchise who played the same position. +5 seconds.", "kind": "same_position", "bonus_seconds": 5},
-            "mvp_badge": {"label": "MVP Badge", "description": "Name a Player from the same franchise who won an MVP Award. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "mvp_count", "threshold": 1},
-            "all_star_callup": {"label": "Star Power", "description": "Name an All-Star from the same franchise. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "all_star_count", "threshold": 1},
+            "mvp_badge": {"label": "MVP Badge", "description": "Name an MVP winner. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "mvp_count", "threshold": 1, "requires_franchise": False},
+            "all_star_callup": {"label": "Star Power", "description": "Name an All-Star. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "all_star_count", "threshold": 1, "requires_franchise": False},
             "timeout": {"label": "Timeout", "description": "+15 seconds.", "kind": "time", "bonus_seconds": 15},
             "full_court_press": {"label": "Full-Court Press", "description": "Your opponent only has 10 seconds on their next turn.", "kind": "pressure"},
         },
         "conditions": {
-            "bucket_getter": {"label": "Bucket Getter", "description": "Name 3 players with 25,000 career points", "target": 3, "kind": "trait", "trait": "career_points", "threshold": 25000},
-            "season_scorer": {"label": "Scoring Run", "description": "Name 3 players with a 2,000-point season", "target": 3, "kind": "trait", "trait": "peak_points", "threshold": 2000},
-            "playmaker": {"label": "Table Setter", "description": "Name 3 players with 7,000 career assists", "target": 3, "kind": "trait", "trait": "career_assists", "threshold": 7000},
-            "three_point_club": {"label": "Deep Range", "description": "Name 3 players with 2,000 career three-pointers", "target": 3, "kind": "trait", "trait": "career_goals", "threshold": 2000},
-            "ironhorse": {"label": "Ironhorse", "description": "Name 3 players with 1,000 career games", "target": 3, "kind": "career_games", "threshold": 1000},
-            "one_team": {"label": "Home Court", "description": "Name 3 players with 8 seasons for one franchise", "target": 3, "kind": "one_franchise", "threshold": 8},
-            "journeyman": {"label": "Frequent Flyer", "description": "Name 3 players who played for 5 teams", "target": 3, "kind": "team_count", "threshold": 5},
+            "bucket_getter": {"label": "Bucket Getter", "description": "Name 4 players with 25,000 career points", "target": 4, "kind": "trait", "trait": "career_points", "threshold": 25000},
+            "season_scorer": {"label": "Scoring Run", "description": "Name 4 players with a 2,000-point season", "target": 4, "kind": "trait", "trait": "peak_points", "threshold": 2000},
+            "playmaker": {"label": "Table Setter", "description": "Name 4 players with 7,000 career assists", "target": 4, "kind": "trait", "trait": "career_assists", "threshold": 7000},
+            "three_point_club": {"label": "Deep Range", "description": "Name 4 players with 2,000 career three-pointers", "target": 4, "kind": "trait", "trait": "career_goals", "threshold": 2000},
+            "ironhorse": {"label": "Ironhorse", "description": "Name 4 players with 1,000 career games", "target": 4, "kind": "career_games", "threshold": 1000},
+            "one_team": {"label": "Home Court", "description": "Name 4 players with 8 seasons for one franchise", "target": 4, "kind": "one_franchise", "threshold": 8},
+            "journeyman": {"label": "Frequent Flyer", "description": "Name 4 players who played for 5 teams", "target": 4, "kind": "team_count", "threshold": 5},
             "mvp_circle": {"label": "MVP Circle", "description": "Name 3 MVP winners", "target": 3, "kind": "trait", "trait": "mvp_count", "threshold": 1},
-            "all_star_marathon": {"label": "All-Star Marathon", "description": "Name players with 18 combined All-Star selections", "target": 18, "kind": "sum_trait", "trait": "all_star_count"},
-            "ring_chaser": {"label": "Ring Chaser", "description": "Name players with 9 combined championships", "target": 9, "kind": "sum_trait", "trait": "championship_count"},
+            "all_star_marathon": {"label": "All-Star Marathon", "description": "Name players with 24 combined All-Star selections", "target": 24, "kind": "sum_trait", "trait": "all_star_count"},
+            "ring_chaser": {"label": "Ring Chaser", "description": "Name players with 12 combined championships", "target": 12, "kind": "sum_trait", "trait": "championship_count"},
             "young_guns": {"label": "Young Guns", "description": "Name 3 Rookie of the Year winners", "target": 3, "kind": "trait", "trait": "roty_count", "threshold": 1},
         },
     },
     "football": {
         "powerups": {
-            "trick_play": {"label": "Trick Play", "description": "Name a Player from the same franchise with a 20+ touchdown season (non-passing). +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "peak_touchdowns", "threshold": 20},
-            "iron_man": {"label": "Iron Man", "description": "Name a Player from the same franchise with 100 career games played. +5 seconds.", "kind": "veteran", "bonus_seconds": 5, "career_games": 100},
+            "trick_play": {"label": "Trick Play", "description": "Name a Player with a 20+ touchdown season (non-passing). +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "peak_touchdowns", "threshold": 20, "requires_franchise": False},
+            "iron_man": {"label": "Iron Man", "description": "Name a Player with 100 career games played. +5 seconds.", "kind": "veteran", "bonus_seconds": 5, "career_games": 100, "requires_franchise": False},
             "package_change": {"label": "Package Change", "description": "Name a Player from the same franchise who played the same position. +5 seconds.", "kind": "same_position", "bonus_seconds": 5},
-            "mvp_badge": {"label": "MVP Badge", "description": "Name a Player from the same franchise who won an MVP Award. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "mvp_count", "threshold": 1},
-            "pro_bowl_callup": {"label": "Bowler", "description": "Name a Pro Bowler from the same franchise. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "all_star_count", "threshold": 1},
+            "mvp_badge": {"label": "MVP Badge", "description": "Name an MVP winner. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "mvp_count", "threshold": 1, "requires_franchise": False},
+            "pro_bowl_callup": {"label": "Bowler", "description": "Name a Pro Bowler. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "all_star_count", "threshold": 1, "requires_franchise": False},
             "timeout": {"label": "Timeout", "description": "+15 seconds.", "kind": "time", "bonus_seconds": 15},
             "blitz": {"label": "Blitz", "description": "Your opponent only has 10 seconds on their next turn.", "kind": "pressure"},
         },
         "conditions": {
-            "touchdown_club": {"label": "End Zone", "description": "Name 3 players with 100 career touchdowns", "target": 3, "kind": "trait", "trait": "career_touchdowns", "threshold": 100},
-            "season_scorer": {"label": "Season Scorer", "description": "Name 3 players with a 15-touchdown season", "target": 3, "kind": "trait", "trait": "peak_touchdowns", "threshold": 15},
-            "air_raid": {"label": "Air Raid", "description": "Name 3 players with 300 career passing touchdowns", "target": 3, "kind": "trait", "trait": "passing_touchdowns", "threshold": 300},
-            "single_season_passer": {"label": "Sunday Slingers", "description": "Name 3 players with a 35-passing-touchdown season", "target": 3, "kind": "trait", "trait": "peak_passing_touchdowns", "threshold": 35},
-            "sack_master": {"label": "Sack Master", "description": "Name 3 players with 100 career sacks", "target": 3, "kind": "trait", "trait": "career_sacks", "threshold": 100},
-            "ballhawk": {"label": "Ballhawk", "description": "Name 3 players with 30 career interceptions", "target": 3, "kind": "trait", "trait": "career_interceptions", "threshold": 30},
-            "one_team": {"label": "One Club", "description": "Name 3 players with 10 seasons for one franchise", "target": 3, "kind": "one_franchise", "threshold": 10},
-            "journeyman": {"label": "Journeyman", "description": "Name 3 players who played for 5 teams", "target": 3, "kind": "team_count", "threshold": 5},
+            "touchdown_club": {"label": "End Zone", "description": "Name 4 players with 100 career touchdowns", "target": 4, "kind": "trait", "trait": "career_touchdowns", "threshold": 100},
+            "season_scorer": {"label": "Season Scorer", "description": "Name 4 players with a 15-touchdown season", "target": 4, "kind": "trait", "trait": "peak_touchdowns", "threshold": 15},
+            "air_raid": {"label": "Air Raid", "description": "Name 4 players with 300 career passing touchdowns", "target": 4, "kind": "trait", "trait": "passing_touchdowns", "threshold": 300},
+            "single_season_passer": {"label": "Sunday Slingers", "description": "Name 4 players with a 35-passing-touchdown season", "target": 4, "kind": "trait", "trait": "peak_passing_touchdowns", "threshold": 35},
+            "sack_master": {"label": "Sack Master", "description": "Name 4 players with 100 career sacks", "target": 4, "kind": "trait", "trait": "career_sacks", "threshold": 100},
+            "ballhawk": {"label": "Ballhawk", "description": "Name 4 players with 30 career interceptions", "target": 4, "kind": "trait", "trait": "career_interceptions", "threshold": 30},
+            "one_team": {"label": "One Club", "description": "Name 4 players with 10 seasons for one franchise", "target": 4, "kind": "one_franchise", "threshold": 10},
+            "journeyman": {"label": "Journeyman", "description": "Name 4 players who played for 5 teams", "target": 4, "kind": "team_count", "threshold": 5},
             "mvp_circle": {"label": "MVP Circle", "description": "Name 3 MVP winners", "target": 3, "kind": "trait", "trait": "mvp_count", "threshold": 1},
-            "pro_bowl_marathon": {"label": "Pro Bowl Marathon", "description": "Name players with 18 combined Pro Bowl selections", "target": 18, "kind": "sum_trait", "trait": "all_star_count"},
-            "ring_chaser": {"label": "Ring Chaser", "description": "Name players with 8 combined championships", "target": 8, "kind": "sum_trait", "trait": "championship_count"},
+            "pro_bowl_marathon": {"label": "Pro Bowl Marathon", "description": "Name players with 24 combined Pro Bowl selections", "target": 24, "kind": "sum_trait", "trait": "all_star_count"},
+            "ring_chaser": {"label": "Ring Chaser", "description": "Name players with 12 combined championships", "target": 12, "kind": "sum_trait", "trait": "championship_count"},
             "young_guns": {"label": "Fresh Faces", "description": "Name 3 Rookie of the Year winners", "target": 3, "kind": "trait", "trait": "roty_count", "threshold": 1},
         },
     },
@@ -357,22 +357,22 @@ LOCAL_PLAYOFF_CONFIG = {
             "breakaway": {"label": "Breakaway", "description": "Name a Player with a 400+ goal career. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "career_goals", "threshold": 400, "requires_franchise": False},
             "veteran_presence": {"label": "Veteran Presence", "description": "Name a Player with 800+ career points. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "career_points", "threshold": 800, "requires_franchise": False},
             "line_change": {"label": "Line Change", "description": "Name a Player from the same franchise who played the same position. +5 seconds.", "kind": "same_position", "bonus_seconds": 5},
-            "hart_honor": {"label": "Hart Honor", "description": "Name a Hart Trophy winner from the same franchise. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "mvp_count", "threshold": 1},
-            "all_star_callup": {"label": "All-Star", "description": "Name an All-Star from the same franchise. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "all_star_count", "threshold": 1},
+            "hart_honor": {"label": "Hart Honor", "description": "Name a Hart Trophy winner. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "mvp_count", "threshold": 1, "requires_franchise": False},
+            "all_star_callup": {"label": "All-Star", "description": "Name an All-Star. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "all_star_count", "threshold": 1, "requires_franchise": False},
             "timeout": {"label": "Timeout", "description": "+15 seconds.", "kind": "time", "bonus_seconds": 15},
             "forecheck": {"label": "Forecheck", "description": "Your opponent only has 10 seconds on their next turn.", "kind": "pressure"},
         },
         "conditions": {
-            "sniper": {"label": "Sniper", "description": "Name 3 players with 500 career goals", "target": 3, "kind": "trait", "trait": "career_goals", "threshold": 500},
-            "single_season_sniper": {"label": "Rocket Season", "description": "Name 2 players with a 60-goal season", "target": 2, "kind": "trait", "trait": "peak_goals", "threshold": 60},
-            "playmaker": {"label": "Playmaker", "description": "Name 3 players with 1,000 career assists", "target": 3, "kind": "trait", "trait": "career_assists", "threshold": 1000},
-            "point_streak": {"label": "Point Machine", "description": "Name 2 players with a 120-point season", "target": 2, "kind": "trait", "trait": "peak_points", "threshold": 120},
-            "one_team": {"label": "Lifer", "description": "Name 3 players with 10 seasons for one franchise", "target": 3, "kind": "one_franchise", "threshold": 10},
-            "journeyman": {"label": "Journeyman", "description": "Name 3 players who played for 5 teams", "target": 3, "kind": "team_count", "threshold": 5},
+            "sniper": {"label": "Sniper", "description": "Name 4 players with 500 career goals", "target": 4, "kind": "trait", "trait": "career_goals", "threshold": 500},
+            "single_season_sniper": {"label": "Rocket Season", "description": "Name 3 players with a 60-goal season", "target": 3, "kind": "trait", "trait": "peak_goals", "threshold": 60},
+            "playmaker": {"label": "Playmaker", "description": "Name 4 players with 1,000 career assists", "target": 4, "kind": "trait", "trait": "career_assists", "threshold": 1000},
+            "point_streak": {"label": "Point Machine", "description": "Name 3 players with a 120-point season", "target": 3, "kind": "trait", "trait": "peak_points", "threshold": 120},
+            "one_team": {"label": "Lifer", "description": "Name 4 players with 10 seasons for one franchise", "target": 4, "kind": "one_franchise", "threshold": 10},
+            "journeyman": {"label": "Journeyman", "description": "Name 4 players who played for 5 teams", "target": 4, "kind": "team_count", "threshold": 5},
             "mvp_circle": {"label": "Hart Club", "description": "Name 3 Hart Trophy winners", "target": 3, "kind": "trait", "trait": "mvp_count", "threshold": 1},
-            "all_star_marathon": {"label": "All-Star Marathon", "description": "Name players with 18 combined All-Star selections", "target": 18, "kind": "sum_trait", "trait": "all_star_count"},
-            "ironhorse": {"label": "Ironhorse", "description": "Name 3 players with 1,200 career games", "target": 3, "kind": "trait", "trait": "career_games", "threshold": 1200},
-            "ring_chaser": {"label": "Cup Chasers", "description": "Name players with 10 combined Stanley Cup credits", "target": 10, "kind": "sum_trait", "trait": "championship_count"},
+            "all_star_marathon": {"label": "All-Star Marathon", "description": "Name players with 24 combined All-Star selections", "target": 24, "kind": "sum_trait", "trait": "all_star_count"},
+            "ironhorse": {"label": "Ironhorse", "description": "Name 4 players with 1,200 career games", "target": 4, "kind": "trait", "trait": "career_games", "threshold": 1200},
+            "ring_chaser": {"label": "Cup Chasers", "description": "Name players with 14 combined Stanley Cup credits", "target": 14, "kind": "sum_trait", "trait": "championship_count"},
             "young_guns": {"label": "Fresh Ice", "description": "Name 3 Calder Trophy winners", "target": 3, "kind": "trait", "trait": "roty_count", "threshold": 1},
         },
     },
@@ -433,38 +433,38 @@ PLAYOFF_POWERUPS = {
 PLAYOFF_WIN_CONDITIONS = {
     "sunset_kingdom": {
         "label": "Sunset Kingdom",
-        "description": "Name 3 Japanese players.",
-        "target": 3,
+        "description": "Name 4 Japanese players.",
+        "target": 4,
         "mode": "count",
     },
     "havana_heat": {
         "label": "Havana Heat",
-        "description": "Name 3 Cuban players.",
-        "target": 3,
+        "description": "Name 4 Cuban players.",
+        "target": 4,
         "mode": "count",
     },
     "maple_corridor": {
         "label": "Maple Corridor",
-        "description": "Name 4 Canadian players.",
-        "target": 4,
+        "description": "Name 5 Canadian players.",
+        "target": 5,
         "mode": "count",
     },
     "mvp_circle": {
         "label": "MVP Circle",
-        "description": "Name 2 MVP winners.",
-        "target": 2,
+        "description": "Name 3 MVP winners.",
+        "target": 3,
         "mode": "count",
     },
     "young_buck": {
         "label": "Young Buck",
-        "description": "Name 2 Rookie of the Year winners.",
-        "target": 2,
+        "description": "Name 3 Rookie of the Year winners.",
+        "target": 3,
         "mode": "count",
     },
     "gonna_be_golden": {
         "label": "Gonna Be Golden",
-        "description": "Name 2 Gold Glove winners.",
-        "target": 2,
+        "description": "Name 3 Gold Glove winners.",
+        "target": 3,
         "mode": "count",
     },
     "secretariat": {
@@ -475,26 +475,26 @@ PLAYOFF_WIN_CONDITIONS = {
     },
     "hound_dog": {
         "label": "Hound-dog",
-        "description": "Name 2 players who spent at least 10 seasons with one franchise only.",
-        "target": 2,
+        "description": "Name 3 players who spent at least 10 seasons with one franchise only.",
+        "target": 3,
         "mode": "count",
     },
     "great_bambinos": {
         "label": "Great Bambinos",
-        "description": "Name 1 player with 500 career home runs.",
-        "target": 1,
+        "description": "Name 2 players with 500 career home runs.",
+        "target": 2,
         "mode": "count",
     },
     "ring_chaser": {
         "label": "Ring Chaser",
-        "description": "Name players with a combined 15 World Series rings.",
-        "target": 15,
+        "description": "Name players with a combined 20 World Series rings.",
+        "target": 20,
         "mode": "sum",
     },
     "journeyman": {
         "label": "Journeyman",
-        "description": "Name 2 players who played for at least 7 teams.",
-        "target": 2,
+        "description": "Name 3 players who played for at least 7 teams.",
+        "target": 3,
         "mode": "count",
     },
 }
@@ -9570,19 +9570,41 @@ def _bot_powerup_candidates(conn, sport: str, state: GameState, powerup_key: str
     if sport != "baseball":
         meta = (LOCAL_PLAYOFF_CONFIG.get(sport) or {}).get("powerups", {}).get(powerup_key, {})
         if meta and not _local_po_powerup_requires_franchise(meta):
+            stat_key = meta.get("stat")
+            threshold = int(meta.get("threshold") or 0)
+            trait_order = {
+                "peak_points": "COALESCE(MAX(st.points), 0)",
+                "peak_goals": "COALESCE(MAX(st.goals), 0)",
+                "peak_assists": "COALESCE(MAX(st.assists), 0)",
+                "peak_touchdowns": "COALESCE(MAX(st.touchdowns), 0)",
+                "career_points": "COALESCE(pt.career_points, 0)",
+                "career_goals": "COALESCE(pt.career_goals, 0)",
+                "career_assists": "COALESCE(pt.career_assists, 0)",
+                "career_games": "COALESCE(NULLIF(pt.career_games, 0), ps.career_games)",
+                "all_star_count": "COALESCE(pt.all_star_count, 0)",
+                "mvp_count": "COALESCE(pt.mvp_count, 0)",
+            }.get(stat_key, "ps.career_games")
             rows = conn.execute(
-                """
+                f"""
                 SELECT ps.player_id, ps.display_name, ps.career_games
                   FROM sport_players_searchable ps
                   JOIN sport_players sp
                     ON sp.sport_id=ps.sport_id AND sp.player_id=ps.player_id
+                  LEFT JOIN sport_player_traits pt
+                    ON pt.sport_id=ps.sport_id AND pt.player_id=ps.player_id
+                  LEFT JOIN sport_player_season_traits st
+                    ON st.sport_id=ps.sport_id AND st.player_id=ps.player_id
                  WHERE ps.sport_id=%s
                    AND sp.final_year >= 2000
                    AND NOT (ps.player_id = ANY(%s))
-                 ORDER BY ps.career_games DESC, ps.player_id
+                 GROUP BY ps.player_id, ps.display_name, ps.career_games, pt.career_points,
+                          pt.career_goals, pt.career_assists, pt.career_games,
+                          pt.all_star_count, pt.mvp_count
+                HAVING {trait_order} >= %s
+                 ORDER BY {trait_order} DESC, ps.career_games DESC, ps.player_id
                  LIMIT 1000
                 """,
-                (sport, state.chain),
+                (sport, state.chain, threshold),
             ).fetchall()
             return _bot_ordered_candidates(rows, len(state.chain))[:220]
     rows = _bot_candidate_rows(conn, sport, state.current_player_id, state.chain)
@@ -9625,7 +9647,7 @@ def _bot_activate_powerup(conn, sport: str, blob: dict, state: GameState, side: 
     def rank(key: str) -> tuple[int, int]:
         kind = powers[key].get("kind")
         if kind in {"time", "timer"} and (low_clock or len(state.chain) >= 10):
-            return (0, secrets.randbelow(100))
+            return (3 if not low_clock else 1, secrets.randbelow(100))
         if kind in {"skill", "stat", "same_position", "position", "veteran"}:
             return (1, secrets.randbelow(100))
         if kind == "pressure" or key == "quick_pitch":
@@ -9638,10 +9660,12 @@ def _bot_activate_powerup(conn, sport: str, blob: dict, state: GameState, side: 
         kind = meta.get("kind")
         if kind in {"time", "timer"} and key != "quick_pitch":
             blob["turn_seconds"] += float(meta.get("bonus_seconds") or 0)
-            return {"outcome": "powerup_activated", "powerup_key": key, "powerup_label": meta["label"]}
+            blob["pending_powerup_notice"] = {"powerup_key": key, "powerup_label": meta["label"]}
+            return None
         if kind == "pressure" or key == "quick_pitch":
             blob["next_turn_seconds_override"] = QUICK_PITCH_TURN_SECONDS
-            return {"outcome": "powerup_activated", "powerup_key": key, "powerup_label": meta["label"]}
+            blob["pending_powerup_notice"] = {"powerup_key": key, "powerup_label": meta["label"]}
+            return None
         blob["turn_seconds"] += float(meta.get("bonus_seconds") or 0)
         blob["active_turn_powerup"] = key
         payload = _bot_try_powerup_move(conn, sport, blob, state, key)
@@ -9775,8 +9799,10 @@ def _sport_online_maybe_advance_bot(conn, game_id: str, blob: dict, state: GameS
     if _bot_should_schedule_timeout_loss(sport, mode, blob, state, bot_side):
         _schedule_bot_timeout_loss(blob)
     else:
+        powerup_notice = None
         payload = _bot_activate_powerup(conn, sport, blob, state, bot_side) if mode == "po" else None
         if not payload or payload.get("outcome") != "valid":
+            powerup_notice = blob.pop("pending_powerup_notice", None)
             result = _bot_choose_move(conn, sport, mode, blob, bot_side, state)
             payload = result_to_dict(result) if result else None
             if mode == "po" and result and result.outcome != MoveOutcome.VALID:
@@ -9789,6 +9815,10 @@ def _sport_online_maybe_advance_bot(conn, game_id: str, blob: dict, state: GameS
             _schedule_bot_timeout_loss(blob)
         else:
             blob.pop("bot_timeout_at", None)
+            powerup_notice = powerup_notice or blob.pop("pending_powerup_notice", None)
+            if powerup_notice and not payload.get("powerup_key"):
+                payload["activated_powerup_key"] = powerup_notice.get("powerup_key")
+                payload["activated_powerup_label"] = powerup_notice.get("powerup_label")
             blob.update(serialize_state(state))
             blob["last_move"] = payload
             _sport_online_apply_valid_payload(conn, sport, mode, blob, state, payload, bot_side, record_usage=False)

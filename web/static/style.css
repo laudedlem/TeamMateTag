@@ -9842,6 +9842,13 @@ body[data-mode-hub="manager"] .manager-starter-name span {
   padding-left: 0.45rem;
 }
 
+.powerup-feedback-line {
+  border-left: 3px solid var(--chip-color, currentColor);
+  display: inline-block;
+  font-weight: 900;
+  padding-left: 0.45rem;
+}
+
 .game-over-detail {
   display: block;
   margin-top: 0.22rem;

@@ -349,49 +349,49 @@ function onlineApiBase(mode = currentMode) {
 
 const LOCAL_PLAYOFF_OPTIONS = {
   baseball: [
-    ['random', 'Random'], ['sunset_kingdom', 'Sunset Kingdom: 3 Japanese Players'],
-    ['havana_heat', 'Havana Heat: 3 Cuban Players'],
-    ['maple_corridor', 'Maple Corridor: 4 Canadian Players'],
-    ['mvp_circle', 'MVP Circle: 2 MVP Winners'],
-    ['young_buck', 'Young Buck: 2 Rookie of the Year Winners'],
-    ['gonna_be_golden', 'Gonna Be Golden: 2 Gold Glove Winners'],
+    ['random', 'Random'], ['sunset_kingdom', 'Sunset Kingdom: 4 Japanese Players'],
+    ['havana_heat', 'Havana Heat: 4 Cuban Players'],
+    ['maple_corridor', 'Maple Corridor: 5 Canadian Players'],
+    ['mvp_circle', 'MVP Circle: 3 MVP Winners'],
+    ['young_buck', 'Young Buck: 3 Rookie of the Year Winners'],
+    ['gonna_be_golden', 'Gonna Be Golden: 3 Gold Glove Winners'],
     ['secretariat', 'Secretariat: 1 Triple Crown Winner'],
-    ['hound_dog', 'Hound-dog: 2 One-Franchise Players'],
-    ['great_bambinos', 'Great Bambinos: 1 500-Home-Run Player'],
-    ['ring_chaser', 'Ring Chaser: 15 Combined World Series Rings'],
-    ['journeyman', 'Journeyman: 2 Seven-Team Players'],
+    ['hound_dog', 'Hound-dog: 3 One-Franchise Players'],
+    ['great_bambinos', 'Great Bambinos: 2 500-Home-Run Players'],
+    ['ring_chaser', 'Ring Chaser: 20 Combined World Series Rings'],
+    ['journeyman', 'Journeyman: 3 Seven-Team Players'],
   ],
   basketball: [
-    ['random', 'Random'], ['bucket_getter', 'Bucket Getter: 3 Players with 25,000 Career Points'],
-    ['season_scorer', 'Scoring Run: 3 Players with a 2,000-Point Season'],
-    ['playmaker', 'Table Setter: 3 Players with 7,000 Career Assists'],
-    ['three_point_club', 'Deep Range: 3 Players with 2,000 Career Three-Pointers'],
-    ['ironhorse', 'Ironhorse: 3 Players with 1,000 Career Games'],
-    ['one_team', 'Home Court: 3 Players with 8 Seasons for One Franchise'],
-    ['journeyman', 'Frequent Flyer: 3 Players Who Played for 5 Teams'], ['mvp_circle', 'MVP Circle: 3 MVP Winners'],
-    ['all_star_marathon', 'All-Star Marathon: 18 Combined All-Star Selections'], ['ring_chaser', 'Ring Chaser: 9 Combined Championships'],
+    ['random', 'Random'], ['bucket_getter', 'Bucket Getter: 4 Players with 25,000 Career Points'],
+    ['season_scorer', 'Scoring Run: 4 Players with a 2,000-Point Season'],
+    ['playmaker', 'Table Setter: 4 Players with 7,000 Career Assists'],
+    ['three_point_club', 'Deep Range: 4 Players with 2,000 Career Three-Pointers'],
+    ['ironhorse', 'Ironhorse: 4 Players with 1,000 Career Games'],
+    ['one_team', 'Home Court: 4 Players with 8 Seasons for One Franchise'],
+    ['journeyman', 'Frequent Flyer: 4 Players Who Played for 5 Teams'], ['mvp_circle', 'MVP Circle: 3 MVP Winners'],
+    ['all_star_marathon', 'All-Star Marathon: 24 Combined All-Star Selections'], ['ring_chaser', 'Ring Chaser: 12 Combined Championships'],
     ['young_guns', 'Young Guns: 3 Rookie of the Year Winners'],
   ],
   football: [
-    ['random', 'Random'], ['touchdown_club', 'End Zone: 3 Players with 100 Career Touchdowns'],
-    ['season_scorer', 'Season Scorer: 3 Players with a 15-Touchdown Season'],
-    ['air_raid', 'Air Raid: 3 Players with 300 Career Passing Touchdowns'],
-    ['single_season_passer', 'Sunday Slingers: 3 Players with a 35-Passing-Touchdown Season'],
-    ['sack_master', 'Sack Master: 3 Players with 100 Career Sacks'], ['ballhawk', 'Ballhawk: 3 Players with 30 Career Interceptions'],
-    ['one_team', 'One Club: 3 Players with 10 Seasons for One Franchise'],
-    ['journeyman', 'Journeyman: 3 Players Who Played for 5 Teams'], ['mvp_circle', 'MVP Circle: 3 MVP Winners'],
-    ['pro_bowl_marathon', 'Pro Bowl Marathon: 18 Combined Pro Bowl Selections'], ['ring_chaser', 'Ring Chaser: 8 Combined Championships'],
+    ['random', 'Random'], ['touchdown_club', 'End Zone: 4 Players with 100 Career Touchdowns'],
+    ['season_scorer', 'Season Scorer: 4 Players with a 15-Touchdown Season'],
+    ['air_raid', 'Air Raid: 4 Players with 300 Career Passing Touchdowns'],
+    ['single_season_passer', 'Sunday Slingers: 4 Players with a 35-Passing-Touchdown Season'],
+    ['sack_master', 'Sack Master: 4 Players with 100 Career Sacks'], ['ballhawk', 'Ballhawk: 4 Players with 30 Career Interceptions'],
+    ['one_team', 'One Club: 4 Players with 10 Seasons for One Franchise'],
+    ['journeyman', 'Journeyman: 4 Players Who Played for 5 Teams'], ['mvp_circle', 'MVP Circle: 3 MVP Winners'],
+    ['pro_bowl_marathon', 'Pro Bowl Marathon: 24 Combined Pro Bowl Selections'], ['ring_chaser', 'Ring Chaser: 12 Combined Championships'],
     ['young_guns', 'Fresh Faces: 3 Rookie of the Year Winners'],
   ],
   hockey: [
-    ['random', 'Random'], ['sniper', 'Sniper: 3 Players with 500 Career Goals'],
-    ['single_season_sniper', 'Rocket Season: 2 Players with a 60-Goal Season'],
-    ['playmaker', 'Playmaker: 3 Players with 1,000 Career Assists'],
-    ['point_streak', 'Point Machine: 2 Players with a 120-Point Season'],
-    ['one_team', 'Lifer: 3 Players with 10 Seasons for One Franchise'],
-    ['journeyman', 'Journeyman: 3 Players Who Played for 5 Teams'], ['mvp_circle', 'Hart Club: 3 Hart Trophy Winners'],
-    ['all_star_marathon', 'All-Star Marathon: 18 Combined All-Star Selections'], ['ironhorse', 'Ironhorse: 3 Players with 1,200 Career Games'],
-    ['ring_chaser', 'Cup Chasers: 10 Combined Stanley Cup Credits'], ['young_guns', 'Fresh Ice: 3 Calder Trophy Winners'],
+    ['random', 'Random'], ['sniper', 'Sniper: 4 Players with 500 Career Goals'],
+    ['single_season_sniper', 'Rocket Season: 3 Players with a 60-Goal Season'],
+    ['playmaker', 'Playmaker: 4 Players with 1,000 Career Assists'],
+    ['point_streak', 'Point Machine: 3 Players with a 120-Point Season'],
+    ['one_team', 'Lifer: 4 Players with 10 Seasons for One Franchise'],
+    ['journeyman', 'Journeyman: 4 Players Who Played for 5 Teams'], ['mvp_circle', 'Hart Club: 3 Hart Trophy Winners'],
+    ['all_star_marathon', 'All-Star Marathon: 24 Combined All-Star Selections'], ['ironhorse', 'Ironhorse: 4 Players with 1,200 Career Games'],
+    ['ring_chaser', 'Cup Chasers: 14 Combined Stanley Cup Credits'], ['young_guns', 'Fresh Ice: 3 Calder Trophy Winners'],
   ],
 };
 
@@ -1194,7 +1194,9 @@ function startMpPolling() {
         next.turn_index !== previousGame.turn_index ||
         next.finished !== previousGame.finished ||
         next.last_move?.player_id !== previousGame.last_move?.player_id ||
-        next.last_move?.outcome !== previousGame.last_move?.outcome;
+        next.last_move?.outcome !== previousGame.last_move?.outcome ||
+        next.last_move?.powerup_key !== previousGame.last_move?.powerup_key ||
+        next.last_move?.activated_powerup_key !== previousGame.last_move?.activated_powerup_key;
       game = next;
       preloadGameHeadshots(game);
       lastChainLength = prevChain;
@@ -1207,7 +1209,7 @@ function startMpPolling() {
         bootstrapProfile();
       }
     }
-  }, 1000);
+  }, 650);
 }
 
 async function enterMatchedGame(nextGame) {
@@ -1949,14 +1951,14 @@ function compactPowerupHint(powerup) {
     heat_check: '2,000-point season. +5s',
     sixth_man: '7,000 assists. +5s',
     switch: 'Same position, same franchise. +5s',
-    mvp_badge: sport === 'hockey' ? 'Hart winner same franchise. +5s' : 'MVP same franchise. +5s',
-    all_star_callup: 'All-Star same franchise. +5s',
+    mvp_badge: sport === 'hockey' ? 'Hart winner. +5s' : 'MVP winner. +5s',
+    all_star_callup: 'All-Star. +5s',
     timeout: '+15s now',
     full_court_press: 'Opponent gets 10s',
     trick_play: '20+ TD season. +5s',
     iron_man: '100+ games. +5s',
     package_change: 'Same position, same franchise. +5s',
-    pro_bowl_callup: 'Pro Bowl same franchise. +5s',
+    pro_bowl_callup: 'Pro Bowl. +5s',
     blitz: 'Opponent gets 10s',
     breakaway: '400+ goals. +5s',
     veteran_presence: '800+ points. +5s',
@@ -2710,7 +2712,7 @@ function renderMoveFeedback(m, g) {
   if (!m) return '';
   if (m.outcome === 'timeout') return '<span class="bad">Time Expired.</span>';
   if (m.outcome === 'powerup_activated') {
-    return `<span class="ok">${escapeHtml(powerupActivationText(m))}</span>`;
+    return `<span class="ok powerup-feedback-line powerup-${powerupClass(m.powerup_key)}">${escapeHtml(powerupActivationText(m))}</span>`;
   }
 
   const name = m.display_name
@@ -2737,6 +2739,9 @@ function renderMoveFeedback(m, g) {
 
   switch (m.outcome) {
     case 'valid': {
+      const activatedNotice = m.activated_powerup_label
+        ? `<span class="ok powerup-feedback-line powerup-${powerupClass(m.activated_powerup_key)}">${escapeHtml(m.activated_powerup_label)} Powerup Activated.</span><br>`
+        : '';
       const newOut = m.shared_seasons
         .filter((s) => {
           const row = g.strikes.find((x) => x.team_id === s.team_id && x.season === s.season);
@@ -2744,7 +2749,7 @@ function renderMoveFeedback(m, g) {
         })
         .map((s) => `${s.team_name} ${seasonText(s)}`).join(', ');
       const lead = m.move_via_powerup
-        ? `${escapeHtml(m.powerup_label || 'Powerup')}: ${name}${ambig}. Linked Through:`
+        ? `${escapeHtml(m.powerup_label || 'Powerup')}: ${name}${ambig}.${(m.shared_seasons || []).length ? ' Linked Through:' : ' Powerup Link.'}`
         : `${name}${ambig}. TeamMates on:`;
       const winNote = m.win_condition_hit
         ? `<br><span class="ok">${escapeHtml(m.win_condition_label)}: ${m.win_condition_progress}/${m.win_condition_target}</span>`
@@ -2752,7 +2757,8 @@ function renderMoveFeedback(m, g) {
       const winFinish = m.win_condition_completed
         ? `<br><span class="burn">${escapeHtml(m.win_condition_label)} Completed.</span>`
         : '';
-      return `<span class="ok feedback-link-line">${lead} <span class="feedback-season-list">${seasonPills(m.shared_seasons)}</span></span>` +
+      return activatedNotice +
+        `<span class="ok feedback-link-line">${lead} <span class="feedback-season-list">${seasonPills(m.shared_seasons)}</span></span>` +
         (newOut ? `<br><span class="burn">${outTerm} This Move: ${escapeHtml(newOut)}</span>` : '') +
         winNote +
         winFinish;
@@ -3522,9 +3528,9 @@ function renderPowerupReferenceHtml() {
     ['quick_pitch', 'Your opponent only has 10 seconds on their next turn.'],
   ];
   const sportRows = {
-    basketball: [['heat_check', 'Name a Player from the same franchise with a 2,000+ point season. +5 seconds.'], ['sixth_man', 'Name a Player from the same franchise with 7,000+ career assists. +5 seconds.'], ['switch', 'Name a Player from the same franchise who played the same position. +5 seconds.'], ['mvp_badge', 'Name a Player from the same franchise who won an MVP Award. +5 seconds.'], ['all_star_callup', 'Name an All-Star from the same franchise. +5 seconds.'], ['timeout', '+15 seconds.'], ['full_court_press', 'Your opponent only has 10 seconds on their next turn.']],
-    football: [['trick_play', 'Name a Player from the same franchise with a 20+ touchdown season (non-passing). +5 seconds.'], ['iron_man', 'Name a Player from the same franchise with 100 career games played. +5 seconds.'], ['package_change', 'Name a Player from the same franchise who played the same position. +5 seconds.'], ['mvp_badge', 'Name a Player from the same franchise who won an MVP Award. +5 seconds.'], ['pro_bowl_callup', 'Name a Pro Bowler from the same franchise. +5 seconds.'], ['timeout', '+15 seconds.'], ['blitz', 'Your opponent only has 10 seconds on their next turn.']],
-    hockey: [['breakaway', 'Name a Player with a 400+ goal career. +5 seconds.'], ['veteran_presence', 'Name a Player with 800+ career points. +5 seconds.'], ['line_change', 'Name a Player from the same franchise who played the same position. +5 seconds.'], ['hart_honor', 'Name a Hart Trophy winner from the same franchise. +5 seconds.'], ['all_star_callup', 'Name an All-Star from the same franchise. +5 seconds.'], ['timeout', '+15 seconds.'], ['forecheck', 'Your opponent only has 10 seconds on their next turn.']],
+    basketball: [['heat_check', 'Name a Player with a 2,000+ point season. +5 seconds.'], ['sixth_man', 'Name a Player with 7,000+ career assists. +5 seconds.'], ['switch', 'Name a Player from the same franchise who played the same position. +5 seconds.'], ['mvp_badge', 'Name an MVP winner. +5 seconds.'], ['all_star_callup', 'Name an All-Star. +5 seconds.'], ['timeout', '+15 seconds.'], ['full_court_press', 'Your opponent only has 10 seconds on their next turn.']],
+    football: [['trick_play', 'Name a Player with a 20+ touchdown season (non-passing). +5 seconds.'], ['iron_man', 'Name a Player with 100 career games played. +5 seconds.'], ['package_change', 'Name a Player from the same franchise who played the same position. +5 seconds.'], ['mvp_badge', 'Name an MVP winner. +5 seconds.'], ['pro_bowl_callup', 'Name a Pro Bowler. +5 seconds.'], ['timeout', '+15 seconds.'], ['blitz', 'Your opponent only has 10 seconds on their next turn.']],
+    hockey: [['breakaway', 'Name a Player with a 400+ goal career. +5 seconds.'], ['veteran_presence', 'Name a Player with 800+ career points. +5 seconds.'], ['line_change', 'Name a Player from the same franchise who played the same position. +5 seconds.'], ['hart_honor', 'Name a Hart Trophy winner. +5 seconds.'], ['all_star_callup', 'Name an All-Star. +5 seconds.'], ['timeout', '+15 seconds.'], ['forecheck', 'Your opponent only has 10 seconds on their next turn.']],
   };
   const sport = CURRENT_SPORT || referenceSport;
   const labelForPowerup = (key, sportKey = sport) => {
@@ -3547,12 +3553,12 @@ function renderPowerupReferenceHtml() {
   </table>`;
   const SPORT_CONDITION_ROWS = {
     baseball: [
-      ['Sunset Kingdom', 'Name 3 Japanese players.'], ['Havana Heat', 'Name 3 Cuban players.'],
-      ['Maple Corridor', 'Name 4 Canadian players.'], ['MVP Circle', 'Name 2 MVP winners.'],
-      ['Young Buck', 'Name 2 Rookie of the Year winners.'], ['Gonna Be Golden', 'Name 2 Gold Glove winners.'],
-      ['Secretariat', 'Name 1 Triple Crown winner.'], ['Hound-dog', 'Name 2 players who spent at least 10 seasons with one franchise only.'],
-      ['Great Bambinos', 'Name 1 player with 500 career home runs.'], ['Ring Chaser', 'Name players with 15 combined World Series rings.'],
-      ['Journeyman', 'Name 2 players who played for at least 7 teams.'],
+      ['Sunset Kingdom', 'Name 4 Japanese players.'], ['Havana Heat', 'Name 4 Cuban players.'],
+      ['Maple Corridor', 'Name 5 Canadian players.'], ['MVP Circle', 'Name 3 MVP winners.'],
+      ['Young Buck', 'Name 3 Rookie of the Year winners.'], ['Gonna Be Golden', 'Name 3 Gold Glove winners.'],
+      ['Secretariat', 'Name 1 Triple Crown winner.'], ['Hound-dog', 'Name 3 players who spent at least 10 seasons with one franchise only.'],
+      ['Great Bambinos', 'Name 2 players with 500 career home runs.'], ['Ring Chaser', 'Name players with 20 combined World Series rings.'],
+      ['Journeyman', 'Name 3 players who played for at least 7 teams.'],
     ],
     basketball: LOCAL_PLAYOFF_OPTIONS.basketball.map(([, label]) => label.split(': ')),
     football: LOCAL_PLAYOFF_OPTIONS.football.map(([, label]) => label.split(': ')),

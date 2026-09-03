@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.5.38`, deployed from the latest pushed `main`
+- Current display version is `0.5.39`, deployed from the latest pushed `main`
   commit.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -321,6 +321,13 @@ decision needs context.
   links. Raised Basketball/Football/Hockey Playoffs win-condition targets to
   lengthen games, and let bots start trying powerups around chain length 8
   instead of 12 so bot powerups appear in more normal games.
+- `0.5.39`: Expanded Basketball/Football/Hockey stat, award, and veteran
+  Playoffs powerups into qualified-player links instead of same-franchise
+  links; same-position powerups still require same franchise. Bot time/pressure
+  powerups now attach a visible activation notice to the same bot move instead
+  of acting like an empty turn, bot pure-stat powerup candidates are ordered by
+  qualifying traits, multiplayer polling is faster for powerup visibility, and
+  Playoffs win-condition targets were raised again across sports.
 
 ### Important implementation notes
 
@@ -424,7 +431,7 @@ decision needs context.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.5.38`
+- Current display version: `0.5.39`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog policy: production is runtime-only. Keep compact
