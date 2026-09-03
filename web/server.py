@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.5.40"
+APP_VERSION = "0.5.41"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -9438,13 +9438,15 @@ def _bot_should_try_powerup(sport: str, blob: dict, state: GameState, side: str)
     spent = total - unused
     chain_length = len(state.chain)
     if spent == 0:
-        chance = 45 if chain_length < 18 else 70
+        chance = 65 if chain_length < 18 else 88
     elif chain_length < 22:
-        chance = 34
+        chance = 52
     elif chain_length < 36:
-        chance = 48
+        chance = 68
     else:
-        chance = 64
+        chance = 82
+    if unused >= 5 and chain_length >= 12:
+        chance = max(chance, 78)
     return secrets.randbelow(100) < chance
 
 
@@ -9567,9 +9569,37 @@ def _bot_prioritized_candidates(conn, sport: str, mode: str, blob: dict, side: s
 
 
 def _bot_powerup_candidates(conn, sport: str, state: GameState, powerup_key: str) -> list[str]:
+    chain = state.chain or [state.current_player_id]
+    chain_length = len(chain)
+    if sport == "baseball" and powerup_key in PLAYOFF_POWERUPS and powerup_key not in {"abs", "quick_pitch"}:
+        rows = conn.execute(
+            """
+            SELECT ps.player_id, ps.display_name, ps.career_games
+              FROM player_powerup_qualifications q
+              JOIN players_searchable ps
+                ON ps.player_id=q.player_id
+             WHERE q.powerup_key=%s
+               AND q.season >= 2000
+               AND NOT (q.player_id = ANY(%s))
+               AND q.franchise_id IN (
+                    SELECT DISTINCT tm.franchise_id
+                      FROM appearances a
+                      JOIN teams tm
+                        ON tm.team_id=a.team_id
+                       AND tm.season=a.season
+                     WHERE a.player_id=%s
+                       AND a.season >= 2000
+               )
+             GROUP BY ps.player_id, ps.display_name, ps.career_games
+             ORDER BY COUNT(*) DESC, ps.career_games DESC, ps.player_id
+             LIMIT 1000
+            """,
+            (powerup_key, chain, state.current_player_id),
+        ).fetchall()
+        return _bot_ordered_candidates(rows, chain_length)[:260]
     if sport != "baseball":
         meta = (LOCAL_PLAYOFF_CONFIG.get(sport) or {}).get("powerups", {}).get(powerup_key, {})
-        if meta and not _local_po_powerup_requires_franchise(meta):
+        if meta and meta.get("kind") not in {"time", "pressure"}:
             stat_key = meta.get("stat")
             threshold = int(meta.get("threshold") or 0)
             trait_order = {
@@ -9584,6 +9614,35 @@ def _bot_powerup_candidates(conn, sport: str, state: GameState, powerup_key: str
                 "all_star_count": "COALESCE(pt.all_star_count, 0)",
                 "mvp_count": "COALESCE(pt.mvp_count, 0)",
             }.get(stat_key, "ps.career_games")
+            franchise_filter = ""
+            if _local_po_powerup_requires_franchise(meta):
+                franchise_filter = """
+                   AND EXISTS (
+                        SELECT 1
+                          FROM sport_appearances ca
+                          JOIN sport_teams ct
+                            ON ct.sport_id=ca.sport_id
+                           AND ct.team_id=ca.team_id
+                           AND ct.season=ca.season
+                         WHERE ca.sport_id=ps.sport_id
+                           AND ca.player_id=ps.player_id
+                           AND ca.season >= 2000
+                           AND ct.franchise_id IN (
+                                SELECT DISTINCT current_t.franchise_id
+                                  FROM sport_appearances current_a
+                                  JOIN sport_teams current_t
+                                    ON current_t.sport_id=current_a.sport_id
+                                   AND current_t.team_id=current_a.team_id
+                                   AND current_t.season=current_a.season
+                                 WHERE current_a.sport_id=ps.sport_id
+                                   AND current_a.player_id=%s
+                                   AND current_a.season >= 2000
+                           )
+                   )
+                """
+            params: tuple = (sport, chain, threshold)
+            if franchise_filter:
+                params = (sport, chain, state.current_player_id, threshold)
             rows = conn.execute(
                 f"""
                 SELECT ps.player_id, ps.display_name, ps.career_games
@@ -9597,6 +9656,7 @@ def _bot_powerup_candidates(conn, sport: str, state: GameState, powerup_key: str
                  WHERE ps.sport_id=%s
                    AND sp.final_year >= 2000
                    AND NOT (ps.player_id = ANY(%s))
+                   {franchise_filter}
                  GROUP BY ps.player_id, ps.display_name, ps.career_games, pt.career_points,
                           pt.career_goals, pt.career_assists, pt.career_games,
                           pt.all_star_count, pt.mvp_count
@@ -9604,20 +9664,21 @@ def _bot_powerup_candidates(conn, sport: str, state: GameState, powerup_key: str
                  ORDER BY {trait_order} DESC, ps.career_games DESC, ps.player_id
                  LIMIT 1000
                 """,
-                (sport, state.chain, threshold),
+                params,
             ).fetchall()
-            return _bot_ordered_candidates(rows, len(state.chain))[:220]
-    rows = _bot_candidate_rows(conn, sport, state.current_player_id, state.chain)
-    limit = 350 if len(state.chain) < 12 else 180
-    return _bot_ordered_candidates(rows, len(state.chain))[:limit]
+            return _bot_ordered_candidates(rows, chain_length)[:260]
+    rows = _bot_candidate_rows(conn, sport, state.current_player_id, chain)
+    limit = 350 if chain_length < 12 else 180
+    return _bot_ordered_candidates(rows, chain_length)[:limit]
 
 
-def _bot_try_powerup_move(conn, sport: str, blob: dict, state: GameState, powerup_key: str) -> dict | None:
+def _bot_try_powerup_move(conn, sport: str, blob: dict, state: GameState, powerup_key: str,
+                          candidates: list[str] | None = None) -> dict | None:
     original_key = blob.get("active_turn_powerup")
     blob["active_turn_powerup"] = powerup_key
     moved = False
     try:
-        for candidate_id in _bot_powerup_candidates(conn, sport, state, powerup_key):
+        for candidate_id in candidates if candidates is not None else _bot_powerup_candidates(conn, sport, state, powerup_key):
             if sport == "baseball":
                 payload = _apply_playoff_powerup_move(conn, state, blob, player_id=candidate_id)
             else:
@@ -9644,12 +9705,21 @@ def _bot_activate_powerup(conn, sport: str, blob: dict, state: GameState, side: 
     if not available:
         return None
     low_clock = float(blob.get("turn_seconds") or APP_TURN_SECONDS) <= 12
+    move_candidate_cache: dict[str, list[str]] = {}
+
+    def move_candidates(key: str) -> list[str]:
+        if key not in move_candidate_cache:
+            move_candidate_cache[key] = _bot_powerup_candidates(conn, sport, state, key)
+        return move_candidate_cache[key]
+
     def rank(key: str) -> tuple[int, int]:
         kind = powers[key].get("kind")
-        if kind in {"time", "timer"} and (low_clock or len(state.chain) >= 10):
-            return (3 if not low_clock else 1, secrets.randbelow(100))
         if kind in {"skill", "stat", "same_position", "position", "veteran"}:
-            return (1, secrets.randbelow(100))
+            if move_candidates(key):
+                return (0, secrets.randbelow(100))
+            return (4, secrets.randbelow(100))
+        if kind in {"time", "timer"} and (low_clock or len(state.chain) >= 10):
+            return (1 if low_clock else 3, secrets.randbelow(100))
         if kind == "pressure" or key == "quick_pitch":
             return (2 if len(state.chain) >= 8 or secrets.randbelow(100) < 30 else 3, secrets.randbelow(100))
         return (3, secrets.randbelow(100))
@@ -9668,7 +9738,7 @@ def _bot_activate_powerup(conn, sport: str, blob: dict, state: GameState, side: 
             return None
         blob["turn_seconds"] += float(meta.get("bonus_seconds") or 0)
         blob["active_turn_powerup"] = key
-        payload = _bot_try_powerup_move(conn, sport, blob, state, key)
+        payload = _bot_try_powerup_move(conn, sport, blob, state, key, move_candidates(key))
         if payload:
             return payload
         blob["active_turn_powerup"] = None
