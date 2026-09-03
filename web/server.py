@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.5.42"
+APP_VERSION = "0.5.43"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -9453,16 +9453,16 @@ def _bot_should_schedule_timeout_loss(sport: str, mode: str, blob: dict, state: 
 def _bot_should_try_powerup(sport: str, blob: dict, state: GameState, side: str) -> bool:
     if blob.get("mode") != "po" or not _playoff_powerups_unlocked(state):
         return False
-    if len(state.chain) < 8:
-        return False
     total = _bot_total_powerup_count(sport, blob)
     unused = _bot_unused_powerup_count(sport, blob, side)
     if total <= 0 or unused <= 0:
         return False
     spent = total - unused
     chain_length = len(state.chain)
-    if sport == "hockey" and chain_length >= 8:
+    if sport == "hockey":
         return True
+    if chain_length < 8:
+        return False
     if spent == 0:
         chance = 65 if chain_length < 18 else 88
     elif chain_length < 22:
