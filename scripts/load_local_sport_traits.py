@@ -38,6 +38,31 @@ HOCKEYDB_MASTER_URL = "https://raw.githubusercontent.com/rippinrobr/hockey-datab
 HOCKEYDB_AWARDS_URL = "https://raw.githubusercontent.com/rippinrobr/hockey-databank/master/AwardsPlayers.csv"
 NHL_SCHEDULE_URL = "https://api-web.nhle.com/v1/club-schedule-season/{team}/{season}"
 NHL_CHAMPION_FALLBACK_URL = "https://gist.githubusercontent.com/cperera1997/5f22ac67099c16937e54e96b28a9b037/raw/52c84459973b018a42c39aa6405161518b649cbb/stanley%20cup%20champions%20playoff%20data.csv"
+MODERN_NHL_HART_WINNERS = [
+    "Taylor Hall",
+    "Nikita Kucherov",
+    "Leon Draisaitl",
+    "Connor McDavid",
+    "Auston Matthews",
+    "Connor McDavid",
+    "Nathan MacKinnon",
+    "Connor Hellebuyck",
+    "Nikita Kucherov",
+]
+MODERN_NHL_CALDER_WINNERS = [
+    "Elias Pettersson",
+    "Cale Makar",
+    "Kirill Kaprizov",
+    "Moritz Seider",
+    "Matty Beniers",
+    "Connor Bedard",
+    "Lane Hutson",
+    "Matthew Schaefer",
+]
+MODERN_NHL_PLAYER_OVERRIDES = {
+    "Taylor Hall": "nhl:8475791",
+    "Elias Pettersson": "nhl:8480012",
+}
 NHL_TEAM_CODES = (
     "ANA", "ARI", "ATL", "BOS", "BUF", "CAR", "CBJ", "CGY", "CHI", "CLE", "COL", "DAL",
     "DET", "EDM", "FLA", "HFD", "KCS", "LAK", "MDA", "MIN", "MNS", "MTL", "NJD", "NSH",
@@ -501,13 +526,21 @@ def load_nhl_awards(conn: sqlite3.Connection) -> tuple[int, int]:
     by_last: dict[str, list[tuple]] = defaultdict(list)
     for local in local_rows:
         by_last[normalize(local[3] or local[1].rsplit(" ", 1)[-1])].append(local)
-    source_to_local: dict[str, str] = {}
+    source_to_local: dict[str, str] = {
+        external_id: player_id for external_id, player_id in conn.execute(
+            """SELECT external_id, player_id
+                 FROM sport_player_external_ids
+                WHERE sport_id='hockey' AND source='hockeydb'"""
+        )
+    }
     unresolved_ids: set[str] = set()
     for row in csv.DictReader(io.StringIO(master.text)):
         source_id = row.get("playerID") or ""
         if source_id not in award_source_ids:
             continue
-        given = (row.get("nameGiven") or "").strip()
+        if source_id in source_to_local:
+            continue
+        given = (row.get("nameGiven") or row.get("firstName") or "").strip()
         last = (row.get("lastName") or "").strip()
         name = " ".join(part for part in (given, last) if part).strip()
         player_ids = index.get(normalize(name), [])
@@ -547,6 +580,46 @@ def load_nhl_awards(conn: sqlite3.Connection) -> tuple[int, int]:
         if award == "Hart": counts[player_id]["mvp"] += 1
         elif award == "Calder": counts[player_id]["roty"] += 1
         elif award in {"First Team All-Star", "Second Team All-Star"}: counts[player_id]["all_star"] += 1
+    def resolve_modern_award_name(name: str) -> str | None:
+        override = MODERN_NHL_PLAYER_OVERRIDES.get(name)
+        if override:
+            exists = conn.execute(
+                "SELECT 1 FROM sport_players_searchable WHERE sport_id='hockey' AND player_id=?",
+                (override,),
+            ).fetchone()
+            if exists:
+                return override
+        player_ids = index.get(normalize(name), [])
+        if len(player_ids) == 1:
+            return player_ids[0]
+        return None
+
+    for name in MODERN_NHL_HART_WINNERS:
+        player_id = resolve_modern_award_name(name)
+        if player_id:
+            counts[player_id]["mvp"] += 1
+        else:
+            unresolved_ids.add(f"modern_hart:{name}")
+    for name in MODERN_NHL_CALDER_WINNERS:
+        player_id = resolve_modern_award_name(name)
+        if player_id:
+            counts[player_id]["roty"] += 1
+        else:
+            unresolved_ids.add(f"modern_calder:{name}")
+    conn.execute(
+        """INSERT OR IGNORE INTO sport_player_traits (
+              sport_id, player_id, career_games, career_points, career_goals,
+              career_assists, career_touchdowns, passing_touchdowns,
+              rushing_touchdowns, receiving_touchdowns, career_sacks,
+              career_interceptions, source)
+           SELECT ps.sport_id, ps.player_id, ps.career_games, 0, 0,
+                  0, 0, 0, 0, 0, 0, 0, 'hockey_awards_trait_seed'
+             FROM sport_players_searchable ps
+            WHERE ps.sport_id='hockey'"""
+    )
+    conn.execute(
+        "UPDATE sport_player_traits SET mvp_count=0, roty_count=0, all_star_count=0 WHERE sport_id='hockey'"
+    )
     conn.executemany(
         """UPDATE sport_player_traits
               SET mvp_count=?, roty_count=?, all_star_count=?, updated_at=CURRENT_TIMESTAMP
@@ -556,7 +629,7 @@ def load_nhl_awards(conn: sqlite3.Connection) -> tuple[int, int]:
     conn.execute("DELETE FROM sport_trait_provenance WHERE sport_id='hockey' AND source='hockey_databank_awards'")
     conn.execute(
         "INSERT INTO sport_trait_provenance (sport_id, source, source_url, coverage) VALUES (?, ?, ?, ?)",
-        ("hockey", "hockey_databank_awards", HOCKEYDB_AWARDS_URL, "Hart, Calder, and First/Second Team All-Star counts through Hockey Databank coverage"),
+        ("hockey", "hockey_databank_awards", HOCKEYDB_AWARDS_URL, "Hart, Calder, and First/Second Team All-Star counts through Hockey Databank coverage plus NHL.com modern Hart/Calder supplements"),
     )
     return len(counts), len(unresolved_ids)
 

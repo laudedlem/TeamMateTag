@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.5.39`, deployed from the latest pushed `main`
+- Current display version is `0.5.40`, deployed from the latest pushed `main`
   commit.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -328,6 +328,11 @@ decision needs context.
   of acting like an empty turn, bot pure-stat powerup candidates are ordered by
   qualifying traits, multiplayer polling is faster for powerup visibility, and
   Playoffs win-condition targets were raised again across sports.
+- `0.5.40`: Fixed Hockey Playoffs award traits so Calder/Hart winners resolve
+  through HockeyDB IDs plus NHL.com modern supplements. Panarin now scores
+  Fresh Ice, duplicate-name modern winners such as Elias Pettersson and Taylor
+  Hall use explicit NHL IDs, and the local gameplay helper audit passes every
+  Basketball/Football/Hockey Playoffs win condition.
 
 ### Important implementation notes
 
@@ -431,7 +436,7 @@ decision needs context.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.5.39`
+- Current display version: `0.5.40`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog policy: production is runtime-only. Keep compact
