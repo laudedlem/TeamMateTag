@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.5.47`, deployed from the latest pushed `main`
+- Current display version is `0.5.48`, deployed from the latest pushed `main`
   commit.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -67,7 +67,7 @@ decision needs context.
 
 ### Current data/runtime facts
 
-- Supabase database size after the latest live-data repair: about `420 MB`.
+- Supabase database size after the latest live-data/index repair: about `540 MB`.
 - Local compact teammate rows:
   - Baseball: `833,431`
   - Basketball: `106,107`
@@ -372,6 +372,13 @@ decision needs context.
   completed regular-season appearances, the workflow exits successfully without
   touching Supabase. This keeps September NBA/NHL preseason/no-game windows
   from prematurely publishing an empty new season.
+- `0.5.48`: Investigated Supabase CPU saturation. `pg_stat_statements` showed
+  repeated teammate-candidate lookups over compact proof views as the largest
+  cumulative CPU consumers, especially reverse-direction player lookups. Added
+  live reverse lookup indexes on `compact_sport_teammates` and
+  `compact_mlb_teammate_game_proofs`, and updated the Supabase replacement
+  script so those indexes are preserved/recreated after future compact runtime
+  replacements.
 
 ### Important implementation notes
 
@@ -475,7 +482,7 @@ decision needs context.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.5.47`
+- Current display version: `0.5.48`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog policy: production is runtime-only. Keep compact
