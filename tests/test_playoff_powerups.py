@@ -120,16 +120,12 @@ def test_veteran_presence_stat_failure_returns_ineligible_message():
     assert "requires 800" in result["reason"]
 
 
-def test_veteran_presence_allows_qualified_player_without_teammate_link():
+def test_veteran_presence_rejects_qualified_player_from_another_franchise():
     game = _game(current_player_id="perron")
     game["state"].chain_names = ["David Perron"]
     result = _local_po_powerup_move(_conn(), game, "Connor McDavid", None)
 
-    assert result["outcome"] == "valid"
-    assert result["move_via_powerup"] is True
-    assert result["shared_seasons"] == []
-    assert game["state"].chain_shared_with_prev[-1] == []
-    assert game["chain_link_meta"][-1]["powerup_key"] == "veteran_presence"
+    assert result["outcome"] == "powerup_not_eligible"
 
 
 def test_veteran_presence_still_allows_same_franchise_qualified_player():
@@ -138,5 +134,6 @@ def test_veteran_presence_still_allows_same_franchise_qualified_player():
 
     assert result["outcome"] == "valid"
     assert result["move_via_powerup"] is True
-    assert result["shared_seasons"] == []
+    assert result["shared_seasons"] == [{"team_id": "TOR", "season": 2018}]
+    assert game["state"].chain_shared_with_prev[-1] == [("TOR", 2018)]
     assert game["chain_link_meta"][-1]["powerup_key"] == "veteran_presence"

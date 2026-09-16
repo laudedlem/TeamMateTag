@@ -404,6 +404,11 @@ decision needs context.
   Future live imports now merge career bounds, while the production repair
   restores affected compact rows without new database structures. Replaced
   Mickael Pietrus's NBA silhouette at the existing compact Storage path.
+- `0.5.54`: Standardized non-time Playoffs Powerups across sports: a qualifying
+  player must have appeared for one of the top card's franchises, but does not
+  need to have been its teammate. Bot selection uses that same rule. Football
+  Trick Play now counts only a player's combined rushing and receiving
+  touchdowns in one season, never passing touchdowns.
 
 ### Important implementation notes
 

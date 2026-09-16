@@ -7796,13 +7796,20 @@ body[data-mode-hub="film"] .film-hub-meta.compact-names .film-preview-player sma
 }
 
 .sport-basketball .fr-board-slot.zone-sideline {
-  height: 48px;
+  height: 52px;
   width: 72px;
 }
 
 .sport-basketball .fr-board-slot.zone-sideline .fr-board-headshot {
-  height: 20px;
-  width: 20px;
+  height: 17px;
+  width: 17px;
+}
+
+.sport-basketball .fr-board-slot.zone-sideline .fr-board-player {
+  font-size: 0.5rem;
+  line-height: 1;
+  max-height: 2em;
+  overflow-wrap: anywhere;
 }
 
 .sport-hockey .fr-board-slot.zone-sideline {

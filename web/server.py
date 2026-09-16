@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.5.53"
+APP_VERSION = "0.5.54"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -305,11 +305,11 @@ CENTRAL_TIME = ZoneInfo("America/Chicago")
 LOCAL_PLAYOFF_CONFIG = {
     "basketball": {
         "powerups": {
-            "heat_check": {"label": "Heat Check", "description": "Name a Player with a 2,000+ point season. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "peak_points", "threshold": 2000, "requires_franchise": False},
-            "sixth_man": {"label": "Sixth Man", "description": "Name a Player with 7,000+ career assists. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "career_assists", "threshold": 7000, "requires_franchise": False},
-            "switch": {"label": "Switch", "description": "Name a Player from the same franchise who played the same position. +5 seconds.", "kind": "same_position", "bonus_seconds": 5},
-            "mvp_badge": {"label": "MVP Badge", "description": "Name an MVP winner. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "mvp_count", "threshold": 1, "requires_franchise": False},
-            "all_star_callup": {"label": "Star Power", "description": "Name an All-Star. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "all_star_count", "threshold": 1, "requires_franchise": False},
+            "heat_check": {"label": "Heat Check", "description": "Name a Player with a 2,000+ point season. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "peak_points", "threshold": 2000},
+            "sixth_man": {"label": "Sixth Man", "description": "Name a Player with 7,000+ career assists. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "career_assists", "threshold": 7000},
+            "switch": {"label": "Switch", "description": "Name a Player who played the same position. +5 seconds.", "kind": "same_position", "bonus_seconds": 5},
+            "mvp_badge": {"label": "MVP Badge", "description": "Name an MVP winner. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "mvp_count", "threshold": 1},
+            "all_star_callup": {"label": "Star Power", "description": "Name an All-Star. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "all_star_count", "threshold": 1},
             "timeout": {"label": "Timeout", "description": "+15 seconds.", "kind": "time", "bonus_seconds": 15},
             "full_court_press": {"label": "Full-Court Press", "description": "Your opponent only has 10 seconds on their next turn.", "kind": "pressure"},
         },
@@ -329,11 +329,11 @@ LOCAL_PLAYOFF_CONFIG = {
     },
     "football": {
         "powerups": {
-            "trick_play": {"label": "Trick Play", "description": "Name a Player with a 20+ touchdown season (non-passing). +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "peak_touchdowns", "threshold": 20, "requires_franchise": False},
-            "iron_man": {"label": "Iron Man", "description": "Name a Player with 100 career games played. +5 seconds.", "kind": "veteran", "bonus_seconds": 5, "career_games": 100, "requires_franchise": False},
-            "package_change": {"label": "Package Change", "description": "Name a Player from the same franchise who played the same position. +5 seconds.", "kind": "same_position", "bonus_seconds": 5},
-            "mvp_badge": {"label": "MVP Badge", "description": "Name an MVP winner. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "mvp_count", "threshold": 1, "requires_franchise": False},
-            "pro_bowl_callup": {"label": "Bowler", "description": "Name a Pro Bowler. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "all_star_count", "threshold": 1, "requires_franchise": False},
+            "trick_play": {"label": "Trick Play", "description": "Name a Player with a 20+ rushing or receiving touchdown season. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "peak_rush_receiving_touchdowns", "threshold": 20},
+            "iron_man": {"label": "Iron Man", "description": "Name a Player with 100 career games played. +5 seconds.", "kind": "veteran", "bonus_seconds": 5, "career_games": 100},
+            "package_change": {"label": "Package Change", "description": "Name a Player who played the same position. +5 seconds.", "kind": "same_position", "bonus_seconds": 5},
+            "mvp_badge": {"label": "MVP Badge", "description": "Name an MVP winner. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "mvp_count", "threshold": 1},
+            "pro_bowl_callup": {"label": "Bowler", "description": "Name a Pro Bowler. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "all_star_count", "threshold": 1},
             "timeout": {"label": "Timeout", "description": "+15 seconds.", "kind": "time", "bonus_seconds": 15},
             "blitz": {"label": "Blitz", "description": "Your opponent only has 10 seconds on their next turn.", "kind": "pressure"},
         },
@@ -354,11 +354,11 @@ LOCAL_PLAYOFF_CONFIG = {
     },
     "hockey": {
         "powerups": {
-            "breakaway": {"label": "Breakaway", "description": "Name a Player with a 400+ goal career. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "career_goals", "threshold": 400, "requires_franchise": False},
-            "veteran_presence": {"label": "Veteran Presence", "description": "Name a Player with 800+ career points. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "career_points", "threshold": 800, "requires_franchise": False},
-            "line_change": {"label": "Line Change", "description": "Name a Player from the same franchise who played the same position. +5 seconds.", "kind": "same_position", "bonus_seconds": 5},
-            "hart_honor": {"label": "Hart Honor", "description": "Name a Hart Trophy winner. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "mvp_count", "threshold": 1, "requires_franchise": False},
-            "all_star_callup": {"label": "All-Star", "description": "Name an All-Star. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "all_star_count", "threshold": 1, "requires_franchise": False},
+            "breakaway": {"label": "Breakaway", "description": "Name a Player with a 400+ goal career. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "career_goals", "threshold": 400},
+            "veteran_presence": {"label": "Veteran Presence", "description": "Name a Player with 800+ career points. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "career_points", "threshold": 800},
+            "line_change": {"label": "Line Change", "description": "Name a Player who played the same position. +5 seconds.", "kind": "same_position", "bonus_seconds": 5},
+            "hart_honor": {"label": "Hart Honor", "description": "Name a Hart Trophy winner. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "mvp_count", "threshold": 1},
+            "all_star_callup": {"label": "All-Star", "description": "Name an All-Star. +5 seconds.", "kind": "stat", "bonus_seconds": 5, "stat": "all_star_count", "threshold": 1},
             "timeout": {"label": "Timeout", "description": "+15 seconds.", "kind": "time", "bonus_seconds": 15},
             "forecheck": {"label": "Forecheck", "description": "Your opponent only has 10 seconds on their next turn.", "kind": "pressure"},
         },
@@ -381,35 +381,35 @@ LOCAL_PLAYOFF_CONFIG = {
 PLAYOFF_POWERUPS = {
     "bubblegum": {
         "label": "Bubblegum",
-        "description": "Name a Player from the same franchise with a 40+ home run season. +5 seconds.",
+        "description": "Name a Player with a 40+ home run season. +5 seconds.",
         "kind": "skill",
         "bonus_seconds": 5.0,
         "role": "batter",
     },
     "pine_tar": {
         "label": "Pine Tar",
-        "description": "Name a Player from the same franchise with a 200+ strikeout season. +5 seconds.",
+        "description": "Name a Player with a 200+ strikeout season. +5 seconds.",
         "kind": "skill",
         "bonus_seconds": 5.0,
         "role": "pitcher",
     },
     "bat_donut": {
         "label": "Bat Donut",
-        "description": "Name a Silver Slugger from the same franchise. +5 seconds.",
+        "description": "Name a Silver Slugger. +5 seconds.",
         "kind": "skill",
         "bonus_seconds": 5.0,
         "role": "any",
     },
     "sunglasses": {
         "label": "Sunglasses",
-        "description": "Name an All-Star from the same franchise. +5 seconds.",
+        "description": "Name an All-Star. +5 seconds.",
         "kind": "skill",
         "bonus_seconds": 5.0,
         "role": "any",
     },
     "backup_mitt": {
         "label": "Backup Mitt",
-        "description": "Name a Gold-Glover from the same franchise. +5 seconds.",
+        "description": "Name a Gold-Glover. +5 seconds.",
         "kind": "skill",
         "bonus_seconds": 5.0,
         "role": "any",
@@ -4766,6 +4766,7 @@ def _local_po_traits(conn: sqlite3.Connection, sport: str, player_id: str) -> di
                   COALESCE(MAX(st.points), 0), COALESCE(MAX(st.goals), 0), COALESCE(MAX(st.assists), 0),
                   COALESCE(MAX(st.touchdowns), 0), COALESCE(MAX(st.passing_touchdowns), 0),
                   COALESCE(MAX(st.rushing_touchdowns), 0), COALESCE(MAX(st.receiving_touchdowns), 0),
+                  COALESCE(MAX(st.rushing_touchdowns + st.receiving_touchdowns), 0),
                   COALESCE(MAX(st.sacks), 0), COALESCE(MAX(st.interceptions), 0)
              FROM sport_players p
              JOIN sport_players_searchable s ON s.sport_id=p.sport_id AND s.player_id=p.player_id
@@ -4790,6 +4791,7 @@ def _local_po_traits(conn: sqlite3.Connection, sport: str, player_id: str) -> di
                 "mvp_count": 0, "roty_count": 0, "all_star_count": 0, "championship_count": 0,
                 "peak_points": 0, "peak_goals": 0, "peak_assists": 0, "peak_touchdowns": 0,
                 "peak_passing_touchdowns": 0, "peak_rushing_touchdowns": 0, "peak_receiving_touchdowns": 0,
+                "peak_rush_receiving_touchdowns": 0,
                 "peak_sacks": 0, "peak_interceptions": 0}
     return dict(zip(("position", "career_games", "team_count", "franchise_count", "season_count",
                      "career_points", "career_goals", "career_assists", "career_touchdowns",
@@ -4797,6 +4799,7 @@ def _local_po_traits(conn: sqlite3.Connection, sport: str, player_id: str) -> di
                      "mvp_count", "roty_count", "all_star_count", "championship_count",
                      "peak_points", "peak_goals", "peak_assists", "peak_touchdowns",
                      "peak_passing_touchdowns", "peak_rushing_touchdowns", "peak_receiving_touchdowns",
+                     "peak_rush_receiving_touchdowns",
                      "peak_sacks", "peak_interceptions"), row))
 
 
@@ -4960,6 +4963,7 @@ def _local_po_stat_label(stat_key: str | None) -> str:
         "passing_touchdowns": "passing touchdowns",
         "rushing_touchdowns": "rushing touchdowns",
         "receiving_touchdowns": "receiving touchdowns",
+        "peak_rush_receiving_touchdowns": "rushing or receiving touchdowns in one season",
         "career_sacks": "career sacks",
         "career_interceptions": "career interceptions",
         "career_games": "career games",
@@ -9706,6 +9710,7 @@ def _bot_powerup_candidates(conn, sport: str, state: GameState, powerup_key: str
                 "peak_goals": "COALESCE(MAX(st.goals), 0)",
                 "peak_assists": "COALESCE(MAX(st.assists), 0)",
                 "peak_touchdowns": "COALESCE(MAX(st.touchdowns), 0)",
+                "peak_rush_receiving_touchdowns": "COALESCE(MAX(st.rushing_touchdowns + st.receiving_touchdowns), 0)",
                 "career_points": "COALESCE(pt.career_points, 0)",
                 "career_goals": "COALESCE(pt.career_goals, 0)",
                 "career_assists": "COALESCE(pt.career_assists, 0)",

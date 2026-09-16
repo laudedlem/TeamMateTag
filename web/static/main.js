@@ -3498,7 +3498,7 @@ function renderPowerupReferenceHtml() {
   if (isCrossSport() && game?.powerups?.your_powerups) {
     const rows = game.powerups.your_powerups;
     return `
-      <p class="muted">Each Playoffs Game gives both Players 1 use of every Powerup. You can activate Powerups on your turn.</p>
+      <p class="muted">Each Playoffs Game gives both Players 1 use of every Powerup. Player-naming Powerups require a qualified Player from one of the top card's franchises; they do not need to be direct teammates.</p>
       <div class="reference-key">
         ${rows.map((powerup) => `
           <div class="reference-row powerup-${powerupClass(powerup.key)}">
@@ -3532,9 +3532,9 @@ function renderPowerupReferenceHtml() {
     ['quick_pitch', 'Your opponent only has 10 seconds on their next turn.'],
   ];
   const sportRows = {
-    basketball: [['heat_check', 'Name a Player with a 2,000+ point season. +5 seconds.'], ['sixth_man', 'Name a Player with 7,000+ career assists. +5 seconds.'], ['switch', 'Name a Player from the same franchise who played the same position. +5 seconds.'], ['mvp_badge', 'Name an MVP winner. +5 seconds.'], ['all_star_callup', 'Name an All-Star. +5 seconds.'], ['timeout', '+15 seconds.'], ['full_court_press', 'Your opponent only has 10 seconds on their next turn.']],
-    football: [['trick_play', 'Name a Player with a 20+ touchdown season (non-passing). +5 seconds.'], ['iron_man', 'Name a Player with 100 career games played. +5 seconds.'], ['package_change', 'Name a Player from the same franchise who played the same position. +5 seconds.'], ['mvp_badge', 'Name an MVP winner. +5 seconds.'], ['pro_bowl_callup', 'Name a Pro Bowler. +5 seconds.'], ['timeout', '+15 seconds.'], ['blitz', 'Your opponent only has 10 seconds on their next turn.']],
-    hockey: [['breakaway', 'Name a Player with a 400+ goal career. +5 seconds.'], ['veteran_presence', 'Name a Player with 800+ career points. +5 seconds.'], ['line_change', 'Name a Player from the same franchise who played the same position. +5 seconds.'], ['hart_honor', 'Name a Hart Trophy winner. +5 seconds.'], ['all_star_callup', 'Name an All-Star. +5 seconds.'], ['timeout', '+15 seconds.'], ['forecheck', 'Your opponent only has 10 seconds on their next turn.']],
+    basketball: [['heat_check', 'Name a Player with a 2,000+ point season. +5 seconds.'], ['sixth_man', 'Name a Player with 7,000+ career assists. +5 seconds.'], ['switch', 'Name a Player who played the same position. +5 seconds.'], ['mvp_badge', 'Name an MVP winner. +5 seconds.'], ['all_star_callup', 'Name an All-Star. +5 seconds.'], ['timeout', '+15 seconds.'], ['full_court_press', 'Your opponent only has 10 seconds on their next turn.']],
+    football: [['trick_play', 'Name a Player with a 20+ rushing or receiving touchdown season. +5 seconds.'], ['iron_man', 'Name a Player with 100 career games played. +5 seconds.'], ['package_change', 'Name a Player who played the same position. +5 seconds.'], ['mvp_badge', 'Name an MVP winner. +5 seconds.'], ['pro_bowl_callup', 'Name a Pro Bowler. +5 seconds.'], ['timeout', '+15 seconds.'], ['blitz', 'Your opponent only has 10 seconds on their next turn.']],
+    hockey: [['breakaway', 'Name a Player with a 400+ goal career. +5 seconds.'], ['veteran_presence', 'Name a Player with 800+ career points. +5 seconds.'], ['line_change', 'Name a Player who played the same position. +5 seconds.'], ['hart_honor', 'Name a Hart Trophy winner. +5 seconds.'], ['all_star_callup', 'Name an All-Star. +5 seconds.'], ['timeout', '+15 seconds.'], ['forecheck', 'Your opponent only has 10 seconds on their next turn.']],
   };
   const sport = CURRENT_SPORT || referenceSport;
   const labelForPowerup = (key, sportKey = sport) => {
@@ -3592,7 +3592,7 @@ function renderPowerupReferenceHtml() {
       }).join('')}`;
   }
   return `
-    <p class="muted">Each Playoffs Game gives both Players 1 use of every Powerup. You can activate Powerups on your turn.</p>
+    <p class="muted">Each Playoffs Game gives both Players 1 use of every Powerup. Player-naming Powerups require a qualified Player from one of the top card's franchises; they do not need to be direct teammates.</p>
     <h3>Win Conditions</h3>
     ${sportConditionTable}
     <h3>Powerups</h3>
