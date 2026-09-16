@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.5.49"
+APP_VERSION = "0.5.50"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -9486,15 +9486,15 @@ def _bot_candidate_rows(conn, sport: str, current_player_id: str, used: list[str
                  WHERE scope='baseball' AND player_id=%s
             ),
             candidate_keys AS (
-                SELECT CASE
-                         WHEN proof.player_a_key = current_key.player_key THEN proof.player_b_key
-                         ELSE proof.player_a_key
-                       END AS player_key
+                SELECT proof.player_b_key AS player_key
                   FROM compact_mlb_teammate_game_proofs proof
                   JOIN current_key
                     ON proof.player_a_key = current_key.player_key
-                    OR proof.player_b_key = current_key.player_key
-                 GROUP BY 1
+                UNION
+                SELECT proof.player_a_key AS player_key
+                  FROM compact_mlb_teammate_game_proofs proof
+                  JOIN current_key
+                    ON proof.player_b_key = current_key.player_key
             )
             SELECT ps.player_id, ps.display_name, ps.career_games
               FROM candidate_keys ck
@@ -9514,16 +9514,17 @@ def _bot_candidate_rows(conn, sport: str, current_player_id: str, used: list[str
              WHERE scope=%s AND player_id=%s
         ),
         candidate_keys AS (
-            SELECT CASE
-                     WHEN proof.player_a_key = current_key.player_key THEN proof.player_b_key
-                     ELSE proof.player_a_key
-                   END AS player_key
+            SELECT proof.player_b_key AS player_key
               FROM compact_sport_teammates proof
               JOIN current_key
                 ON proof.sport_id = %s
-               AND (proof.player_a_key = current_key.player_key
-                    OR proof.player_b_key = current_key.player_key)
-             GROUP BY 1
+               AND proof.player_a_key = current_key.player_key
+            UNION
+            SELECT proof.player_a_key AS player_key
+              FROM compact_sport_teammates proof
+              JOIN current_key
+                ON proof.sport_id = %s
+               AND proof.player_b_key = current_key.player_key
         )
         SELECT ps.player_id, ps.display_name, ps.career_games
           FROM candidate_keys ck
@@ -9535,7 +9536,7 @@ def _bot_candidate_rows(conn, sport: str, current_player_id: str, used: list[str
          ORDER BY ps.career_games DESC, ps.player_id
          LIMIT 1000
         """,
-        (sport, current_player_id, sport, sport, sport, used),
+        (sport, current_player_id, sport, sport, sport, sport, used),
     ).fetchall()
 
 

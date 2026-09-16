@@ -293,6 +293,98 @@ def _candidate_links(conn: sqlite3.Connection, sport: str, player_id: str,
                     options.append((candidate, link))
             return sorted(options, key=lambda item: (eligible[item[0]], item[1][1]), reverse=True)
 
+    compact_exclusion_clause = ""
+    if _table_exists(conn, "sport_teammate_exclusions"):
+        compact_exclusion_clause = """
+                   AND NOT EXISTS (
+                       SELECT 1 FROM sport_teammate_exclusions e
+                        WHERE e.sport_id=proof.sport_id
+                          AND e.team_id=tk.team_id
+                          AND e.season=tk.season
+                          AND ((e.player_a_id=? AND e.player_b_id=other.player_id)
+                            OR (e.player_a_id=other.player_id AND e.player_b_id=?))
+                   )
+        """
+
+    # Production keeps only the compact proof matrix. Split the canonical
+    # pair directions so Postgres can use its existing primary key for the
+    # common player_a path without adding a large reverse index.
+    if _table_exists(conn, "compact_sport_teammates") and _table_exists(conn, "compact_player_keys"):
+        key_row = conn.execute(
+            "SELECT player_key FROM compact_player_keys WHERE scope=? AND player_id=?",
+            (sport, player_id),
+        ).fetchone()
+        if key_row:
+            player_key = key_row[0]
+            rows = conn.execute(
+                """
+                SELECT other.player_id, tk.team_id, tk.season
+                  FROM compact_sport_teammates proof
+                  JOIN compact_player_keys other
+                    ON other.scope = proof.sport_id
+                   AND other.player_key = proof.player_b_key
+                  JOIN compact_team_keys tk ON tk.team_key = proof.team_key
+                  JOIN sport_players other_player
+                    ON other_player.sport_id = proof.sport_id
+                   AND other_player.player_id = other.player_id
+                 WHERE proof.sport_id = ?
+                   AND proof.player_a_key = ?
+                   AND proof.season >= ?
+                   AND NOT (
+                       proof.sport_id='football' AND proof.season>=2025
+                       AND other_player.debut_year <= proof.season - 4
+                       AND NOT EXISTS (
+                           SELECT 1 FROM sport_appearances prior_other
+                            WHERE prior_other.sport_id=proof.sport_id
+                              AND prior_other.player_id=other.player_id
+                              AND prior_other.season BETWEEN proof.season - 2 AND proof.season - 1
+                       )
+                   )
+                   {compact_exclusion_clause}
+                UNION ALL
+                SELECT other.player_id, tk.team_id, tk.season
+                  FROM compact_sport_teammates proof
+                  JOIN compact_player_keys other
+                    ON other.scope = proof.sport_id
+                   AND other.player_key = proof.player_a_key
+                  JOIN compact_team_keys tk ON tk.team_key = proof.team_key
+                  JOIN sport_players other_player
+                    ON other_player.sport_id = proof.sport_id
+                   AND other_player.player_id = other.player_id
+                 WHERE proof.sport_id = ?
+                   AND proof.player_b_key = ?
+                   AND proof.season >= ?
+                   AND NOT (
+                       proof.sport_id='football' AND proof.season>=2025
+                       AND other_player.debut_year <= proof.season - 4
+                       AND NOT EXISTS (
+                           SELECT 1 FROM sport_appearances prior_other
+                            WHERE prior_other.sport_id=proof.sport_id
+                              AND prior_other.player_id=other.player_id
+                              AND prior_other.season BETWEEN proof.season - 2 AND proof.season - 1
+                       )
+                   )
+                   {compact_exclusion_clause}
+                """.format(compact_exclusion_clause=compact_exclusion_clause),
+                (sport, player_key, modern_final_year, player_id, player_id,
+                 sport, player_key, modern_final_year, player_id, player_id)
+                if compact_exclusion_clause else
+                (sport, player_key, modern_final_year, sport, player_key, modern_final_year),
+            )
+            by_candidate: dict[str, list[tuple[str, int]]] = {}
+            for candidate, team_id, season in rows:
+                if candidate in eligible and candidate not in used_players:
+                    by_candidate.setdefault(candidate, []).append((team_id, season))
+            options = []
+            for candidate, links in by_candidate.items():
+                deduped_links = sorted(set(links), key=lambda link: (int(link[1]), link[0]), reverse=True)
+                if len(deduped_links) > MAX_FILM_REVIEW_LINKS:
+                    continue
+                link = _preferred_link(deduped_links, used_links)
+                if link is not None:
+                    options.append((candidate, link))
+            return sorted(options, key=lambda item: (eligible[item[0]], item[1][1]), reverse=True)
+
     exclusion_clause = ""
     matrix_exclusion_clause = ""
     if _table_exists(conn, "sport_teammate_exclusions"):
