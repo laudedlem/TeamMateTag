@@ -816,6 +816,8 @@ def upload_compact(path: Path, sport: str, season: int, prune_live_staging: bool
                 SET source_url=COALESCE(sport_player_images.source_url, EXCLUDED.source_url),
                     content_type=COALESCE(sport_player_images.content_type, EXCLUDED.content_type)
                 """, images)
+            cur.execute("SELECT setval(pg_get_serial_sequence('compact_player_keys', 'player_key'), GREATEST(COALESCE((SELECT MAX(player_key) FROM compact_player_keys), 1), 1), true)")
+            cur.execute("SELECT setval(pg_get_serial_sequence('compact_team_keys', 'team_key'), GREATEST(COALESCE((SELECT MAX(team_key) FROM compact_team_keys), 1), 1), true)")
             cur.execute(
                 """
                 INSERT INTO compact_player_keys (scope, player_id)

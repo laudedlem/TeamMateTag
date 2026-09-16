@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.5.44`, deployed from the latest pushed `main`
+- Current display version is `0.5.45`, deployed from the latest pushed `main`
   commit.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -67,7 +67,7 @@ decision needs context.
 
 ### Current data/runtime facts
 
-- Supabase database size after the latest hygiene audit: about `408 MB`.
+- Supabase database size after the latest live-data repair: about `420 MB`.
 - Local compact teammate rows:
   - Baseball: `833,431`
   - Basketball: `106,107`
@@ -351,6 +351,16 @@ decision needs context.
   teammate moves. Bots now bridge that state for validation and filter to
   Breakaway, Veteran Presence, Line Change, Hart Honor, and All-Star before
   Timeout or Forecheck when playable.
+- `0.5.45`: Repaired MLB/NFL compact live-season updating. Scheduled GitHub
+  runs had been failing, NFL was missing `defaultdict`, and the live compact
+  team-key sequence was behind existing rows, causing 2026 Football
+  same-game teammate proof inserts to be silently skipped. The compact upload
+  scripts now sync compact key sequences before inserting new key rows, and
+  Baseball uploads default to season-to-date rebuilds when replacing a season.
+  Production was manually refreshed on 2026-09-16: Football 2026 now has
+  1,491 appearance/stint/search rows, 32 team keys, and 34,001 compact
+  teammate proofs; Baseball 2026 now has 1,654 appearance/stint/stat rows,
+  1,456 searchable players, and 31,230 compact teammate proofs.
 
 ### Important implementation notes
 
@@ -454,7 +464,7 @@ decision needs context.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.5.44`
+- Current display version: `0.5.45`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog policy: production is runtime-only. Keep compact

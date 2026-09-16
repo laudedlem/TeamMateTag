@@ -14,6 +14,7 @@ import os
 import sqlite3
 import sys
 from pathlib import Path
+from collections import defaultdict
 from urllib.request import urlopen
 
 try:
@@ -371,6 +372,8 @@ def upload_compact(path: Path, season: int, prune_live_staging: bool) -> dict[st
                     }.get(table)
                     updates = ", ".join(f"{col}=EXCLUDED.{col}" for col in cols if col not in {"sport_id", "player_id", "team_id", "season", "position"})
                     copy_rows(cur, f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({placeholders}) ON CONFLICT {conflict} DO UPDATE SET {updates}", rows)
+            cur.execute("SELECT setval(pg_get_serial_sequence('compact_player_keys', 'player_key'), GREATEST(COALESCE((SELECT MAX(player_key) FROM compact_player_keys), 1), 1), true)")
+            cur.execute("SELECT setval(pg_get_serial_sequence('compact_team_keys', 'team_key'), GREATEST(COALESCE((SELECT MAX(team_key) FROM compact_team_keys), 1), 1), true)")
             cur.execute("INSERT INTO compact_player_keys (scope, player_id) SELECT DISTINCT %s, player_id FROM sport_appearances WHERE sport_id=%s AND season=%s ON CONFLICT DO NOTHING", (SPORT_ID, SPORT_ID, season))
             cur.execute("INSERT INTO compact_team_keys (scope, team_id, season) SELECT DISTINCT %s, team_id, season::smallint FROM sport_appearances WHERE sport_id=%s AND season=%s ON CONFLICT DO NOTHING", (SPORT_ID, SPORT_ID, season))
             cur.execute(

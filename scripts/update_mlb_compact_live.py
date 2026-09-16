@@ -960,6 +960,8 @@ def upload_compact(path: Path, season: int, database_url: str, prune_live_stagin
                     for player_id, new_hr in new_player_home_runs.items()
                 ],
             )
+            cur.execute("SELECT setval(pg_get_serial_sequence('compact_player_keys', 'player_key'), GREATEST(COALESCE((SELECT MAX(player_key) FROM compact_player_keys), 1), 1), true)")
+            cur.execute("SELECT setval(pg_get_serial_sequence('compact_team_keys', 'team_key'), GREATEST(COALESCE((SELECT MAX(team_key) FROM compact_team_keys), 1), 1), true)")
             cur.execute(
                 """
                 INSERT INTO compact_player_keys (scope, player_id)
@@ -1089,7 +1091,8 @@ def main() -> int:
     args = parser.parse_args()
     output = args.output or DEFAULT_OUTPUT_DIR / f"mlb_live_{args.season}.sqlite"
 
-    if args.season_to_date:
+    upload_default_season_to_date = args.upload and not (args.start_date or args.end_date or args.skip_collect)
+    if args.season_to_date or upload_default_season_to_date:
         start = season_start(args.season)
         end = args.end_date or datetime.now(EASTERN).date()
         reset = True
