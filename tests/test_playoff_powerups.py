@@ -1,7 +1,7 @@
 import sqlite3
 
 from game.engine import GameState
-from web.server import _local_po_powerup_move
+from web.server import _local_po_powerup_move, _powerup_move_blocks_win_condition
 
 
 def _conn():
@@ -137,3 +137,8 @@ def test_veteran_presence_still_allows_same_franchise_qualified_player():
     assert result["shared_seasons"] == [{"team_id": "TOR", "season": 2018}]
     assert game["state"].chain_shared_with_prev[-1] == [("TOR", 2018)]
     assert game["chain_link_meta"][-1]["powerup_key"] == "veteran_presence"
+
+
+def test_powerup_moves_do_not_advance_win_conditions():
+    assert _powerup_move_blocks_win_condition({"move_via_powerup": True}) is True
+    assert _powerup_move_blocks_win_condition({"move_via_powerup": False}) is False

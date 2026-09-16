@@ -963,8 +963,25 @@ button.danger:hover:not(:disabled) {
 }
 
 .player-card.win-hit {
-  border-color: rgba(250, 204, 21, 0.55);
-  box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.32), var(--shadow-sm);
+  border: 2px solid #facc15;
+  box-shadow: 0 0 0 3px rgba(250, 204, 21, 0.25), 0 0 22px rgba(250, 204, 21, 0.34), var(--shadow-sm);
+  position: relative;
+}
+
+.win-hit-marker {
+  background: #facc15;
+  border: 1px solid #fff0a6;
+  border-radius: 999px;
+  color: #24200b;
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  padding: 0.14rem 0.38rem;
+  position: absolute;
+  right: 0.35rem;
+  text-transform: uppercase;
+  top: 0.35rem;
+  z-index: 3;
 }
 
 .powerup-list {

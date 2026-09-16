@@ -409,6 +409,9 @@ decision needs context.
   need to have been its teammate. Bot selection uses that same rule. Football
   Trick Play now counts only a player's combined rushing and receiving
   touchdowns in one season, never passing touchdowns.
+- `0.5.55`: Playoffs Powerup moves no longer advance win conditions. The move
+  feedback states that explicitly, while ordinary qualifying chain cards now
+  receive a prominent `WIN +Nx` marker for both players to review.
 
 ### Important implementation notes
 

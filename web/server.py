@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.5.54"
+APP_VERSION = "0.5.55"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -5146,7 +5146,7 @@ def local_po_move(sport: str):
             if payload["outcome"] == "valid":
                 key = game[f"{side}_win_condition_key"]
                 condition = LOCAL_PLAYOFF_CONFIG[sport]["conditions"][key]
-                if _playoff_win_conditions_unlocked(game["state"]):
+                if _playoff_win_conditions_unlocked(game["state"]) and not _powerup_move_blocks_win_condition(payload):
                     increment = _local_po_condition_increment(conn, sport, key, payload["player_id"])
                     game["chain_win_condition_hits"].append(increment > 0)
                     game[f"{side}_win_progress"] += increment
@@ -5166,7 +5166,7 @@ def local_po_move(sport: str):
                 else:
                     values[-1] = int(increment or 0)
                 game["chain_win_condition_values"] = values
-                payload.update({"win_condition_hit": increment > 0, "win_condition_value": int(increment or 0), "win_condition_label": condition["label"], "win_condition_progress": game[f"{side}_win_progress"], "win_condition_target": target, "win_condition_completed": completed})
+                payload.update({"win_condition_hit": increment > 0, "win_condition_value": int(increment or 0), "win_condition_label": condition["label"], "win_condition_progress": game[f"{side}_win_progress"], "win_condition_target": target, "win_condition_completed": completed, "win_condition_blocked_by_powerup": _powerup_move_blocks_win_condition(payload)})
                 if completed:
                     game["finished"] = True; game["winner"] = game[side]
                 else:
@@ -7124,7 +7124,7 @@ def po_move():
         blob.update(serialize_state(state))
         blob["last_move"] = move_payload
         if move_payload.get("outcome") == "valid":
-            if _playoff_win_conditions_unlocked(state):
+            if _playoff_win_conditions_unlocked(state) and not _powerup_move_blocks_win_condition(move_payload):
                 win_update = _apply_playoff_win_condition_hit(conn, blob, move_payload["player_id"], mover_side)
             else:
                 meta = PLAYOFF_WIN_CONDITIONS.get(blob.get(f"{mover_side}_win_condition_key"), {})
@@ -7141,6 +7141,7 @@ def po_move():
             move_payload["win_condition_progress"] = win_update["progress"]
             move_payload["win_condition_target"] = win_update["target"]
             move_payload["win_condition_completed"] = win_update["completed"]
+            move_payload["win_condition_blocked_by_powerup"] = _powerup_move_blocks_win_condition(move_payload)
             if move_payload.get("player_id"):
                 _record_player_usage(conn, move_payload["player_id"], "dr")
             if win_update["completed"]:
@@ -9232,6 +9233,11 @@ def _append_no_win_condition_hit(blob: dict, state: GameState) -> None:
     blob["chain_win_condition_values"] = values
 
 
+def _powerup_move_blocks_win_condition(payload: dict) -> bool:
+    """Powerups extend a turn; only an ordinary teammate link can score a condition."""
+    return bool(payload.get("move_via_powerup"))
+
+
 def _bot_next_move_at(blob: dict | None = None) -> str:
     ready_at = now_utc()
     chain_length = 1
@@ -9893,7 +9899,7 @@ def _sport_online_apply_valid_payload(conn, sport: str, mode: str, blob: dict, s
                                       payload: dict, mover: str, record_usage: bool) -> None:
     if mode == "po":
         if sport == "baseball":
-            if _playoff_win_conditions_unlocked(state):
+            if _playoff_win_conditions_unlocked(state) and not _powerup_move_blocks_win_condition(payload):
                 update = _apply_playoff_win_condition_hit(conn, blob, payload["player_id"], mover)
             else:
                 condition = PLAYOFF_WIN_CONDITIONS.get(blob.get(f"{mover}_win_condition_key"), {})
@@ -9907,6 +9913,7 @@ def _sport_online_apply_valid_payload(conn, sport: str, mode: str, blob: dict, s
             payload["win_condition_target"] = update["target"]
             payload["win_condition_completed"] = update["completed"]
             payload["win_condition_value"] = int(update.get("increment") or 0)
+            payload["win_condition_blocked_by_powerup"] = _powerup_move_blocks_win_condition(payload)
             if len(blob.get("chain_link_meta", [])) < len(state.chain):
                 blob.setdefault("chain_link_meta", []).append(None)
             if update["completed"]:
@@ -9915,7 +9922,7 @@ def _sport_online_apply_valid_payload(conn, sport: str, mode: str, blob: dict, s
         else:
             condition_key = blob[f"{mover}_win_condition_key"]
             condition = LOCAL_PLAYOFF_CONFIG[sport]["conditions"][condition_key]
-            if _playoff_win_conditions_unlocked(state):
+            if _playoff_win_conditions_unlocked(state) and not _powerup_move_blocks_win_condition(payload):
                 inc = _local_po_condition_increment(PgEngineConn(conn), sport, condition_key, payload["player_id"])
                 blob[f"{mover}_win_progress"] += inc
                 blob["chain_win_condition_hits"].append(bool(inc))
@@ -9932,6 +9939,7 @@ def _sport_online_apply_valid_payload(conn, sport: str, mode: str, blob: dict, s
             payload["win_condition_target"] = condition["target"]
             payload["win_condition_completed"] = completed
             payload["win_condition_value"] = int(inc or 0)
+            payload["win_condition_blocked_by_powerup"] = _powerup_move_blocks_win_condition(payload)
             if completed:
                 blob[f"{mover}_win_completed"] = True
                 blob["finished"] = True

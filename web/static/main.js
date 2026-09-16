@@ -2626,8 +2626,15 @@ function makePlayerCard(player, isSeed, options = {}) {
   const identity = document.createElement('div');
   identity.className = 'player-identity';
   identity.append(headshot, info);
+  let winMarker = null;
+  if (player.win_condition_hit) {
+    winMarker = document.createElement('span');
+    winMarker.className = 'win-hit-marker';
+    winMarker.textContent = `WIN +${Math.max(1, Number(player.win_condition_value || 1))}x`;
+  }
   if (!showTeams) {
     playerCard.appendChild(identity);
+    if (winMarker) playerCard.appendChild(winMarker);
     return playerCard;
   }
 
@@ -2644,6 +2651,7 @@ function makePlayerCard(player, isSeed, options = {}) {
     identity,
     makeTeamColumn(teams.slice(splitAt), 'right'),
   );
+  if (winMarker) playerCard.appendChild(winMarker);
   return playerCard;
 }
 
@@ -2758,6 +2766,9 @@ function renderMoveFeedback(m, g) {
       const winNote = m.win_condition_hit
         ? `<br><span class="ok">${escapeHtml(m.win_condition_label)}: ${m.win_condition_progress}/${m.win_condition_target}${Number(m.win_condition_value || 0) > 0 ? ` (+${Number(m.win_condition_value || 0)}x)` : ''}</span>`
         : '';
+      const powerupWinBlock = m.win_condition_blocked_by_powerup
+        ? `<br><span class="muted">${escapeHtml(m.win_condition_label || 'Win condition')} did not advance: Powerup plays do not count.</span>`
+        : '';
       const winFinish = m.win_condition_completed
         ? `<br><span class="burn">${escapeHtml(m.win_condition_label)} Completed.</span>`
         : '';
@@ -2765,6 +2776,7 @@ function renderMoveFeedback(m, g) {
         `<span class="ok feedback-link-line">${lead} <span class="feedback-season-list">${seasonPills(m.shared_seasons)}</span></span>` +
         (newOut ? `<br><span class="burn">${outTerm} This Move: ${escapeHtml(newOut)}</span>` : '') +
         winNote +
+        powerupWinBlock +
         winFinish;
     }
     case 'unknown_player':
