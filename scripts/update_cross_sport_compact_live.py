@@ -954,7 +954,8 @@ def main() -> int:
     config = SPORTS[args.sport]
     season = args.season or config["default_season"]()
     output = args.output or local_db_path(args.sport, season)
-    if args.season_to_date:
+    upload_default_season_to_date = args.upload and not (args.start_date or args.end_date or args.skip_collect)
+    if args.season_to_date or upload_default_season_to_date:
         start = config["season_start"](season)
         end = args.end_date or datetime.now(nba_live.EASTERN).date()
         reset = True

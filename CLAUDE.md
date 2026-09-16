@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.5.45`, deployed from the latest pushed `main`
+- Current display version is `0.5.46`, deployed from the latest pushed `main`
   commit.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -361,6 +361,12 @@ decision needs context.
   1,491 appearance/stint/search rows, 32 team keys, and 34,001 compact
   teammate proofs; Baseball 2026 now has 1,654 appearance/stint/stat rows,
   1,456 searchable players, and 31,230 compact teammate proofs.
+- `0.5.46`: Applied the same season-to-date upload guard to the shared
+  Basketball/Hockey compact live updater. Scheduled NBA/NHL uploads now rebuild
+  the season-to-date local compact artifact before replacing a season in
+  Supabase, matching the MLB safety behavior and preventing a short default
+  window from wiping earlier current-season runtime rows when those leagues
+  start.
 
 ### Important implementation notes
 
@@ -464,7 +470,7 @@ decision needs context.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.5.45`
+- Current display version: `0.5.46`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog policy: production is runtime-only. Keep compact
