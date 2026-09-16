@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.5.51`, deployed from the latest pushed `main`
+- Current display version is `0.5.52`, deployed from the latest pushed `main`
   commit.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -392,6 +392,13 @@ decision needs context.
   player-A path. No Supabase schema, index, or storage changes were made.
 - `0.5.51`: Applied the same storage-neutral compact-key lookup to Baseball
   Film Review generation, removing its remaining broad strict-proof pair scan.
+- `0.5.52`: Made unchanged Division Rivalry/Playoffs game polls read-only and
+  slowed their network cadence from 650 ms to 1 second. This removes continuous
+  JSONB game-state writes while players are thinking, substantially reducing
+  database I/O for concurrent matches without affecting local turn timing.
+  Active-game polls no longer scan every unfinished game for cleanup, avoiding
+  quadratic work as concurrent matches grow; queue/status paths still reap
+  abandoned games.
 
 ### Important implementation notes
 

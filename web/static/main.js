@@ -1209,7 +1209,7 @@ function startMpPolling() {
         bootstrapProfile();
       }
     }
-  }, 650);
+  }, 1000);
 }
 
 async function enterMatchedGame(nextGame) {

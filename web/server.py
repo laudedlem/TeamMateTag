@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.5.51"
+APP_VERSION = "0.5.52"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -10407,12 +10407,15 @@ def sport_online_status(sport: str, mode: str):
 def sport_online_game(sport: str, mode: str):
     data = request.get_json(silent=True) or {}; guest, gid = (data.get("guest_id") or "").strip(), data.get("game_id")
     with db() as conn:
-        _reap_expired_sport_games(conn, sport, mode)
         blob, state = _sport_online_load(conn, sport, mode, gid)
         if not blob: return jsonify({"error": "unknown game_id"}), 404
         if guest not in {blob["p1_guest_id"], blob["p2_guest_id"]}: return jsonify({"error": "unauthorized"}), 403
+        # Polling is the dominant multiplayer request. Keep it read-only until
+        # a bot action or an elapsed clock has actually changed game state.
+        state_before = json.dumps(blob, sort_keys=True, separators=(",", ":"), default=str)
         _sport_online_maybe_advance_bot(conn, gid, blob, state)
-        _sport_online_save(conn, gid, blob)
+        if json.dumps(blob, sort_keys=True, separators=(",", ":"), default=str) != state_before:
+            _sport_online_save(conn, gid, blob)
         return jsonify(_sport_online_state(conn, gid, blob, state, guest))
 
 
