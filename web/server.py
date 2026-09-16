@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.5.50"
+APP_VERSION = "0.5.51"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -7907,6 +7907,78 @@ def generate_baseball_film_review(conn, puzzle_day: date, seed_suffix: str = "",
 
     def candidates(player_id: str, eligible: dict[str, int], used_players: set[str],
                    used_links: set[tuple[str, int]]) -> list[tuple[str, tuple[str, int]]]:
+        # Production stores Baseball's strict proof matrix in compact integer
+        # keys. Query each canonical-pair direction separately so the existing
+        # primary key can serve the player-A branch without a large reverse
+        # index or a broad OR scan.
+        compact_key = conn.execute(
+            "SELECT player_key FROM compact_player_keys WHERE scope='baseball' AND player_id=%s",
+            (player_id,),
+        ).fetchone()
+        if compact_key:
+            rows = conn.execute(
+                """
+                SELECT other.player_id, team.team_id, proof.season
+                  FROM compact_mlb_teammate_game_proofs proof
+                  JOIN compact_player_keys other
+                    ON other.scope='baseball' AND other.player_key=proof.player_b_key
+                  JOIN compact_team_keys team ON team.team_key=proof.team_key
+                  JOIN players p ON p.player_id=other.player_id
+                 WHERE proof.player_a_key=%s
+                   AND proof.season>=2000
+                   AND p.final_year>=2000
+                   AND EXISTS (
+                       SELECT 1 FROM teammate_stint_coverage c
+                        WHERE c.season=proof.season
+                          AND c.strict<>0
+                          AND c.coverage_type='game_boxscore'
+                   )
+                   AND NOT EXISTS (
+                       SELECT 1 FROM teammate_exclusions e
+                        WHERE e.team_id=team.team_id
+                          AND e.season=team.season
+                          AND ((e.player_a_id=%s AND e.player_b_id=other.player_id)
+                            OR (e.player_a_id=other.player_id AND e.player_b_id=%s))
+                   )
+                UNION ALL
+                SELECT other.player_id, team.team_id, proof.season
+                  FROM compact_mlb_teammate_game_proofs proof
+                  JOIN compact_player_keys other
+                    ON other.scope='baseball' AND other.player_key=proof.player_a_key
+                  JOIN compact_team_keys team ON team.team_key=proof.team_key
+                  JOIN players p ON p.player_id=other.player_id
+                 WHERE proof.player_b_key=%s
+                   AND proof.season>=2000
+                   AND p.final_year>=2000
+                   AND EXISTS (
+                       SELECT 1 FROM teammate_stint_coverage c
+                        WHERE c.season=proof.season
+                          AND c.strict<>0
+                          AND c.coverage_type='game_boxscore'
+                   )
+                   AND NOT EXISTS (
+                       SELECT 1 FROM teammate_exclusions e
+                        WHERE e.team_id=team.team_id
+                          AND e.season=team.season
+                          AND ((e.player_a_id=%s AND e.player_b_id=other.player_id)
+                            OR (e.player_a_id=other.player_id AND e.player_b_id=%s))
+                   )
+                """,
+                (compact_key[0], player_id, player_id, compact_key[0], player_id, player_id),
+            ).fetchall()
+            by_candidate: dict[str, list[tuple[str, int]]] = {}
+            for pid, team, season in rows:
+                if pid in eligible and pid not in used_players:
+                    by_candidate.setdefault(pid, []).append((team, season))
+            options = []
+            for pid, links in by_candidate.items():
+                if len(links) > FR_MAX_LINK_OPTIONS:
+                    continue
+                link = _fr_preferred_link(links, used_links)
+                if link is not None:
+                    options.append((pid, link))
+            return sorted(options, key=lambda item: (eligible[item[0]], item[1][1]), reverse=True)
+
         strict_game_coverage = conn.execute(
             """SELECT 1
                  FROM teammate_stint_coverage

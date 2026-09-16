@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.5.50`, deployed from the latest pushed `main`
+- Current display version is `0.5.51`, deployed from the latest pushed `main`
   commit.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -390,6 +390,8 @@ decision needs context.
   split canonical player-A/player-B lookup directions with `UNION`, preserving
   candidate sets while allowing the existing primary keys to serve the common
   player-A path. No Supabase schema, index, or storage changes were made.
+- `0.5.51`: Applied the same storage-neutral compact-key lookup to Baseball
+  Film Review generation, removing its remaining broad strict-proof pair scan.
 
 ### Important implementation notes
 
