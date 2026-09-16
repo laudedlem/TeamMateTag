@@ -339,18 +339,6 @@ def load_all(pg: "psycopg.Connection", src: sqlite3.Connection, base_url: str) -
                 """,
             ),
         )
-        cur.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_compact_sport_teammates_player_b_lookup
-            ON compact_sport_teammates (sport_id, player_b_key, season, team_key, player_a_key)
-            """
-        )
-        cur.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_compact_mlb_proofs_player_b_lookup
-            ON compact_mlb_teammate_game_proofs (player_b_key, season, team_key, player_a_key)
-            """
-        )
         pg.commit()
 
         for table in [*TRUNCATE_TABLES, "sport_players", "sport_teams", "players", "teams", "sports"]:
