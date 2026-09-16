@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.5.46`, deployed from the latest pushed `main`
+- Current display version is `0.5.47`, deployed from the latest pushed `main`
   commit.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -367,6 +367,11 @@ decision needs context.
   Supabase, matching the MLB safety behavior and preventing a short default
   window from wiping earlier current-season runtime rows when those leagues
   start.
+- `0.5.47`: Added an empty-season upload guard for MLB and the shared
+  Basketball/Hockey live updater. If a season-to-date build finds zero
+  completed regular-season appearances, the workflow exits successfully without
+  touching Supabase. This keeps September NBA/NHL preseason/no-game windows
+  from prematurely publishing an empty new season.
 
 ### Important implementation notes
 
@@ -470,7 +475,7 @@ decision needs context.
 - Vercel deployment: `https://teammatetag.vercel.app`
 - Repository: `https://github.com/laudedlem/TeamMateTag`
 - Local repository folder: `C:\Users\laude\Desktop\base2nerdle`
-- Current display version: `0.5.46`
+- Current display version: `0.5.47`
 - Stack: Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Auth, server-side session cookie.
 - Supabase runtime catalog policy: production is runtime-only. Keep compact

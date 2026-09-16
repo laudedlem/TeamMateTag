@@ -983,6 +983,9 @@ def main() -> int:
         print(f"{key}: {value:,}")
 
     if args.upload:
+        if not summary["appearances"]:
+            print(f"no completed regular-season {args.sport} appearances for {season}; skipping upload")
+            return 0
         upload_summary = upload_compact(output, args.sport, season, args.prune_live_staging)
         print("compact upload complete")
         for key, value in upload_summary.items():
