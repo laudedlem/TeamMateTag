@@ -370,7 +370,24 @@ def upload_compact(path: Path, season: int, prune_live_staging: bool) -> dict[st
                         "sport_players_searchable": "(sport_id, player_id)",
                         "sport_player_images": "(sport_id, player_id)",
                     }.get(table)
-                    updates = ", ".join(f"{col}=EXCLUDED.{col}" for col in cols if col not in {"sport_id", "player_id", "team_id", "season", "position"})
+                    if table == "sport_players":
+                        # The live source only knows this season. Keep the compact
+                        # career span accumulated from previous seasons instead of
+                        # flattening returning players to one year.
+                        updates = ", ".join(
+                            [
+                                "external_id=EXCLUDED.external_id",
+                                "display_name=EXCLUDED.display_name",
+                                "first_name=COALESCE(EXCLUDED.first_name, sport_players.first_name)",
+                                "last_name=COALESCE(EXCLUDED.last_name, sport_players.last_name)",
+                                "birth_year=COALESCE(EXCLUDED.birth_year, sport_players.birth_year)",
+                                "debut_year=LEAST(COALESCE(sport_players.debut_year, EXCLUDED.debut_year), EXCLUDED.debut_year)",
+                                "final_year=GREATEST(COALESCE(sport_players.final_year, EXCLUDED.final_year), EXCLUDED.final_year)",
+                                "primary_pos=COALESCE(EXCLUDED.primary_pos, sport_players.primary_pos)",
+                            ]
+                        )
+                    else:
+                        updates = ", ".join(f"{col}=EXCLUDED.{col}" for col in cols if col not in {"sport_id", "player_id", "team_id", "season", "position"})
                     copy_rows(cur, f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({placeholders}) ON CONFLICT {conflict} DO UPDATE SET {updates}", rows)
             cur.execute("SELECT setval(pg_get_serial_sequence('compact_player_keys', 'player_key'), GREATEST(COALESCE((SELECT MAX(player_key) FROM compact_player_keys), 1), 1), true)")
             cur.execute("SELECT setval(pg_get_serial_sequence('compact_team_keys', 'team_key'), GREATEST(COALESCE((SELECT MAX(team_key) FROM compact_team_keys), 1), 1), true)")

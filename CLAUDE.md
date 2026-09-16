@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.5.52`, deployed from the latest pushed `main`
+- Current display version is `0.5.53`, deployed from the latest pushed `main`
   commit.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -399,6 +399,11 @@ decision needs context.
   Active-game polls no longer scan every unfinished game for cleanup, avoiding
   quadratic work as concurrent matches grow; queue/status paths still reap
   abandoned games.
+- `0.5.53`: Repaired NFL Film Review autocomplete after the 2026 live-season
+  importer incorrectly replaced returning players' career spans with `2026-2026`.
+  Future live imports now merge career bounds, while the production repair
+  restores affected compact rows without new database structures. Replaced
+  Mickael Pietrus's NBA silhouette at the existing compact Storage path.
 
 ### Important implementation notes
 
