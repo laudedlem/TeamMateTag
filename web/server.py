@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.5.56"
+APP_VERSION = "0.5.57"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -2139,15 +2139,21 @@ def _friends_payload(conn, guest_id: str) -> dict:
            ORDER BY username""",
         (guest_id, guest_id),
     ).fetchall()
+    challenge_columns_ready = conn.execute(
+        """SELECT COUNT(*) = 3 FROM information_schema.columns
+             WHERE table_schema='public' AND table_name='dr_friend_challenges'
+               AND column_name IN ('sport_id', 'mode', 'preference')"""
+    ).fetchone()[0]
+    challenge_fields = "sport_id, mode" if challenge_columns_ready else "'baseball' AS sport_id, 'dr' AS mode"
     incoming_challenges = conn.execute(
-        """SELECT challenge_id::text, sender_user_id::text, sender_name, sport_id, mode
+        f"""SELECT challenge_id::text, sender_user_id::text, sender_name, {challenge_fields}
              FROM dr_friend_challenges
             WHERE recipient_user_id = %s AND status = 'pending'
             ORDER BY created_at DESC""",
         (guest_id,),
     ).fetchall()
     outgoing_challenges = conn.execute(
-        """SELECT challenge_id::text, recipient_user_id::text, recipient_name, sport_id, mode
+        f"""SELECT challenge_id::text, recipient_user_id::text, recipient_name, {challenge_fields}
              FROM dr_friend_challenges
             WHERE sender_user_id = %s AND status = 'pending'
             ORDER BY created_at DESC""",
@@ -2175,7 +2181,7 @@ def _friends_payload(conn, guest_id: str) -> dict:
         (guest_id, guest_id, guest_id),
     ).fetchall()
     matched = conn.execute(
-        """SELECT challenge_id::text, game_id::text, sport_id, mode
+        f"""SELECT challenge_id::text, game_id::text, {challenge_fields}
              FROM dr_friend_challenges
             WHERE (sender_user_id = %s OR recipient_user_id = %s)
               AND status = 'accepted'
@@ -2187,9 +2193,10 @@ def _friends_payload(conn, guest_id: str) -> dict:
     matched_game = None
     if matched:
         _, gid, sport, mode = matched
-        blob, state = _sport_online_load(conn, sport, mode, gid)
+        blob, state = _sport_online_load(conn, sport, mode, gid) if challenge_columns_ready else _load_game(conn, "dr_games", gid)
         if blob and not blob.get("finished"):
-            matched_game = _sport_online_state(conn, gid, blob, state, guest_id)
+            matched_game = (_sport_online_state(conn, gid, blob, state, guest_id)
+                            if challenge_columns_ready else dr_state_dict(gid, blob, state, conn=conn))
     return {
         "friends": [
             {"user_id": uid, "username": username, "display_name": display_name}
@@ -3301,6 +3308,14 @@ def friend_profile():
         if not user:
             return jsonify({"error": "friend not found"}), 404
         today = datetime.now(CENTRAL_TIME).date()
+        result_mode_ready = conn.execute(
+            """SELECT EXISTS (
+                   SELECT 1 FROM information_schema.columns
+                    WHERE table_schema='public' AND table_name='dr_results' AND column_name='mode'
+               )"""
+        ).fetchone()[0]
+        rivalry_filter = "AND mode='dr'" if result_mode_ready else ""
+        playoffs_filter = "AND mode='po'" if result_mode_ready else "AND false"
         sports = {}
         for sport in ("baseball", "basketball", "football", "hockey"):
             bp_best = conn.execute(
@@ -3314,13 +3329,13 @@ def friend_profile():
                 (target_user_id, sport, today),
             ).fetchone()
             rivalry = conn.execute(
-                """SELECT COUNT(*), COALESCE(SUM(CASE WHEN won THEN 1 ELSE 0 END), 0)
-                     FROM dr_results WHERE owner_guest_id=%s AND sport_id=%s AND mode='dr'""",
+                f"""SELECT COUNT(*), COALESCE(SUM(CASE WHEN won THEN 1 ELSE 0 END), 0)
+                     FROM dr_results WHERE owner_guest_id=%s AND sport_id=%s {rivalry_filter}""",
                 (target_user_id, sport),
             ).fetchone()
             playoffs = conn.execute(
-                """SELECT COUNT(*), COALESCE(SUM(CASE WHEN won THEN 1 ELSE 0 END), 0)
-                     FROM dr_results WHERE owner_guest_id=%s AND sport_id=%s AND mode='po'""",
+                f"""SELECT COUNT(*), COALESCE(SUM(CASE WHEN won THEN 1 ELSE 0 END), 0)
+                     FROM dr_results WHERE owner_guest_id=%s AND sport_id=%s {playoffs_filter}""",
                 (target_user_id, sport),
             ).fetchone()
             sports[sport] = {
@@ -3439,6 +3454,13 @@ def friends_challenge():
     if not _is_cross_sport(sport) or mode not in {"dr", "po"}:
         return jsonify({"error": "unsupported sport or mode"}), 400
     with db() as conn:
+        challenge_columns_ready = conn.execute(
+            """SELECT COUNT(*) = 3 FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='dr_friend_challenges'
+                   AND column_name IN ('sport_id', 'mode', 'preference')"""
+        ).fetchone()[0]
+        if not challenge_columns_ready:
+            return jsonify({"error": "Friends challenges are finishing an update. Please try again shortly."}), 503
         guest_id = _session_account_guest_id(conn)
         if not guest_id:
             return jsonify({"error": "account login required"}), 403
@@ -3485,6 +3507,13 @@ def friends_challenge_respond():
     if not challenge_id:
         return jsonify({"error": "challenge_id required"}), 400
     with db() as conn:
+        challenge_columns_ready = conn.execute(
+            """SELECT COUNT(*) = 3 FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='dr_friend_challenges'
+                   AND column_name IN ('sport_id', 'mode', 'preference')"""
+        ).fetchone()[0]
+        if not challenge_columns_ready:
+            return jsonify({"error": "Friends challenges are finishing an update. Please try again shortly."}), 503
         guest_id = _session_account_guest_id(conn)
         if not guest_id:
             return jsonify({"error": "account login required"}), 403

@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.5.56`, pending deployment from the current
+- Current display version is `0.5.57`, pending deployment from the current
   `main` commit.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -418,6 +418,10 @@ decision needs context.
   Review, Division Rivalry, and Playoffs records. The profile's redundant
   Baseball Manager Mode leaderboard was removed; it remains on `/baseball`.
   Added Contact/Donate navigation and a hosted-checkout-ready `/donate` page.
+- `0.5.57`: Added a production-schema compatibility guard around Friends so a
+  delayed intentional migration cannot take down the Friends screen. New
+  cross-sport friend challenges remain paused until their compact columns are
+  migrated, instead of failing with `UndefinedColumn`.
 
 ### Important implementation notes
 
