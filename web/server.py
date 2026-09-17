@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.5.57"
+APP_VERSION = "0.5.58"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -292,7 +292,7 @@ def _headshot_registry_urls(conn, sport: str, player_ids: list[str]) -> dict[str
 OPENING_COUNTDOWN_SECONDS = 3.0
 APP_TURN_SECONDS = 20.0
 MOVE_GRACE_SECONDS = 1.25
-SUPPORT_EMAIL = "support@teammatetag.com"
+SUPPORT_EMAIL = "support.teammatetag@gmail.com"
 DONATION_URL = os.environ.get("DONATION_URL", "").strip()
 SESSION_COOKIE = "tt_session"
 DEFAULT_PLAYOFF_TURN_SECONDS = 20.0

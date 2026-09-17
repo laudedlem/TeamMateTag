@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.5.57`, pending deployment from the current
+- Current display version is `0.5.58`, pending deployment from the current
   `main` commit.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -422,6 +422,8 @@ decision needs context.
   delayed intentional migration cannot take down the Friends screen. New
   cross-sport friend challenges remain paused until their compact columns are
   migrated, instead of failing with `UndefinedColumn`.
+- `0.5.58`: Contact, privacy, terms, and account-recovery pages now use the
+  active public support mailbox `support.teammatetag@gmail.com`.
 
 ### Important implementation notes
 
