@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Contact | TeamMateTag</title>
+  <title>Donate | TeamMateTag</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ app_version }}" />
 </head>
 <body class="dark legal-shell">
@@ -16,20 +16,16 @@
     </div>
   </header>
   <main class="legal-page">
-    <div class="legal-card">
+    <div class="legal-card donate-card">
       <a href="/" class="back-link">&larr; Back to TeamMateTag</a>
-      <h2>Contact</h2>
-      <p>
-        Found a bug, a missing or incorrect headshot, an inaccurate teammate link or team season,
-        or player and game data that needs correcting? Email
-        <a href="mailto:{{ support_email }}">{{ support_email }}</a>.
-      </p>
-      <p>
-        Include the sport, player or game mode, and a screenshot or short description of what happened when possible.
-      </p>
-      <p class="muted small">
-        Account access, privacy, deletion, and legal requests are also handled at this address.
-      </p>
+      <h2>Support TeamMateTag</h2>
+      <p>Donations help cover the tools and infrastructure that keep the game running and improving.</p>
+      {% if donation_url %}
+      <a class="primary donation-link" href="{{ donation_url }}" target="_blank" rel="noopener">Donate securely</a>
+      <p class="muted small">Checkout is securely handled by Stripe.</p>
+      {% else %}
+      <p class="muted">Secure donations are being set up. Check back soon.</p>
+      {% endif %}
     </div>
   </main>
   <footer class="site-footer">

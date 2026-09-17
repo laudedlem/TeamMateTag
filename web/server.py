@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.5.55"
+APP_VERSION = "0.5.56"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -293,6 +293,7 @@ OPENING_COUNTDOWN_SECONDS = 3.0
 APP_TURN_SECONDS = 20.0
 MOVE_GRACE_SECONDS = 1.25
 SUPPORT_EMAIL = "support@teammatetag.com"
+DONATION_URL = os.environ.get("DONATION_URL", "").strip()
 SESSION_COOKIE = "tt_session"
 DEFAULT_PLAYOFF_TURN_SECONDS = 20.0
 QUICK_PITCH_TURN_SECONDS = 10.0
@@ -809,6 +810,7 @@ def ensure_runtime_schema():
                 "ON dr_results(owner_guest_id, game_id) WHERE game_id IS NOT NULL"
             )
             conn.execute("ALTER TABLE dr_results ADD COLUMN IF NOT EXISTS sport_id TEXT NOT NULL DEFAULT 'baseball'")
+            conn.execute("ALTER TABLE dr_results ADD COLUMN IF NOT EXISTS mode TEXT NOT NULL DEFAULT 'dr'")
             conn.execute("ALTER TABLE bp_runs ADD COLUMN IF NOT EXISTS sport_id TEXT NOT NULL DEFAULT 'baseball'")
             conn.execute("ALTER TABLE bp_runs DROP CONSTRAINT IF EXISTS bp_runs_seed_player_id_fkey")
             conn.execute(
@@ -1248,6 +1250,9 @@ def ensure_runtime_schema():
                 "CREATE INDEX IF NOT EXISTS idx_friend_challenges_recipient "
                 "ON dr_friend_challenges(recipient_user_id, status, created_at DESC)"
             )
+            conn.execute("ALTER TABLE dr_friend_challenges ADD COLUMN IF NOT EXISTS sport_id TEXT NOT NULL DEFAULT 'baseball'")
+            conn.execute("ALTER TABLE dr_friend_challenges ADD COLUMN IF NOT EXISTS mode TEXT NOT NULL DEFAULT 'dr'")
+            conn.execute("ALTER TABLE dr_friend_challenges ADD COLUMN IF NOT EXISTS preference TEXT NOT NULL DEFAULT 'random'")
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS player_powerup_qualifications (
                        player_id TEXT NOT NULL REFERENCES players(player_id),
@@ -2135,14 +2140,14 @@ def _friends_payload(conn, guest_id: str) -> dict:
         (guest_id, guest_id),
     ).fetchall()
     incoming_challenges = conn.execute(
-        """SELECT challenge_id::text, sender_user_id::text, sender_name
+        """SELECT challenge_id::text, sender_user_id::text, sender_name, sport_id, mode
              FROM dr_friend_challenges
             WHERE recipient_user_id = %s AND status = 'pending'
             ORDER BY created_at DESC""",
         (guest_id,),
     ).fetchall()
     outgoing_challenges = conn.execute(
-        """SELECT challenge_id::text, recipient_user_id::text, recipient_name
+        """SELECT challenge_id::text, recipient_user_id::text, recipient_name, sport_id, mode
              FROM dr_friend_challenges
             WHERE sender_user_id = %s AND status = 'pending'
             ORDER BY created_at DESC""",
@@ -2170,7 +2175,7 @@ def _friends_payload(conn, guest_id: str) -> dict:
         (guest_id, guest_id, guest_id),
     ).fetchall()
     matched = conn.execute(
-        """SELECT challenge_id::text, game_id::text
+        """SELECT challenge_id::text, game_id::text, sport_id, mode
              FROM dr_friend_challenges
             WHERE (sender_user_id = %s OR recipient_user_id = %s)
               AND status = 'accepted'
@@ -2181,11 +2186,10 @@ def _friends_payload(conn, guest_id: str) -> dict:
     ).fetchone()
     matched_game = None
     if matched:
-        gid = matched[1]
-        blob, state = _load_game(conn, "dr_games", gid)
+        _, gid, sport, mode = matched
+        blob, state = _sport_online_load(conn, sport, mode, gid)
         if blob and not blob.get("finished"):
-            blob["viewer_guest_id"] = guest_id
-            matched_game = dr_state_dict(gid, blob, state, conn=conn)
+            matched_game = _sport_online_state(conn, gid, blob, state, guest_id)
     return {
         "friends": [
             {"user_id": uid, "username": username, "display_name": display_name}
@@ -2200,12 +2204,12 @@ def _friends_payload(conn, guest_id: str) -> dict:
             for rid, uid, username, display_name in outgoing_requests
         ],
         "incoming_challenges": [
-            {"challenge_id": cid, "user_id": uid, "name": name}
-            for cid, uid, name in incoming_challenges
+            {"challenge_id": cid, "user_id": uid, "name": name, "sport": sport, "mode": mode}
+            for cid, uid, name, sport, mode in incoming_challenges
         ],
         "outgoing_challenges": [
-            {"challenge_id": cid, "user_id": uid, "name": name}
-            for cid, uid, name in outgoing_challenges
+            {"challenge_id": cid, "user_id": uid, "name": name, "sport": sport, "mode": mode}
+            for cid, uid, name, sport, mode in outgoing_challenges
         ],
         "challenge_history": [
             {
@@ -2810,6 +2814,11 @@ def contact():
     return render_template("contact.html", support_email=SUPPORT_EMAIL, app_version=APP_VERSION)
 
 
+@app.route("/donate")
+def donate():
+    return render_template("donate.html", donation_url=DONATION_URL, app_version=APP_VERSION)
+
+
 def _headshot_audit_allowed() -> bool:
     """Keep mutation tooling local unless an explicit audit token is configured."""
     if HEADSHOT_AUDIT_TOKEN:
@@ -3272,6 +3281,57 @@ def friends_list():
         return jsonify(payload)
 
 
+@app.route("/api/friends/profile", methods=["POST"])
+def friend_profile():
+    """Return a compact, friendship-gated scoreboard rather than a full profile."""
+    ensure_runtime_schema()
+    target_user_id = ((request.get_json(silent=True) or {}).get("friend_user_id") or "").strip()
+    if not target_user_id:
+        return jsonify({"error": "friend_user_id required"}), 400
+    with db() as conn:
+        guest_id = _session_account_guest_id(conn)
+        if not guest_id:
+            return jsonify({"error": "account login required"}), 403
+        a, b = _friendship_pair(guest_id, target_user_id)
+        if not conn.execute("SELECT 1 FROM friendships WHERE user_a_id=%s AND user_b_id=%s", (a, b)).fetchone():
+            return jsonify({"error": "friendship required"}), 403
+        user = conn.execute(
+            "SELECT username, COALESCE(display_name, username) FROM users WHERE user_id=%s", (target_user_id,)
+        ).fetchone()
+        if not user:
+            return jsonify({"error": "friend not found"}), 404
+        today = datetime.now(CENTRAL_TIME).date()
+        sports = {}
+        for sport in ("baseball", "basketball", "football", "hockey"):
+            bp_best = conn.execute(
+                "SELECT COALESCE(MAX(chain_length), 0) FROM bp_runs WHERE owner_guest_id=%s AND sport_id=%s",
+                (target_user_id, sport),
+            ).fetchone()[0]
+            film = conn.execute(
+                """SELECT COUNT(*), COALESCE(SUM(CASE WHEN status='won' THEN 1 ELSE 0 END), 0)
+                     FROM film_review_daily_attempts
+                    WHERE owner_guest_id=%s AND sport_id=%s AND puzzle_date=%s AND official""",
+                (target_user_id, sport, today),
+            ).fetchone()
+            rivalry = conn.execute(
+                """SELECT COUNT(*), COALESCE(SUM(CASE WHEN won THEN 1 ELSE 0 END), 0)
+                     FROM dr_results WHERE owner_guest_id=%s AND sport_id=%s AND mode='dr'""",
+                (target_user_id, sport),
+            ).fetchone()
+            playoffs = conn.execute(
+                """SELECT COUNT(*), COALESCE(SUM(CASE WHEN won THEN 1 ELSE 0 END), 0)
+                     FROM dr_results WHERE owner_guest_id=%s AND sport_id=%s AND mode='po'""",
+                (target_user_id, sport),
+            ).fetchone()
+            sports[sport] = {
+                "manager_best": bp_best,
+                "film_today": {"played": film[0], "won": film[1]},
+                "division": {"played": rivalry[0], "won": rivalry[1]},
+                "playoffs": {"played": playoffs[0], "won": playoffs[1]},
+            }
+        return jsonify({"username": user[0], "display_name": user[1], "sports": sports})
+
+
 @app.route("/api/friends/request", methods=["POST"])
 def friends_request():
     ensure_runtime_schema()
@@ -3371,8 +3431,13 @@ def friends_challenge():
     ensure_runtime_schema()
     data = request.get_json(silent=True) or {}
     friend_user_id = (data.get("friend_user_id") or "").strip()
+    sport = (data.get("sport") or "baseball").strip().lower()
+    mode = (data.get("mode") or "dr").strip().lower()
+    preference = (data.get("win_condition_preference") or "random").strip()
     if not friend_user_id:
         return jsonify({"error": "friend_user_id required"}), 400
+    if not _is_cross_sport(sport) or mode not in {"dr", "po"}:
+        return jsonify({"error": "unsupported sport or mode"}), 400
     with db() as conn:
         guest_id = _session_account_guest_id(conn)
         if not guest_id:
@@ -3392,17 +3457,21 @@ def friends_challenge():
             """SELECT 1 FROM dr_friend_challenges
                  WHERE ((sender_user_id = %s AND recipient_user_id = %s)
                      OR (sender_user_id = %s AND recipient_user_id = %s))
-                   AND status = 'pending'""",
-            (guest_id, friend_user_id, friend_user_id, guest_id),
+                   AND sport_id = %s AND mode = %s AND status = 'pending'""",
+            (guest_id, friend_user_id, friend_user_id, guest_id, sport, mode),
         ).fetchone()
         if pending:
             return jsonify({"error": "challenge already pending"}), 409
-        conn.execute("DELETE FROM dr_queue WHERE guest_id IN (%s, %s)", (guest_id, friend_user_id))
+        conn.execute(
+            "DELETE FROM sport_online_queue WHERE sport_id=%s AND mode=%s AND guest_id IN (%s, %s)",
+            (sport, mode, guest_id, friend_user_id),
+        )
         conn.execute(
             """INSERT INTO dr_friend_challenges (
-                   sender_user_id, recipient_user_id, sender_name, recipient_name
-               ) VALUES (%s, %s, %s, %s)""",
-            (guest_id, friend_user_id, _guest_label(conn, guest_id), _guest_label(conn, friend_user_id)),
+                   sender_user_id, recipient_user_id, sender_name, recipient_name, sport_id, mode, preference
+               ) VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+            (guest_id, friend_user_id, _guest_label(conn, guest_id), _guest_label(conn, friend_user_id),
+             sport, mode, preference if mode == "po" else "random"),
         )
         return jsonify(_friends_payload(conn, guest_id))
 
@@ -3423,14 +3492,15 @@ def friends_challenge_respond():
         if not me:
             return jsonify({"error": "account required"}), 403
         row = conn.execute(
-            """SELECT sender_user_id::text, recipient_user_id::text, sender_name, recipient_name, status
+            """SELECT sender_user_id::text, recipient_user_id::text, sender_name, recipient_name, status,
+                      sport_id, mode, preference
                  FROM dr_friend_challenges
                 WHERE challenge_id = %s""",
             (challenge_id,),
         ).fetchone()
         if not row:
             return jsonify({"error": "challenge not found"}), 404
-        sender_id, recipient_id, sender_name, recipient_name, status = row
+        sender_id, recipient_id, sender_name, recipient_name, status, sport, mode, preference = row
         if recipient_id != guest_id:
             return jsonify({"error": "unauthorized"}), 403
         if status != "pending":
@@ -3441,7 +3511,14 @@ def friends_challenge_respond():
                 (challenge_id,),
             )
             return jsonify(_friends_payload(conn, guest_id))
-        gid, blob, state = _dr_create_online_game(conn, sender_id, sender_name, recipient_id, recipient_name)
+        gid, blob, state = _sport_online_create(
+            conn,
+            sport,
+            mode,
+            (sender_id, sender_name),
+            (recipient_id, recipient_name),
+            {sender_id: preference, recipient_id: "random"},
+        )
         conn.execute(
             """UPDATE dr_friend_challenges
                   SET status = 'accepted',
@@ -3450,10 +3527,9 @@ def friends_challenge_respond():
                 WHERE challenge_id = %s""",
             (gid, challenge_id),
         )
-        blob["viewer_guest_id"] = guest_id
         return jsonify({
             "status": "matched",
-            "game": dr_state_dict(gid, blob, state, conn=conn),
+            "game": _sport_online_state(conn, gid, blob, state, guest_id),
         })
 
 
@@ -9412,9 +9488,9 @@ def _save_sport_online_result(conn, game_id: str, blob: dict, state: GameState):
         before = before_row[0] if before_row else 1200; after = max(800,before+(16 if won else -16))
         conn.execute("""INSERT INTO guest_sport_ratings (guest_id,sport_id,elo) VALUES (%s,%s,%s)
                         ON CONFLICT (guest_id,sport_id) DO UPDATE SET elo=EXCLUDED.elo""",(owner,sport,after))
-        conn.execute("""INSERT INTO dr_results (game_id,owner_guest_id,opponent_guest_id,opponent_name,chain_length,won,elo_before,elo_after,sport_id)
-                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (owner_guest_id,game_id) WHERE game_id IS NOT NULL DO NOTHING""",
-                     (game_id,owner,opponent_for_result,opponent_name,len(state.chain),won,before,after,sport))
+        conn.execute("""INSERT INTO dr_results (game_id,owner_guest_id,opponent_guest_id,opponent_name,chain_length,won,elo_before,elo_after,sport_id,mode)
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (owner_guest_id,game_id) WHERE game_id IS NOT NULL DO NOTHING""",
+                     (game_id,owner,opponent_for_result,opponent_name,len(state.chain),won,before,after,sport,blob["mode"]))
         _record_sport_struck_out_teams(conn,owner,sport,blob["mode"],state)
     blob["result_saved"] = True
 

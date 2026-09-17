@@ -34,7 +34,6 @@ const els = {
   profileDrEloLabel: document.getElementById('profile-dr-elo-label'),
   profileDrRecordLabel: document.getElementById('profile-dr-record-label'),
   profileTopStruckLabel: document.getElementById('profile-top-struck-label'),
-  profileLeaderboardCard: document.getElementById('profile-leaderboard-card'),
   profileBpBest: document.getElementById('profile-bp-best'),
   profileBpPlays: document.getElementById('profile-bp-plays'),
   profileFrRecord: document.getElementById('profile-fr-record'),
@@ -42,7 +41,6 @@ const els = {
   profileDrElo: document.getElementById('profile-dr-elo'),
   profileDrRecord: document.getElementById('profile-dr-record'),
   profileTopStruck: document.getElementById('profile-top-struck'),
-  bpLeaderboard: document.getElementById('bp-leaderboard'),
   deleteAccountCard: document.getElementById('delete-account-card'),
   deleteAccountPasswordInput: document.getElementById('delete-account-password-input'),
   deleteAccountBtn: document.getElementById('delete-account-btn'),
@@ -56,6 +54,14 @@ const els = {
   outgoingChallengesList: document.getElementById('outgoing-challenges-list'),
   challengeHistoryList: document.getElementById('challenge-history-list'),
   friendsList: document.getElementById('friends-list'),
+  friendChallengeSport: document.getElementById('friend-challenge-sport'),
+  friendChallengeMode: document.getElementById('friend-challenge-mode'),
+  friendChallengeCondition: document.getElementById('friend-challenge-condition'),
+  friendProfilePanel: document.getElementById('friend-profile-panel'),
+  friendProfileName: document.getElementById('friend-profile-name'),
+  friendProfileStats: document.getElementById('friend-profile-stats'),
+  friendProfileClose: document.getElementById('friend-profile-close'),
+  siteFooter: document.getElementById('site-footer'),
   startScreen: document.getElementById('start-screen'),
   gameScreen: document.getElementById('game-screen'),
   frScreen: document.getElementById('fr-screen'),
@@ -622,7 +628,6 @@ function renderProfile() {
   els.profileDrEloLabel.textContent = 'Division Rivalry ELO';
   els.profileDrRecordLabel.textContent = 'Division Rivalry Record';
   els.profileTopStruckLabel.textContent = `Teams Most ${sportTerms.out}`;
-  els.profileLeaderboardCard.hidden = selectedSport !== 'baseball';
   if (profile.authenticated) {
     els.accountLoggedOut.hidden = true;
     els.accountLoggedIn.hidden = false;
@@ -651,18 +656,9 @@ async function bootstrapProfile() {
   profile = await api('/api/profile/bootstrap', { guest_id: storedGuestId() });
   if (profile?.guest_id) saveGuestId(profile.guest_id);
   renderProfile();
-  refreshBpLeaderboard();
   startFriendsPolling();
   refreshFriends();
   if (currentMode === 'fr' && frGame) loadFrArchive();
-}
-
-async function refreshBpLeaderboard() {
-  if (!els.bpLeaderboard) return;
-  const rows = await fetch('/api/bp/leaderboard').then((r) => r.json());
-  els.bpLeaderboard.innerHTML = rows.length
-    ? rows.map((row) => `<li>${escapeHtml(row.display_name)} - ${row.chain_length}</li>`).join('')
-    : '<li>No runs yet today.</li>';
 }
 
 async function saveProfileName() {
@@ -726,7 +722,6 @@ async function loginAccount() {
   saveGuestId(profile.guest_id);
   els.accountPasswordInput.value = '';
   renderProfile();
-  refreshBpLeaderboard();
   startFriendsPolling();
   refreshFriends();
 }
@@ -814,6 +809,9 @@ function wireFriendsActions() {
   document.querySelectorAll('[data-friend-challenge]').forEach((btn) => {
     btn.addEventListener('click', () => sendFriendChallenge(btn.dataset.friendChallenge));
   });
+  document.querySelectorAll('[data-friend-profile]').forEach((btn) => {
+    btn.addEventListener('click', () => openFriendProfile(btn.dataset.friendProfile));
+  });
   document.querySelectorAll('[data-challenge-accept]').forEach((btn) => {
     btn.addEventListener('click', () => respondFriendChallenge(btn.dataset.challengeAccept, true));
   });
@@ -823,6 +821,14 @@ function wireFriendsActions() {
   document.querySelectorAll('[data-challenge-cancel]').forEach((btn) => {
     btn.addEventListener('click', () => cancelFriendChallenge(btn.dataset.challengeCancel));
   });
+  if (els.friendProfileClose) {
+    els.friendProfileClose.onclick = () => { els.friendProfilePanel.hidden = true; };
+  }
+}
+
+function friendChallengeLabel(row) {
+  const sport = row.sport ? row.sport[0].toUpperCase() + row.sport.slice(1) : 'Baseball';
+  return `${sport} - ${row.mode === 'po' ? 'Playoffs' : 'Division Rivalry'}`;
 }
 
 function renderFriends() {
@@ -870,17 +876,28 @@ function renderFriends() {
       <button class="secondary" type="button" data-challenge-decline="${row.challenge_id}">Decline</button>
     `,
   );
+  els.incomingChallengesList.querySelectorAll('.friend-row').forEach((rowEl, idx) => {
+    const row = friendsData.incoming_challenges[idx];
+    if (row) rowEl.querySelector('.friend-meta').insertAdjacentHTML('beforeend', `<div class="friend-sub">${escapeHtml(friendChallengeLabel(row))}</div>`);
+  });
   renderSimpleList(
     els.outgoingChallengesList,
     friendsData.outgoing_challenges,
     'No Sent Game Requests.',
     (row) => `<button class="secondary" type="button" data-challenge-cancel="${row.challenge_id}">Cancel</button>`,
   );
+  els.outgoingChallengesList.querySelectorAll('.friend-row').forEach((rowEl, idx) => {
+    const row = friendsData.outgoing_challenges[idx];
+    if (row) rowEl.querySelector('.friend-meta').insertAdjacentHTML('beforeend', `<div class="friend-sub">${escapeHtml(friendChallengeLabel(row))}</div>`);
+  });
   renderSimpleList(
     els.friendsList,
     friendsData.friends,
     'No Friends Yet.',
-    (row) => `<button class="secondary" type="button" data-friend-challenge="${row.user_id}">Challenge</button>`,
+    (row) => `
+      <button class="secondary" type="button" data-friend-profile="${row.user_id}">View</button>
+      <button class="secondary" type="button" data-friend-challenge="${row.user_id}">Challenge</button>
+    `,
   );
   renderSimpleList(
     els.challengeHistoryList,
@@ -977,6 +994,9 @@ async function cancelFriendRequest(requestId) {
 async function sendFriendChallenge(friendUserId) {
   const next = await api('/api/friends/challenge', {
     friend_user_id: friendUserId,
+    sport: els.friendChallengeSport?.value || 'baseball',
+    mode: els.friendChallengeMode?.value || 'dr',
+    win_condition_preference: els.friendChallengeCondition?.value || 'random',
   });
   if (next?.error) {
     els.friendsStatus.textContent = next.error;
@@ -985,6 +1005,31 @@ async function sendFriendChallenge(friendUserId) {
   friendsData = next;
   els.friendsStatus.textContent = 'Game request sent.';
   renderFriends();
+}
+
+async function openFriendProfile(friendUserId) {
+  const next = await api('/api/friends/profile', { friend_user_id: friendUserId });
+  if (next?.error) {
+    els.friendsStatus.textContent = next.error;
+    return;
+  }
+  els.friendProfileName.textContent = next.display_name || next.username || 'Friend';
+  const sportOrder = ['baseball', 'basketball', 'football', 'hockey'];
+  els.friendProfileStats.innerHTML = sportOrder.map((sport) => {
+    const row = next.sports?.[sport] || {};
+    const film = row.film_today || {};
+    const division = row.division || {};
+    const playoffs = row.playoffs || {};
+    const title = sport[0].toUpperCase() + sport.slice(1);
+    return `<div class="friend-sport-stat">
+      <strong>${escapeHtml(title)}</strong>
+      <span>Manager ${escapeHtml(String(row.manager_best || 0))}</span>
+      <span>Film today ${escapeHtml(`${film.won || 0}/${film.played || 0}`)}</span>
+      <span>Rivalry ${escapeHtml(`${division.won || 0}-${Math.max(0, (division.played || 0) - (division.won || 0))}`)}</span>
+      <span>Playoffs ${escapeHtml(`${playoffs.won || 0}-${Math.max(0, (playoffs.played || 0) - (playoffs.won || 0))}`)}</span>
+    </div>`;
+  }).join('');
+  els.friendProfilePanel.hidden = false;
 }
 
 async function respondFriendChallenge(challengeId, accept) {
@@ -1051,6 +1096,9 @@ function showScreen(name) {
   els.headerToggles.hidden = !togglesRelevant;
   els.lineupSection.hidden = !togglesRelevant || !els.toggleLineup.checked;
   els.outSection.hidden = !togglesRelevant || !els.toggleOut.checked;
+  if (els.siteFooter) {
+    els.siteFooter.hidden = ['mp-game', 'bp-game', 'po-game', 'fr-game'].includes(name);
+  }
 }
 
 function clearModePanels() {

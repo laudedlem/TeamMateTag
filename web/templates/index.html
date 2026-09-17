@@ -232,10 +232,6 @@
           <strong id="profile-top-struck">--</strong>
         </div>
       </div>
-      <div class="leaderboard-card" id="profile-leaderboard-card">
-        <h3 id="profile-leaderboard-title">Today's Manager Mode Leaders</h3>
-        <ol id="bp-leaderboard" class="leaderboard-list"></ol>
-      </div>
       <div class="danger-card" id="delete-account-card" hidden>
         <h3>Delete Account</h3>
         <p class="muted small">
@@ -260,6 +256,22 @@
       <div class="challenge-row">
         <input id="friend-target-input" type="text" maxlength="120" placeholder="Friend username or email" />
         <button id="friend-request-btn" class="secondary" type="button">Send Request</button>
+      </div>
+      <div class="friend-challenge-picker" aria-label="Challenge setup">
+        <span class="profile-detail-label">Challenge setup</span>
+        <select id="friend-challenge-sport" aria-label="Challenge sport">
+          <option value="baseball">Baseball</option>
+          <option value="basketball">Basketball</option>
+          <option value="football">Football</option>
+          <option value="hockey">Hockey</option>
+        </select>
+        <select id="friend-challenge-mode" aria-label="Challenge mode">
+          <option value="dr">Division Rivalry</option>
+          <option value="po">Playoffs</option>
+        </select>
+        <select id="friend-challenge-condition" aria-label="Playoffs win condition" hidden>
+          <option value="random">Random win condition</option>
+        </select>
       </div>
       <div class="profile-detail-grid">
         <div class="profile-detail">
@@ -287,6 +299,16 @@
           <div id="challenge-history-list" class="friends-list"></div>
         </div>
       </div>
+      <section id="friend-profile-panel" class="friend-profile-panel" hidden>
+        <div class="friend-profile-header">
+          <div>
+            <span class="profile-detail-label">Friend snapshot</span>
+            <h3 id="friend-profile-name">Friend</h3>
+          </div>
+          <button id="friend-profile-close" class="secondary" type="button">Close</button>
+        </div>
+        <div id="friend-profile-stats" class="friend-profile-stats"></div>
+      </section>
     </div>
   </section>
 
@@ -496,9 +518,10 @@
     </div>
   </div>
 
-  <footer class="site-footer">
+  <footer id="site-footer" class="site-footer">
     <a href="/" class="footer-link">Home</a>
     <a href="/contact" class="footer-link">Contact</a>
+    <a href="/donate" class="footer-link">Donate</a>
   </footer>
 
   <script src="{{ url_for('static', filename='main.js') }}?v={{ app_version }}"></script>

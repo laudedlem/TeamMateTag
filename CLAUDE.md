@@ -15,8 +15,8 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.5.53`, deployed from the latest pushed `main`
-  commit.
+- Current display version is `0.5.56`, pending deployment from the current
+  `main` commit.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
 - The user playtests on the live site, not local. When deploying code changes,
@@ -412,6 +412,12 @@ decision needs context.
 - `0.5.55`: Playoffs Powerup moves no longer advance win conditions. The move
   feedback states that explicitly, while ordinary qualifying chain cards now
   receive a prominent `WIN +Nx` marker for both players to review.
+- `0.5.56`: Friends now uses the shared cross-sport online-game engine for
+  Baseball, Basketball, Football, and Hockey Division Rivalry/Playoffs
+  challenges. Friend snapshots expose compact Manager Mode, today's Film
+  Review, Division Rivalry, and Playoffs records. The profile's redundant
+  Baseball Manager Mode leaderboard was removed; it remains on `/baseball`.
+  Added Contact/Donate navigation and a hosted-checkout-ready `/donate` page.
 
 ### Important implementation notes
 

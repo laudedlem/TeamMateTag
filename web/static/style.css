@@ -160,6 +160,81 @@ header .title h1 {
   color: var(--accent);
 }
 
+.donation-link {
+  display: inline-flex;
+  margin-top: .5rem;
+  text-decoration: none;
+}
+
+.friend-challenge-picker {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  flex-wrap: wrap;
+  margin: .85rem 0 1rem;
+}
+
+.friend-challenge-picker select {
+  min-width: 140px;
+}
+
+.friend-profile-panel {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.friend-profile-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.friend-profile-header h3 {
+  margin: .15rem 0 0;
+}
+
+.friend-profile-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .65rem;
+  margin-top: .8rem;
+}
+
+.friend-sport-stat {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .3rem .6rem;
+  padding: .7rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: .84rem;
+}
+
+.friend-sport-stat strong {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 620px) {
+  .friend-challenge-picker {
+    align-items: stretch;
+  }
+
+  .friend-challenge-picker .profile-detail-label {
+    width: 100%;
+  }
+
+  .friend-challenge-picker select {
+    flex: 1 1 130px;
+    min-width: 0;
+  }
+
+  .friend-profile-stats {
+    grid-template-columns: 1fr;
+  }
+}
+
 .legal-page {
   max-width: 860px;
   margin: 0 auto;
