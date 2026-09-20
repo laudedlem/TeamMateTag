@@ -684,11 +684,6 @@ async function registerAccount() {
   const username = els.accountUsernameInput.value.trim();
   const email = els.accountEmailInput.value.trim();
   const password = els.accountPasswordInput.value;
-  if (!email) {
-    els.accountStatus.textContent = 'Email is required to create an account.';
-    els.accountEmailInput?.focus();
-    return;
-  }
   const display_name = username;
   els.accountRegisterBtn.disabled = true;
   const next = await api('/api/account/register', {
@@ -873,7 +868,7 @@ function renderFriendChallengePanel() {
     ['baseball', 'Baseball'], ['basketball', 'Basketball'],
     ['football', 'Football'], ['hockey', 'Hockey'],
   ];
-  els.friendDetailLabel.textContent = 'Challenge friend';
+  els.friendDetailLabel.textContent = 'Challenge Friend';
   els.friendProfileName.textContent = friendName || 'Friend';
   els.friendProfileStats.hidden = true;
   els.friendChallengePanel.hidden = false;
@@ -887,11 +882,11 @@ function renderFriendChallengePanel() {
     <div class="friend-challenge-group">
       <span class="profile-detail-label">Mode</span>
       <div class="friend-choice-grid friend-mode-choice-grid">
-        <button class="friend-choice${mode === 'dr' ? ' is-selected' : ''}" type="button" title="Division Rivalry" aria-label="Division Rivalry" data-friend-challenge-mode="dr">DR</button>
-        <button class="friend-choice${mode === 'po' ? ' is-selected' : ''}" type="button" title="Playoffs" aria-label="Playoffs" data-friend-challenge-mode="po">P</button>
+        <button class="friend-choice mode-division${mode === 'dr' ? ' is-selected' : ''}" type="button" data-friend-challenge-mode="dr">Division Rivalry</button>
+        <button class="friend-choice mode-playoffs${mode === 'po' ? ' is-selected' : ''}" type="button" data-friend-challenge-mode="po">Playoffs</button>
       </div>
     </div>
-    <button class="primary friend-challenge-send" type="button" data-friend-challenge-send>Send ${escapeHtml(mode === 'po' ? 'Playoffs' : 'Division Rivalry')} Request</button>`;
+    <button class="primary friend-challenge-send" type="button" data-friend-challenge-send>Send ${escapeHtml(sports.find(([key]) => key === sport)?.[1] || 'Baseball')} ${escapeHtml(mode === 'po' ? 'Playoffs' : 'Division Rivalry')} Challenge</button>`;
   els.friendProfilePanel.hidden = false;
   wireFriendsActions();
 }
@@ -1090,7 +1085,7 @@ async function openFriendProfile(friendUserId) {
     els.friendsStatus.textContent = next.error;
     return;
   }
-  els.friendDetailLabel.textContent = 'Friend snapshot';
+  els.friendDetailLabel.textContent = 'Friend Snapshot';
   els.friendProfileName.textContent = next.username || next.display_name || 'Friend';
   const sportOrder = ['baseball', 'basketball', 'football', 'hockey'];
   els.friendProfileStats.innerHTML = sportOrder.map((sport) => {
@@ -1101,7 +1096,7 @@ async function openFriendProfile(friendUserId) {
     const title = sport[0].toUpperCase() + sport.slice(1);
     return `<div class="friend-sport-stat sport-${sport}">
       <strong>${escapeHtml(title)}</strong>
-      <span><b>MM</b> ${escapeHtml(`${row.manager_best || 0} best, ${row.manager_plays || 0} plays`)}</span>
+      <span><b>MM</b> ${escapeHtml(String(row.manager_best || 0))}</span>
       <span><b>FR</b> ${escapeHtml(friendFilmStatus(film.statuses))}</span>
       <span><b>DR</b> ${escapeHtml(friendRecord(division))}</span>
       <span><b>P</b> ${escapeHtml(friendRecord(playoffs))}</span>

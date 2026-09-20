@@ -233,13 +233,15 @@ header .title h1 {
 }
 
 .friend-sport-stat.sport-baseball,
-.friend-choice.sport-baseball { --friend-sport-color: #e85d22; }
+.friend-choice.sport-baseball { --friend-sport-color: #f25555; }
 .friend-sport-stat.sport-basketball,
-.friend-choice.sport-basketball { --friend-sport-color: #f4bd2f; }
+.friend-choice.sport-basketball { --friend-sport-color: #ff8a34; }
 .friend-sport-stat.sport-football,
-.friend-choice.sport-football { --friend-sport-color: #55b7e5; }
+.friend-choice.sport-football { --friend-sport-color: #50d36b; }
 .friend-sport-stat.sport-hockey,
-.friend-choice.sport-hockey { --friend-sport-color: #d76dba; }
+.friend-choice.sport-hockey { --friend-sport-color: #4ab3ff; }
+.friend-choice.mode-division { --friend-sport-color: #ff65ad; }
+.friend-choice.mode-playoffs { --friend-sport-color: #ffd84f; }
 
 .friend-challenge-panel {
   display: grid;
@@ -275,7 +277,9 @@ header .title h1 {
 .friend-choice.sport-baseball,
 .friend-choice.sport-basketball,
 .friend-choice.sport-football,
-.friend-choice.sport-hockey {
+.friend-choice.sport-hockey,
+.friend-choice.mode-division,
+.friend-choice.mode-playoffs {
   border-color: color-mix(in srgb, var(--friend-sport-color) 45%, var(--border));
 }
 

@@ -74,7 +74,8 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.6.9"
+APP_VERSION = "0.6.10"
+INTERNAL_AUTH_EMAIL_DOMAIN = "auth.teammatetag.com"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -1699,6 +1700,15 @@ def _valid_uuid_text(value: str | None) -> bool:
     return True
 
 
+def _is_internal_auth_email(email: str | None) -> bool:
+    return bool(email and email.lower().endswith(f"@{INTERNAL_AUTH_EMAIL_DOMAIN}"))
+
+
+def _internal_auth_email() -> str:
+    """Give password-only accounts a private Supabase Auth identifier."""
+    return f"account-{uuid.uuid4().hex}@{INTERNAL_AUTH_EMAIL_DOMAIN}"
+
+
 def _guest_profile(conn, guest_id: str, *, authenticated: bool = False) -> dict | None:
     row = conn.execute(
         """SELECT
@@ -1717,12 +1727,13 @@ def _guest_profile(conn, guest_id: str, *, authenticated: bool = False) -> dict 
     if not row:
         return None
     gid, display_name, created_at, playoff_preference, username, email, auth_user_id = row
+    public_email = None if _is_internal_auth_email(email) else email
     return {
         "guest_id": gid,
         "display_name": display_name or f"Guest {gid[:8]}",
         "created_at": created_at.isoformat(),
         "account": (
-            {"username": username, "email": email, "auth_user_id": auth_user_id}
+            {"username": username, "email": public_email, "auth_user_id": auth_user_id}
             if username or auth_user_id else None
         ),
         "authenticated": bool(authenticated and auth_user_id),
@@ -3011,8 +3022,9 @@ def account_register():
         return jsonify({"error": "username too long"}), 400
     if len(password) < 6:
         return jsonify({"error": "password must be at least 6 characters"}), 400
-    if not email:
-        return jsonify({"error": "email required"}), 400
+    # Supabase Auth requires an email credential. For accounts that opt out of
+    # recovery email, keep a generated credential server-side and never expose it.
+    email = email or _internal_auth_email()
     display_name = username
 
     with db() as conn:
@@ -3217,6 +3229,10 @@ def account_reset_password():
         ).fetchone()
     if not row or not row[0]:
         return jsonify({"error": "account not found"}), 404
+    if _is_internal_auth_email(row[0]):
+        return jsonify({
+            "error": "This account has no recovery email. Sign in with your username and password."
+        }), 400
     reset_res = _supabase_reset_password(
         row[0],
         _public_app_url() + "/reset-password",

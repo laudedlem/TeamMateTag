@@ -15,8 +15,8 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.6.9`, the account and Friends workflow
-  release. Verify the production footer after each deployment.
+- Current display version is `0.6.10`, the Friends polish and optional account
+  recovery-email release. Verify the production footer after each deployment.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
 - The user playtests on the live site, not local. When deploying code changes,
@@ -498,6 +498,13 @@ decision needs context.
   bootstrap or login. Friends now uses one lower detail panel for either a
   sport-colored `MM`/`FR`/`DR`/`P` snapshot or a per-friend four-sport,
   two-mode challenge chooser.
+- `0.6.10`: Friend Snapshot now shows only each sport's all-time Manager Mode
+  best, and its sport colors match the homepage. Challenge Friend now has
+  explicit sport-colored choices, pink Division Rivalry and yellow Playoffs
+  controls, and a precise send label. Account recovery email is truly optional:
+  accounts without one use a private, generated Supabase Auth identifier and
+  can sign in normally with username/password, but cannot receive a password
+  reset email.
 
 ### Important implementation notes
 
