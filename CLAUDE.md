@@ -15,8 +15,8 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.6.4`, the live MLB identity and suffix
-  continuity release. Verify the production footer after each deployment.
+- Current display version is `0.6.5`, the Playoffs visual-feedback fix
+  release. Verify the production footer after each deployment.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
 - The user playtests on the live site, not local. When deploying code changes,
@@ -481,6 +481,10 @@ decision needs context.
   suffix corrections before every upload, including `--skip-collect` refreshes.
   This keeps live-source omissions such as Fernando Tatis Jr. from changing a
   player card or breaking full-name search after the next 2026 update.
+- `0.6.5`: Powerup escape feedback now shows only the shared franchise, never
+  an invented season. A successful Playoffs Win Condition forces the whole
+  player card to light blue for your hit or bright pink for an opponent hit,
+  overriding the normal franchise-palette card treatment.
 
 ### Important implementation notes
 

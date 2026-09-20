@@ -9970,6 +9970,37 @@ body[data-mode-hub="manager"] .manager-starter-name span {
   margin-top: 0.48rem;
 }
 
+/* A Playoffs scoring card must override its usual franchise palette. */
+.game-main .player-card.win-hit,
+.game-main .player-card.team-color-card.win-hit {
+  background: var(--win-hit-fill) !important;
+  border: 5px solid var(--win-hit-color) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--win-hit-color) 52%, transparent),
+    0 0 28px color-mix(in srgb, var(--win-hit-color) 72%, transparent), var(--shadow-sm) !important;
+}
+
+.game-main .player-card.team-color-card.win-hit::before {
+  display: none;
+}
+
+.game-main .player-card.win-hit-you {
+  --win-hit-color: #0284c7;
+  --win-hit-fill: #7dd3fc;
+  color: #082f49;
+}
+
+.game-main .player-card.win-hit-opponent {
+  --win-hit-color: #db2777;
+  --win-hit-fill: #f472b6;
+  color: #500724;
+}
+
+.game-main .player-card.win-hit .card-team-column li {
+  background: rgba(255, 255, 255, 0.42);
+  border-color: rgba(15, 23, 42, 0.26);
+  color: inherit;
+}
+
 /* 0.5.21: desktop Playoffs info lives in the side rail above lineup/out. */
 .playoffs-side-info[hidden] {
   display: none;

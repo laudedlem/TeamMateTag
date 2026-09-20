@@ -2806,14 +2806,14 @@ function renderMoveFeedback(m, g) {
     : '';
   const outTerm = ({ baseball: 'STRUCK OUT', basketball: 'FOULED OUT', hockey: 'GAME MISCONDUCT', football: 'PUNTED' })[CURRENT_SPORT] || 'OUT';
   const moveKey = feedbackMoveKey(m, g);
-  const seasonPills = (items) => {
+  const seasonPills = (items, { franchiseOnly = false } = {}) => {
     const allItems = items || [];
     const visible = allItems.slice(0, 4);
     const hiddenItems = allItems.slice(visible.length);
     const hidden = hiddenItems.length;
     const expanded = moveKey && feedbackExpandedKey === moveKey;
     const pillHtml = (s, extraClass = '') =>
-      `<span class="season-pill feedback-season-pill${extraClass}">${escapeHtml(s.team_name)} ${escapeHtml(seasonText(s))}</span>`;
+      `<span class="season-pill feedback-season-pill${extraClass}">${escapeHtml(s.team_name)}${franchiseOnly ? '' : ` ${escapeHtml(seasonText(s))}`}</span>`;
     return visible.map((s) =>
       pillHtml(s)
     ).join(' ') + (hidden ? ` <button class="season-pill feedback-season-pill feedback-more-button" type="button" data-feedback-more aria-expanded="${expanded ? 'true' : 'false'}">${expanded ? 'Hide' : `+${hidden} More`}</button>` : '') +
@@ -2846,7 +2846,7 @@ function renderMoveFeedback(m, g) {
         ? `<br><span class="burn">${escapeHtml(m.win_condition_label)} Completed.</span>`
         : '';
       return activatedNotice +
-        `<span class="ok feedback-link-line">${lead} <span class="feedback-season-list">${seasonPills(m.shared_seasons)}</span></span>` +
+        `<span class="ok feedback-link-line">${lead} <span class="feedback-season-list">${seasonPills(m.shared_seasons, { franchiseOnly: !!m.move_via_powerup })}</span></span>` +
         (newOut ? `<br><span class="burn">${outTerm} This Move: ${escapeHtml(newOut)}</span>` : '') +
         winNote +
         powerupWinBlock +
