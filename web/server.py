@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.6.1"
+APP_VERSION = "0.6.2"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -6281,8 +6281,6 @@ def film_archive_summary():
     sports = ["baseball", "basketball", "hockey", "football"]
     today = datetime.now(CENTRAL_TIME).date()
     with db() as conn:
-        if not _daily_film_puzzles_ready(conn, today):
-            _ensure_daily_film_puzzles(conn, today)
         preview_map = _film_preview_map_for_day(conn, today)
         attempt_rows = {}
         if guest_id:
@@ -6319,7 +6317,7 @@ def film_archive_summary():
                 "streak": max((entry["streak"] for entry in unit_payload.values()), default=0),
                 "today": unit_payload,
             }
-        return jsonify({"sports": payload})
+        return jsonify({"sports": payload, "ready": _daily_film_puzzles_ready(conn, today)})
 
 
 @app.route("/api/film/previews", methods=["POST"])
@@ -6327,14 +6325,13 @@ def film_previews():
     ensure_runtime_schema()
     today = datetime.now(CENTRAL_TIME).date()
     with db() as conn:
-        if not _daily_film_puzzles_ready(conn, today):
-            _ensure_daily_film_puzzles(conn, today)
         preview_map = _film_preview_map_for_day(conn, today)
         payload = {}
         for sport in ("baseball", "basketball", "hockey", "football"):
             units = ("offense", "defense") if sport == "football" else ("",)
             payload[sport] = {unit or "default": preview_map.get((sport, unit), []) for unit in units}
-    return jsonify({"previews": payload})
+        ready = _daily_film_puzzles_ready(conn, today)
+    return jsonify({"previews": payload, "ready": ready})
 
 
 @app.route("/api/cron/generate-film-review", methods=["GET", "POST"])

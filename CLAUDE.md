@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.6.1`, the Playoffs rules and timeout hotfix
+- Current display version is `0.6.2`, the Film Review scheduling and read-path
   release. Verify the production footer after each deployment.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -464,6 +464,12 @@ decision needs context.
   timeout handling no longer replaces a game with an `unknown game_id` error.
   Future Film Review lineups strongly prefer players active within the last
   decade, with only occasional historical links.
+- `0.6.2`: Film Review daily generation now runs in a bounded GitHub Actions
+  job after the Central-day rollover, rather than in Vercel or a visitor hub
+  request. The hub and preview APIs only read their five compact daily JSON
+  rows, preventing missing-puzzle generation from exhausting the serverless
+  connection pool. The job fails visibly if any sport or football unit is
+  absent.
 
 ### Important implementation notes
 

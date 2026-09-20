@@ -1,0 +1,40 @@
+name: Generate Daily Film Review
+
+on:
+  workflow_dispatch:
+    inputs:
+      puzzle_date:
+        description: Central calendar date, YYYY-MM-DD. Leave blank for today.
+        required: false
+        type: string
+  schedule:
+    # 01:10 CDT / 00:10 CST. Run outside the visitor request path and after
+    # the Central-day rollover, with enough time for both football units.
+    - cron: "10 6 * * *"
+
+jobs:
+  generate-daily-film-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install runtime dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Build compact daily puzzles
+        shell: bash
+        run: |
+          args=()
+          if [[ -n "${{ inputs.puzzle_date }}" ]]; then
+            args+=(--date "${{ inputs.puzzle_date }}")
+          fi
+          python scripts/generate_daily_film_review.py "${args[@]}"
