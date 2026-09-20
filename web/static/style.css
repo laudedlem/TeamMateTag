@@ -292,6 +292,19 @@ header .title h1 {
 
 .friend-challenge-send { justify-self: start; }
 
+.friend-matchup-record {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: .8rem;
+  font-weight: 750;
+}
+
+#turn-card .friend-matchup-record {
+  padding-bottom: .38rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--sport-accent, var(--accent));
+}
+
 @media (max-width: 620px) {
   .friend-profile-stats {
     grid-template-columns: 1fr;

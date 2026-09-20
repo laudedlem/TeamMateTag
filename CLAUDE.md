@@ -15,8 +15,8 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.6.10`, the Friends polish and optional account
-  recovery-email release. Verify the production footer after each deployment.
+- Current display version is `0.6.11`, the friend-match handoff and challenge
+  integrity release. Verify the production footer after each deployment.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
 - The user playtests on the live site, not local. When deploying code changes,
@@ -505,6 +505,13 @@ decision needs context.
   accounts without one use a private, generated Supabase Auth identifier and
   can sign in normally with username/password, but cannot receive a password
   reset email.
+- `0.6.11`: Friend challenges now redirect both players into the exact sport
+  page and shared online-game engine, so they have the normal gameplay,
+  game-over, and rematch flow. Each sport/mode challenge shows its all-time
+  head-to-head record, including during the match and after it finishes. A
+  database advisory lock and client send lock prevent duplicate pending
+  challenges for the same two friends, sport, and mode. Friends is available
+  at `/friends` and its challenge labels now consistently use “Challenges.”
 
 ### Important implementation notes
 

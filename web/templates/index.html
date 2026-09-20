@@ -9,7 +9,7 @@
   {% endif %}
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ app_version }}" />
 </head>
-<body class="dark" data-sport="{{ sport.key if sport else '' }}" data-cross-sports-online="{{ 'true' if cross_sports_online else 'false' }}" data-launch-mode="{{ launch.mode if launch else '' }}" data-launch-date="{{ launch.date if launch else '' }}" data-launch-archive="{{ launch.archive if launch else '' }}" data-launch-game-id="{{ launch.game_id if launch else '' }}" data-launch-source="{{ launch.source if launch else '' }}" data-launch-unit="{{ launch.unit if launch else '' }}">
+<body class="dark" data-sport="{{ sport.key if sport else '' }}" data-cross-sports-online="{{ 'true' if cross_sports_online else 'false' }}" data-launch-mode="{{ launch.mode if launch else '' }}" data-launch-date="{{ launch.date if launch else '' }}" data-launch-archive="{{ launch.archive if launch else '' }}" data-launch-game-id="{{ launch.game_id if launch else '' }}" data-launch-source="{{ launch.source if launch else '' }}" data-launch-unit="{{ launch.unit if launch else '' }}" data-launch-screen="{{ launch.screen if launch else '' }}">
   <header>
     <a class="title brand-link" href="/" aria-label="TeamMateTag home">
       <div class="brand-row">
@@ -268,11 +268,11 @@
           <div id="outgoing-requests-list" class="friends-list"></div>
         </div>
         <div class="profile-detail">
-          <span class="profile-detail-label">Incoming Challenge Requests</span>
+          <span class="profile-detail-label">Incoming Challenges</span>
           <div id="incoming-challenges-list" class="friends-list"></div>
         </div>
         <div class="profile-detail">
-          <span class="profile-detail-label">Outgoing Challenge Requests</span>
+          <span class="profile-detail-label">Outgoing Challenges</span>
           <div id="outgoing-challenges-list" class="friends-list"></div>
         </div>
         <div class="profile-detail">
@@ -280,7 +280,7 @@
           <div id="friends-list" class="friends-list"></div>
         </div>
         <div class="profile-detail">
-          <span class="profile-detail-label">Recent Friend Games</span>
+          <span class="profile-detail-label">Recent Friend Challenges</span>
           <div id="challenge-history-list" class="friends-list"></div>
         </div>
       </div>
@@ -363,6 +363,7 @@
           <p id="mp-rematch-status" class="muted small"></p>
           <div class="banner-buttons">
             <button id="play-again-btn" class="primary">Let's Play Two.</button>
+            <button id="friend-challenge-again-btn" class="secondary" type="button" hidden>Challenge Friend</button>
             <button id="requeue-btn" class="secondary" type="button" hidden>Find New Match</button>
             <button id="home-from-banner-btn" class="secondary" type="button">Home</button>
           </div>
@@ -370,6 +371,7 @@
 
         <!-- Active turn / input -->
         <div id="turn-card" class="turn-card">
+          <p id="friend-matchup-record" class="friend-matchup-record" hidden></p>
           <div class="turn-header">
             <span id="turn-label" class="turn-label"></span>
             <span id="timer" class="timer">--</span>

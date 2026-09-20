@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.6.10"
+APP_VERSION = "0.6.11"
 INTERNAL_AUTH_EMAIL_DOMAIN = "auth.teammatetag.com"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
@@ -1773,6 +1773,22 @@ def _friendship_pair(a: str, b: str) -> tuple[str, str]:
     return (a, b) if a < b else (b, a)
 
 
+def _friend_matchup_record(conn, owner_guest_id: str, opponent_guest_id: str,
+                           sport: str, mode: str) -> dict:
+    played, won = conn.execute(
+        """SELECT COUNT(*), COALESCE(SUM(CASE WHEN won THEN 1 ELSE 0 END), 0)
+             FROM dr_results
+            WHERE owner_guest_id=%s AND opponent_guest_id=%s
+              AND sport_id=%s AND mode=%s""",
+        (owner_guest_id, opponent_guest_id, sport, mode),
+    ).fetchone()
+    return {
+        "played": played or 0,
+        "won": won or 0,
+        "lost": max(0, (played or 0) - (won or 0)),
+    }
+
+
 def _random_playoff_powerup() -> str:
     return secrets.choice(list(PLAYOFF_POWERUPS.keys()))
 
@@ -2225,12 +2241,14 @@ def _friends_payload(conn, guest_id: str) -> dict:
         (guest_id, guest_id),
     ).fetchone()
     matched_game = None
+    matched_redirect = None
     if matched:
         _, gid, sport, mode = matched
         blob, state = _sport_online_load(conn, sport, mode, gid) if challenge_columns_ready else _load_game(conn, "dr_games", gid)
         if blob and not blob.get("finished"):
             matched_game = (_sport_online_state(conn, gid, blob, state, guest_id)
                             if challenge_columns_ready else dr_state_dict(gid, blob, state, conn=conn))
+            matched_redirect = _multi_redirect(sport, mode, gid)
     return {
         "friends": [
             {"user_id": uid, "username": username, "display_name": display_name}
@@ -2263,6 +2281,7 @@ def _friends_payload(conn, guest_id: str) -> dict:
             for opponent_guest_id, opponent_label, chain_length, won, finished_at in challenge_history
         ],
         "matched_game": matched_game,
+        "matched_redirect": matched_redirect,
     }
 
 
@@ -2706,14 +2725,18 @@ def local_file_storage_object(bucket: str, sport: str, filename: str):
 
 
 @app.route("/")
+@app.route("/friends")
 def index():
+    launch = _launch_from_request()
+    if request.path == "/friends":
+        launch["screen"] = "friends"
     return render_template(
         "index.html",
         sport=None,
         sport_ready=False,
         cross_sports_online=CROSS_SPORTS_ONLINE,
         app_version=APP_VERSION,
-        launch={},
+        launch=launch,
         supabase_url=SUPABASE_URL or "",
     )
 
@@ -3517,6 +3540,12 @@ def friends_challenge():
         ).fetchone()
         if not friends:
             return jsonify({"error": "friendship required"}), 403
+        # Serialize this exact two-player, sport, and mode pairing. This keeps
+        # a fast double-click or overlapping requests from creating duplicates.
+        conn.execute(
+            "SELECT pg_advisory_xact_lock(hashtext(%s))",
+            (f"friend-challenge:{a}:{b}:{sport}:{mode}",),
+        )
         pending = conn.execute(
             """SELECT 1 FROM dr_friend_challenges
                  WHERE ((sender_user_id = %s AND recipient_user_id = %s)
@@ -3538,6 +3567,27 @@ def friends_challenge():
              sport, mode, preference if mode == "po" else "random"),
         )
         return jsonify(_friends_payload(conn, guest_id))
+
+
+@app.route("/api/friends/matchup_record", methods=["POST"])
+def friends_matchup_record():
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
+    friend_user_id = (data.get("friend_user_id") or "").strip()
+    sport = (data.get("sport") or "baseball").strip().lower()
+    mode = (data.get("mode") or "dr").strip().lower()
+    if not friend_user_id or not _is_cross_sport(sport) or mode not in {"dr", "po"}:
+        return jsonify({"error": "valid friend, sport, and mode required"}), 400
+    with db() as conn:
+        guest_id = _session_account_guest_id(conn)
+        if not guest_id:
+            return jsonify({"error": "account login required"}), 403
+        a, b = _friendship_pair(guest_id, friend_user_id)
+        if not conn.execute(
+            "SELECT 1 FROM friendships WHERE user_a_id=%s AND user_b_id=%s", (a, b)
+        ).fetchone():
+            return jsonify({"error": "friendship required"}), 403
+        return jsonify(_friend_matchup_record(conn, guest_id, friend_user_id, sport, mode))
 
 
 @app.route("/api/friends/challenge_respond", methods=["POST"])
@@ -3590,6 +3640,8 @@ def friends_challenge_respond():
             (recipient_id, recipient_name),
             {sender_id: preference, recipient_id: "random"},
         )
+        blob["friend_challenge_id"] = challenge_id
+        _sport_online_save(conn, gid, blob)
         conn.execute(
             """UPDATE dr_friend_challenges
                   SET status = 'accepted',
@@ -3601,6 +3653,7 @@ def friends_challenge_respond():
         return jsonify({
             "status": "matched",
             "game": _sport_online_state(conn, gid, blob, state, guest_id),
+            "redirect": _multi_redirect(sport, mode, gid),
         })
 
 
@@ -9598,6 +9651,15 @@ def _sport_online_state(conn, game_id: str, blob: dict, state: GameState, viewer
         "chain": chain, "strikes": _sport_strikes_dict(conn, sport, state),
         "finished": blob["finished"], "winner": blob.get("winner"), "last_move": last_move,
     }
+    if blob.get("friend_challenge_id"):
+        output["friend_matchup"] = _friend_matchup_record(
+            conn,
+            viewer,
+            blob["p2_guest_id"] if side == "p1" else blob["p1_guest_id"],
+            sport,
+            blob["mode"],
+        )
+        output["opponent_guest_id"] = blob["p2_guest_id"] if side == "p1" else blob["p1_guest_id"]
     if blob["mode"] == "po":
         links, hits = blob.get("chain_link_meta", []), blob.get("chain_win_condition_hits", [])
         values = blob.get("chain_win_condition_values", [])
@@ -10898,6 +10960,9 @@ def sport_online_rematch(sport: str, mode: str):
                 _sport_online_rematch_preferences(blob),
                 first_guest_id=_sport_online_rematch_first_guest_id(blob),
             )
+            if blob.get("friend_challenge_id"):
+                new_blob["friend_challenge_id"] = blob["friend_challenge_id"]
+                _sport_online_save(conn, new_gid, new_blob)
             conn.execute("INSERT INTO sport_online_rematch_links (original_game_id,new_game_id) VALUES (%s,%s)",(gid,new_gid))
             return jsonify({"status":"matched","game":_sport_online_state(conn,new_gid,new_blob,new_state,guest)})
         return jsonify({"status":"waiting"})
