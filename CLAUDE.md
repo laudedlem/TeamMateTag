@@ -15,8 +15,8 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.6.3`, the canonical live-player identity fix
-  release. Verify the production footer after each deployment.
+- Current display version is `0.6.4`, the live MLB identity and suffix
+  continuity release. Verify the production footer after each deployment.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
 - The user playtests on the live site, not local. When deploying code changes,
@@ -30,7 +30,7 @@ decision needs context.
   (`olqfbeqxwtxbcjqvyivu`). Keep the old full project untouched until the new
   project has remained healthy through continued playtesting.
 - Its runtime graph uses one packed exact-adjacency row per player instead of
-  the former indexed reverse proof matrix. It is about `177 MB`, below the
+  the former indexed reverse proof matrix. It is about `191 MB`, below the
   `350 MiB` hard publisher ceiling. Raw boxscores and
   player-game data remain local only.
 - Staging validation passed for all four sports: Manager Mode, Film Review
@@ -477,6 +477,10 @@ decision needs context.
   non-playing PFR alias when the same player has a real snap-based NFL ID.
   Verified Javier Baez and Fernando Tatis Jr. retain one continuous career
   card with their 2026 season attached.
+- `0.6.4`: The MLB compact live publisher now applies canonical generational
+  suffix corrections before every upload, including `--skip-collect` refreshes.
+  This keeps live-source omissions such as Fernando Tatis Jr. from changing a
+  player card or breaking full-name search after the next 2026 update.
 
 ### Important implementation notes
 

@@ -57,6 +57,13 @@ from runtime_database_guard import enforce_runtime_database_limit  # noqa: E402
 DEFAULT_OUTPUT_DIR = ROOT / "raw" / "mlb_live_runtime"
 BASEBALL_DB = ROOT / "db" / "base2nerdle.sqlite"
 
+# MLB's live API and the historical catalog do not consistently include a
+# generational suffix. Keep the public name stable across live-season refreshes.
+CURATED_DISPLAY_NAME_OVERRIDES: dict[str, tuple[str, str]] = {
+    "guerrvl02": ("Vladimir", "Guerrero Jr."),
+    "tatisfe02": ("Fernando", "Tatis Jr."),
+}
+
 
 @dataclass(frozen=True)
 class CompactAppearance:
@@ -248,6 +255,13 @@ def load_catalog(conn: sqlite3.Connection) -> dict[int, str]:
             );
         """
     )
+    for player_id, (first, last) in CURATED_DISPLAY_NAME_OVERRIDES.items():
+        conn.execute(
+            """UPDATE players
+                  SET name_first = ?, name_last = ?
+                WHERE player_id = ?""",
+            (first, last, player_id),
+        )
     return {
         int(mlbam_id): player_id
         for mlbam_id, player_id in conn.execute(
@@ -794,6 +808,37 @@ def upload_compact(path: Path, season: int, database_url: str, prune_live_stagin
     finally:
         src.close()
 
+    # Apply display corrections here as well as in the local catalog load so a
+    # --skip-collect upload cannot reintroduce an unsuffixed live API name.
+    if CURATED_DISPLAY_NAME_OVERRIDES:
+        players = [
+            (
+                player_id,
+                mlbam_id,
+                *CURATED_DISPLAY_NAME_OVERRIDES.get(player_id, (first, last)),
+                debut,
+                final,
+                position,
+            )
+            for player_id, mlbam_id, first, last, debut, final, position in players
+        ]
+        searchable = [
+            (
+                player_id,
+                " ".join(CURATED_DISPLAY_NAME_OVERRIDES.get(player_id, ())).strip()
+                or display_name,
+                disambiguation,
+                normalize(" ".join(CURATED_DISPLAY_NAME_OVERRIDES.get(player_id, ())).strip()
+                          or display_name),
+                normalize((CURATED_DISPLAY_NAME_OVERRIDES.get(player_id, (None, None))[1]
+                           or last_key).split()[0]),
+                career_games,
+                teammate_count,
+            )
+            for player_id, display_name, disambiguation, search_key, last_key,
+                career_games, teammate_count in searchable
+        ]
+
     with psycopg.connect(database_url, autocommit=False, prepare_threshold=None) as conn:
         with conn.cursor() as cur:
             cur.execute("SET LOCAL statement_timeout = '20min'")
@@ -825,6 +870,13 @@ def upload_compact(path: Path, season: int, database_url: str, prune_live_stagin
                     (aliases.get(a, a), aliases.get(b, b), team, year, games, game_pk, game_date)
                     for a, b, team, year, games, game_pk, game_date in proofs
                 ]
+            for player_id, (first, last) in CURATED_DISPLAY_NAME_OVERRIDES.items():
+                cur.execute(
+                    """UPDATE players
+                          SET name_first = %s, name_last = %s
+                        WHERE player_id = %s""",
+                    (first, last, player_id),
+                )
             cur.execute(
                 """
                 CREATE TABLE IF NOT EXISTS mlb_player_season_stat_rollups (
