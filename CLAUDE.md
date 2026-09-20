@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.6.8`, the contact/donate navigation polish
+- Current display version is `0.6.9`, the account and Friends workflow
   release. Verify the production footer after each deployment.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -493,6 +493,11 @@ decision needs context.
 - `0.6.8`: The TeamMateTag masthead on the separate `/contact` and `/donate`
   routes is now a homepage link. The donation page's Stripe trust note is
   shorter so it stays clean at every viewport size.
+- `0.6.9`: Account signup now visibly requires email and defaults the profile
+  name to the username; leftover authenticated `Guest [id]` labels repair on
+  bootstrap or login. Friends now uses one lower detail panel for either a
+  sport-colored `MM`/`FR`/`DR`/`P` snapshot or a per-friend four-sport,
+  two-mode challenge chooser.
 
 ### Important implementation notes
 

@@ -54,12 +54,11 @@ const els = {
   outgoingChallengesList: document.getElementById('outgoing-challenges-list'),
   challengeHistoryList: document.getElementById('challenge-history-list'),
   friendsList: document.getElementById('friends-list'),
-  friendChallengeSport: document.getElementById('friend-challenge-sport'),
-  friendChallengeMode: document.getElementById('friend-challenge-mode'),
-  friendChallengeCondition: document.getElementById('friend-challenge-condition'),
   friendProfilePanel: document.getElementById('friend-profile-panel'),
+  friendDetailLabel: document.getElementById('friend-detail-label'),
   friendProfileName: document.getElementById('friend-profile-name'),
   friendProfileStats: document.getElementById('friend-profile-stats'),
+  friendChallengePanel: document.getElementById('friend-challenge-panel'),
   friendProfileClose: document.getElementById('friend-profile-close'),
   siteFooter: document.getElementById('site-footer'),
   startScreen: document.getElementById('start-screen'),
@@ -211,6 +210,7 @@ let teamAcHighlight = -1;
 let teamAcFetchSeq = 0;
 let userTypedTeamQuery = '';
 let friendsData = null;
+let friendChallengeSelection = { friendUserId: '', friendName: '', sport: 'baseball', mode: 'dr' };
 const preloadedHeadshots = new Set();
 
 const GUEST_ID_KEY = 'tt_guest_id';
@@ -682,10 +682,14 @@ async function saveProfileName() {
 async function registerAccount() {
   if (!profile?.guest_id) return;
   const username = els.accountUsernameInput.value.trim();
-  const promptedEmail = window.prompt('Email for password recovery (optional for now, but recommended):', '') || '';
-  const email = promptedEmail.trim();
+  const email = els.accountEmailInput.value.trim();
   const password = els.accountPasswordInput.value;
-  const display_name = els.profileNameInput.value.trim() || profile.display_name || username;
+  if (!email) {
+    els.accountStatus.textContent = 'Email is required to create an account.';
+    els.accountEmailInput?.focus();
+    return;
+  }
+  const display_name = username;
   els.accountRegisterBtn.disabled = true;
   const next = await api('/api/account/register', {
     guest_id: profile.guest_id,
@@ -701,6 +705,7 @@ async function registerAccount() {
   }
   profile = next;
   saveGuestId(profile.guest_id);
+  els.accountEmailInput.value = '';
   els.accountPasswordInput.value = '';
   els.accountStatus.textContent = 'Account created and signed in.';
   renderProfile();
@@ -782,7 +787,8 @@ function renderSimpleList(el, rows, emptyText, actionBuilder) {
   }
   el.innerHTML = rows.map((row) => {
     const actions = actionBuilder ? actionBuilder(row) : '';
-    const sub = row.display_name && row.display_name !== row.username
+    const isGuestLabel = /^Guest [0-9a-f]{8}$/i.test(row.display_name || '');
+    const sub = row.display_name && row.display_name !== row.username && !isGuestLabel
       ? `<div class="friend-sub">${escapeHtml(row.display_name)}</div>`
       : '';
     const label = row.username || row.name || row.display_name || '';
@@ -807,7 +813,7 @@ function wireFriendsActions() {
     btn.addEventListener('click', () => cancelFriendRequest(btn.dataset.friendCancel));
   });
   document.querySelectorAll('[data-friend-challenge]').forEach((btn) => {
-    btn.addEventListener('click', () => sendFriendChallenge(btn.dataset.friendChallenge));
+    btn.addEventListener('click', () => openFriendChallenge(btn.dataset.friendChallenge));
   });
   document.querySelectorAll('[data-friend-profile]').forEach((btn) => {
     btn.addEventListener('click', () => openFriendProfile(btn.dataset.friendProfile));
@@ -821,6 +827,25 @@ function wireFriendsActions() {
   document.querySelectorAll('[data-challenge-cancel]').forEach((btn) => {
     btn.addEventListener('click', () => cancelFriendChallenge(btn.dataset.challengeCancel));
   });
+  document.querySelectorAll('[data-friend-challenge-sport]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      friendChallengeSelection.sport = btn.dataset.friendChallengeSport;
+      renderFriendChallengePanel();
+    });
+  });
+  document.querySelectorAll('[data-friend-challenge-mode]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      friendChallengeSelection.mode = btn.dataset.friendChallengeMode;
+      renderFriendChallengePanel();
+    });
+  });
+  document.querySelectorAll('[data-friend-challenge-send]').forEach((btn) => {
+    btn.addEventListener('click', () => sendFriendChallenge(
+      friendChallengeSelection.friendUserId,
+      friendChallengeSelection.sport,
+      friendChallengeSelection.mode,
+    ));
+  });
   if (els.friendProfileClose) {
     els.friendProfileClose.onclick = () => { els.friendProfilePanel.hidden = true; };
   }
@@ -829,6 +854,57 @@ function wireFriendsActions() {
 function friendChallengeLabel(row) {
   const sport = row.sport ? row.sport[0].toUpperCase() + row.sport.slice(1) : 'Baseball';
   return `${sport} - ${row.mode === 'po' ? 'Playoffs' : 'Division Rivalry'}`;
+}
+
+function friendFilmStatus(statuses = []) {
+  const labels = { unseen: 'Unseen', in_progress: 'In progress', lost: 'Benched', won: 'Fully Scouted' };
+  const distinct = [...new Set(statuses.map((status) => labels[status] || 'Unseen'))];
+  return distinct.length ? distinct.join(' / ') : 'Unseen';
+}
+
+function friendRecord(row = {}) {
+  return `${row.won || 0}-${Math.max(0, (row.played || 0) - (row.won || 0))}`;
+}
+
+function renderFriendChallengePanel() {
+  if (!els.friendProfilePanel || !friendChallengeSelection.friendUserId) return;
+  const { friendName, sport, mode } = friendChallengeSelection;
+  const sports = [
+    ['baseball', 'Baseball'], ['basketball', 'Basketball'],
+    ['football', 'Football'], ['hockey', 'Hockey'],
+  ];
+  els.friendDetailLabel.textContent = 'Challenge friend';
+  els.friendProfileName.textContent = friendName || 'Friend';
+  els.friendProfileStats.hidden = true;
+  els.friendChallengePanel.hidden = false;
+  els.friendChallengePanel.innerHTML = `
+    <div class="friend-challenge-group">
+      <span class="profile-detail-label">Sport</span>
+      <div class="friend-choice-grid friend-sport-choice-grid">
+        ${sports.map(([key, label]) => `<button class="friend-choice sport-${key}${sport === key ? ' is-selected' : ''}" type="button" data-friend-challenge-sport="${key}">${label}</button>`).join('')}
+      </div>
+    </div>
+    <div class="friend-challenge-group">
+      <span class="profile-detail-label">Mode</span>
+      <div class="friend-choice-grid friend-mode-choice-grid">
+        <button class="friend-choice${mode === 'dr' ? ' is-selected' : ''}" type="button" title="Division Rivalry" aria-label="Division Rivalry" data-friend-challenge-mode="dr">DR</button>
+        <button class="friend-choice${mode === 'po' ? ' is-selected' : ''}" type="button" title="Playoffs" aria-label="Playoffs" data-friend-challenge-mode="po">P</button>
+      </div>
+    </div>
+    <button class="primary friend-challenge-send" type="button" data-friend-challenge-send>Send ${escapeHtml(mode === 'po' ? 'Playoffs' : 'Division Rivalry')} Request</button>`;
+  els.friendProfilePanel.hidden = false;
+  wireFriendsActions();
+}
+
+function openFriendChallenge(friendUserId) {
+  const friend = friendsData?.friends?.find((row) => row.user_id === friendUserId);
+  friendChallengeSelection = {
+    friendUserId,
+    friendName: friend?.username || friend?.display_name || 'Friend',
+    sport: 'baseball',
+    mode: 'dr',
+  };
+  renderFriendChallengePanel();
 }
 
 function renderFriends() {
@@ -991,12 +1067,12 @@ async function cancelFriendRequest(requestId) {
   renderFriends();
 }
 
-async function sendFriendChallenge(friendUserId) {
+async function sendFriendChallenge(friendUserId, sport, mode) {
   const next = await api('/api/friends/challenge', {
     friend_user_id: friendUserId,
-    sport: els.friendChallengeSport?.value || 'baseball',
-    mode: els.friendChallengeMode?.value || 'dr',
-    win_condition_preference: els.friendChallengeCondition?.value || 'random',
+    sport,
+    mode,
+    win_condition_preference: 'random',
   });
   if (next?.error) {
     els.friendsStatus.textContent = next.error;
@@ -1004,6 +1080,7 @@ async function sendFriendChallenge(friendUserId) {
   }
   friendsData = next;
   els.friendsStatus.textContent = 'Game request sent.';
+  els.friendProfilePanel.hidden = true;
   renderFriends();
 }
 
@@ -1013,7 +1090,8 @@ async function openFriendProfile(friendUserId) {
     els.friendsStatus.textContent = next.error;
     return;
   }
-  els.friendProfileName.textContent = next.display_name || next.username || 'Friend';
+  els.friendDetailLabel.textContent = 'Friend snapshot';
+  els.friendProfileName.textContent = next.username || next.display_name || 'Friend';
   const sportOrder = ['baseball', 'basketball', 'football', 'hockey'];
   els.friendProfileStats.innerHTML = sportOrder.map((sport) => {
     const row = next.sports?.[sport] || {};
@@ -1021,14 +1099,16 @@ async function openFriendProfile(friendUserId) {
     const division = row.division || {};
     const playoffs = row.playoffs || {};
     const title = sport[0].toUpperCase() + sport.slice(1);
-    return `<div class="friend-sport-stat">
+    return `<div class="friend-sport-stat sport-${sport}">
       <strong>${escapeHtml(title)}</strong>
-      <span>Manager ${escapeHtml(String(row.manager_best || 0))}</span>
-      <span>Film today ${escapeHtml(`${film.won || 0}/${film.played || 0}`)}</span>
-      <span>Rivalry ${escapeHtml(`${division.won || 0}-${Math.max(0, (division.played || 0) - (division.won || 0))}`)}</span>
-      <span>Playoffs ${escapeHtml(`${playoffs.won || 0}-${Math.max(0, (playoffs.played || 0) - (playoffs.won || 0))}`)}</span>
+      <span><b>MM</b> ${escapeHtml(`${row.manager_best || 0} best, ${row.manager_plays || 0} plays`)}</span>
+      <span><b>FR</b> ${escapeHtml(friendFilmStatus(film.statuses))}</span>
+      <span><b>DR</b> ${escapeHtml(friendRecord(division))}</span>
+      <span><b>P</b> ${escapeHtml(friendRecord(playoffs))}</span>
     </div>`;
   }).join('');
+  els.friendProfileStats.hidden = false;
+  els.friendChallengePanel.hidden = true;
   els.friendProfilePanel.hidden = false;
 }
 

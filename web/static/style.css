@@ -186,18 +186,6 @@ header .title h1 {
   max-width: 31rem;
 }
 
-.friend-challenge-picker {
-  display: flex;
-  align-items: center;
-  gap: .55rem;
-  flex-wrap: wrap;
-  margin: .85rem 0 1rem;
-}
-
-.friend-challenge-picker select {
-  min-width: 140px;
-}
-
 .friend-profile-panel {
   margin-top: 1rem;
   padding-top: 1rem;
@@ -223,11 +211,14 @@ header .title h1 {
 }
 
 .friend-sport-stat {
+  --friend-sport-color: var(--accent);
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: .3rem .6rem;
   padding: .7rem;
-  border: 1px solid var(--border);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--friend-sport-color) 18%, transparent), rgba(255, 255, 255, 0.035));
+  border: 1px solid color-mix(in srgb, var(--friend-sport-color) 52%, var(--border));
+  border-left: 4px solid var(--friend-sport-color);
   border-radius: 6px;
   font-size: .84rem;
 }
@@ -236,23 +227,73 @@ header .title h1 {
   grid-column: 1 / -1;
 }
 
+.friend-sport-stat span b {
+  color: color-mix(in srgb, var(--friend-sport-color) 68%, #ffffff);
+  font-size: .74rem;
+}
+
+.friend-sport-stat.sport-baseball,
+.friend-choice.sport-baseball { --friend-sport-color: #e85d22; }
+.friend-sport-stat.sport-basketball,
+.friend-choice.sport-basketball { --friend-sport-color: #f4bd2f; }
+.friend-sport-stat.sport-football,
+.friend-choice.sport-football { --friend-sport-color: #55b7e5; }
+.friend-sport-stat.sport-hockey,
+.friend-choice.sport-hockey { --friend-sport-color: #d76dba; }
+
+.friend-challenge-panel {
+  display: grid;
+  gap: .8rem;
+  margin-top: .85rem;
+}
+
+.friend-challenge-group {
+  display: grid;
+  gap: .4rem;
+}
+
+.friend-choice-grid {
+  display: grid;
+  gap: .42rem;
+}
+
+.friend-sport-choice-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.friend-mode-choice-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+.friend-choice {
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: .78rem;
+  font-weight: 850;
+  min-height: 2.35rem;
+  padding: .34rem;
+}
+
+.friend-choice.sport-baseball,
+.friend-choice.sport-basketball,
+.friend-choice.sport-football,
+.friend-choice.sport-hockey {
+  border-color: color-mix(in srgb, var(--friend-sport-color) 45%, var(--border));
+}
+
+.friend-choice.is-selected {
+  background: color-mix(in srgb, var(--friend-sport-color, var(--accent)) 24%, rgba(255, 255, 255, 0.06));
+  border-color: color-mix(in srgb, var(--friend-sport-color, var(--accent)) 76%, #ffffff);
+  color: #ffffff;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--friend-sport-color, var(--accent)) 42%, transparent);
+}
+
+.friend-challenge-send { justify-self: start; }
+
 @media (max-width: 620px) {
-  .friend-challenge-picker {
-    align-items: stretch;
-  }
-
-  .friend-challenge-picker .profile-detail-label {
-    width: 100%;
-  }
-
-  .friend-challenge-picker select {
-    flex: 1 1 130px;
-    min-width: 0;
-  }
-
   .friend-profile-stats {
     grid-template-columns: 1fr;
   }
+
+  .friend-sport-choice-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 .legal-page {

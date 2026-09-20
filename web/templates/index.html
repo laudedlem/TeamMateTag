@@ -58,7 +58,8 @@
         <div class="auth-card">
           <div id="account-logged-out">
             <div class="auth-grid">
-              <input id="account-username-input" type="text" maxlength="120" placeholder="Username or Email" />
+              <input id="account-username-input" type="text" maxlength="120" placeholder="Username or email" />
+              <input id="account-email-input" type="email" maxlength="120" placeholder="Email for your account" />
               <input id="account-password-input" type="password" maxlength="120" placeholder="Password" />
             </div>
             <div class="auth-actions">
@@ -257,22 +258,6 @@
         <input id="friend-target-input" type="text" maxlength="120" placeholder="Friend username or email" />
         <button id="friend-request-btn" class="secondary" type="button">Send Request</button>
       </div>
-      <div class="friend-challenge-picker" aria-label="Challenge setup">
-        <span class="profile-detail-label">Challenge setup</span>
-        <select id="friend-challenge-sport" aria-label="Challenge sport">
-          <option value="baseball">Baseball</option>
-          <option value="basketball">Basketball</option>
-          <option value="football">Football</option>
-          <option value="hockey">Hockey</option>
-        </select>
-        <select id="friend-challenge-mode" aria-label="Challenge mode">
-          <option value="dr">Division Rivalry</option>
-          <option value="po">Playoffs</option>
-        </select>
-        <select id="friend-challenge-condition" aria-label="Playoffs win condition" hidden>
-          <option value="random">Random win condition</option>
-        </select>
-      </div>
       <div class="profile-detail-grid">
         <div class="profile-detail">
           <span class="profile-detail-label">Incoming Friend Requests</span>
@@ -302,12 +287,13 @@
       <section id="friend-profile-panel" class="friend-profile-panel" hidden>
         <div class="friend-profile-header">
           <div>
-            <span class="profile-detail-label">Friend snapshot</span>
+            <span id="friend-detail-label" class="profile-detail-label">Friend snapshot</span>
             <h3 id="friend-profile-name">Friend</h3>
           </div>
           <button id="friend-profile-close" class="secondary" type="button">Close</button>
         </div>
         <div id="friend-profile-stats" class="friend-profile-stats"></div>
+        <div id="friend-challenge-panel" class="friend-challenge-panel" hidden></div>
       </section>
     </div>
   </section>

@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.6.8"
+APP_VERSION = "0.6.9"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -1542,6 +1542,27 @@ def _session_guest_id(conn) -> str | None:
     return row[1] if row else None
 
 
+def _repair_account_guest_label(conn, guest_id: str) -> None:
+    """Replace a leftover anonymous label with the account username."""
+    row = conn.execute(
+        "SELECT username, display_name FROM users WHERE user_id = %s",
+        (guest_id,),
+    ).fetchone()
+    if not row:
+        return
+    username, display_name = row
+    suffix = (display_name or "")[6:]
+    is_guest_label = (
+        (display_name or "").startswith("Guest ")
+        and len(suffix) == 8
+        and all(char in "0123456789abcdefABCDEF" for char in suffix)
+    )
+    if not username or not is_guest_label:
+        return
+    conn.execute("UPDATE users SET display_name = %s WHERE user_id = %s", (username, guest_id))
+    conn.execute("UPDATE guests SET display_name = %s WHERE guest_id = %s", (username, guest_id))
+
+
 def _clear_app_session(conn):
     token = request.cookies.get(SESSION_COOKIE)
     if token:
@@ -2934,6 +2955,7 @@ def profile_bootstrap():
     with db() as conn:
         session_guest_id = _session_guest_id(conn)
         if session_guest_id:
+            _repair_account_guest_label(conn, session_guest_id)
             profile = _guest_profile(conn, session_guest_id, authenticated=True)
         else:
             profile = _guest_profile(conn, requested_guest_id) if requested_guest_id else None
@@ -2980,7 +3002,6 @@ def account_register():
         return jsonify({"error": "Supabase Auth is not configured on the server."}), 500
     data = request.get_json(silent=True) or {}
     guest_id = (data.get("guest_id") or "").strip() or None
-    display_name = " ".join((data.get("display_name") or "").strip().split())
     username = " ".join((data.get("username") or "").strip().split())
     email = (data.get("email") or "").strip().lower()
     password = data.get("password") or ""
@@ -2992,10 +3013,7 @@ def account_register():
         return jsonify({"error": "password must be at least 6 characters"}), 400
     if not email:
         return jsonify({"error": "email required"}), 400
-    if not display_name:
-        display_name = username
-    if len(display_name) > 24:
-        return jsonify({"error": "display_name too long"}), 400
+    display_name = username
 
     with db() as conn:
         taken = conn.execute(
@@ -3166,6 +3184,7 @@ def account_login():
                 "INSERT INTO guests (guest_id, display_name) VALUES (%s, %s)",
                 (user_id, display_name or username),
             )
+        _repair_account_guest_label(conn, user_id)
         session_token = _create_app_session(conn, user_id, auth_user_id)
         profile = _guest_profile(conn, user_id, authenticated=True)
     return _session_response(profile, session_token)
@@ -3320,16 +3339,20 @@ def friend_profile():
         playoffs_filter = "AND mode='po'" if result_mode_ready else "AND false"
         sports = {}
         for sport in ("baseball", "basketball", "football", "hockey"):
-            bp_best = conn.execute(
-                "SELECT COALESCE(MAX(chain_length), 0) FROM bp_runs WHERE owner_guest_id=%s AND sport_id=%s",
+            manager = conn.execute(
+                """SELECT COUNT(*), COALESCE(MAX(chain_length), 0)
+                     FROM bp_runs WHERE owner_guest_id=%s AND sport_id=%s""",
                 (target_user_id, sport),
-            ).fetchone()[0]
-            film = conn.execute(
-                """SELECT COUNT(*), COALESCE(SUM(CASE WHEN status='won' THEN 1 ELSE 0 END), 0)
-                     FROM film_review_daily_attempts
-                    WHERE owner_guest_id=%s AND sport_id=%s AND puzzle_date=%s AND official""",
-                (target_user_id, sport, today),
             ).fetchone()
+            film_statuses = [
+                row[0] for row in conn.execute(
+                    """SELECT status
+                     FROM film_review_daily_attempts
+                    WHERE owner_guest_id=%s AND sport_id=%s AND puzzle_date=%s AND official
+                    ORDER BY unit""",
+                (target_user_id, sport, today),
+                ).fetchall()
+            ]
             rivalry = conn.execute(
                 f"""SELECT COUNT(*), COALESCE(SUM(CASE WHEN won THEN 1 ELSE 0 END), 0)
                      FROM dr_results WHERE owner_guest_id=%s AND sport_id=%s {rivalry_filter}""",
@@ -3341,8 +3364,9 @@ def friend_profile():
                 (target_user_id, sport),
             ).fetchone()
             sports[sport] = {
-                "manager_best": bp_best,
-                "film_today": {"played": film[0], "won": film[1]},
+                "manager_best": manager[1],
+                "manager_plays": manager[0],
+                "film_today": {"statuses": film_statuses or ["unseen"]},
                 "division": {"played": rivalry[0], "won": rivalry[1]},
                 "playoffs": {"played": playoffs[0], "won": playoffs[1]},
             }
