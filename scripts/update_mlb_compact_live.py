@@ -704,6 +704,18 @@ def local_summary(path: Path, season: int) -> dict[str, int]:
         conn.close()
 
 
+def canonicalize_player_ids(rows: list[tuple], aliases: dict[str, str], player_index: int = 0) -> list[tuple]:
+    """Replace a source fallback ID with its established MLB catalog ID."""
+    if not aliases:
+        return rows
+    normalized = []
+    for row in rows:
+        values = list(row)
+        values[player_index] = aliases.get(values[player_index], values[player_index])
+        normalized.append(tuple(values))
+    return normalized
+
+
 def upload_compact(path: Path, season: int, database_url: str, prune_live_staging: bool) -> dict[str, int | str]:
     if psycopg is None:
         raise SystemExit("ERROR: install psycopg first: pip install 'psycopg[binary]'")
@@ -785,6 +797,34 @@ def upload_compact(path: Path, season: int, database_url: str, prune_live_stagin
     with psycopg.connect(database_url, autocommit=False, prepare_threshold=None) as conn:
         with conn.cursor() as cur:
             cur.execute("SET LOCAL statement_timeout = '20min'")
+            canonical_by_mlbam = {
+                int(mlbam_id): player_id
+                for mlbam_id, player_id in cur.execute(
+                    """SELECT mlbam_id, player_id FROM players
+                         WHERE mlbam_id IS NOT NULL AND player_id NOT LIKE 'mlbam_%%'"""
+                ).fetchall()
+            }
+            aliases = {
+                player_id: canonical_by_mlbam[int(mlbam_id)]
+                for player_id, mlbam_id, *_rest in players
+                if player_id.startswith("mlbam_") and mlbam_id is not None
+                and int(mlbam_id) in canonical_by_mlbam
+            }
+            if aliases:
+                players = [
+                    (aliases.get(player_id, player_id), mlbam_id, first, last, debut, final, position)
+                    for player_id, mlbam_id, first, last, debut, final, position in players
+                ]
+                appearances = canonicalize_player_ids(appearances, aliases)
+                stints = canonicalize_player_ids(stints, aliases)
+                searchable = canonicalize_player_ids(searchable, aliases)
+                team_season_stats = canonicalize_player_ids(team_season_stats, aliases)
+                player_season_stats = canonicalize_player_ids(player_season_stats, aliases)
+                powerups = canonicalize_player_ids(powerups, aliases)
+                proofs = [
+                    (aliases.get(a, a), aliases.get(b, b), team, year, games, game_pk, game_date)
+                    for a, b, team, year, games, game_pk, game_date in proofs
+                ]
             cur.execute(
                 """
                 CREATE TABLE IF NOT EXISTS mlb_player_season_stat_rollups (
@@ -961,6 +1001,22 @@ def upload_compact(path: Path, season: int, database_url: str, prune_live_stagin
                     (new_hr - old_player_home_runs.get(player_id, 0), player_id, player_id)
                     for player_id, new_hr in new_player_home_runs.items()
                 ],
+            )
+            # Older runs could leave a 2026-only `mlbam_*` search alias after
+            # its canonical player was restored. It has no game data after the
+            # seasonal replacement, so hiding it cannot affect active proofs.
+            cur.execute(
+                """DELETE FROM players_searchable search
+                     USING players fallback
+                     JOIN players canonical
+                       ON canonical.mlbam_id=fallback.mlbam_id
+                      AND canonical.player_id <> fallback.player_id
+                      AND canonical.player_id NOT LIKE 'mlbam_%%'
+                    WHERE search.player_id=fallback.player_id
+                      AND fallback.player_id LIKE 'mlbam_%%'
+                      AND NOT EXISTS (
+                          SELECT 1 FROM appearances a WHERE a.player_id=fallback.player_id
+                      )"""
             )
             cur.execute("SELECT setval(pg_get_serial_sequence('compact_player_keys', 'player_key'), GREATEST(COALESCE((SELECT MAX(player_key) FROM compact_player_keys), 1), 1), true)")
             cur.execute("SELECT setval(pg_get_serial_sequence('compact_team_keys', 'team_key'), GREATEST(COALESCE((SELECT MAX(team_key) FROM compact_team_keys), 1), 1), true)")

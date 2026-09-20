@@ -391,6 +391,25 @@ def upload_compact(path: Path, season: int, prune_live_staging: bool) -> dict[st
                     else:
                         updates = ", ".join(f"{col}=EXCLUDED.{col}" for col in cols if col not in {"sport_id", "player_id", "team_id", "season", "position"})
                     copy_rows(cur, f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({placeholders}) ON CONFLICT {conflict} DO UPDATE SET {updates}", rows)
+            # A preseason catalog alias may share a PFR external ID with a
+            # regular-season NFL identifier. Keep only the ID that has actual
+            # snap appearances searchable; the alias is never game-eligible.
+            cur.execute(
+                """DELETE FROM sport_players_searchable search
+                     USING sport_players fallback
+                     JOIN sport_players canonical
+                       ON canonical.sport_id=fallback.sport_id
+                      AND canonical.external_id=fallback.external_id
+                      AND canonical.player_id <> fallback.player_id
+                      AND canonical.player_id LIKE 'nfl:%%'
+                    WHERE search.sport_id='football'
+                      AND search.player_id=fallback.player_id
+                      AND fallback.player_id LIKE 'nfl_pfr:%%'
+                      AND NOT EXISTS (
+                          SELECT 1 FROM sport_appearances a
+                           WHERE a.sport_id='football' AND a.player_id=fallback.player_id
+                      )"""
+            )
             cur.execute("SELECT setval(pg_get_serial_sequence('compact_player_keys', 'player_key'), GREATEST(COALESCE((SELECT MAX(player_key) FROM compact_player_keys), 1), 1), true)")
             cur.execute("SELECT setval(pg_get_serial_sequence('compact_team_keys', 'team_key'), GREATEST(COALESCE((SELECT MAX(team_key) FROM compact_team_keys), 1), 1), true)")
             cur.execute("INSERT INTO compact_player_keys (scope, player_id) SELECT DISTINCT %s, player_id FROM sport_appearances WHERE sport_id=%s AND season=%s ON CONFLICT DO NOTHING", (SPORT_ID, SPORT_ID, season))

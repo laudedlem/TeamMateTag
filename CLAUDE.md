@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.6.2`, the Film Review scheduling and read-path
+- Current display version is `0.6.3`, the canonical live-player identity fix
   release. Verify the production footer after each deployment.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -470,6 +470,13 @@ decision needs context.
   rows, preventing missing-puzzle generation from exhausting the serverless
   connection pool. The job fails visibly if any sport or football unit is
   absent.
+- `0.6.3`: Repaired stale 2026 live-season player aliases. The MLB publisher
+  now reconciles fallback MLBAM IDs to an existing canonical career ID before
+  writing compact appearances, stints, proofs, stats, and qualifiers, then
+  removes obsolete search aliases. The NFL publisher likewise removes a
+  non-playing PFR alias when the same player has a real snap-based NFL ID.
+  Verified Javier Baez and Fernando Tatis Jr. retain one continuous career
+  card with their 2026 season attached.
 
 ### Important implementation notes
 
