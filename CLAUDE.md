@@ -15,8 +15,8 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.6.11`, the friend-match handoff and challenge
-  integrity release. Verify the production footer after each deployment.
+- Current display version is `0.6.12`, the friend head-to-head and postgame
+  challenge release. Verify the production footer after each deployment.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
 - The user playtests on the live site, not local. When deploying code changes,
@@ -512,6 +512,13 @@ decision needs context.
   database advisory lock and client send lock prevent duplicate pending
   challenges for the same two friends, sport, and mode. Friends is available
   at `/friends` and its challenge labels now consistently use “Challenges.”
+- `0.6.12`: Friend Snapshot `DR` and `P` rows now show the all-time
+  head-to-head record between the two friends for each exact sport/mode,
+  replacing global records. The duplicate record beneath Challenge Friend was
+  removed. Friend game-over screens show the updated matchup record and offer
+  a compact, preselected sport/mode chooser for a new challenge without
+  leaving the game page; incoming challenges expose Accept, Challenge, Home,
+  and Decline actions.
 
 ### Important implementation notes
 

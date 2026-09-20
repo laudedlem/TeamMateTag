@@ -305,6 +305,31 @@ header .title h1 {
   color: var(--sport-accent, var(--accent));
 }
 
+.friend-gameover-challenge {
+  display: grid;
+  gap: .48rem;
+  margin-top: .8rem;
+  padding-top: .75rem;
+  border-top: 1px solid var(--border);
+}
+
+.friend-gameover-title {
+  color: var(--text);
+  font-size: .84rem;
+  font-weight: 850;
+}
+
+.friend-gameover-challenge .friend-choice {
+  min-height: 2rem;
+  font-size: .72rem;
+}
+
+.friend-gameover-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .45rem;
+}
+
 @media (max-width: 620px) {
   .friend-profile-stats {
     grid-template-columns: 1fr;

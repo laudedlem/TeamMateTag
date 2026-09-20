@@ -126,6 +126,7 @@ const els = {
   winnerText: document.getElementById('winner-text'),
   gameOverSummary: document.getElementById('game-over-summary'),
   friendChallengeAgainBtn: document.getElementById('friend-challenge-again-btn'),
+  friendGameoverChallenge: document.getElementById('friend-gameover-challenge'),
   friendMatchupRecord: document.getElementById('friend-matchup-record'),
   mpRematchStatus: document.getElementById('mp-rematch-status'),
   playAgainBtn: document.getElementById('play-again-btn'),
@@ -213,8 +214,8 @@ let teamAcFetchSeq = 0;
 let userTypedTeamQuery = '';
 let friendsData = null;
 let friendChallengeSelection = { friendUserId: '', friendName: '', sport: 'baseball', mode: 'dr' };
-let friendChallengeRecord = null;
 let friendChallengeSubmitting = false;
+let friendGameoverChallengeSelection = null;
 const preloadedHeadshots = new Set();
 
 const GUEST_ID_KEY = 'tt_guest_id';
@@ -826,20 +827,19 @@ function wireFriendsActions() {
   document.querySelectorAll('[data-challenge-cancel]').forEach((btn) => {
     btn.addEventListener('click', () => cancelFriendChallenge(btn.dataset.challengeCancel));
   });
+  document.querySelectorAll('[data-friend-home]').forEach((btn) => {
+    btn.addEventListener('click', goHome);
+  });
   document.querySelectorAll('[data-friend-challenge-sport]').forEach((btn) => {
     btn.addEventListener('click', () => {
       friendChallengeSelection.sport = btn.dataset.friendChallengeSport;
-      friendChallengeRecord = null;
       renderFriendChallengePanel();
-      loadFriendChallengeRecord();
     });
   });
   document.querySelectorAll('[data-friend-challenge-mode]').forEach((btn) => {
     btn.addEventListener('click', () => {
       friendChallengeSelection.mode = btn.dataset.friendChallengeMode;
-      friendChallengeRecord = null;
       renderFriendChallengePanel();
-      loadFriendChallengeRecord();
     });
   });
   document.querySelectorAll('[data-friend-challenge-send]').forEach((btn) => {
@@ -875,36 +875,41 @@ function friendRecord(row = {}) {
 
 function friendMatchupText(record = {}, mode = currentMode) {
   const label = mode === 'po' ? 'Playoffs' : 'Division Rivalry';
-  return `All-Time ${label} Head-to-Head: You ${record.won || 0}-${record.lost || 0}`;
+  return `All-Time ${label} Head-to-Head: ${record.won || 0}-${record.lost || 0}`;
+}
+
+function friendChallengeChoices(selection, compact = false) {
+  const sports = [
+    ['baseball', 'Baseball'], ['basketball', 'Basketball'],
+    ['football', 'Football'], ['hockey', 'Hockey'],
+  ];
+  const prefix = compact ? 'data-gameover-challenge' : 'data-friend-challenge';
+  return `
+    <div class="friend-challenge-group">
+      ${compact ? '' : '<span class="profile-detail-label">Sport</span>'}
+      <div class="friend-choice-grid friend-sport-choice-grid">
+        ${sports.map(([key, label]) => `<button class="friend-choice sport-${key}${selection.sport === key ? ' is-selected' : ''}" type="button" ${prefix}-sport="${key}">${label}</button>`).join('')}
+      </div>
+    </div>
+    <div class="friend-challenge-group">
+      ${compact ? '' : '<span class="profile-detail-label">Mode</span>'}
+      <div class="friend-choice-grid friend-mode-choice-grid">
+        <button class="friend-choice mode-division${selection.mode === 'dr' ? ' is-selected' : ''}" type="button" ${prefix}-mode="dr">Division Rivalry</button>
+        <button class="friend-choice mode-playoffs${selection.mode === 'po' ? ' is-selected' : ''}" type="button" ${prefix}-mode="po">Playoffs</button>
+      </div>
+    </div>`;
 }
 
 function renderFriendChallengePanel() {
   if (!els.friendProfilePanel || !friendChallengeSelection.friendUserId) return;
   const { friendName, sport, mode } = friendChallengeSelection;
-  const sports = [
-    ['baseball', 'Baseball'], ['basketball', 'Basketball'],
-    ['football', 'Football'], ['hockey', 'Hockey'],
-  ];
   els.friendDetailLabel.textContent = 'Challenge Friend';
   els.friendProfileName.textContent = friendName || 'Friend';
   els.friendProfileStats.hidden = true;
   els.friendChallengePanel.hidden = false;
   els.friendChallengePanel.innerHTML = `
-    <div class="friend-challenge-group">
-      <span class="profile-detail-label">Sport</span>
-      <div class="friend-choice-grid friend-sport-choice-grid">
-        ${sports.map(([key, label]) => `<button class="friend-choice sport-${key}${sport === key ? ' is-selected' : ''}" type="button" data-friend-challenge-sport="${key}">${label}</button>`).join('')}
-      </div>
-    </div>
-    <div class="friend-challenge-group">
-      <span class="profile-detail-label">Mode</span>
-      <div class="friend-choice-grid friend-mode-choice-grid">
-        <button class="friend-choice mode-division${mode === 'dr' ? ' is-selected' : ''}" type="button" data-friend-challenge-mode="dr">Division Rivalry</button>
-        <button class="friend-choice mode-playoffs${mode === 'po' ? ' is-selected' : ''}" type="button" data-friend-challenge-mode="po">Playoffs</button>
-      </div>
-    </div>
-    <div class="friend-matchup-record">${escapeHtml(friendChallengeRecord ? friendMatchupText(friendChallengeRecord, mode) : 'All-Time Head-to-Head: Loading...')}</div>
-    <button class="primary friend-challenge-send" type="button" data-friend-challenge-send>Send ${escapeHtml(sports.find(([key]) => key === sport)?.[1] || 'Baseball')} ${escapeHtml(mode === 'po' ? 'Playoffs' : 'Division Rivalry')} Challenge</button>`;
+    ${friendChallengeChoices({ sport, mode })}
+    <button class="primary friend-challenge-send" type="button" data-friend-challenge-send>Send ${escapeHtml(sport[0].toUpperCase() + sport.slice(1))} ${escapeHtml(mode === 'po' ? 'Playoffs' : 'Division Rivalry')} Challenge</button>`;
   els.friendProfilePanel.hidden = false;
   wireFriendsActions();
 }
@@ -917,22 +922,6 @@ function openFriendChallenge(friendUserId) {
     sport: 'baseball',
     mode: 'dr',
   };
-  friendChallengeRecord = null;
-  renderFriendChallengePanel();
-  loadFriendChallengeRecord();
-}
-
-async function loadFriendChallengeRecord() {
-  const selection = { ...friendChallengeSelection };
-  if (!selection.friendUserId) return;
-  const next = await api('/api/friends/matchup_record', {
-    friend_user_id: selection.friendUserId,
-    sport: selection.sport,
-    mode: selection.mode,
-  });
-  if (next?.error || selection.friendUserId !== friendChallengeSelection.friendUserId ||
-      selection.sport !== friendChallengeSelection.sport || selection.mode !== friendChallengeSelection.mode) return;
-  friendChallengeRecord = next;
   renderFriendChallengePanel();
 }
 
@@ -978,6 +967,8 @@ function renderFriends() {
     'No Incoming Challenges.',
     (row) => `
       <button class="secondary" type="button" data-challenge-accept="${row.challenge_id}">Accept</button>
+      <button class="secondary" type="button" data-friend-challenge="${row.user_id}">Challenge</button>
+      <button class="secondary" type="button" data-friend-home>Home</button>
       <button class="secondary" type="button" data-challenge-decline="${row.challenge_id}">Decline</button>
     `,
   );
@@ -1037,6 +1028,7 @@ async function refreshFriends() {
   }
   friendsData = next;
   renderFriends();
+  renderIncomingFriendGameoverChallenge();
   if (friendsData.matched_redirect && !isOnlineMode()) {
     window.location.assign(friendsData.matched_redirect);
   }
@@ -1119,6 +1111,90 @@ async function sendFriendChallenge(friendUserId, sport, mode) {
   els.friendProfilePanel.hidden = true;
   renderFriends();
   friendChallengeSubmitting = false;
+}
+
+function renderFriendGameoverChallenge() {
+  const selection = friendGameoverChallengeSelection;
+  if (!selection || !els.friendGameoverChallenge) return;
+  const modeLabel = selection.mode === 'po' ? 'Playoffs' : 'Division Rivalry';
+  const sportLabel = selection.sport[0].toUpperCase() + selection.sport.slice(1);
+  els.friendGameoverChallenge.hidden = false;
+  els.friendGameoverChallenge.innerHTML = `
+    <div class="friend-gameover-title">Challenge ${escapeHtml(selection.friendName)}</div>
+    ${friendChallengeChoices(selection, true)}
+    <div class="friend-gameover-actions">
+      <button class="primary" type="button" data-gameover-challenge-send>Send ${escapeHtml(sportLabel)} ${escapeHtml(modeLabel)} Challenge</button>
+      <button class="secondary" type="button" data-gameover-challenge-close>Close</button>
+    </div>
+    <p class="muted small" data-gameover-challenge-status></p>`;
+  els.friendGameoverChallenge.querySelectorAll('[data-gameover-challenge-sport]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      friendGameoverChallengeSelection.sport = btn.dataset.gameoverChallengeSport;
+      renderFriendGameoverChallenge();
+    });
+  });
+  els.friendGameoverChallenge.querySelectorAll('[data-gameover-challenge-mode]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      friendGameoverChallengeSelection.mode = btn.dataset.gameoverChallengeMode;
+      renderFriendGameoverChallenge();
+    });
+  });
+  els.friendGameoverChallenge.querySelector('[data-gameover-challenge-close]')?.addEventListener('click', () => {
+    els.friendGameoverChallenge.hidden = true;
+  });
+  els.friendGameoverChallenge.querySelector('[data-gameover-challenge-send]')?.addEventListener('click', async (event) => {
+    if (friendChallengeSubmitting) return;
+    const button = event.currentTarget;
+    const status = els.friendGameoverChallenge.querySelector('[data-gameover-challenge-status]');
+    friendChallengeSubmitting = true;
+    button.disabled = true;
+    const next = await api('/api/friends/challenge', {
+      friend_user_id: selection.friendUserId,
+      sport: selection.sport,
+      mode: selection.mode,
+      win_condition_preference: 'random',
+    });
+    friendChallengeSubmitting = false;
+    button.disabled = false;
+    if (next?.error) {
+      status.textContent = next.error;
+      return;
+    }
+    friendsData = next;
+    status.textContent = `${sportLabel} ${modeLabel} challenge sent.`;
+  });
+}
+
+function openFriendGameoverChallenge() {
+  if (!game?.opponent_guest_id) return;
+  friendGameoverChallengeSelection = {
+    friendUserId: game.opponent_guest_id,
+    friendName: game.opponent_name || 'Friend',
+    sport: CURRENT_SPORT,
+    mode: currentMode === 'po' ? 'po' : 'dr',
+  };
+  renderFriendGameoverChallenge();
+}
+
+function renderIncomingFriendGameoverChallenge() {
+  if (!game?.finished || !game?.friend_matchup || friendGameoverChallengeSelection ||
+      !els.friendGameoverChallenge || !friendsData?.incoming_challenges) return;
+  const incoming = friendsData.incoming_challenges.find((row) => row.user_id === game.opponent_guest_id);
+  if (!incoming) return;
+  els.friendGameoverChallenge.hidden = false;
+  els.friendGameoverChallenge.innerHTML = `
+    <div class="friend-gameover-title">${escapeHtml(incoming.name || game.opponent_name || 'Friend')} challenged you</div>
+    <p class="muted small">${escapeHtml(friendChallengeLabel(incoming))}</p>
+    <div class="friend-gameover-actions">
+      <button class="primary" type="button" data-gameover-incoming-accept="${incoming.challenge_id}">Accept</button>
+      <button class="secondary" type="button" data-gameover-incoming-challenge>Challenge</button>
+      <button class="secondary" type="button" data-gameover-incoming-home>Home</button>
+    </div>`;
+  els.friendGameoverChallenge.querySelector('[data-gameover-incoming-accept]')?.addEventListener('click', (event) => {
+    respondFriendChallenge(event.currentTarget.dataset.gameoverIncomingAccept, true);
+  });
+  els.friendGameoverChallenge.querySelector('[data-gameover-incoming-challenge]')?.addEventListener('click', openFriendGameoverChallenge);
+  els.friendGameoverChallenge.querySelector('[data-gameover-incoming-home]')?.addEventListener('click', goHome);
 }
 
 async function openFriendProfile(friendUserId) {
@@ -1589,7 +1665,7 @@ async function rematch() {
       els.mpRematchStatus.textContent = res.error;
       if (/rematch unavailable/i.test(res.error)) {
         els.playAgainBtn.hidden = true;
-        els.requeueBtn.hidden = false;
+        els.requeueBtn.hidden = !!game.friend_matchup;
       }
       return;
     }
@@ -1600,7 +1676,7 @@ async function rematch() {
     }
     els.mpRematchStatus.hidden = false;
     els.mpRematchStatus.textContent = "Let's Play Two? Waiting on Your Opponent.";
-    els.requeueBtn.hidden = false;
+    els.requeueBtn.hidden = !!game.friend_matchup;
     startRematchPolling();
     return;
   }
@@ -1619,19 +1695,24 @@ function showGameOverBanner() {
   els.mpRematchStatus.textContent = '';
   els.requeueBtn.hidden = true;
   els.friendChallengeAgainBtn.hidden = !game?.friend_matchup || !game?.opponent_guest_id;
+  els.friendGameoverChallenge.hidden = true;
+  friendGameoverChallengeSelection = null;
 
   if (isOnlineMode()) {
     const isFriendGame = !!game.friend_matchup;
     const teamsOut = game.strikes.filter((s) => s.count >= 3).length;
     const outSummary = ({ baseball: 'Struck Out', basketball: 'Fouled Out', football: 'Punted', hockey: 'with Game Misconducts' })[CURRENT_SPORT] || 'Out';
+    const friendRecord = isFriendGame
+      ? `<span class="game-over-detail">${escapeHtml(friendMatchupText(game.friend_matchup))}</span>`
+      : '';
     els.winnerText.textContent = game.winner ? `${game.winner} Wins!` : 'Game Over.';
     if (currentMode === 'po' && game.last_move?.win_condition_completed) {
       els.gameOverSummary.innerHTML =
-        `${gameOverWinConditionHtml()}<span class="game-over-detail">Lineup of ${game.chain.length}. ${teamsOut} Team${teamsOut === 1 ? '' : 's'} ${outSummary}.</span>`;
+        `${gameOverWinConditionHtml()}<span class="game-over-detail">Lineup of ${game.chain.length}. ${teamsOut} Team${teamsOut === 1 ? '' : 's'} ${outSummary}.</span>${friendRecord}`;
     } else {
       const reason = game.last_move?.outcome === 'timeout' && game.winner ? `${game.winner} won on time. ` : '';
-      els.gameOverSummary.textContent =
-        `${reason}Lineup of ${game.chain.length}. ${teamsOut} Team${teamsOut === 1 ? '' : 's'} ${outSummary}.`;
+      els.gameOverSummary.innerHTML =
+        `${escapeHtml(`${reason}Lineup of ${game.chain.length}. ${teamsOut} Team${teamsOut === 1 ? '' : 's'} ${outSummary}.`)}${friendRecord}`;
     }
     if (game.last_move?.outcome === 'forfeit') {
       els.playAgainBtn.hidden = true;
@@ -1664,6 +1745,8 @@ function hideGameOverBanner() {
   els.playAgainBtn.hidden = false;
   els.requeueBtn.hidden = true;
   els.friendChallengeAgainBtn.hidden = true;
+  els.friendGameoverChallenge.hidden = true;
+  friendGameoverChallengeSelection = null;
 }
 
 async function requeueForNewMatch(message, options = {}) {
@@ -3851,10 +3934,7 @@ document.querySelectorAll('.mode-tile').forEach((tile) => {
 });
 
 on(els.exitBtn, 'click', exitToHome);
-on(els.friendChallengeAgainBtn, 'click', () => {
-  if (!game?.opponent_guest_id) return;
-  window.location.assign(`/friends?challenge_friend=${encodeURIComponent(game.opponent_guest_id)}`);
-});
+on(els.friendChallengeAgainBtn, 'click', openFriendGameoverChallenge);
 
 document.querySelectorAll('[data-back="home"]').forEach((btn) => {
   btn.addEventListener('click', goHome);

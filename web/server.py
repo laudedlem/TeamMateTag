@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.6.11"
+APP_VERSION = "0.6.12"
 INTERNAL_AUTH_EMAIL_DOMAIN = "auth.teammatetag.com"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
@@ -3368,14 +3368,6 @@ def friend_profile():
         if not user:
             return jsonify({"error": "friend not found"}), 404
         today = datetime.now(CENTRAL_TIME).date()
-        result_mode_ready = conn.execute(
-            """SELECT EXISTS (
-                   SELECT 1 FROM information_schema.columns
-                    WHERE table_schema='public' AND table_name='dr_results' AND column_name='mode'
-               )"""
-        ).fetchone()[0]
-        rivalry_filter = "AND mode='dr'" if result_mode_ready else ""
-        playoffs_filter = "AND mode='po'" if result_mode_ready else "AND false"
         sports = {}
         for sport in ("baseball", "basketball", "football", "hockey"):
             manager = conn.execute(
@@ -3392,22 +3384,14 @@ def friend_profile():
                 (target_user_id, sport, today),
                 ).fetchall()
             ]
-            rivalry = conn.execute(
-                f"""SELECT COUNT(*), COALESCE(SUM(CASE WHEN won THEN 1 ELSE 0 END), 0)
-                     FROM dr_results WHERE owner_guest_id=%s AND sport_id=%s {rivalry_filter}""",
-                (target_user_id, sport),
-            ).fetchone()
-            playoffs = conn.execute(
-                f"""SELECT COUNT(*), COALESCE(SUM(CASE WHEN won THEN 1 ELSE 0 END), 0)
-                     FROM dr_results WHERE owner_guest_id=%s AND sport_id=%s {playoffs_filter}""",
-                (target_user_id, sport),
-            ).fetchone()
+            rivalry = _friend_matchup_record(conn, guest_id, target_user_id, sport, "dr")
+            playoffs = _friend_matchup_record(conn, guest_id, target_user_id, sport, "po")
             sports[sport] = {
                 "manager_best": manager[1],
                 "manager_plays": manager[0],
                 "film_today": {"statuses": film_statuses or ["unseen"]},
-                "division": {"played": rivalry[0], "won": rivalry[1]},
-                "playoffs": {"played": playoffs[0], "won": playoffs[1]},
+                "division": rivalry,
+                "playoffs": playoffs,
             }
         return jsonify({"username": user[0], "display_name": user[1], "sports": sports})
 
@@ -3567,27 +3551,6 @@ def friends_challenge():
              sport, mode, preference if mode == "po" else "random"),
         )
         return jsonify(_friends_payload(conn, guest_id))
-
-
-@app.route("/api/friends/matchup_record", methods=["POST"])
-def friends_matchup_record():
-    ensure_runtime_schema()
-    data = request.get_json(silent=True) or {}
-    friend_user_id = (data.get("friend_user_id") or "").strip()
-    sport = (data.get("sport") or "baseball").strip().lower()
-    mode = (data.get("mode") or "dr").strip().lower()
-    if not friend_user_id or not _is_cross_sport(sport) or mode not in {"dr", "po"}:
-        return jsonify({"error": "valid friend, sport, and mode required"}), 400
-    with db() as conn:
-        guest_id = _session_account_guest_id(conn)
-        if not guest_id:
-            return jsonify({"error": "account login required"}), 403
-        a, b = _friendship_pair(guest_id, friend_user_id)
-        if not conn.execute(
-            "SELECT 1 FROM friendships WHERE user_a_id=%s AND user_b_id=%s", (a, b)
-        ).fetchone():
-            return jsonify({"error": "friendship required"}), 403
-        return jsonify(_friend_matchup_record(conn, guest_id, friend_user_id, sport, mode))
 
 
 @app.route("/api/friends/challenge_respond", methods=["POST"])
