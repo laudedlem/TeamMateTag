@@ -15,8 +15,8 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.6.6`, the Playoffs win-card contrast fix
-  release. Verify the production footer after each deployment.
+- Current display version is `0.6.7`, the secure-donation launch release.
+  Verify the production footer after each deployment.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
 - The user playtests on the live site, not local. When deploying code changes,
@@ -487,6 +487,9 @@ decision needs context.
   overriding the normal franchise-palette card treatment.
 - `0.6.6`: Playoffs Win Condition cards now force dark, high-contrast player
   and team text over their bright blue or pink score backgrounds.
+- `0.6.7`: Launched the `/donate` handoff with the live Stripe Payment Link.
+  It remains an overrideable environment setting, opens in the same tab, and
+  keeps payment collection on Stripe's hosted secure checkout.
 
 ### Important implementation notes
 

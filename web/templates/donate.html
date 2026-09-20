@@ -19,10 +19,12 @@
     <div class="legal-card donate-card">
       <a href="/" class="back-link">&larr; Back to TeamMateTag</a>
       <h2>Support TeamMateTag</h2>
-      <p>Donations help cover the tools and infrastructure that keep the game running and improving.</p>
+      <p>Donations help cover the tools and infrastructure that keep the game running, current, and improving.</p>
       {% if donation_url %}
-      <a class="primary donation-link" href="{{ donation_url }}" target="_blank" rel="noopener">Donate securely</a>
-      <p class="muted small">Checkout is securely handled by Stripe.</p>
+      <div class="donate-checkout-handoff">
+        <a class="primary donation-link" href="{{ donation_url }}" rel="noopener">Continue to secure checkout &rarr;</a>
+        <p class="muted small">Secure checkout is handled by Stripe. You can return to TeamMateTag when you are done.</p>
+      </div>
       {% else %}
       <p class="muted">Secure donations are being set up. Check back soon.</p>
       {% endif %}

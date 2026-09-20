@@ -166,6 +166,26 @@ header .title h1 {
   text-decoration: none;
 }
 
+.donate-checkout-handoff {
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  margin-top: 1.35rem;
+}
+
+.donate-checkout-handoff .donation-link {
+  margin: 0;
+  min-height: 2.8rem;
+  padding-inline: 1.15rem;
+}
+
+.donate-checkout-handoff .small {
+  font-size: 0.78rem;
+  margin: 0;
+  max-width: 31rem;
+}
+
 .friend-challenge-picker {
   display: flex;
   align-items: center;
