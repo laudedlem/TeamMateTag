@@ -10,7 +10,7 @@ import argparse
 import mimetypes
 import os
 import sys
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from pathlib import Path
 from urllib.parse import quote
 
@@ -161,16 +161,30 @@ def main() -> int:
             if existing:
                 remove_objects(base_url, key, bucket, existing)
         uploaded = 0
-        with ThreadPoolExecutor(max_workers=max(1, args.workers)) as pool:
-            futures = {
-                pool.submit(upload_file, base_url, key, bucket, path, object_path): object_path
-                for path, object_path in rows
-            }
-            for future in as_completed(futures):
-                future.result()
-                uploaded += 1
-                if uploaded % max(1, args.progress_every) == 0 or uploaded == len(rows):
-                    print(f"uploaded {bucket}: {uploaded:,}/{len(rows):,}", flush=True)
+        workers = max(1, args.workers)
+        row_iter = iter(rows)
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            # Keep a small bounded queue. Creating one Future per headshot
+            # delays progress reporting and wastes memory on a large catalog.
+            futures = set()
+            for _ in range(workers * 4):
+                next_row = next(row_iter, None)
+                if next_row is None:
+                    break
+                path, object_path = next_row
+                futures.add(pool.submit(upload_file, base_url, key, bucket, path, object_path))
+            while futures:
+                done, _ = wait(futures, return_when=FIRST_COMPLETED)
+                for future in done:
+                    futures.remove(future)
+                    future.result()
+                    uploaded += 1
+                    next_row = next(row_iter, None)
+                    if next_row is not None:
+                        path, object_path = next_row
+                        futures.add(pool.submit(upload_file, base_url, key, bucket, path, object_path))
+                    if uploaded % max(1, args.progress_every) == 0 or uploaded == len(rows):
+                        print(f"uploaded {bucket}: {uploaded:,}/{len(rows):,}", flush=True)
     print("Supabase Storage replacement complete")
     return 0
 

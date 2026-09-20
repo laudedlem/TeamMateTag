@@ -34,6 +34,8 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from build_nfl_compact_runtime import first_name, last_name, nfl_team, normalize  # noqa: E402
 from build_nfl_snap_teammates import main as build_snap_source  # noqa: E402
+from compact_adjacency import replace_live_season_proofs, uses_compact_adjacency  # noqa: E402
+from runtime_database_guard import enforce_runtime_database_limit  # noqa: E402
 
 
 SPORT_ID = "football"
@@ -393,31 +395,34 @@ def upload_compact(path: Path, season: int, prune_live_staging: bool) -> dict[st
             cur.execute("SELECT setval(pg_get_serial_sequence('compact_team_keys', 'team_key'), GREATEST(COALESCE((SELECT MAX(team_key) FROM compact_team_keys), 1), 1), true)")
             cur.execute("INSERT INTO compact_player_keys (scope, player_id) SELECT DISTINCT %s, player_id FROM sport_appearances WHERE sport_id=%s AND season=%s ON CONFLICT DO NOTHING", (SPORT_ID, SPORT_ID, season))
             cur.execute("INSERT INTO compact_team_keys (scope, team_id, season) SELECT DISTINCT %s, team_id, season::smallint FROM sport_appearances WHERE sport_id=%s AND season=%s ON CONFLICT DO NOTHING", (SPORT_ID, SPORT_ID, season))
-            cur.execute(
-                """
-                DELETE FROM compact_sport_teammates c
-                 USING compact_team_keys tk
-                 WHERE c.team_key=tk.team_key
-                   AND c.sport_id=%s
-                   AND tk.scope=%s
-                   AND tk.season=%s
-                """,
-                (SPORT_ID, SPORT_ID, season),
-            )
-            copy_rows(
-                cur,
-                """
-                INSERT INTO compact_sport_teammates
-                    (sport_id, player_a_key, player_b_key, team_key, season)
-                SELECT %s, pa.player_key, pb.player_key, tk.team_key, %s::smallint
-                  FROM compact_player_keys pa
-                  JOIN compact_player_keys pb ON pb.scope=%s AND pb.player_id=%s
-                  JOIN compact_team_keys tk ON tk.scope=%s AND tk.team_id=%s AND tk.season=%s
-                 WHERE pa.scope=%s AND pa.player_id=%s
-                ON CONFLICT DO NOTHING
-                """,
-                [(SPORT_ID, yr, SPORT_ID, b, SPORT_ID, team, yr, SPORT_ID, a) for a, b, team, yr in proofs],
-            )
+            if uses_compact_adjacency(cur):
+                replace_live_season_proofs(cur, SPORT_ID, season, proofs)
+            else:
+                cur.execute(
+                    """
+                    DELETE FROM compact_sport_teammates c
+                     USING compact_team_keys tk
+                     WHERE c.team_key=tk.team_key
+                       AND c.sport_id=%s
+                       AND tk.scope=%s
+                       AND tk.season=%s
+                    """,
+                    (SPORT_ID, SPORT_ID, season),
+                )
+                copy_rows(
+                    cur,
+                    """
+                    INSERT INTO compact_sport_teammates
+                        (sport_id, player_a_key, player_b_key, team_key, season)
+                    SELECT %s, pa.player_key, pb.player_key, tk.team_key, %s::smallint
+                      FROM compact_player_keys pa
+                      JOIN compact_player_keys pb ON pb.scope=%s AND pb.player_id=%s
+                      JOIN compact_team_keys tk ON tk.scope=%s AND tk.team_id=%s AND tk.season=%s
+                     WHERE pa.scope=%s AND pa.player_id=%s
+                    ON CONFLICT DO NOTHING
+                    """,
+                    [(SPORT_ID, yr, SPORT_ID, b, SPORT_ID, team, yr, SPORT_ID, a) for a, b, team, yr in proofs],
+                )
             if prune_live_staging:
                 cur.execute("DELETE FROM sport_live_player_games WHERE sport_id=%s AND season=%s", (SPORT_ID, season))
                 removed_player_games = int(cur.rowcount)
@@ -426,8 +431,8 @@ def upload_compact(path: Path, season: int, prune_live_staging: bool) -> dict[st
             else:
                 removed_player_games = 0
                 removed_games = 0
-            cur.execute("ANALYZE compact_sport_teammates")
-            db_size = cur.execute("SELECT pg_size_pretty(pg_database_size(current_database()))").fetchone()[0]
+            cur.execute("ANALYZE compact_teammate_adjacency" if uses_compact_adjacency(cur) else "ANALYZE compact_sport_teammates")
+            db_size = enforce_runtime_database_limit(cur)
         conn.commit()
     return {
         "players": len(tables["sport_players"][1]),

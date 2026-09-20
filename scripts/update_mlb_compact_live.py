@@ -50,6 +50,8 @@ from live_mlb_client import (  # noqa: E402
     split_name,
     team_id,
 )
+from compact_adjacency import replace_live_season_proofs, uses_compact_adjacency  # noqa: E402
+from runtime_database_guard import enforce_runtime_database_limit  # noqa: E402
 
 
 DEFAULT_OUTPUT_DIR = ROOT / "raw" / "mlb_live_runtime"
@@ -982,39 +984,47 @@ def upload_compact(path: Path, season: int, database_url: str, prune_live_stagin
                 """,
                 (season,),
             )
-            cur.execute(
-                """
-                DELETE FROM compact_mlb_teammate_game_proofs proof
-                 USING compact_team_keys team
-                 WHERE proof.team_key = team.team_key
-                   AND team.scope = 'baseball'
-                   AND team.season = %s
-                """,
-                (season,),
-            )
-            cur.executemany(
-                """
-                INSERT INTO compact_mlb_teammate_game_proofs
-                    (player_a_key, player_b_key, team_key, season, shared_games,
-                     first_game_pk, first_game_date)
-                SELECT pa.player_key, pb.player_key, tk.team_key, %s::smallint,
-                       LEAST(%s, 32767)::smallint, %s, %s::date
-                  FROM compact_player_keys pa
-                  JOIN compact_player_keys pb
-                    ON pb.scope = 'baseball' AND pb.player_id = %s
-                  JOIN compact_team_keys tk
-                    ON tk.scope = 'baseball' AND tk.team_id = %s AND tk.season = %s
-                 WHERE pa.scope = 'baseball' AND pa.player_id = %s
-                ON CONFLICT (player_a_key, player_b_key, team_key, season) DO UPDATE
-                SET shared_games = EXCLUDED.shared_games,
-                    first_game_pk = EXCLUDED.first_game_pk,
-                    first_game_date = EXCLUDED.first_game_date
-                """,
-                [
-                    (proof_season, shared_games, first_game_pk, first_game_date, player_b, team_id, proof_season, player_a)
-                    for player_a, player_b, team_id, proof_season, shared_games, first_game_pk, first_game_date in proofs
-                ],
-            )
+            if uses_compact_adjacency(cur):
+                replace_live_season_proofs(
+                    cur,
+                    "baseball",
+                    season,
+                    [(a, b, team, year) for a, b, team, year, _games, _pk, _date in proofs],
+                )
+            else:
+                cur.execute(
+                    """
+                    DELETE FROM compact_mlb_teammate_game_proofs proof
+                     USING compact_team_keys team
+                     WHERE proof.team_key = team.team_key
+                       AND team.scope = 'baseball'
+                       AND team.season = %s
+                    """,
+                    (season,),
+                )
+                cur.executemany(
+                    """
+                    INSERT INTO compact_mlb_teammate_game_proofs
+                        (player_a_key, player_b_key, team_key, season, shared_games,
+                         first_game_pk, first_game_date)
+                    SELECT pa.player_key, pb.player_key, tk.team_key, %s::smallint,
+                           LEAST(%s, 32767)::smallint, %s, %s::date
+                      FROM compact_player_keys pa
+                      JOIN compact_player_keys pb
+                        ON pb.scope = 'baseball' AND pb.player_id = %s
+                      JOIN compact_team_keys tk
+                        ON tk.scope = 'baseball' AND tk.team_id = %s AND tk.season = %s
+                     WHERE pa.scope = 'baseball' AND pa.player_id = %s
+                    ON CONFLICT (player_a_key, player_b_key, team_key, season) DO UPDATE
+                    SET shared_games = EXCLUDED.shared_games,
+                        first_game_pk = EXCLUDED.first_game_pk,
+                        first_game_date = EXCLUDED.first_game_date
+                    """,
+                    [
+                        (proof_season, shared_games, first_game_pk, first_game_date, player_b, team_id, proof_season, player_a)
+                        for player_a, player_b, team_id, proof_season, shared_games, first_game_pk, first_game_date in proofs
+                    ],
+                )
             cur.execute(
                 """
                 INSERT INTO teammate_stint_coverage (season, coverage_type, strict, source, updated_at)
@@ -1050,8 +1060,8 @@ def upload_compact(path: Path, season: int, database_url: str, prune_live_stagin
             cur.execute("ANALYZE player_powerup_qualifications")
             cur.execute("ANALYZE player_playoff_traits")
             cur.execute("ANALYZE mlb_player_season_stat_rollups")
-            cur.execute("ANALYZE compact_mlb_teammate_game_proofs")
-            db_size = cur.execute("SELECT pg_size_pretty(pg_database_size(current_database()))").fetchone()[0]
+            cur.execute("ANALYZE compact_teammate_adjacency" if uses_compact_adjacency(cur) else "ANALYZE compact_mlb_teammate_game_proofs")
+            db_size = enforce_runtime_database_limit(cur)
         conn.commit()
     return {
         "players": len(players),

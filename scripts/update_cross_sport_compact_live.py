@@ -33,6 +33,8 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from name_normalize import normalize  # noqa: E402
+from compact_adjacency import replace_live_season_proofs, uses_compact_adjacency  # noqa: E402
+from runtime_database_guard import enforce_runtime_database_limit  # noqa: E402
 
 import live_nba_client as nba_live  # noqa: E402
 import live_nhl_client as nhl_live  # noqa: E402
@@ -838,29 +840,32 @@ def upload_compact(path: Path, sport: str, season: int, prune_live_staging: bool
                 """,
                 (sport, sport, season),
             )
-            cur.execute(
-                """
-                DELETE FROM compact_sport_teammates c
-                 USING compact_team_keys tk
-                 WHERE c.team_key=tk.team_key
-                   AND c.sport_id=%s
-                   AND tk.scope=%s
-                   AND tk.season=%s
-                """,
-                (sport, sport, season),
-            )
-            pg_execute_values(cur, """
-                INSERT INTO compact_sport_teammates
-                    (sport_id, player_a_key, player_b_key, team_key, season)
-                SELECT %s, pa.player_key, pb.player_key, tk.team_key, %s::smallint
-                  FROM compact_player_keys pa
-                  JOIN compact_player_keys pb ON pb.scope=%s AND pb.player_id=%s
-                  JOIN compact_team_keys tk ON tk.scope=%s AND tk.team_id=%s AND tk.season=%s
-                 WHERE pa.scope=%s AND pa.player_id=%s
-                ON CONFLICT DO NOTHING
-                """,
-                [(sport, proof_season, sport, b, sport, team_id, proof_season, sport, a) for a, b, team_id, proof_season in proofs],
-            )
+            if uses_compact_adjacency(cur):
+                replace_live_season_proofs(cur, sport, season, proofs)
+            else:
+                cur.execute(
+                    """
+                    DELETE FROM compact_sport_teammates c
+                     USING compact_team_keys tk
+                     WHERE c.team_key=tk.team_key
+                       AND c.sport_id=%s
+                       AND tk.scope=%s
+                       AND tk.season=%s
+                    """,
+                    (sport, sport, season),
+                )
+                pg_execute_values(cur, """
+                    INSERT INTO compact_sport_teammates
+                        (sport_id, player_a_key, player_b_key, team_key, season)
+                    SELECT %s, pa.player_key, pb.player_key, tk.team_key, %s::smallint
+                      FROM compact_player_keys pa
+                      JOIN compact_player_keys pb ON pb.scope=%s AND pb.player_id=%s
+                      JOIN compact_team_keys tk ON tk.scope=%s AND tk.team_id=%s AND tk.season=%s
+                     WHERE pa.scope=%s AND pa.player_id=%s
+                    ON CONFLICT DO NOTHING
+                    """,
+                    [(sport, proof_season, sport, b, sport, team_id, proof_season, sport, a) for a, b, team_id, proof_season in proofs],
+                )
             cur.execute(
                 """
                 INSERT INTO sport_teammate_stint_coverage
@@ -920,8 +925,8 @@ def upload_compact(path: Path, sport: str, season: int, prune_live_staging: bool
                 removed_games = 0
             cur.execute("ANALYZE sport_appearances")
             cur.execute("ANALYZE sport_player_stints")
-            cur.execute("ANALYZE compact_sport_teammates")
-            db_size = cur.execute("SELECT pg_size_pretty(pg_database_size(current_database()))").fetchone()[0]
+            cur.execute("ANALYZE compact_teammate_adjacency" if uses_compact_adjacency(cur) else "ANALYZE compact_sport_teammates")
+            db_size = enforce_runtime_database_limit(cur)
         conn.commit()
     return {
         "teams": len(teams),

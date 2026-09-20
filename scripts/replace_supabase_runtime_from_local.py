@@ -25,8 +25,8 @@ DEFAULT_RUNTIME = ROOT / "raw" / "runtime_compact" / "teammatetag_runtime_minima
 HEADSHOT_BUCKET = "player-headshots"
 
 TRUNCATE_TABLES = [
-    "compact_sport_teammates",
-    "compact_mlb_teammate_game_proofs",
+    "compact_live_season_proofs",
+    "compact_teammate_adjacency",
     "compact_player_keys",
     "compact_team_keys",
     "player_headshots",
@@ -47,8 +47,14 @@ TRUNCATE_TABLES = [
     "teammate_stint_coverage",
 ]
 
+EDGE_SHIFT = 32
+EDGE_MASK = (1 << EDGE_SHIFT) - 1
+DEFAULT_MAX_DATABASE_MIB = 350
 
-def db_url() -> str:
+
+def db_url(explicit_url: str | None = None) -> str:
+    if explicit_url:
+        return explicit_url
     if load_dotenv:
         load_dotenv(ROOT / ".env")
     url = os.environ.get("DIRECT_URL") or os.environ.get("DATABASE_URL")
@@ -57,7 +63,9 @@ def db_url() -> str:
     return url
 
 
-def supabase_url() -> str:
+def supabase_url(explicit_url: str | None = None) -> str:
+    if explicit_url:
+        return explicit_url.rstrip("/")
     if load_dotenv:
         load_dotenv(ROOT / ".env")
     url = os.environ.get("SUPABASE_URL") or os.environ.get("NEXT_PUBLIC_SUPABASE_URL") or ""
@@ -97,6 +105,31 @@ def upsert_rows(cur: "psycopg.Cursor", sql: str, rows) -> int:
 
 def rows_from_sqlite(conn: sqlite3.Connection, sql: str, params: tuple = ()):
     yield from conn.execute(sql, params)
+
+
+def encode_edge(other_player_key: int, team_key: int) -> int:
+    if not 0 < int(other_player_key) < (1 << 31):
+        raise ValueError(f"player key cannot be encoded safely: {other_player_key}")
+    if not 0 < int(team_key) <= EDGE_MASK:
+        raise ValueError(f"team key cannot be encoded safely: {team_key}")
+    return (int(other_player_key) << EDGE_SHIFT) | int(team_key)
+
+
+def adjacency_rows(src: sqlite3.Connection):
+    """Yield one exact, directed teammate payload per player key."""
+    from collections import defaultdict
+
+    edges: dict[int, set[int]] = defaultdict(set)
+    for player_a, player_b, team_key in src.execute(
+        "SELECT player_a_key, player_b_key, team_key FROM teammate_team_seasons"
+    ):
+        player_a, player_b, team_key = int(player_a), int(player_b), int(team_key)
+        if player_a == player_b:
+            raise ValueError(f"self edge for player key {player_a}")
+        edges[player_a].add(encode_edge(player_b, team_key))
+        edges[player_b].add(encode_edge(player_a, team_key))
+    for player_key in sorted(edges):
+        yield player_key, sorted(edges[player_key])
 
 
 def transformed_headshot_rows(conn: sqlite3.Connection, base_url: str):
@@ -156,6 +189,50 @@ def load_all(pg: "psycopg.Connection", src: sqlite3.Connection, base_url: str) -
                 last_season=EXCLUDED.last_season
             """,
             ((sport, display, league, True, first, last) for sport, display, league, first, last in src.execute("SELECT * FROM sports ORDER BY sport_id")),
+        )
+        counts["franchises"] = upsert_rows(
+            cur,
+            """
+            INSERT INTO franchises (franchise_id, name, active)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (franchise_id) DO UPDATE SET
+                name=EXCLUDED.name,
+                active=EXCLUDED.active
+            """,
+            (
+                (franchise_id, name, True)
+                for franchise_id, name in src.execute(
+                    """
+                    SELECT franchise_id, MIN(name)
+                      FROM runtime_teams
+                     WHERE scope = 'baseball'
+                     GROUP BY franchise_id
+                     ORDER BY franchise_id
+                    """
+                )
+            ),
+        )
+        counts["sport_franchises"] = upsert_rows(
+            cur,
+            """
+            INSERT INTO sport_franchises (sport_id, franchise_id, name, active)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (sport_id, franchise_id) DO UPDATE SET
+                name=EXCLUDED.name,
+                active=EXCLUDED.active
+            """,
+            (
+                (sport_id, franchise_id, name, True)
+                for sport_id, franchise_id, name in src.execute(
+                    """
+                    SELECT scope, franchise_id, MIN(name)
+                      FROM runtime_teams
+                     WHERE scope <> 'baseball'
+                     GROUP BY scope, franchise_id
+                     ORDER BY scope, franchise_id
+                    """
+                )
+            ),
         )
         counts["teams"] = upsert_rows(
             cur,
@@ -308,36 +385,11 @@ def load_all(pg: "psycopg.Connection", src: sqlite3.Connection, base_url: str) -
         counts["sport_teammate_stint_coverage"] = copy_rows(cur, "sport_teammate_stint_coverage", ["sport_id", "season", "coverage_type", "strict", "source", "updated_at"], rows_from_sqlite(src, "SELECT sport_id, season, coverage_type, strict, source, updated_at FROM sport_teammate_stint_coverage ORDER BY sport_id, season"))
         counts["compact_player_keys"] = copy_rows(cur, "compact_player_keys", ["player_key", "scope", "player_id"], rows_from_sqlite(src, "SELECT player_key, scope, player_id FROM compact_player_keys ORDER BY player_key"))
         counts["compact_team_keys"] = copy_rows(cur, "compact_team_keys", ["team_key", "scope", "team_id", "season"], rows_from_sqlite(src, "SELECT team_key, scope, team_id, season FROM compact_team_keys ORDER BY team_key"))
-        counts["compact_mlb_teammate_game_proofs"] = copy_rows(
+        counts["compact_teammate_adjacency"] = copy_rows(
             cur,
-            "compact_mlb_teammate_game_proofs",
-            ["player_a_key", "player_b_key", "team_key", "season", "shared_games", "first_game_pk", "first_game_date"],
-            rows_from_sqlite(
-                src,
-                """
-                SELECT t.player_a_key, t.player_b_key, t.team_key, k.season, 1, 0,
-                       printf('%04d-01-01', k.season)
-                  FROM teammate_team_seasons t
-                  JOIN compact_team_keys k ON k.team_key=t.team_key
-                 WHERE t.scope='baseball'
-                 ORDER BY t.player_a_key, t.player_b_key, t.team_key
-                """,
-            ),
-        )
-        counts["compact_sport_teammates"] = copy_rows(
-            cur,
-            "compact_sport_teammates",
-            ["sport_id", "player_a_key", "player_b_key", "team_key", "season"],
-            rows_from_sqlite(
-                src,
-                """
-                SELECT t.scope, t.player_a_key, t.player_b_key, t.team_key, k.season
-                  FROM teammate_team_seasons t
-                  JOIN compact_team_keys k ON k.team_key=t.team_key
-                 WHERE t.scope<>'baseball'
-                 ORDER BY t.scope, t.player_a_key, t.player_b_key, t.team_key
-                """,
-            ),
+            "compact_teammate_adjacency",
+            ["player_key", "edge_codes"],
+            adjacency_rows(src),
         )
         pg.commit()
 
@@ -358,13 +410,24 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runtime-db", type=Path, default=DEFAULT_RUNTIME)
     parser.add_argument("--execute", action="store_true")
+    parser.add_argument("--max-database-mib", type=int, default=DEFAULT_MAX_DATABASE_MIB)
+    parser.add_argument(
+        "--database-url",
+        default=os.environ.get("TEAMMATETAG_TARGET_DATABASE_URL"),
+        help="Target only; prefer TEAMMATETAG_TARGET_DATABASE_URL to avoid shell history.",
+    )
+    parser.add_argument(
+        "--supabase-url",
+        default=os.environ.get("TEAMMATETAG_TARGET_SUPABASE_URL"),
+        help="Target project URL used in compact public headshot URLs.",
+    )
     args = parser.parse_args()
     if psycopg is None:
         raise SystemExit("ERROR: install psycopg first: pip install 'psycopg[binary]'")
     runtime = args.runtime_db.resolve()
     if not runtime.exists():
         raise SystemExit(f"ERROR: missing runtime DB: {runtime}")
-    base_url = supabase_url()
+    base_url = supabase_url(args.supabase_url)
     with sqlite3.connect(runtime) as src:
         local_counts = {
             "runtime_players": table_count(src, "runtime_players"),
@@ -373,17 +436,25 @@ def main() -> int:
             "teammate_team_seasons": table_count(src, "teammate_team_seasons"),
             "runtime_headshots": table_count(src, "runtime_headshots"),
         }
+        adjacency_count = sum(1 for _ in adjacency_rows(src))
         print("local runtime counts:", local_counts)
+        print(f"compact adjacency rows: {adjacency_count:,}")
         if not args.execute:
             print("dry run only; pass --execute to replace Supabase runtime data")
             return 0
-        with psycopg.connect(db_url(), autocommit=False, prepare_threshold=None) as pg:
+        with psycopg.connect(db_url(args.database_url), autocommit=False, prepare_threshold=None) as pg:
             before = remote_size(pg)
             print(f"Supabase size before: {before[0]}")
             counts = load_all(pg, src, base_url)
             after = remote_size(pg)
             print("loaded counts:", counts)
             print(f"Supabase size after: {after[0]}")
+            max_bytes = args.max_database_mib * 1024 * 1024
+            if after[1] > max_bytes:
+                raise SystemExit(
+                    f"ERROR: imported database is {after[0]}, above the "
+                    f"{args.max_database_mib} MiB safety ceiling"
+                )
     return 0
 
 

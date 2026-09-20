@@ -24,6 +24,32 @@ decision needs context.
 - Do not print or commit `.env`, Supabase passwords, Vercel tokens, or service
   role keys. `.env.example` documents required variables.
 
+### Replacement Supabase staging state, 2026-09-19
+
+- A clean replacement project, `TeamMateTag Runtime` (`olqfbeqxwtxbcjqvyivu`),
+  is staged but is not yet connected to production. The old full project must
+  remain untouched until the Vercel and GitHub Actions cutover succeeds.
+- Its runtime graph uses one packed exact-adjacency row per player instead of
+  the former indexed reverse proof matrix. At staging validation it is about
+  `162 MB`, below the `350 MiB` hard publisher ceiling. Raw boxscores and
+  player-game data remain local only.
+- Staging validation passed for all four sports: Manager Mode, Film Review
+  (including both Football units), Division Rivalry, Playoffs, private games,
+  queue-to-bot fallback, and friends requests/challenges. Synthetic test
+  accounts, games, results, and usage counters were removed afterward.
+- `scripts/runtime_database_guard.py` is called by every MLB/NFL/NBA/NHL
+  compact live updater. An update that would exceed the ceiling fails before
+  its transaction commits. `scripts/upload_file_storage_to_supabase.py` also
+  uses a bounded upload queue rather than creating thousands of futures.
+- Data API is intentionally disabled because the Flask app uses direct pooled
+  Postgres connections. `db/postgrest_disabled_data_api_workaround.sql` gives
+  PostgREST an empty schema to stop its disabled-API placeholder-schema error.
+- Before production cutover: commit/push the staged code, set GitHub Actions
+  `DATABASE_URL` and all Vercel Supabase variables to the replacement project,
+  deploy `main` as `0.5.59`, test the live site, then monitor the new project
+  before deleting the old project. Do not bump the version for staging-only
+  work.
+
 ### Product shape
 
 - Main sports: Baseball, Basketball, Football, Hockey.

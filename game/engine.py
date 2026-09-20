@@ -34,6 +34,8 @@ TURN_SECONDS = 30.0
 # Historical records stay in the dataset, but live play currently uses the
 # modern era. A future historical mode can lower this without a data reload.
 MIN_GAMEPLAY_SEASON = 2000
+COMPACT_EDGE_SHIFT = 32
+COMPACT_EDGE_MASK = (1 << COMPACT_EDGE_SHIFT) - 1
 
 
 class MoveOutcome(Enum):
@@ -150,6 +152,61 @@ def find_player_by_name(conn: sqlite3.Connection, raw: str, sport: str | None = 
     ).fetchall()
 
 
+def _compact_adjacency_shared_seasons(
+    conn: sqlite3.Connection,
+    a: str,
+    b: str,
+    scope: str,
+    min_season: int,
+) -> list[tuple[str, int]] | None:
+    """Read one packed proof row when the compact adjacency schema is present.
+
+    ``None`` means this is an older/local schema and established query paths
+    should handle it. An empty list is a valid compact answer, so it must not
+    fall through to looser appearance-based matching.
+    """
+    try:
+        keys = conn.execute(
+            """SELECT player_key, player_id
+                 FROM compact_player_keys
+                WHERE scope=? AND player_id IN (?, ?)""",
+            (scope, a, b),
+        ).fetchall()
+        if len(keys) != 2:
+            return []
+        key_by_player = {str(player_id): int(player_key) for player_key, player_id in keys}
+        current_key = key_by_player[a]
+        other_key = key_by_player[b]
+        row = conn.execute(
+            "SELECT edge_codes FROM compact_teammate_adjacency WHERE player_key=?",
+            (current_key,),
+        ).fetchone()
+    except Exception:
+        return None
+    if row is None:
+        return []
+    team_keys = sorted({
+        int(code) & COMPACT_EDGE_MASK
+        for code in (row[0] or [])
+        if int(code) >> COMPACT_EDGE_SHIFT == other_key
+    })
+    if not team_keys:
+        return []
+    try:
+        rows = conn.execute(
+            """SELECT team_id, season
+                 FROM compact_team_keys
+                WHERE scope=? AND season>=? AND team_key = ANY(?)
+                ORDER BY season, team_id""",
+            (scope, min_season, team_keys),
+        ).fetchall()
+    except Exception:
+        # SQLite keeps the canonical proof table instead of the Postgres array
+        # representation, so retain its tested compatibility path.
+        return None
+    return [(str(team_id), int(season)) for team_id, season in rows]
+
+
 def get_shared_seasons(
     conn: sqlite3.Connection,
     a: str,
@@ -159,6 +216,11 @@ def get_shared_seasons(
 ) -> list[tuple[str, int]]:
     if a == b:
         return []
+    compact_rows = _compact_adjacency_shared_seasons(
+        conn, a, b, sport or "baseball", min_season
+    )
+    if compact_rows is not None:
+        return compact_rows
     if sport:
         strict_game_coverage = conn.execute(
             """SELECT 1

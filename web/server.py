@@ -93,6 +93,7 @@ LOCAL_SPORT_SEEDS = {
     "hockey": "nhl:8474141",        # Patrick Kane
 }
 LOCAL_SPORT_MODE_NAMES = {
+    "baseball": "Manager Mode",
     "football": "Manager Mode",
     "basketball": "Manager Mode",
     "hockey": "Manager Mode",
@@ -9665,6 +9666,46 @@ def _bot_should_try_powerup(sport: str, blob: dict, state: GameState, side: str)
 
 def _bot_candidate_rows(conn, sport: str, current_player_id: str, used: list[str]) -> list[tuple[str, str, int]]:
     used = used or [current_player_id]
+    # Fresh compact projects keep one bounded, exact adjacency payload per
+    # player. Start from that primary-key row instead of asking Postgres to
+    # discover reverse proof-table matches across the entire historical graph.
+    try:
+        adjacency = conn.execute(
+            """SELECT graph.edge_codes
+                 FROM compact_teammate_adjacency graph
+                 JOIN compact_player_keys player
+                   ON player.player_key=graph.player_key
+                WHERE player.scope=%s AND player.player_id=%s""",
+            (sport, current_player_id),
+        ).fetchone()
+    except Exception:
+        adjacency = None
+    if adjacency is not None:
+        candidate_keys = sorted({int(code) >> 32 for code in (adjacency[0] or [])})
+        if not candidate_keys:
+            return []
+        if sport == "baseball":
+            return conn.execute(
+                """SELECT ps.player_id, ps.display_name, ps.career_games
+                     FROM compact_player_keys pk
+                     JOIN players_searchable ps ON ps.player_id=pk.player_id
+                    WHERE pk.scope='baseball' AND pk.player_key = ANY(%s)
+                      AND NOT (ps.player_id = ANY(%s))
+                    ORDER BY ps.career_games DESC, ps.player_id
+                    LIMIT 1000""",
+                (candidate_keys, used),
+            ).fetchall()
+        return conn.execute(
+            """SELECT ps.player_id, ps.display_name, ps.career_games
+                 FROM compact_player_keys pk
+                 JOIN sport_players_searchable ps
+                   ON ps.sport_id=pk.scope AND ps.player_id=pk.player_id
+                WHERE pk.scope=%s AND pk.player_key = ANY(%s)
+                  AND NOT (ps.player_id = ANY(%s))
+                ORDER BY ps.career_games DESC, ps.player_id
+                LIMIT 1000""",
+            (sport, candidate_keys, used),
+        ).fetchall()
     if sport == "baseball":
         return conn.execute(
             """
