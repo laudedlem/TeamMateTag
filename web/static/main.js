@@ -1684,10 +1684,15 @@ async function onMpTimeout() {
     mpOpponentTimeoutPollInFlight = true;
     try {
       await new Promise((resolve) => setTimeout(resolve, 350));
-      game = await api(onlineApiBase() + '/game', {
+      const next = await api(onlineApiBase() + '/game', {
         game_id: game.game_id,
         guest_id: guestId,
       });
+      if (next?.error) {
+        els.feedback.innerHTML = `<span class="bad">${escapeHtml(next.error)}</span>`;
+        return;
+      }
+      game = next;
       preloadGameHeadshots(game);
       renderMpGame();
       if (game.finished) {
@@ -1704,10 +1709,31 @@ async function onMpTimeout() {
   const timeoutPath = currentMode === 'po'
     ? (usesLocalPlayoffs() ? onlineApiBase() + '/game' : onlineApiBase() + '/timeout')
     : (USE_LOCAL_CROSS_SPORTS ? onlineApiBase() + '/game' : onlineApiBase() + '/timeout');
-  game = await api(timeoutPath, {
+  const timedOutGame = game;
+  const next = await api(timeoutPath, {
     game_id: game.game_id,
     guest_id: guestId,
   });
+  if (next?.error) {
+    // Pre-cutover browser tabs can still hold a game id from the retired
+    // runtime. Preserve a coherent timeout finish instead of replacing game
+    // state with the error object and rendering an "undefined" turn.
+    if (/unknown game_id/i.test(next.error)) {
+      game = {
+        ...timedOutGame,
+        finished: true,
+        winner: timedOutGame.your_turn ? timedOutGame.opponent_name : timedOutGame.your_name,
+        last_move: { outcome: 'timeout' },
+      };
+      renderMpGame();
+      showGameOverBanner();
+      return;
+    }
+    els.feedback.innerHTML = `<span class="bad">Could not finalize timeout. ${escapeHtml(next.error)}</span>`;
+    syncMpClock(null, game, { force: true });
+    return;
+  }
+  game = next;
   preloadGameHeadshots(game);
   if (game.finished) {
     renderMpGame();
@@ -1989,29 +2015,29 @@ function compactPowerupHint(powerup) {
   const key = powerup?.key || powerup?.powerup_key || '';
   const sport = CURRENT_SPORT || 'baseball';
   const map = {
-    bubblegum: '40+ HR same franchise. +5s',
-    pine_tar: '200+ K same franchise. +5s',
-    bat_donut: 'Silver Slugger same franchise. +5s',
-    sunglasses: 'All-Star same franchise. +5s',
-    backup_mitt: 'Gold Glove same franchise. +5s',
+    bubblegum: '40+ HR season. +5s',
+    pine_tar: '200+ K season. +5s',
+    bat_donut: 'Silver Slugger. +5s',
+    sunglasses: 'All-Star. +5s',
+    backup_mitt: 'Gold Glove. +5s',
     abs: '+15s now',
     quick_pitch: 'Opponent gets 10s',
     heat_check: '2,000-point season. +5s',
     sixth_man: '7,000 assists. +5s',
-    switch: 'Same position, same franchise. +5s',
+    switch: 'Same position. +5s',
     mvp_badge: sport === 'hockey' ? 'Hart winner. +5s' : 'MVP winner. +5s',
     all_star_callup: 'All-Star. +5s',
     timeout: '+15s now',
     full_court_press: 'Opponent gets 10s',
     trick_play: '20+ TD season. +5s',
     iron_man: '100+ games. +5s',
-    package_change: 'Same position, same franchise. +5s',
+    package_change: 'Same position. +5s',
     pro_bowl_callup: 'Pro Bowl. +5s',
     blitz: 'Opponent gets 10s',
     breakaway: '400+ goals. +5s',
     veteran_presence: '800+ points. +5s',
-    line_change: 'Same position, same franchise. +5s',
-    hart_honor: 'Hart winner same franchise. +5s',
+    line_change: 'Same position. +5s',
+    hart_honor: 'Hart winner. +5s',
     forecheck: 'Opponent gets 10s',
   };
   return map[key] || gameCopyStyle(powerup?.description || '');
@@ -2497,7 +2523,10 @@ function renderCardStack(chain, allStrikes, showStrikes, animateNewest = false) 
   els.cardStack.classList.toggle('mobile-chain-expanded', useMobileCurtain && mobileChainExpanded);
   reversed.slice(0, visibleCount).forEach((player, i) => {
     const isSeed = i === reversed.length - 1;
-    const playerCard = makePlayerCard(player, isSeed);
+    const originalIndex = chain.length - i - 1;
+    const playerCard = makePlayerCard(player, isSeed, {
+      winConditionSide: chainSideForIndex(originalIndex),
+    });
     if (animateNewest && i === 0) playerCard.classList.add('slide-in');
     els.cardStack.appendChild(playerCard);
 
@@ -2636,7 +2665,10 @@ function nameFitClass(name) {
 function makePlayerCard(player, isSeed, options = {}) {
   const showTeams = options.showTeams !== false;
   const playerCard = document.createElement('div');
-  playerCard.className = 'player-card' + (showTeams ? ' has-team-columns' : '') + (isSeed ? ' seed' : '') + (player.win_condition_hit ? ' win-hit' : '');
+  const winHitClass = player.win_condition_hit
+    ? ` win-hit ${options.winConditionSide === game?.your_side ? 'win-hit-you' : 'win-hit-opponent'}`
+    : '';
+  playerCard.className = 'player-card' + (showTeams ? ' has-team-columns' : '') + (isSeed ? ' seed' : '') + winHitClass;
   const teamColors = playerTeamColors(player.team_stints);
   if (teamColors.length) {
     playerCard.classList.add('team-color-card');
@@ -2674,15 +2706,8 @@ function makePlayerCard(player, isSeed, options = {}) {
   const identity = document.createElement('div');
   identity.className = 'player-identity';
   identity.append(headshot, info);
-  let winMarker = null;
-  if (player.win_condition_hit) {
-    winMarker = document.createElement('span');
-    winMarker.className = 'win-hit-marker';
-    winMarker.textContent = `WIN +${Math.max(1, Number(player.win_condition_value || 1))}x`;
-  }
   if (!showTeams) {
     playerCard.appendChild(identity);
-    if (winMarker) playerCard.appendChild(winMarker);
     return playerCard;
   }
 
@@ -2699,7 +2724,6 @@ function makePlayerCard(player, isSeed, options = {}) {
     identity,
     makeTeamColumn(teams.slice(splitAt), 'right'),
   );
-  if (winMarker) playerCard.appendChild(winMarker);
   return playerCard;
 }
 
@@ -2722,16 +2746,17 @@ function makeConnectionBar(sharedSeasons, allStrikes, showStrikes, linkMeta) {
     const burned = count >= 3;
     const pill = document.createElement('span');
     pill.className = 'season-pill' + (burned ? ' burned' : '');
+    const franchiseOnlyPowerupLink = linkMeta?.type === 'powerup';
     if (showStrikes) {
       pill.innerHTML = `
-        ${escapeHtml(s.team_name)} ${escapeHtml(seasonText(s))}
+        ${escapeHtml(s.team_name)}${franchiseOnlyPowerupLink ? '' : ` ${escapeHtml(seasonText(s))}`}
         <span class="x-marks">
           <span class="x-mark ${count >= 1 ? 's' + Math.min(count, 3) : ''}"></span>
           <span class="x-mark ${count >= 2 ? 's' + Math.min(count, 3) : ''}"></span>
           <span class="x-mark ${count >= 3 ? 's3' : ''}"></span>
         </span>`;
     } else {
-      pill.innerHTML = `${escapeHtml(s.team_name)} ${escapeHtml(seasonText(s))}`;
+      pill.innerHTML = `${escapeHtml(s.team_name)}${franchiseOnlyPowerupLink ? '' : ` ${escapeHtml(seasonText(s))}`}`;
     }
     seasons.appendChild(pill);
   });
@@ -3583,11 +3608,11 @@ function renderPowerupReferenceHtml() {
     quick_pitch: 'Quick Pitch',
   };
   const baseballRows = [
-    ['bubblegum', 'Name a Player from the same franchise with a 40+ home run season. +5 seconds.'],
-    ['pine_tar', 'Name a Player from the same franchise with a 200+ strikeout season. +5 seconds.'],
-    ['bat_donut', 'Name a Silver Slugger from the same franchise. +5 seconds.'],
-    ['sunglasses', 'Name an All-Star from the same franchise. +5 seconds.'],
-    ['backup_mitt', 'Name a Gold-Glover from the same franchise. +5 seconds.'],
+    ['bubblegum', 'Name a Player with a 40+ home run season. +5 seconds.'],
+    ['pine_tar', 'Name a Player with a 200+ strikeout season. +5 seconds.'],
+    ['bat_donut', 'Name a Silver Slugger. +5 seconds.'],
+    ['sunglasses', 'Name an All-Star. +5 seconds.'],
+    ['backup_mitt', 'Name a Gold-Glover. +5 seconds.'],
     ['abs', '+15 seconds.'],
     ['quick_pitch', 'Your opponent only has 10 seconds on their next turn.'],
   ];
@@ -3635,7 +3660,7 @@ function renderPowerupReferenceHtml() {
   </table>`;
   if (!CURRENT_SPORT) {
     const allSports = ['baseball', 'basketball', 'football', 'hockey'];
-    return `<p class="muted">Playoffs adds Powerups and Win Conditions to the Head-to-Head Lineup Game.</p>
+    return `<p class="muted">Playoffs adds Powerups and Win Conditions to the Head-to-Head Lineup Game. Player-naming Powerups require a qualified Player from one of the top card's franchises; they do not need to be direct TeamMates.</p>
       <h3>Win Conditions</h3>${conditionTable}
       ${allSports.map((sportKey) => {
         const sportRowsForKey = sportRows[sportKey] || baseballRows;

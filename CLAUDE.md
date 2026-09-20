@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.6.0`, the compact-runtime live-data reliability
+- Current display version is `0.6.1`, the Playoffs rules and timeout hotfix
   release. Verify the production footer after each deployment.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -456,6 +456,14 @@ decision needs context.
   player cards now show their actual game calendar year, while NBA and NHL
   retain their date-aware cross-year card labels. Film Review's compact daily
   cache and live hub were verified against the replacement runtime.
+- `0.6.1`: An activated Playoffs Powerup is now always resolved as a qualified
+  same-franchise escape across all four sports, even when the candidate also
+  happens to be a normal teammate; these moves never advance Win Conditions.
+  Powerup links display the franchise without a made-up team season. Win hits
+  use clear green/red card treatment instead of a floating label. Client
+  timeout handling no longer replaces a game with an `unknown game_id` error.
+  Future Film Review lineups strongly prefer players active within the last
+  decade, with only occasional historical links.
 
 ### Important implementation notes
 

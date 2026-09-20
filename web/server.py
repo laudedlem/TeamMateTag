@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.6.0"
+APP_VERSION = "0.6.1"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -10602,21 +10602,34 @@ def sport_online_move(sport: str, mode: str):
             _sport_online_save(conn, gid, blob)
             return jsonify(_sport_online_state(conn, gid, blob, state, guest))
         player_id, raw = (data.get("player_id") or "").strip() or None, (data.get("raw") or "").strip()
-        result = validate_and_apply_move(
-            state,
-            PgEngineConn(conn),
-            raw_input=None if player_id else raw,
-            player_id=player_id,
-            track_strikes=True,
-            sport=_engine_sport(sport),
-        )
-        payload = result_to_dict(result)
-        if mode == "po" and result.outcome != MoveOutcome.VALID:
+        active_powerup = mode == "po" and bool(blob.get("active_turn_powerup"))
+        if active_powerup:
+            # An activated Powerup is an escape route, not a normal teammate
+            # guess with a fallback. Resolve it first even when the candidate
+            # also happens to be a conventional teammate, so it consistently
+            # uses franchise eligibility and never advances a Win Condition.
             if sport == "baseball":
-                alternate = _apply_playoff_powerup_move(conn, state, blob, raw=raw if raw else None, player_id=player_id)
+                payload = _apply_playoff_powerup_move(
+                    conn, state, blob, raw=raw if raw else None, player_id=player_id,
+                )
             else:
-                alternate = _local_po_powerup_move(PgEngineConn(conn), blob, raw, player_id)
-            payload = alternate or payload
+                payload = _local_po_powerup_move(PgEngineConn(conn), blob, raw, player_id)
+            if payload is None:
+                result = validate_and_apply_move(
+                    state, PgEngineConn(conn), raw_input=None if player_id else raw,
+                    player_id=player_id, track_strikes=True, sport=_engine_sport(sport),
+                )
+                payload = result_to_dict(result)
+        else:
+            result = validate_and_apply_move(
+                state,
+                PgEngineConn(conn),
+                raw_input=None if player_id else raw,
+                player_id=player_id,
+                track_strikes=True,
+                sport=_engine_sport(sport),
+            )
+            payload = result_to_dict(result)
         blob.update(serialize_state(state)); blob["last_move"] = payload
         if payload.get("outcome") == "valid":
             mover = "p1" if guest == blob["p1_guest_id"] else "p2"

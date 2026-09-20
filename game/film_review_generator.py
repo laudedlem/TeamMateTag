@@ -532,8 +532,9 @@ def generate(conn: sqlite3.Connection, sport: str, puzzle_day: date | None = Non
     missing = [slot for slot in set(slots) if not pools[slot]]
     if missing:
         raise ValueError(f"{sport} is missing exact position data for: {', '.join(sorted(missing))}")
-    # The first connection is the on-ramp to a daily puzzle. Keep both visible
-    # players in the modern era where the current player base is most fluent.
+    # Prefer the last decade throughout the lineup. A single historical link
+    # can still surface when the graph supports it, but it should feel like a
+    # change of pace rather than the default daily puzzle texture.
     recent_players = {
         row[0] for row in conn.execute(
             "SELECT player_id FROM sport_players WHERE sport_id=? AND final_year>=?",
@@ -566,6 +567,7 @@ def generate(conn: sqlite3.Connection, sport: str, puzzle_day: date | None = Non
         deck = [rng.choice(starters[:min(12, len(starters))])]
         links: list[tuple[str, int]] = []
         used_players, used_links = {deck[0]}, set()
+        historical_link_used = False
         failed = False
         for slot_index, slot in enumerate(slots[1:], 1):
             choices = [
@@ -583,6 +585,21 @@ def generate(conn: sqlite3.Connection, sport: str, puzzle_day: date | None = Non
             if not choices:
                 failed = True
                 break
+            modern_choices = [item for item in choices if item[0] in recent_players]
+            if modern_choices:
+                # Keep the on-ramp modern. Later in the puzzle, permit at
+                # most one deliberate historical choice on roughly one in six
+                # daily branches when a current-player alternative exists.
+                allow_historical = (
+                    slot_index > 2
+                    and not historical_link_used
+                    and any(item[0] not in recent_players for item in choices)
+                    and rng.randrange(6) == 0
+                )
+                if not allow_historical:
+                    choices = modern_choices
+                else:
+                    historical_link_used = True
             rng.shuffle(choices)
             choices.sort(key=lambda item: pools[slot][item[0]], reverse=True)
             next_player, link = rng.choice(choices[:_choice_window(slot_index, len(slots), len(choices))])
