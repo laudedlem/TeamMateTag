@@ -1136,7 +1136,7 @@ def main() -> int:
     print(f"window_player_games_imported: {player_games:,}")
 
     if args.upload:
-        if not summary["appearances"]:
+        if not summary["player_team_seasons"]:
             print(f"no completed regular-season MLB appearances for {args.season}; skipping upload")
             return 0
         database_url = os.environ.get("DATABASE_URL") or os.environ.get("DIRECT_URL")

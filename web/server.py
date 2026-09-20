@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.5.59"
+APP_VERSION = "0.6.0"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
 LOCAL_SPORTS_ENABLED = os.environ.get("TEAMMATETAG_LOCAL_SPORTS") == "1"
@@ -3865,6 +3865,11 @@ def _sport_card_display_stint_label(sport: str, start: int, end: int,
                                     overlap_years: dict[int, int] | None = None,
                                     first_label: str | None = None,
                                     last_label: str | None = None) -> str:
+    # NFL seasons are keyed by the calendar year in which their games begin.
+    # NBA and NHL use a cross-year season key, so only those need date-based
+    # card labels such as 2025-2026.
+    if sport == "football":
+        return _format_calendar_year_span(start, end)
     if _cross_year_season_sports(sport):
         first_year = _calendar_year_from_label(first_label)
         last_year = _calendar_year_from_label(last_label)

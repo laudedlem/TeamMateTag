@@ -13,8 +13,9 @@ on:
         default: false
         type: boolean
   schedule:
-    # Late enough to catch most completed West Coast games, cheap enough to rerun.
-    - cron: "20 10 * * *"
+    # Daily compact-runtime sweep: 05:15 CDT / 04:15 CST. This catches every
+    # completed game from the prior day without overlapping the other leagues.
+    - cron: "15 10 * * *"
 
 jobs:
   update-mlb-compact-live-data:

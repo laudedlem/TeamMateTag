@@ -15,8 +15,8 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.5.59`, pending production deployment from the
-  replacement-Supabase cutover commit.
+- Current display version is `0.6.0`, the compact-runtime live-data reliability
+  release. Verify the production footer after each deployment.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
 - The user playtests on the live site, not local. When deploying code changes,
@@ -24,14 +24,14 @@ decision needs context.
 - Do not print or commit `.env`, Supabase passwords, Vercel tokens, or service
   role keys. `.env.example` documents required variables.
 
-### Replacement Supabase staging state, 2026-09-19
+### Replacement Supabase production state, 2026-09-19
 
-- A clean replacement project, `TeamMateTag Runtime` (`olqfbeqxwtxbcjqvyivu`),
-  is staged but is not yet connected to production. The old full project must
-  remain untouched until the Vercel and GitHub Actions cutover succeeds.
+- Production uses the clean replacement project, `TeamMateTag Runtime`
+  (`olqfbeqxwtxbcjqvyivu`). Keep the old full project untouched until the new
+  project has remained healthy through continued playtesting.
 - Its runtime graph uses one packed exact-adjacency row per player instead of
-  the former indexed reverse proof matrix. At staging validation it is about
-  `162 MB`, below the `350 MiB` hard publisher ceiling. Raw boxscores and
+  the former indexed reverse proof matrix. It is about `177 MB`, below the
+  `350 MiB` hard publisher ceiling. Raw boxscores and
   player-game data remain local only.
 - Staging validation passed for all four sports: Manager Mode, Film Review
   (including both Football units), Division Rivalry, Playoffs, private games,
@@ -44,11 +44,11 @@ decision needs context.
 - Data API is intentionally disabled because the Flask app uses direct pooled
   Postgres connections. `db/postgrest_disabled_data_api_workaround.sql` gives
   PostgREST an empty schema to stop its disabled-API placeholder-schema error.
-- Before production cutover: commit/push the staged code, set GitHub Actions
-  `DATABASE_URL` and all Vercel Supabase variables to the replacement project,
-  deploy `main` as `0.5.59`, test the live site, then monitor the new project
-  before deleting the old project. Do not bump the version for staging-only
-  work.
+- Vercel and GitHub Actions use the replacement project. Live publishers are
+  staggered daily: MLB 05:15, NHL 05:30, NBA 05:45, and NFL 06:00 Central
+  during daylight time, shifting one hour earlier during standard time. Daily
+  NFL polling covers Thursday, Sunday, Monday, and unusual game days as soon
+  as nflverse publishes snap counts.
 
 ### Product shape
 
@@ -450,6 +450,12 @@ decision needs context.
   migrated, instead of failing with `UndefinedColumn`.
 - `0.5.58`: Contact, privacy, terms, and account-recovery pages now use the
   active public support mailbox `support.teammatetag@gmail.com`.
+- `0.6.0`: Repaired the MLB compact live publisher's pre-upload `KeyError` and
+  republished current 2026 MLB game-level proofs. Current 2026 NFL snap-level
+  proofs are also live, including DJ Moore's Buffalo Bills stint. Football
+  player cards now show their actual game calendar year, while NBA and NHL
+  retain their date-aware cross-year card labels. Film Review's compact daily
+  cache and live hub were verified against the replacement runtime.
 
 ### Important implementation notes
 

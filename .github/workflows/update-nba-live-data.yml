@@ -13,8 +13,8 @@ on:
         default: false
         type: boolean
   schedule:
-    # Runs after overnight West Coast games are final; offseason runs no-op.
-    - cron: "55 10 * * *"
+    # Runs third in the daily compact-runtime sweep; offseason runs are no-ops.
+    - cron: "45 10 * * *"
 
 jobs:
   update-nba-compact-live-data:

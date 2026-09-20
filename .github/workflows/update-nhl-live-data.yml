@@ -13,8 +13,8 @@ on:
         default: false
         type: boolean
   schedule:
-    # After most West Coast NHL games are final.
-    - cron: "45 10 * * *"
+    # Runs second in the daily compact-runtime sweep, after final overnight scores.
+    - cron: "30 10 * * *"
 
 jobs:
   update-nhl-compact-live-data:

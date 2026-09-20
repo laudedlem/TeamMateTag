@@ -8,8 +8,10 @@ on:
         required: false
         type: string
   schedule:
-    # Runs daily during the season; offseason and pre-snap-file runs no-op.
-    - cron: "25 11 * * *"
+    # Runs last every morning. Daily polling covers Thursday, Sunday, Monday,
+    # and unusual NFL game days as soon as nflverse posts snap counts; an
+    # unavailable source remains a cheap no-op.
+    - cron: "0 11 * * *"
 
 jobs:
   update-nfl-compact-live-data:
