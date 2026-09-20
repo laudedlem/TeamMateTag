@@ -9986,19 +9986,28 @@ body[data-mode-hub="manager"] .manager-starter-name span {
 .game-main .player-card.win-hit-you {
   --win-hit-color: #0284c7;
   --win-hit-fill: #7dd3fc;
+  --win-hit-text: #082f49;
   color: #082f49;
 }
 
 .game-main .player-card.win-hit-opponent {
   --win-hit-color: #db2777;
   --win-hit-fill: #f472b6;
+  --win-hit-text: #500724;
   color: #500724;
+}
+
+.game-main .player-card.win-hit .player-info .name,
+.game-main .player-card.win-hit .player-info .years,
+.game-main .player-card.win-hit .card-team-column li {
+  color: var(--win-hit-text) !important;
+  font-weight: 800;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.34);
 }
 
 .game-main .player-card.win-hit .card-team-column li {
   background: rgba(255, 255, 255, 0.42);
   border-color: rgba(15, 23, 42, 0.26);
-  color: inherit;
 }
 
 /* 0.5.21: desktop Playoffs info lives in the side rail above lineup/out. */
