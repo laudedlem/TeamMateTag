@@ -10,7 +10,7 @@
   <header>
     <div class="title">
       <div class="brand-row">
-        <h1>TeamMateTag.Com</h1>
+        <h1><a class="brand-link" href="/">TeamMateTag.Com</a></h1>
         <span class="app-version" title="Current version">{{ app_version }}</span>
       </div>
     </div>
@@ -23,7 +23,7 @@
       {% if donation_url %}
       <div class="donate-checkout-handoff">
         <a class="primary donation-link" href="{{ donation_url }}" rel="noopener">Continue to secure checkout &rarr;</a>
-        <p class="muted small">Secure checkout is handled by Stripe. You can return to TeamMateTag when you are done.</p>
+        <p class="muted small">Payments are securely handled by Stripe.</p>
       </div>
       {% else %}
       <p class="muted">Secure donations are being set up. Check back soon.</p>
