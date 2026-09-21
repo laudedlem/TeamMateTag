@@ -15,8 +15,8 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.6.12`, the friend head-to-head and postgame
-  challenge release. Verify the production footer after each deployment.
+- Current display version is `0.6.13`, the friend postgame agreement and
+  handoff integrity release. Verify the production footer after each deployment.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
 - The user playtests on the live site, not local. When deploying code changes,
@@ -519,6 +519,12 @@ decision needs context.
   a compact, preselected sport/mode chooser for a new challenge without
   leaving the game page; incoming challenges expose Accept, Challenge, Home,
   and Decline actions.
+- `0.6.13`: Incoming challenges on `/friends` now use only Accept, Challenge,
+  and Decline. Finished friend-game lobbies center all four actions: Accept,
+  Decline, Challenge, and Home. A pair-level transaction lock now coordinates
+  friend rematches with new challenges: accepting a new challenge clears stale
+  rematch requests, redirects the sender from a finished lobby into the agreed
+  game, and blocks any old rematch from creating an orphaned game.
 
 ### Important implementation notes
 

@@ -827,9 +827,6 @@ function wireFriendsActions() {
   document.querySelectorAll('[data-challenge-cancel]').forEach((btn) => {
     btn.addEventListener('click', () => cancelFriendChallenge(btn.dataset.challengeCancel));
   });
-  document.querySelectorAll('[data-friend-home]').forEach((btn) => {
-    btn.addEventListener('click', goHome);
-  });
   document.querySelectorAll('[data-friend-challenge-sport]').forEach((btn) => {
     btn.addEventListener('click', () => {
       friendChallengeSelection.sport = btn.dataset.friendChallengeSport;
@@ -968,7 +965,6 @@ function renderFriends() {
     (row) => `
       <button class="secondary" type="button" data-challenge-accept="${row.challenge_id}">Accept</button>
       <button class="secondary" type="button" data-friend-challenge="${row.user_id}">Challenge</button>
-      <button class="secondary" type="button" data-friend-home>Home</button>
       <button class="secondary" type="button" data-challenge-decline="${row.challenge_id}">Decline</button>
     `,
   );
@@ -1029,7 +1025,7 @@ async function refreshFriends() {
   friendsData = next;
   renderFriends();
   renderIncomingFriendGameoverChallenge();
-  if (friendsData.matched_redirect && !isOnlineMode()) {
+  if (friendsData.matched_redirect && (!isOnlineMode() || game?.finished)) {
     window.location.assign(friendsData.matched_redirect);
   }
 }
@@ -1188,12 +1184,16 @@ function renderIncomingFriendGameoverChallenge() {
     <div class="friend-gameover-actions">
       <button class="primary" type="button" data-gameover-incoming-accept="${incoming.challenge_id}">Accept</button>
       <button class="secondary" type="button" data-gameover-incoming-challenge>Challenge</button>
+      <button class="secondary" type="button" data-gameover-incoming-decline="${incoming.challenge_id}">Decline</button>
       <button class="secondary" type="button" data-gameover-incoming-home>Home</button>
     </div>`;
   els.friendGameoverChallenge.querySelector('[data-gameover-incoming-accept]')?.addEventListener('click', (event) => {
     respondFriendChallenge(event.currentTarget.dataset.gameoverIncomingAccept, true);
   });
   els.friendGameoverChallenge.querySelector('[data-gameover-incoming-challenge]')?.addEventListener('click', openFriendGameoverChallenge);
+  els.friendGameoverChallenge.querySelector('[data-gameover-incoming-decline]')?.addEventListener('click', (event) => {
+    respondFriendChallenge(event.currentTarget.dataset.gameoverIncomingDecline, false);
+  });
   els.friendGameoverChallenge.querySelector('[data-gameover-incoming-home]')?.addEventListener('click', goHome);
 }
 
@@ -1674,6 +1674,13 @@ async function rematch() {
       await enterMatchedGame(res.game);
       return;
     }
+    if (res.status === 'superseded') {
+      els.mpRematchStatus.hidden = false;
+      els.mpRematchStatus.textContent = res.message || 'A newer friend challenge is already active.';
+      els.playAgainBtn.hidden = true;
+      els.requeueBtn.hidden = true;
+      return;
+    }
     els.mpRematchStatus.hidden = false;
     els.mpRematchStatus.textContent = "Let's Play Two? Waiting on Your Opponent.";
     els.requeueBtn.hidden = !!game.friend_matchup;
@@ -1875,6 +1882,14 @@ function runOpeningCountdown() {
       setGuessDisabled(isOnlineMode() && !game?.your_turn);
       resetTurnTimer();
       autoFocusGuessInput();
+      return;
+    }
+    if (res.status === 'superseded') {
+      clearInterval(mpRematchPollInterval);
+      els.mpRematchStatus.hidden = false;
+      els.mpRematchStatus.textContent = res.message || 'A newer friend challenge is already active.';
+      els.playAgainBtn.hidden = true;
+      els.requeueBtn.hidden = true;
       return;
     }
     els.timer.textContent = String(Math.ceil(left));
@@ -2602,6 +2617,14 @@ function startRematchPolling() {
       return;
     }
     if (res.status === 'abandoned') {
+      if (game.friend_matchup) {
+        clearInterval(mpRematchPollInterval);
+        els.mpRematchStatus.hidden = false;
+        els.mpRematchStatus.textContent = 'Your friend left this finished game.';
+        els.playAgainBtn.hidden = true;
+        els.requeueBtn.hidden = true;
+        return;
+      }
       if (res.you_requested) {
         els.mpRematchStatus.hidden = false;
         els.mpRematchStatus.textContent = 'Opponent Left. Finding a New Match...';
@@ -2623,7 +2646,7 @@ function startRematchPolling() {
       els.mpRematchStatus.hidden = false;
       els.mpRematchStatus.textContent = 'Rematch Is Unavailable After a Player Leaves.';
       els.playAgainBtn.hidden = true;
-      els.requeueBtn.hidden = false;
+      els.requeueBtn.hidden = !!game.friend_matchup;
       return;
     }
     if (res.opponent_requested && !res.you_requested) {

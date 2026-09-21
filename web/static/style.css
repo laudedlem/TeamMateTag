@@ -328,6 +328,7 @@ header .title h1 {
   display: flex;
   flex-wrap: wrap;
   gap: .45rem;
+  justify-content: center;
 }
 
 @media (max-width: 620px) {

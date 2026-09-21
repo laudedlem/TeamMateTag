@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.6.12"
+APP_VERSION = "0.6.13"
 INTERNAL_AUTH_EMAIL_DOMAIN = "auth.teammatetag.com"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
@@ -3595,6 +3595,17 @@ def friends_challenge_respond():
                 (challenge_id,),
             )
             return jsonify(_friends_payload(conn, guest_id))
+        first_id, second_id = _friendship_pair(sender_id, recipient_id)
+        # A fresh challenge and an old rematch may arrive together. Lock the
+        # pair across every sport/mode so only one agreed next game can exist.
+        conn.execute(
+            "SELECT pg_advisory_xact_lock(hashtext(%s))",
+            (f"friend-next-game:{first_id}:{second_id}",),
+        )
+        if (_active_sport_game_for_guest(conn, sender_id) or
+                _active_sport_game_for_guest(conn, recipient_id)):
+            return jsonify({"error": "You already have an active friend game together."}), 409
+        _clear_finished_friend_rematches(conn, sender_id, recipient_id)
         gid, blob, state = _sport_online_create(
             conn,
             sport,
@@ -9327,6 +9338,32 @@ def _sport_online_save(conn, game_id: str, blob: dict):
                  (Jsonb(blob), bool(blob.get("finished")), game_id))
 
 
+def _active_sport_game_for_guest(conn, guest_id: str, *, exclude_game_id: str | None = None) -> str | None:
+    row = conn.execute(
+        """SELECT game_id::text
+             FROM sport_online_games
+            WHERE NOT finished
+              AND (state->>'p1_guest_id'=%s OR state->>'p2_guest_id'=%s)
+              AND (%s IS NULL OR game_id <> %s::uuid)
+            ORDER BY created_at DESC
+            LIMIT 1""",
+        (guest_id, guest_id, exclude_game_id, exclude_game_id),
+    ).fetchone()
+    return row[0] if row else None
+
+
+def _clear_finished_friend_rematches(conn, first_guest_id: str, second_guest_id: str):
+    conn.execute(
+        """DELETE FROM sport_online_rematches r
+             USING sport_online_games g
+            WHERE r.original_game_id = g.game_id
+              AND g.finished
+              AND ((g.state->>'p1_guest_id'=%s AND g.state->>'p2_guest_id'=%s)
+                OR (g.state->>'p1_guest_id'=%s AND g.state->>'p2_guest_id'=%s))""",
+        (first_guest_id, second_guest_id, second_guest_id, first_guest_id),
+    )
+
+
 def _bot_guest_ids(blob: dict) -> set[str]:
     return {str(item) for item in (blob.get("bot_guest_ids") or []) if item}
 
@@ -10854,6 +10891,18 @@ def sport_online_rematch(sport: str, mode: str):
         if link:
             new_blob,new_state=_sport_online_load(conn,sport,mode,link[0]); return jsonify({"status":"matched","game":_sport_online_state(conn,link[0],new_blob,new_state,guest)})
         other = blob["p2_guest_id"] if guest == blob["p1_guest_id"] else blob["p1_guest_id"]
+        if blob.get("friend_challenge_id"):
+            first_id, second_id = _friendship_pair(guest, other)
+            conn.execute(
+                "SELECT pg_advisory_xact_lock(hashtext(%s))",
+                (f"friend-next-game:{first_id}:{second_id}",),
+            )
+            if (_active_sport_game_for_guest(conn, guest, exclude_game_id=gid) or
+                    _active_sport_game_for_guest(conn, other, exclude_game_id=gid)):
+                return jsonify({
+                    "status": "superseded",
+                    "message": "A newer friend challenge is already active."
+                })
         bot_rematch = _is_bot_guest(blob, other)
         requesters = {row[0] for row in conn.execute(
             "SELECT requester_guest_id::text FROM sport_online_rematches WHERE original_game_id=%s", (gid,)
