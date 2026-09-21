@@ -15,7 +15,8 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.6.15`, the friend match launch repair. Verify
+- Current display version is `0.6.16`, the friend challenge visibility and
+  rematch coexistence update. Verify
   the production footer after each deployment.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -533,6 +534,12 @@ decision needs context.
   accepted. A rematch-only response check had been placed in the opening
   countdown and referenced an undefined value; it now lives solely in the
   rematch poller, allowing both players to enter the agreed sport game.
+- `0.6.16`: Friend-game headers now show only the compact head-to-head score
+  beside the timer. Challenge composers visibly toggle to an incoming
+  challenge from the same friend, without hiding either request. Each friend
+  pair has one editable pending challenge, while a finished-game rematch may
+  coexist until either accepted path creates the next shared game and retires
+  the other request.
 
 ### Important implementation notes
 
