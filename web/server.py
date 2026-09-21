@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.6.13"
+APP_VERSION = "0.6.14"
 INTERNAL_AUTH_EMAIL_DOMAIN = "auth.teammatetag.com"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
@@ -9339,16 +9339,27 @@ def _sport_online_save(conn, game_id: str, blob: dict):
 
 
 def _active_sport_game_for_guest(conn, guest_id: str, *, exclude_game_id: str | None = None) -> str | None:
-    row = conn.execute(
-        """SELECT game_id::text
-             FROM sport_online_games
-            WHERE NOT finished
-              AND (state->>'p1_guest_id'=%s OR state->>'p2_guest_id'=%s)
-              AND (%s IS NULL OR game_id <> %s::uuid)
-            ORDER BY created_at DESC
-            LIMIT 1""",
-        (guest_id, guest_id, exclude_game_id, exclude_game_id),
-    ).fetchone()
+    if exclude_game_id:
+        row = conn.execute(
+            """SELECT game_id::text
+                 FROM sport_online_games
+                WHERE NOT finished
+                  AND (state->>'p1_guest_id'=%s OR state->>'p2_guest_id'=%s)
+                  AND game_id <> %s::uuid
+                ORDER BY created_at DESC
+                LIMIT 1""",
+            (guest_id, guest_id, exclude_game_id),
+        ).fetchone()
+    else:
+        row = conn.execute(
+            """SELECT game_id::text
+                 FROM sport_online_games
+                WHERE NOT finished
+                  AND (state->>'p1_guest_id'=%s OR state->>'p2_guest_id'=%s)
+                ORDER BY created_at DESC
+                LIMIT 1""",
+            (guest_id, guest_id),
+        ).fetchone()
     return row[0] if row else None
 
 

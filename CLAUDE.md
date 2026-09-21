@@ -15,8 +15,8 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.6.13`, the friend postgame agreement and
-  handoff integrity release. Verify the production footer after each deployment.
+- Current display version is `0.6.14`, the friend challenge acceptance repair.
+  Verify the production footer after each deployment.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
 - The user playtests on the live site, not local. When deploying code changes,
@@ -525,6 +525,10 @@ decision needs context.
   friend rematches with new challenges: accepting a new challenge clears stale
   rematch requests, redirects the sender from a finished lobby into the agreed
   game, and blocks any old rematch from creating an orphaned game.
+- `0.6.14`: Fixed the active-game guard used by friend challenge acceptance.
+  Its null exclusion path could produce a PostgreSQL parameter-type error and
+  prevent Accept from creating the agreed game; the guard now uses separate,
+  fully typed query paths for new challenges and rematches.
 
 ### Important implementation notes
 
