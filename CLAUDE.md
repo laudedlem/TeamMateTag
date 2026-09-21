@@ -15,8 +15,8 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.6.16`, the friend challenge visibility and
-  rematch coexistence update. Verify
+- Current display version is `0.6.17`, the unified friend match-request
+  update. Verify
   the production footer after each deployment.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -540,6 +540,13 @@ decision needs context.
   pair has one editable pending challenge, while a finished-game rematch may
   coexist until either accepted path creates the next shared game and retires
   the other request.
+- `0.6.17`: Finished friend games now use one compact match-request panel for
+  rematches and sport/mode challenges. It shows color-coded Incoming and
+  Outgoing cards, supports direct accept/decline/cancel or decline dismissal,
+  and lets either player replace their one pending request in real time. A
+  friend rematch is stored compactly in the existing challenge row with its
+  finished game reference, rather than using a parallel status flow. Desktop
+  has a roomier default visual scale while mobile stays unchanged.
 
 ### Important implementation notes
 

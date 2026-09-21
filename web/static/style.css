@@ -325,6 +325,76 @@ header .title h1 {
   font-size: .72rem;
 }
 
+.friend-match-request {
+  --request-sport: var(--accent);
+  --request-mode: var(--accent-hover);
+  display: grid;
+  gap: .5rem;
+  padding: .72rem;
+  background: linear-gradient(128deg,
+    color-mix(in srgb, var(--request-sport) 28%, var(--bg-elevated)),
+    color-mix(in srgb, var(--request-mode) 22%, var(--bg-elevated)));
+  border: 1px solid color-mix(in srgb, var(--request-sport) 54%, var(--border));
+  border-left: 4px solid var(--request-sport);
+  border-radius: 7px;
+}
+
+.friend-match-request.request-sport-baseball { --request-sport: #f25555; }
+.friend-match-request.request-sport-basketball { --request-sport: #ff8a34; }
+.friend-match-request.request-sport-football { --request-sport: #50d36b; }
+.friend-match-request.request-sport-hockey { --request-sport: #4ab3ff; }
+.friend-match-request.request-mode-division { --request-mode: #ff65ad; }
+.friend-match-request.request-mode-playoffs { --request-mode: #ffd84f; }
+
+.friend-match-request.is-declined {
+  --request-sport: #ff5b5b;
+  --request-mode: #ff8b8b;
+}
+
+.friend-match-request-heading {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: .32rem .58rem;
+}
+
+.friend-match-request-heading span {
+  color: color-mix(in srgb, var(--request-mode) 78%, #ffffff);
+  font-size: .72rem;
+  font-weight: 850;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.friend-match-request-heading strong {
+  color: var(--text);
+  font-size: .95rem;
+}
+
+.friend-match-request-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+}
+
+.friend-match-request-badges span {
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: .8rem;
+  font-weight: 850;
+  line-height: 1.1;
+  padding: .27rem .52rem;
+}
+
+.friend-request-sport { color: var(--request-sport); }
+.friend-request-mode { color: var(--request-mode); }
+
+.friend-gameover-composer {
+  display: grid;
+  gap: .48rem;
+  padding-top: .16rem;
+}
+
 .friend-gameover-actions {
   display: flex;
   flex-wrap: wrap;
@@ -8556,6 +8626,12 @@ body.headshot-audit-page .audit-status-pill {
   padding: 0.36rem 0.58rem;
 }
 
+@media (min-width: 761px) {
+  .friend-row .friend-actions {
+    flex-wrap: nowrap;
+  }
+}
+
 .friend-empty {
   background: rgba(255, 255, 255, 0.055);
   border: 1px dashed rgba(255, 255, 255, 0.18);
@@ -10277,6 +10353,11 @@ body[data-mode-hub="manager"] .manager-starter-name span {
     white-space: normal;
     word-break: normal;
   }
+}
+
+/* Match the roomier desktop scale without changing mobile or browser settings. */
+@media (min-width: 1200px) {
+  body { zoom: 1.2; }
 }
 
 @media (max-width: 760px) {

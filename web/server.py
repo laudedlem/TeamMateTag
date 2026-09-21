@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.6.16"
+APP_VERSION = "0.6.17"
 INTERNAL_AUTH_EMAIL_DOMAIN = "auth.teammatetag.com"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
@@ -2194,7 +2194,8 @@ def _friends_payload(conn, guest_id: str) -> dict:
              WHERE table_schema='public' AND table_name='dr_friend_challenges'
                AND column_name IN ('sport_id', 'mode', 'preference')"""
     ).fetchone()[0]
-    challenge_fields = "sport_id, mode" if challenge_columns_ready else "'baseball' AS sport_id, 'dr' AS mode"
+    challenge_fields = ("sport_id, mode, preference" if challenge_columns_ready
+                        else "'baseball' AS sport_id, 'dr' AS mode, 'random' AS preference")
     incoming_challenges = conn.execute(
         f"""SELECT challenge_id::text, sender_user_id::text, sender_name, {challenge_fields}
              FROM dr_friend_challenges
@@ -2203,10 +2204,11 @@ def _friends_payload(conn, guest_id: str) -> dict:
         (guest_id,),
     ).fetchall()
     outgoing_challenges = conn.execute(
-        f"""SELECT challenge_id::text, recipient_user_id::text, recipient_name, {challenge_fields}
+        f"""SELECT DISTINCT ON (recipient_user_id)
+                   challenge_id::text, recipient_user_id::text, recipient_name, {challenge_fields}, status
              FROM dr_friend_challenges
-            WHERE sender_user_id = %s AND status = 'pending'
-            ORDER BY created_at DESC""",
+            WHERE sender_user_id = %s AND status IN ('pending', 'declined')
+            ORDER BY recipient_user_id, created_at DESC""",
         (guest_id,),
     ).fetchall()
     challenge_history = conn.execute(
@@ -2230,8 +2232,9 @@ def _friends_payload(conn, guest_id: str) -> dict:
             LIMIT 3""",
         (guest_id, guest_id, guest_id),
     ).fetchall()
+    matched_fields = "sport_id, mode" if challenge_columns_ready else "'baseball' AS sport_id, 'dr' AS mode"
     matched = conn.execute(
-        f"""SELECT challenge_id::text, game_id::text, {challenge_fields}
+        f"""SELECT challenge_id::text, game_id::text, {matched_fields}
              FROM dr_friend_challenges
             WHERE (sender_user_id = %s OR recipient_user_id = %s)
               AND status = 'accepted'
@@ -2263,12 +2266,14 @@ def _friends_payload(conn, guest_id: str) -> dict:
             for rid, uid, username, display_name in outgoing_requests
         ],
         "incoming_challenges": [
-            {"challenge_id": cid, "user_id": uid, "name": name, "sport": sport, "mode": mode}
-            for cid, uid, name, sport, mode in incoming_challenges
+            {"challenge_id": cid, "user_id": uid, "name": name, "sport": sport, "mode": mode,
+             "kind": "rematch" if preference == "rematch" else "challenge", "status": "pending"}
+            for cid, uid, name, sport, mode, preference in incoming_challenges
         ],
         "outgoing_challenges": [
-            {"challenge_id": cid, "user_id": uid, "name": name, "sport": sport, "mode": mode}
-            for cid, uid, name, sport, mode in outgoing_challenges
+            {"challenge_id": cid, "user_id": uid, "name": name, "sport": sport, "mode": mode,
+             "kind": "rematch" if preference == "rematch" else "challenge", "status": status}
+            for cid, uid, name, sport, mode, preference, status in outgoing_challenges
         ],
         "challenge_history": [
             {
@@ -3490,6 +3495,50 @@ def friends_respond():
         return jsonify(_friends_payload(conn, guest_id))
 
 
+def _upsert_friend_match_request(conn, sender_id: str, recipient_id: str, sport: str,
+                                 mode: str, preference: str, source_game_id: str | None = None):
+    """Keep exactly one replaceable pending match request for a friend pair."""
+    a, b = _friendship_pair(sender_id, recipient_id)
+    conn.execute(
+        "SELECT pg_advisory_xact_lock(hashtext(%s))",
+        (f"friend-challenge:{a}:{b}",),
+    )
+    pending = conn.execute(
+        """SELECT challenge_id::text FROM dr_friend_challenges
+             WHERE ((sender_user_id = %s AND recipient_user_id = %s)
+                 OR (sender_user_id = %s AND recipient_user_id = %s))
+               AND status = 'pending'
+             ORDER BY created_at DESC
+             LIMIT 1
+             FOR UPDATE""",
+        (sender_id, recipient_id, recipient_id, sender_id),
+    ).fetchone()
+    sender_name = _guest_label(conn, sender_id)
+    recipient_name = _guest_label(conn, recipient_id)
+    if pending:
+        conn.execute(
+            """UPDATE dr_friend_challenges
+                  SET sender_user_id=%s, recipient_user_id=%s,
+                      sender_name=%s, recipient_name=%s,
+                      sport_id=%s, mode=%s, preference=%s, game_id=%s,
+                      created_at=now(), responded_at=NULL
+                WHERE challenge_id=%s""",
+            (sender_id, recipient_id, sender_name, recipient_name, sport, mode,
+             preference, source_game_id, pending[0]),
+        )
+        return pending[0]
+    row = conn.execute(
+        """INSERT INTO dr_friend_challenges (
+               sender_user_id, recipient_user_id, sender_name, recipient_name,
+               sport_id, mode, preference, game_id
+           ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+           RETURNING challenge_id::text""",
+        (sender_id, recipient_id, sender_name, recipient_name, sport, mode,
+         preference, source_game_id),
+    ).fetchone()
+    return row[0]
+
+
 @app.route("/api/friends/challenge", methods=["POST"])
 def friends_challenge():
     ensure_runtime_schema()
@@ -3524,45 +3573,47 @@ def friends_challenge():
         ).fetchone()
         if not friends:
             return jsonify({"error": "friendship required"}), 403
-        # A friend pair can have one editable pending challenge, independent
-        # of a rematch request for the finished game they just played.
-        conn.execute(
-            "SELECT pg_advisory_xact_lock(hashtext(%s))",
-            (f"friend-challenge:{a}:{b}",),
-        )
-        pending = conn.execute(
-            """SELECT challenge_id::text FROM dr_friend_challenges
-                 WHERE ((sender_user_id = %s AND recipient_user_id = %s)
-                     OR (sender_user_id = %s AND recipient_user_id = %s))
-                   AND status = 'pending'
-                 ORDER BY created_at DESC
-                 LIMIT 1
-                 FOR UPDATE""",
-            (guest_id, friend_user_id, friend_user_id, guest_id),
-        ).fetchone()
-        if pending:
-            conn.execute(
-                """UPDATE dr_friend_challenges
-                      SET sender_user_id=%s, recipient_user_id=%s,
-                          sender_name=%s, recipient_name=%s,
-                          sport_id=%s, mode=%s, preference=%s,
-                          created_at=now(), responded_at=NULL
-                    WHERE challenge_id=%s""",
-                (guest_id, friend_user_id, _guest_label(conn, guest_id), _guest_label(conn, friend_user_id),
-                 sport, mode, preference if mode == "po" else "random", pending[0]),
-            )
-            return jsonify(_friends_payload(conn, guest_id))
         conn.execute(
             "DELETE FROM sport_online_queue WHERE sport_id=%s AND mode=%s AND guest_id IN (%s, %s)",
             (sport, mode, guest_id, friend_user_id),
         )
-        conn.execute(
-            """INSERT INTO dr_friend_challenges (
-                   sender_user_id, recipient_user_id, sender_name, recipient_name, sport_id, mode, preference
-               ) VALUES (%s, %s, %s, %s, %s, %s, %s)""",
-            (guest_id, friend_user_id, _guest_label(conn, guest_id), _guest_label(conn, friend_user_id),
-             sport, mode, preference if mode == "po" else "random"),
+        _upsert_friend_match_request(
+            conn, guest_id, friend_user_id, sport, mode,
+            preference if mode == "po" else "random",
         )
+        return jsonify(_friends_payload(conn, guest_id))
+
+
+@app.route("/api/friends/rematch", methods=["POST"])
+def friends_rematch():
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
+    game_id = (data.get("game_id") or "").strip()
+    if not game_id:
+        return jsonify({"error": "game_id required"}), 400
+    with db() as conn:
+        guest_id = _session_account_guest_id(conn)
+        if not guest_id or not _require_user(conn, guest_id):
+            return jsonify({"error": "account login required"}), 403
+        row = conn.execute(
+            """SELECT sport_id, mode, state, finished
+                 FROM sport_online_games WHERE game_id=%s""",
+            (game_id,),
+        ).fetchone()
+        if not row:
+            return jsonify({"error": "game not found"}), 404
+        sport, mode, blob, finished = row
+        if not finished or not blob.get("friend_challenge_id"):
+            return jsonify({"error": "friend rematch unavailable"}), 400
+        if guest_id not in {blob.get("p1_guest_id"), blob.get("p2_guest_id")}:
+            return jsonify({"error": "unauthorized"}), 403
+        other_id = blob["p2_guest_id"] if guest_id == blob["p1_guest_id"] else blob["p1_guest_id"]
+        a, b = _friendship_pair(guest_id, other_id)
+        if not conn.execute(
+            "SELECT 1 FROM friendships WHERE user_a_id=%s AND user_b_id=%s", (a, b)
+        ).fetchone():
+            return jsonify({"error": "friendship required"}), 403
+        _upsert_friend_match_request(conn, guest_id, other_id, sport, mode, "rematch", game_id)
         return jsonify(_friends_payload(conn, guest_id))
 
 
@@ -3590,14 +3641,14 @@ def friends_challenge_respond():
             return jsonify({"error": "account required"}), 403
         row = conn.execute(
             """SELECT sender_user_id::text, recipient_user_id::text, sender_name, recipient_name, status,
-                      sport_id, mode, preference
+                      sport_id, mode, preference, game_id::text
                  FROM dr_friend_challenges
                 WHERE challenge_id = %s""",
             (challenge_id,),
         ).fetchone()
         if not row:
             return jsonify({"error": "challenge not found"}), 404
-        sender_id, recipient_id, sender_name, recipient_name, status, sport, mode, preference = row
+        sender_id, recipient_id, sender_name, recipient_name, status, sport, mode, preference, source_game_id = row
         if recipient_id != guest_id:
             return jsonify({"error": "unauthorized"}), 403
         if status != "pending":
@@ -3619,14 +3670,37 @@ def friends_challenge_respond():
                 _active_sport_game_for_guest(conn, recipient_id)):
             return jsonify({"error": "You already have an active friend game together."}), 409
         _clear_finished_friend_rematches(conn, sender_id, recipient_id)
-        gid, blob, state = _sport_online_create(
-            conn,
-            sport,
-            mode,
-            (sender_id, sender_name),
-            (recipient_id, recipient_name),
-            {sender_id: preference, recipient_id: "random"},
-        )
+        if preference == "rematch":
+            if not source_game_id:
+                return jsonify({"error": "rematch source unavailable"}), 409
+            source = conn.execute(
+                """SELECT sport_id, mode, state, finished
+                     FROM sport_online_games WHERE game_id=%s""",
+                (source_game_id,),
+            ).fetchone()
+            if not source:
+                return jsonify({"error": "rematch source unavailable"}), 409
+            source_sport, source_mode, source_blob, source_finished = source
+            source_players = {source_blob.get("p1_guest_id"), source_blob.get("p2_guest_id")}
+            if (not source_finished or not source_blob.get("friend_challenge_id") or
+                    source_players != {sender_id, recipient_id}):
+                return jsonify({"error": "rematch source unavailable"}), 409
+            sport, mode = source_sport, source_mode
+            gid, blob, state = _sport_online_create(
+                conn, sport, mode,
+                (sender_id, sender_name), (recipient_id, recipient_name),
+                _sport_online_rematch_preferences(source_blob),
+                first_guest_id=_sport_online_rematch_first_guest_id(source_blob),
+            )
+        else:
+            gid, blob, state = _sport_online_create(
+                conn,
+                sport,
+                mode,
+                (sender_id, sender_name),
+                (recipient_id, recipient_name),
+                {sender_id: preference, recipient_id: "random"},
+            )
         blob["friend_challenge_id"] = challenge_id
         _sport_online_save(conn, gid, blob)
         conn.execute(
@@ -3685,10 +3759,11 @@ def friends_challenge_cancel():
             return jsonify({"error": "account required"}), 403
         conn.execute(
             """UPDATE dr_friend_challenges
-                  SET status = 'cancelled', responded_at = now()
+                  SET status = CASE WHEN status = 'declined' THEN 'dismissed' ELSE 'cancelled' END,
+                      responded_at = now()
                 WHERE challenge_id = %s
                   AND sender_user_id = %s
-                  AND status = 'pending'""",
+                  AND status IN ('pending', 'declined')""",
             (challenge_id, guest_id),
         )
         return jsonify(_friends_payload(conn, guest_id))
