@@ -15,8 +15,8 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.6.14`, the friend challenge acceptance repair.
-  Verify the production footer after each deployment.
+- Current display version is `0.6.15`, the friend match launch repair. Verify
+  the production footer after each deployment.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
 - The user playtests on the live site, not local. When deploying code changes,
@@ -529,6 +529,10 @@ decision needs context.
   Its null exclusion path could produce a PostgreSQL parameter-type error and
   prevent Accept from creating the agreed game; the guard now uses separate,
   fully typed query paths for new challenges and rematches.
+- `0.6.15`: Fixed a client-side launch crash after a friend challenge was
+  accepted. A rematch-only response check had been placed in the opening
+  countdown and referenced an undefined value; it now lives solely in the
+  rematch poller, allowing both players to enter the agreed sport game.
 
 ### Important implementation notes
 

@@ -1884,14 +1884,6 @@ function runOpeningCountdown() {
       autoFocusGuessInput();
       return;
     }
-    if (res.status === 'superseded') {
-      clearInterval(mpRematchPollInterval);
-      els.mpRematchStatus.hidden = false;
-      els.mpRematchStatus.textContent = res.message || 'A newer friend challenge is already active.';
-      els.playAgainBtn.hidden = true;
-      els.requeueBtn.hidden = true;
-      return;
-    }
     els.timer.textContent = String(Math.ceil(left));
   };
 
@@ -2601,6 +2593,14 @@ function startRematchPolling() {
       clearInterval(mpRematchPollInterval);
       els.mpRematchStatus.hidden = true;
       await enterMatchedGame(res.game);
+      return;
+    }
+    if (res.status === 'superseded') {
+      clearInterval(mpRematchPollInterval);
+      els.mpRematchStatus.hidden = false;
+      els.mpRematchStatus.textContent = res.message || 'A newer friend challenge is already active.';
+      els.playAgainBtn.hidden = true;
+      els.requeueBtn.hidden = true;
       return;
     }
     if (res.status === 'requeued') {
