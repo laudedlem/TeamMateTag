@@ -207,6 +207,7 @@ let acItems = [];
 let acHighlight = -1;
 let acFetchSeq = 0;
 let userTypedQuery = '';
+let activeGuessContextKey = '';
 
 let teamAcItems = [];
 let teamAcHighlight = -1;
@@ -1605,6 +1606,7 @@ async function enterMatchedGame(nextGame) {
   els.startBtn.hidden = false;
   els.cancelMatchBtn.hidden = true;
   els.challengeStatusText.textContent = '';
+  clearGuessEntry();
   game = nextGame;
   preloadGameHeadshots(game);
   animateNewestCard = false;
@@ -1843,6 +1845,8 @@ async function rematch() {
 
 function showGameOverBanner() {
   clearInterval(countdownInterval);
+  activeGuessContextKey = '';
+  clearGuessEntry();
   els.timer.classList.remove('countdown');
   els.turnCard.hidden = true;
   els.gameOverBanner.hidden = false;
@@ -1900,6 +1904,8 @@ function showGameOverBanner() {
 
 function hideGameOverBanner() {
   els.turnCard.hidden = false;
+  activeGuessContextKey = '';
+  clearGuessEntry();
   els.gameOverBanner.hidden = true;
   clearInterval(mpRematchPollInterval);
   els.mpRematchStatus.hidden = true;
@@ -1982,6 +1988,24 @@ function resetTurnTimer() {
 function setGuessDisabled(disabled) {
   els.guessInput.disabled = disabled;
   els.guessBtn.disabled = disabled;
+}
+
+function clearGuessEntry() {
+  els.guessInput.value = '';
+  userTypedQuery = '';
+  acItems = [];
+  acHighlight = -1;
+  closeAutocomplete();
+}
+
+function syncGuessEntryContext(nextGame) {
+  const key = nextGame && !nextGame.finished
+    ? [nextGame.game_id || 'solo', nextGame.turn_index, nextGame.current_player?.id, nextGame.your_turn].join(':')
+    : '';
+  if (key !== activeGuessContextKey) {
+    activeGuessContextKey = key;
+    clearGuessEntry();
+  }
 }
 
 function shouldAutoFocusGuessInput() {
@@ -2634,6 +2658,7 @@ function placePlayoffsInfoPanels() {
 }
 
 function renderMpGame() {
+  syncGuessEntryContext(game);
   els.turnLabel.textContent = game.your_turn ? 'Your Turn' : `${game.current_label}'s Turn`;
   els.currentPlayerName.textContent = game.current_player.name;
   if (els.friendMatchupRecord) {
@@ -2825,6 +2850,7 @@ function startRematchPolling() {
 
 function renderBpGame() {
   clearModePanels();
+  syncGuessEntryContext(game);
   els.turnLabel.textContent = game.mode_name || 'Manager Mode';
   els.currentPlayerName.textContent = game.current_player.name;
   els.timer.title = 'Seconds Left';

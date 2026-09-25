@@ -15,8 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.6.17`, the unified friend match-request
-  update. Verify
+- Current display version is `0.6.18`, the stale game-input repair. Verify
   the production footer after each deployment.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -547,6 +546,12 @@ decision needs context.
   friend rematch is stored compactly in the existing challenge row with its
   finished game reference, rather than using a parallel status flow. Desktop
   has a roomier default visual scale while mobile stays unchanged.
+- `0.6.18`: The teammate-name input now resets when a game or turn context
+  changes, including a timeout and the next game, while ordinary online polls
+  preserve a player’s active typing. Production verification on September 24
+  found healthy Supabase CPU (`0.53%`), memory (`431.93 MB` of `1.07 GB`), and
+  database size (`0.21 GB` of `2 GB`), plus current 2026 compact proof data
+  for both MLB and NFL.
 
 ### Important implementation notes
 
