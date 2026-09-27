@@ -13,8 +13,9 @@ on:
         default: false
         type: boolean
   schedule:
-    # Runs second in the daily compact-runtime sweep, after final overnight scores.
-    - cron: "30 10 * * *"
+    # A full hour after MLB. GitHub can delay scheduled runs, so keep enough
+    # separation that delayed publishers do not create a shared write burst.
+    - cron: "15 11 * * *"
 
 jobs:
   update-nhl-compact-live-data:

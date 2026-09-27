@@ -13,8 +13,8 @@ on:
         default: false
         type: boolean
   schedule:
-    # Runs third in the daily compact-runtime sweep; offseason runs are no-ops.
-    - cron: "45 10 * * *"
+    # A full hour after NHL; offseason runs are no-ops.
+    - cron: "15 12 * * *"
 
 jobs:
   update-nba-compact-live-data:

@@ -15,8 +15,8 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.6.18`, the stale game-input repair. Verify
-  the production footer after each deployment.
+- Current display version is `0.6.19`, the live-publisher spacing repair.
+  Verify the production footer after each deployment.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
 - The user playtests on the live site, not local. When deploying code changes,
@@ -552,6 +552,12 @@ decision needs context.
   found healthy Supabase CPU (`0.53%`), memory (`431.93 MB` of `1.07 GB`), and
   database size (`0.21 GB` of `2 GB`), plus current 2026 compact proof data
   for both MLB and NFL.
+- `0.6.19`: Widened the compact live-data publishers from 15-minute intervals
+  to one-hour intervals (MLB 05:15, NHL 06:15, NBA 07:15, NFL 08:15 CDT).
+  GitHub had been delaying the nominally staggered jobs into one short cluster;
+  the larger gaps prevent that avoidable shared-write burst. Supabase logs on
+  September 27 showed no application `5xx` events and only a normal Postgres
+  checkpoint after writes.
 
 ### Important implementation notes
 
