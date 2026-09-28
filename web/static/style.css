@@ -393,6 +393,7 @@ header .title h1 {
 }
 
 .friend-challenge-expiry.is-expired { color: #3a2a00; background: #ffd84f; }
+.friend-challenge-expiry.is-lobby { color: #d9efff; background: rgba(74, 179, 255, 0.22); }
 
 .friend-match-request-heading {
   display: flex;
@@ -433,6 +434,15 @@ header .title h1 {
 .friend-request-sport { color: var(--request-sport); }
 .friend-request-mode { color: var(--request-mode); }
 
+.friend-request-sport,
+.friend-request-mode {
+  color: #161b24;
+  border-color: transparent !important;
+}
+
+.friend-request-sport { background: var(--request-sport) !important; }
+.friend-request-mode { background: var(--request-mode) !important; }
+
 .friend-row .friend-match-request-badges {
   display: flex;
   flex-wrap: wrap;
@@ -461,10 +471,39 @@ header .title h1 {
   justify-content: center;
 }
 
+.friend-gameover-challenge,
+.friend-gameover-challenge .friend-match-request,
+.friend-gameover-challenge .friend-gameover-composer {
+  text-align: center;
+}
+
+.friend-gameover-challenge .friend-match-request-heading,
+.friend-gameover-challenge .friend-match-request-badges {
+  justify-content: center;
+}
+
+.friend-gameover-challenge .friend-gameover-title { text-align: center; }
+
+.friend-gameover-challenge .friend-gameover-actions > button {
+  flex: 1 1 9rem;
+  max-width: 15rem;
+}
+
 @media (max-width: 620px) {
   .friend-profile-stats {
     grid-template-columns: 1fr;
   }
+
+  #friends-screen .friend-row { grid-template-columns: 1fr; }
+
+  #friends-screen .friend-actions {
+    grid-auto-columns: auto;
+    grid-auto-flow: row;
+    grid-template-columns: repeat(auto-fit, minmax(6.25rem, 1fr));
+    width: 100%;
+  }
+
+  #friends-screen .friend-actions button { min-width: 0; }
 
   .friend-sport-choice-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
@@ -8678,6 +8717,23 @@ body.headshot-audit-page .audit-status-pill {
   justify-content: flex-end;
 }
 
+#friends-screen .friend-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+#friends-screen .friend-actions {
+  align-items: center;
+  display: grid;
+  grid-auto-columns: minmax(5.7rem, 1fr);
+  grid-auto-flow: column;
+}
+
+#friends-screen .friend-actions button {
+  min-width: 5.7rem;
+  white-space: nowrap;
+}
+
 .friend-actions .secondary {
   border-radius: 999px;
   font-size: 0.76rem;
@@ -8943,6 +8999,22 @@ body.headshot-audit-page .audit-status-pill {
 #friends-screen .profile-detail:nth-child(5),
 #friends-screen .profile-detail:nth-child(6) {
   min-height: 10rem;
+}
+
+/* Friends uses quiet, even section outlines; the page itself retains its blue top rule. */
+#friends-screen .profile-detail {
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, rgba(255, 255, 255, 0.14));
+  border-top-width: 1px;
+}
+
+#friends-screen .profile-detail:nth-child(3),
+#friends-screen .profile-detail:nth-child(4) {
+  border-color: rgba(255, 216, 79, 0.28);
+}
+
+#friends-screen .profile-detail:nth-child(5),
+#friends-screen .profile-detail:nth-child(6) {
+  border-color: rgba(242, 85, 85, 0.28);
 }
 
 .friend-row {

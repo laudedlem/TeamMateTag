@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.6.21"
+APP_VERSION = "0.6.22"
 FRIEND_CHALLENGE_TTL_SECONDS = 30
 INTERNAL_AUTH_EMAIL_DOMAIN = "auth.teammatetag.com"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
@@ -1774,6 +1774,38 @@ def _friendship_pair(a: str, b: str) -> tuple[str, str]:
     return (a, b) if a < b else (b, a)
 
 
+def _friend_lobby_request_active(conn, source_game_id: str | None, sender_id: str, recipient_id: str) -> bool:
+    """A finished friend-game lobby keeps its next-match request untimed."""
+    if not source_game_id:
+        return False
+    row = conn.execute(
+        "SELECT state, finished FROM sport_online_games WHERE game_id=%s",
+        (source_game_id,),
+    ).fetchone()
+    if not row:
+        return False
+    blob, finished = row
+    if (not finished or not blob.get("friend_challenge_id") or
+            {blob.get("p1_guest_id"), blob.get("p2_guest_id")} != {sender_id, recipient_id}):
+        return False
+    return not conn.execute(
+        "SELECT 1 FROM sport_online_postgame_exits WHERE original_game_id=%s LIMIT 1",
+        (source_game_id,),
+    ).fetchone()
+
+
+def _friend_challenge_display_state(conn, sender_id: str, recipient_id: str, status: str,
+                                    source_game_id: str | None, created_at: datetime) -> tuple[str, int | None]:
+    if status != "pending":
+        return status, None
+    if _friend_lobby_request_active(conn, source_game_id, sender_id, recipient_id):
+        return "lobby", None
+    expires_at = created_at + timedelta(seconds=FRIEND_CHALLENGE_TTL_SECONDS)
+    if expires_at <= datetime.now(timezone.utc):
+        return "expired", None
+    return "pending", int(expires_at.timestamp() * 1000)
+
+
 def _friend_matchup_record(conn, owner_guest_id: str, opponent_guest_id: str,
                            sport: str, mode: str) -> dict:
     played, won = conn.execute(
@@ -2199,10 +2231,7 @@ def _friends_payload(conn, guest_id: str) -> dict:
                         else "'baseball' AS sport_id, 'dr' AS mode, 'random' AS preference")
     incoming_challenges = conn.execute(
         f"""SELECT challenge_id::text, sender_user_id::text, sender_name, {challenge_fields},
-                      CASE WHEN created_at > now() - INTERVAL '30 seconds' THEN 'pending' ELSE 'expired' END,
-                      CASE WHEN created_at > now() - INTERVAL '30 seconds'
-                           THEN (EXTRACT(EPOCH FROM (created_at + INTERVAL '30 seconds')) * 1000)::bigint
-                      END
+                      game_id::text, created_at
              FROM dr_friend_challenges
             WHERE recipient_user_id = %s AND status = 'pending'
             ORDER BY created_at DESC""",
@@ -2212,17 +2241,13 @@ def _friends_payload(conn, guest_id: str) -> dict:
         f"""WITH latest AS (
                  SELECT DISTINCT ON (recipient_user_id)
                         challenge_id::text, recipient_user_id::text, recipient_name,
-                        {challenge_fields}, status, created_at
+                        {challenge_fields}, status, game_id::text, created_at
                    FROM dr_friend_challenges
                   WHERE sender_user_id = %s AND status IN ('pending', 'declined')
                   ORDER BY recipient_user_id, created_at DESC
              )
-             SELECT challenge_id, recipient_user_id, recipient_name, {challenge_fields},
-                    CASE WHEN status = 'pending' AND created_at <= now() - INTERVAL '30 seconds'
-                         THEN 'expired' ELSE status END,
-                    CASE WHEN status = 'pending' AND created_at > now() - INTERVAL '30 seconds'
-                         THEN (EXTRACT(EPOCH FROM (created_at + INTERVAL '30 seconds')) * 1000)::bigint
-                    END
+             SELECT challenge_id, recipient_user_id, recipient_name, {challenge_fields}, status,
+                    game_id, created_at
                FROM latest
               """,
         (guest_id,),
@@ -2268,6 +2293,26 @@ def _friends_payload(conn, guest_id: str) -> dict:
             matched_game = (_sport_online_state(conn, gid, blob, state, guest_id)
                             if challenge_columns_ready else dr_state_dict(gid, blob, state, conn=conn))
             matched_redirect = _multi_redirect(sport, mode, gid)
+    incoming_challenge_payload = []
+    for cid, uid, name, sport, mode, preference, source_game_id, created_at in incoming_challenges:
+        status, expires_at_ms = _friend_challenge_display_state(
+            conn, uid, guest_id, "pending", source_game_id, created_at
+        )
+        incoming_challenge_payload.append({
+            "challenge_id": cid, "user_id": uid, "name": name, "sport": sport, "mode": mode,
+            "kind": "rematch" if preference == "rematch" else "challenge", "status": status,
+            "expires_at_ms": expires_at_ms,
+        })
+    outgoing_challenge_payload = []
+    for cid, uid, name, sport, mode, preference, status, source_game_id, created_at in outgoing_challenges:
+        status, expires_at_ms = _friend_challenge_display_state(
+            conn, guest_id, uid, status, source_game_id, created_at
+        )
+        outgoing_challenge_payload.append({
+            "challenge_id": cid, "user_id": uid, "name": name, "sport": sport, "mode": mode,
+            "kind": "rematch" if preference == "rematch" else "challenge", "status": status,
+            "expires_at_ms": expires_at_ms,
+        })
     return {
         "friends": [
             {"user_id": uid, "username": username, "display_name": display_name}
@@ -2281,18 +2326,8 @@ def _friends_payload(conn, guest_id: str) -> dict:
             {"request_id": rid, "user_id": uid, "username": username, "display_name": display_name}
             for rid, uid, username, display_name in outgoing_requests
         ],
-        "incoming_challenges": [
-            {"challenge_id": cid, "user_id": uid, "name": name, "sport": sport, "mode": mode,
-             "kind": "rematch" if preference == "rematch" else "challenge", "status": status,
-             "expires_at_ms": expires_at_ms}
-            for cid, uid, name, sport, mode, preference, status, expires_at_ms in incoming_challenges
-        ],
-        "outgoing_challenges": [
-            {"challenge_id": cid, "user_id": uid, "name": name, "sport": sport, "mode": mode,
-             "kind": "rematch" if preference == "rematch" else "challenge", "status": status,
-             "expires_at_ms": expires_at_ms}
-            for cid, uid, name, sport, mode, preference, status, expires_at_ms in outgoing_challenges
-        ],
+        "incoming_challenges": incoming_challenge_payload,
+        "outgoing_challenges": outgoing_challenge_payload,
         "challenge_history": [
             {
                 "opponent_guest_id": opponent_guest_id,
@@ -3565,6 +3600,7 @@ def friends_challenge():
     sport = (data.get("sport") or "baseball").strip().lower()
     mode = (data.get("mode") or "dr").strip().lower()
     preference = (data.get("win_condition_preference") or "random").strip()
+    source_game_id = (data.get("source_game_id") or "").strip() or None
     if not friend_user_id:
         return jsonify({"error": "friend_user_id required"}), 400
     if not _is_cross_sport(sport) or mode not in {"dr", "po"}:
@@ -3591,6 +3627,17 @@ def friends_challenge():
         ).fetchone()
         if not friends:
             return jsonify({"error": "friendship required"}), 403
+        if source_game_id:
+            source = conn.execute(
+                "SELECT state, finished FROM sport_online_games WHERE game_id=%s",
+                (source_game_id,),
+            ).fetchone()
+            if not source:
+                return jsonify({"error": "friend game not found"}), 404
+            source_blob, source_finished = source
+            if (not source_finished or not source_blob.get("friend_challenge_id") or
+                    {source_blob.get("p1_guest_id"), source_blob.get("p2_guest_id")} != {guest_id, friend_user_id}):
+                return jsonify({"error": "friend game is no longer available"}), 409
         conn.execute(
             "DELETE FROM sport_online_queue WHERE sport_id=%s AND mode=%s AND guest_id IN (%s, %s)",
             (sport, mode, guest_id, friend_user_id),
@@ -3598,6 +3645,7 @@ def friends_challenge():
         _upsert_friend_match_request(
             conn, guest_id, friend_user_id, sport, mode,
             preference if mode == "po" else "random",
+            source_game_id,
         )
         return jsonify(_friends_payload(conn, guest_id))
 
@@ -3671,7 +3719,8 @@ def friends_challenge_respond():
             return jsonify({"error": "unauthorized"}), 403
         if status != "pending":
             return jsonify({"error": "challenge already handled"}), 409
-        if created_at <= datetime.now(timezone.utc) - timedelta(seconds=FRIEND_CHALLENGE_TTL_SECONDS):
+        if (not _friend_lobby_request_active(conn, source_game_id, sender_id, recipient_id) and
+                created_at <= datetime.now(timezone.utc) - timedelta(seconds=FRIEND_CHALLENGE_TTL_SECONDS)):
             return jsonify({"error": "Challenge expired. Send a new one."}), 410
         if not accept:
             conn.execute(
@@ -11123,6 +11172,15 @@ def sport_online_postgame_leave(sport: str, mode: str):
         blob, _ = _sport_online_load(conn, sport, mode, gid)
         if blob:
             other = blob["p2_guest_id"] if guest == blob["p1_guest_id"] else blob["p1_guest_id"]
+            if blob.get("friend_challenge_id"):
+                # A lobby-bound request becomes a normal, timed Friends request
+                # only after either player leaves this finished game.
+                conn.execute(
+                    """UPDATE dr_friend_challenges
+                          SET game_id=NULL, created_at=now()
+                        WHERE game_id=%s AND status='pending'""",
+                    (gid,),
+                )
             if _is_bot_guest(blob, other):
                 _delete_transient_bot_guests(conn, blob, gid)
             else:

@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.6.21`, the friend-challenge expiry UI pass.
+- Current display version is `0.6.22`, the friend-lobby lifecycle and UI pass.
   Verify the production footer after each deployment.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -568,6 +568,12 @@ decision needs context.
   the recipient can Clear it. Sport and mode are rendered as distinct colored
   chips, countdowns turn red in the final five seconds, and declined cards no
   longer repeat their label.
+- `0.6.22`: Requests sent from a finished friend-game lobby remain untimed
+  while both players stay there. When either leaves, any pending request starts
+  the normal 30-second Friends timer. A mid-game friend exit now ends the game
+  with a clear leave message. Friend request cards use filled sport/mode chips,
+  responsive action sizing, centered game-over request content, and quieter
+  even-width Friends-section borders.
 
 ### Important implementation notes
 

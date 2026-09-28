@@ -943,6 +943,9 @@ function friendRequestClass(row) {
 }
 
 function friendChallengeExpiry(row) {
+  if (row?.status === 'lobby') {
+    return '<span class="friend-challenge-expiry is-lobby">In Lobby</span>';
+  }
   if (row?.status === 'expired') {
     return '<span class="friend-challenge-expiry is-expired">Expired</span>';
   }
@@ -1392,6 +1395,7 @@ function wireFriendGameoverChallengeActions() {
       sport: selection.sport,
       mode: selection.mode,
       win_condition_preference: 'random',
+      source_game_id: game?.finished && game?.friend_matchup ? game.game_id : '',
     });
     friendChallengeSubmitting = false;
     button.disabled = false;
@@ -1975,12 +1979,17 @@ function showGameOverBanner() {
     const friendRecord = isFriendGame
       ? `<span class="game-over-detail">${escapeHtml(friendMatchupText(game.friend_matchup))}</span>`
       : '';
-    els.winnerText.textContent = game.winner ? `${game.winner} Wins!` : 'Game Over.';
+    const friendForfeit = isFriendGame && game.last_move?.outcome === 'forfeit';
+    els.winnerText.textContent = friendForfeit
+      ? 'Your Friend Left the Game.'
+      : game.winner ? `${game.winner} Wins!` : 'Game Over.';
     if (currentMode === 'po' && game.last_move?.win_condition_completed) {
       els.gameOverSummary.innerHTML =
         `${gameOverWinConditionHtml()}<span class="game-over-detail">Lineup of ${game.chain.length}. ${teamsOut} Team${teamsOut === 1 ? '' : 's'} ${outSummary}.</span>${friendRecord}`;
     } else {
-      const reason = game.last_move?.outcome === 'timeout' && game.winner ? `${game.winner} won on time. ` : '';
+      const reason = friendForfeit
+        ? 'Your friend left before the game finished. '
+        : game.last_move?.outcome === 'timeout' && game.winner ? `${game.winner} won on time. ` : '';
       els.gameOverSummary.innerHTML =
         `${escapeHtml(`${reason}Lineup of ${game.chain.length}. ${teamsOut} Team${teamsOut === 1 ? '' : 's'} ${outSummary}.`)}${friendRecord}`;
     }
@@ -1997,6 +2006,7 @@ function showGameOverBanner() {
       els.requeueBtn.hidden = isFriendGame;
       if (isFriendGame) {
         renderIncomingFriendGameoverChallenge();
+        startRematchPolling();
       } else {
         startRematchPolling();
       }
@@ -2910,9 +2920,12 @@ function startRematchPolling() {
       if (game.friend_matchup) {
         clearInterval(mpRematchPollInterval);
         els.mpRematchStatus.hidden = false;
-        els.mpRematchStatus.textContent = 'Your friend left this finished game.';
+        els.mpRematchStatus.textContent = 'Your friend left this finished game. New requests now expire after 30 seconds.';
         els.playAgainBtn.hidden = true;
         els.requeueBtn.hidden = true;
+        els.friendChallengeAgainBtn.hidden = false;
+        friendGameoverComposerOpen = true;
+        renderFriendGameoverChallenge();
         return;
       }
       if (res.you_requested) {
