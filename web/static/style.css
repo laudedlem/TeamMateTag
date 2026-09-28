@@ -8784,6 +8784,10 @@ body.headshot-audit-page .audit-status-pill {
   gap: .3rem;
 }
 
+#friends-screen .friend-sub .friend-challenge-expiry {
+  margin-top: 0;
+}
+
 .friend-actions .secondary {
   border-radius: 999px;
   font-size: 0.76rem;

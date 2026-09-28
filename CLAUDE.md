@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.6.24`, the friend-request action polish pass.
+- Current display version is `0.6.25`, the friend-request metadata-line pass.
   Verify the production footer after each deployment.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -584,6 +584,9 @@ decision needs context.
   Decline/Clear use distinct light green, blue, and red treatments with shared
   button dimensions and type. The expired chip is a softer yellow than the
   Playoffs chip.
+- `0.6.25`: Challenge, sport, mode, and expiry timer now render in one shared
+  metadata row on Friends cards rather than splitting the sport/mode chips
+  onto a separate line.
 
 ### Important implementation notes
 

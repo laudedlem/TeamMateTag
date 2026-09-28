@@ -1154,7 +1154,7 @@ function renderFriends() {
     if (!row) return;
     rowEl.classList.add(...friendRequestClass(row).split(' '));
     if (row.status === 'expired') rowEl.classList.add('is-expired');
-    rowEl.querySelector('.friend-meta').insertAdjacentHTML('beforeend', `<div class="friend-sub">${escapeHtml(friendRequestLabel(row))} ${friendChallengeExpiry(row)}</div>${friendRequestBadges(row)}`);
+    rowEl.querySelector('.friend-meta').insertAdjacentHTML('beforeend', `<div class="friend-sub">${escapeHtml(friendRequestLabel(row))} ${friendRequestBadges(row)} ${friendChallengeExpiry(row)}</div>`);
   });
   renderSimpleList(
     els.outgoingChallengesList,
@@ -1171,7 +1171,7 @@ function renderFriends() {
     const row = friendsData.outgoing_challenges[idx];
     if (!row) return;
     rowEl.classList.add(...friendRequestClass(row).split(' '));
-    rowEl.querySelector('.friend-meta').insertAdjacentHTML('beforeend', `<div class="friend-sub">${escapeHtml(friendRequestLabel(row))} ${friendChallengeExpiry(row)}</div>${friendRequestBadges(row)}`);
+    rowEl.querySelector('.friend-meta').insertAdjacentHTML('beforeend', `<div class="friend-sub">${escapeHtml(friendRequestLabel(row))} ${friendRequestBadges(row)} ${friendChallengeExpiry(row)}</div>`);
     if (row.status === 'declined') {
       rowEl.classList.add('is-declined', 'is-clickable');
       rowEl.dataset.challengeDismiss = row.challenge_id;
