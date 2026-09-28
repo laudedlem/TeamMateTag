@@ -1199,10 +1199,11 @@ function renderFriends() {
   els.challengeHistoryList.querySelectorAll('.friend-row').forEach((rowEl, idx) => {
     const row = friendsData.challenge_history[idx];
     if (!row) return;
+    rowEl.classList.add(...friendRequestClass(row).split(' '));
     rowEl.innerHTML = `
       <div class="friend-meta">
         <div class="friend-name">${escapeHtml(row.won ? 'Win' : 'Loss')} vs ${escapeHtml(row.opponent_label || 'Friend')}</div>
-        <div class="friend-sub">Lineup ${escapeHtml(String(row.chain_length || 0))}</div>
+        <div class="friend-sub">${friendRequestBadges(row)} <span>Lineup ${escapeHtml(String(row.chain_length || 0))}</span></div>
       </div>
     `;
   });

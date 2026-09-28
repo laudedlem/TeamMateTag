@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.6.25`, the friend-request metadata-line pass.
+- Current display version is `0.6.26`, the friend-history and subsection pass.
   Verify the production footer after each deployment.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -587,6 +587,10 @@ decision needs context.
 - `0.6.25`: Challenge, sport, mode, and expiry timer now render in one shared
   metadata row on Friends cards rather than splitting the sport/mode chips
   onto a separate line.
+- `0.6.26`: Recent Friend Challenges now shows the finished sport and mode as
+  the same colored chips used by active challenges, alongside the outcome and
+  lineup length. Friends subsection borders are now thicker, evenly weighted,
+  and more distinct by section.
 
 ### Important implementation notes
 

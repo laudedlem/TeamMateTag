@@ -9049,20 +9049,20 @@ body.headshot-audit-page .audit-status-pill {
   min-height: 10rem;
 }
 
-/* Friends uses quiet, even section outlines; the page itself retains its blue top rule. */
+/* Friends uses deliberate, even-weight section outlines. */
 #friends-screen .profile-detail {
-  border: 1px solid color-mix(in srgb, var(--accent) 24%, rgba(255, 255, 255, 0.14));
-  border-top-width: 1px;
+  border: 3px solid color-mix(in srgb, var(--accent) 42%, rgba(255, 255, 255, 0.2));
+  border-top-width: 3px;
 }
 
 #friends-screen .profile-detail:nth-child(3),
 #friends-screen .profile-detail:nth-child(4) {
-  border-color: rgba(255, 216, 79, 0.28);
+  border-color: rgba(255, 216, 79, 0.46);
 }
 
 #friends-screen .profile-detail:nth-child(5),
 #friends-screen .profile-detail:nth-child(6) {
-  border-color: rgba(242, 85, 85, 0.28);
+  border-color: rgba(242, 85, 85, 0.46);
 }
 
 .friend-row {

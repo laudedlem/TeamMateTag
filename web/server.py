@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.6.25"
+APP_VERSION = "0.6.26"
 FRIEND_CHALLENGE_TTL_SECONDS = 30
 INTERNAL_AUTH_EMAIL_DOMAIN = "auth.teammatetag.com"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
@@ -2264,6 +2264,8 @@ def _friends_payload(conn, guest_id: str) -> dict:
                COALESCE(u.username, r.opponent_name) AS opponent_label,
                r.chain_length,
                r.won,
+               r.sport_id,
+               r.mode,
                r.finished_at
              FROM dr_results r
              LEFT JOIN users u ON u.user_id = r.opponent_guest_id
@@ -2340,9 +2342,11 @@ def _friends_payload(conn, guest_id: str) -> dict:
                 "opponent_label": opponent_label,
                 "chain_length": chain_length or 0,
                 "won": won,
+                "sport": sport,
+                "mode": mode,
                 "finished_at": finished_at.isoformat(),
             }
-            for opponent_guest_id, opponent_label, chain_length, won, finished_at in challenge_history
+            for opponent_guest_id, opponent_label, chain_length, won, sport, mode, finished_at in challenge_history
         ],
         "matched_game": matched_game,
         "matched_redirect": matched_redirect,
