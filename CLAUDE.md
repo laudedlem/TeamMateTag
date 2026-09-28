@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.6.19`, the live-publisher spacing repair.
+- Current display version is `0.6.20`, the expiring-friend-challenge repair.
   Verify the production footer after each deployment.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -558,6 +558,11 @@ decision needs context.
   the larger gaps prevent that avoidable shared-write burst. Supabase logs on
   September 27 showed no application `5xx` events and only a normal Postgres
   checkpoint after writes.
+- `0.6.20`: Friend rematches and sport/mode challenges now expire after 30
+  seconds. The server enforces expiry before a game can be created, while both
+  sides see a live countdown. Replacing a request resets its timer. Declined
+  outgoing challenges are now visibly red and can be dismissed by clicking
+  anywhere on their card.
 
 ### Important implementation notes
 

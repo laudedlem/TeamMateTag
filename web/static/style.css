@@ -351,6 +351,26 @@ header .title h1 {
   --request-mode: #ff8b8b;
 }
 
+.friend-row.is-declined {
+  background: linear-gradient(90deg, rgba(255, 72, 72, 0.2), rgba(255, 72, 72, 0.045));
+  border-color: rgba(255, 104, 104, 0.68);
+  border-left-color: #ff5b5b;
+}
+
+.friend-row.is-clickable { cursor: pointer; }
+
+.friend-declined-note,
+.friend-challenge-expiry {
+  color: #ffb4b4;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.friend-challenge-expiry {
+  color: color-mix(in srgb, var(--request-mode, var(--accent)) 75%, #ffffff);
+  white-space: nowrap;
+}
+
 .friend-match-request-heading {
   display: flex;
   align-items: baseline;

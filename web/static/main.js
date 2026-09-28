@@ -184,6 +184,8 @@ let mpPollInterval = null;
 let mpQueuePollInterval = null;
 let mpRematchPollInterval = null;
 let friendsPollInterval = null;
+let friendChallengeCountdownInterval = null;
+let friendChallengeExpiryRefreshPending = false;
 let mpRequeueRelaxTimeout = null;
 let mpPollInFlight = false;
 let moveSubmissionInFlight = false;
@@ -832,6 +834,16 @@ function wireFriendsActions() {
   document.querySelectorAll('[data-challenge-cancel]').forEach((btn) => {
     btn.addEventListener('click', () => cancelFriendChallenge(btn.dataset.challengeCancel));
   });
+  document.querySelectorAll('[data-challenge-dismiss]').forEach((row) => {
+    const dismiss = () => cancelFriendChallenge(row.dataset.challengeDismiss);
+    row.addEventListener('click', dismiss);
+    row.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        dismiss();
+      }
+    });
+  });
   document.querySelectorAll('[data-friend-challenge-sport]').forEach((btn) => {
     if (btn.closest('#friend-challenge-panel')) return;
     btn.addEventListener('click', () => {
@@ -921,6 +933,39 @@ function friendRequestClass(row) {
   return `request-sport-${row.sport || 'baseball'} request-mode-${row.mode === 'po' ? 'playoffs' : 'division'}`;
 }
 
+function friendChallengeExpiry(row) {
+  const expiresAt = Number(row?.expires_at_ms || 0);
+  return expiresAt
+    ? `<span class="friend-challenge-expiry" data-friend-challenge-expires="${expiresAt}"></span>`
+    : '';
+}
+
+function syncFriendChallengeCountdowns() {
+  const countdowns = [...document.querySelectorAll('[data-friend-challenge-expires]')];
+  if (!countdowns.length) {
+    clearInterval(friendChallengeCountdownInterval);
+    friendChallengeCountdownInterval = null;
+    return;
+  }
+  const now = Date.now();
+  let expired = false;
+  countdowns.forEach((node) => {
+    const seconds = Math.max(0, Math.ceil((Number(node.dataset.friendChallengeExpires) - now) / 1000));
+    node.textContent = seconds ? `Expires in ${seconds}s` : 'Expired';
+    expired ||= seconds === 0;
+  });
+  if (expired && !friendChallengeExpiryRefreshPending) {
+    friendChallengeExpiryRefreshPending = true;
+    window.setTimeout(async () => {
+      friendChallengeExpiryRefreshPending = false;
+      await refreshFriends();
+    }, 150);
+  }
+  if (!friendChallengeCountdownInterval) {
+    friendChallengeCountdownInterval = setInterval(syncFriendChallengeCountdowns, 1000);
+  }
+}
+
 function friendRequestCard(row, direction) {
   const incoming = direction === 'incoming';
   const declined = row.status === 'declined';
@@ -932,12 +977,13 @@ function friendRequestCard(row, direction) {
     <section class="friend-match-request ${friendRequestClass(row)}${declined ? ' is-declined' : ''}">
       <div class="friend-match-request-heading">
         <span>${incoming ? 'Incoming' : 'Outgoing'}</span>
-        <strong>${escapeHtml(declined ? `${friendRequestLabel(row)} declined` : friendRequestLabel(row))}</strong>
+        <strong>${escapeHtml(declined ? `${friendRequestLabel(row)} Declined` : friendRequestLabel(row))}</strong>
       </div>
       <div class="friend-match-request-badges">
         <span class="friend-request-sport">${escapeHtml((row.sport || 'baseball').replace(/^./, (c) => c.toUpperCase()))}</span>
         <span class="friend-request-mode">${escapeHtml(row.mode === 'po' ? 'Playoffs' : 'Division Rivalry')}</span>
       </div>
+      ${friendChallengeExpiry(row)}
       <div class="friend-gameover-actions">${action}</div>
     </section>`;
 }
@@ -995,7 +1041,7 @@ function renderFriendChallengePanel() {
   els.friendChallengePanel.hidden = false;
   if (incoming && friendChallengeView === 'incoming') {
     els.friendChallengePanel.innerHTML = `
-      <div class="friend-challenge-notice">Incoming: ${escapeHtml(friendChallengeLabel(incoming))}</div>
+      <div class="friend-challenge-notice">Incoming: ${escapeHtml(friendChallengeLabel(incoming))} ${friendChallengeExpiry(incoming)}</div>
       <div class="friend-gameover-actions">
         <button class="primary" type="button" data-challenge-accept="${incoming.challenge_id}">Accept</button>
         <button class="secondary" type="button" data-challenge-decline="${incoming.challenge_id}">Decline</button>
@@ -1073,17 +1119,26 @@ function renderFriends() {
   );
   els.incomingChallengesList.querySelectorAll('.friend-row').forEach((rowEl, idx) => {
     const row = friendsData.incoming_challenges[idx];
-    if (row) rowEl.querySelector('.friend-meta').insertAdjacentHTML('beforeend', `<div class="friend-sub">${escapeHtml(friendRequestLabel(row))}</div>`);
+    if (row) rowEl.querySelector('.friend-meta').insertAdjacentHTML('beforeend', `<div class="friend-sub">${escapeHtml(friendRequestLabel(row))} ${friendChallengeExpiry(row)}</div>`);
   });
   renderSimpleList(
     els.outgoingChallengesList,
     friendsData.outgoing_challenges,
     'No Outgoing Challenges.',
-    (row) => `<button class="secondary" type="button" data-challenge-cancel="${row.challenge_id}">Cancel</button>`,
+    (row) => row.status === 'declined'
+      ? '<span class="friend-declined-note">Declined - click to clear</span>'
+      : `<button class="secondary" type="button" data-challenge-cancel="${row.challenge_id}">Cancel</button>`,
   );
   els.outgoingChallengesList.querySelectorAll('.friend-row').forEach((rowEl, idx) => {
     const row = friendsData.outgoing_challenges[idx];
-    if (row) rowEl.querySelector('.friend-meta').insertAdjacentHTML('beforeend', `<div class="friend-sub">${escapeHtml(row.status === 'declined' ? `${friendRequestLabel(row)} declined` : friendRequestLabel(row))}</div>`);
+    if (!row) return;
+    rowEl.querySelector('.friend-meta').insertAdjacentHTML('beforeend', `<div class="friend-sub">${escapeHtml(row.status === 'declined' ? `${friendRequestLabel(row)} Declined` : friendRequestLabel(row))} ${friendChallengeExpiry(row)}</div>`);
+    if (row.status === 'declined') {
+      rowEl.classList.add('is-declined', 'is-clickable');
+      rowEl.dataset.challengeDismiss = row.challenge_id;
+      rowEl.tabIndex = 0;
+      rowEl.setAttribute('role', 'button');
+    }
   });
   renderSimpleList(
     els.friendsList,
@@ -1100,6 +1155,7 @@ function renderFriends() {
     'No Challenge History Yet.',
     (row) => '',
   );
+  syncFriendChallengeCountdowns();
   els.challengeHistoryList.querySelectorAll('.friend-row').forEach((rowEl, idx) => {
     const row = friendsData.challenge_history[idx];
     if (!row) return;
@@ -1361,6 +1417,7 @@ async function respondFriendChallenge(challengeId, accept) {
   });
   if (next?.error) {
     els.friendsStatus.textContent = next.error;
+    if (next.error.toLowerCase().includes('expired')) await refreshFriends();
     return;
   }
   if (next.status === 'matched' && next.game) {

@@ -74,7 +74,8 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.6.19"
+APP_VERSION = "0.6.20"
+FRIEND_CHALLENGE_TTL_SECONDS = 30
 INTERNAL_AUTH_EMAIL_DOMAIN = "auth.teammatetag.com"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
 DEFAULT_SEED = "rizzoan01"
@@ -2197,18 +2198,30 @@ def _friends_payload(conn, guest_id: str) -> dict:
     challenge_fields = ("sport_id, mode, preference" if challenge_columns_ready
                         else "'baseball' AS sport_id, 'dr' AS mode, 'random' AS preference")
     incoming_challenges = conn.execute(
-        f"""SELECT challenge_id::text, sender_user_id::text, sender_name, {challenge_fields}
+        f"""SELECT challenge_id::text, sender_user_id::text, sender_name, {challenge_fields},
+                      (EXTRACT(EPOCH FROM (created_at + INTERVAL '30 seconds')) * 1000)::bigint
              FROM dr_friend_challenges
-            WHERE recipient_user_id = %s AND status = 'pending'
+            WHERE recipient_user_id = %s
+              AND status = 'pending'
+              AND created_at > now() - INTERVAL '30 seconds'
             ORDER BY created_at DESC""",
         (guest_id,),
     ).fetchall()
     outgoing_challenges = conn.execute(
-        f"""SELECT DISTINCT ON (recipient_user_id)
-                   challenge_id::text, recipient_user_id::text, recipient_name, {challenge_fields}, status
-             FROM dr_friend_challenges
-            WHERE sender_user_id = %s AND status IN ('pending', 'declined')
-            ORDER BY recipient_user_id, created_at DESC""",
+        f"""WITH latest AS (
+                 SELECT DISTINCT ON (recipient_user_id)
+                        challenge_id::text, recipient_user_id::text, recipient_name,
+                        {challenge_fields}, status, created_at
+                   FROM dr_friend_challenges
+                  WHERE sender_user_id = %s AND status IN ('pending', 'declined')
+                  ORDER BY recipient_user_id, created_at DESC
+             )
+             SELECT challenge_id, recipient_user_id, recipient_name, {challenge_fields}, status,
+                    CASE WHEN status = 'pending'
+                         THEN (EXTRACT(EPOCH FROM (created_at + INTERVAL '30 seconds')) * 1000)::bigint
+                    END
+               FROM latest
+              WHERE status = 'declined' OR created_at > now() - INTERVAL '30 seconds'""",
         (guest_id,),
     ).fetchall()
     challenge_history = conn.execute(
@@ -2267,13 +2280,15 @@ def _friends_payload(conn, guest_id: str) -> dict:
         ],
         "incoming_challenges": [
             {"challenge_id": cid, "user_id": uid, "name": name, "sport": sport, "mode": mode,
-             "kind": "rematch" if preference == "rematch" else "challenge", "status": "pending"}
-            for cid, uid, name, sport, mode, preference in incoming_challenges
+             "kind": "rematch" if preference == "rematch" else "challenge", "status": "pending",
+             "expires_at_ms": expires_at_ms}
+            for cid, uid, name, sport, mode, preference, expires_at_ms in incoming_challenges
         ],
         "outgoing_challenges": [
             {"challenge_id": cid, "user_id": uid, "name": name, "sport": sport, "mode": mode,
-             "kind": "rematch" if preference == "rematch" else "challenge", "status": status}
-            for cid, uid, name, sport, mode, preference, status in outgoing_challenges
+             "kind": "rematch" if preference == "rematch" else "challenge", "status": status,
+             "expires_at_ms": expires_at_ms}
+            for cid, uid, name, sport, mode, preference, status, expires_at_ms in outgoing_challenges
         ],
         "challenge_history": [
             {
@@ -3641,18 +3656,20 @@ def friends_challenge_respond():
             return jsonify({"error": "account required"}), 403
         row = conn.execute(
             """SELECT sender_user_id::text, recipient_user_id::text, sender_name, recipient_name, status,
-                      sport_id, mode, preference, game_id::text
+                      sport_id, mode, preference, game_id::text, created_at
                  FROM dr_friend_challenges
                 WHERE challenge_id = %s""",
             (challenge_id,),
         ).fetchone()
         if not row:
             return jsonify({"error": "challenge not found"}), 404
-        sender_id, recipient_id, sender_name, recipient_name, status, sport, mode, preference, source_game_id = row
+        sender_id, recipient_id, sender_name, recipient_name, status, sport, mode, preference, source_game_id, created_at = row
         if recipient_id != guest_id:
             return jsonify({"error": "unauthorized"}), 403
         if status != "pending":
             return jsonify({"error": "challenge already handled"}), 409
+        if created_at <= datetime.now(timezone.utc) - timedelta(seconds=FRIEND_CHALLENGE_TTL_SECONDS):
+            return jsonify({"error": "Challenge expired. Send a new one."}), 410
         if not accept:
             conn.execute(
                 "UPDATE dr_friend_challenges SET status = 'declined', responded_at = now() WHERE challenge_id = %s",
