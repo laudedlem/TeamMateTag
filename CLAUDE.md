@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.6.20`, the expiring-friend-challenge repair.
+- Current display version is `0.6.21`, the friend-challenge expiry UI pass.
   Verify the production footer after each deployment.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -563,6 +563,11 @@ decision needs context.
   sides see a live countdown. Replacing a request resets its timer. Declined
   outgoing challenges are now visibly red and can be dismissed by clicking
   anywhere on their card.
+- `0.6.21`: Expired friend requests now remain as yellow cards instead of
+  disappearing. The sender can Resend the same sport/mode request or Clear it;
+  the recipient can Clear it. Sport and mode are rendered as distinct colored
+  chips, countdowns turn red in the final five seconds, and declined cards no
+  longer repeat their label.
 
 ### Important implementation notes
 

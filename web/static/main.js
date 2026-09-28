@@ -834,6 +834,12 @@ function wireFriendsActions() {
   document.querySelectorAll('[data-challenge-cancel]').forEach((btn) => {
     btn.addEventListener('click', () => cancelFriendChallenge(btn.dataset.challengeCancel));
   });
+  document.querySelectorAll('[data-challenge-clear]').forEach((btn) => {
+    btn.addEventListener('click', () => cancelFriendChallenge(btn.dataset.challengeClear));
+  });
+  document.querySelectorAll('[data-challenge-resend]').forEach((btn) => {
+    btn.addEventListener('click', () => resendFriendChallenge(btn.dataset.challengeResend));
+  });
   document.querySelectorAll('[data-challenge-dismiss]').forEach((row) => {
     const dismiss = () => cancelFriendChallenge(row.dataset.challengeDismiss);
     row.addEventListener('click', dismiss);
@@ -918,6 +924,9 @@ function wireFriendChallengePanelActions() {
   els.friendChallengePanel.querySelector('[data-challenge-decline]')?.addEventListener('click', (event) => {
     respondFriendChallenge(event.currentTarget.dataset.challengeDecline, false);
   });
+  els.friendChallengePanel.querySelector('[data-challenge-clear]')?.addEventListener('click', (event) => {
+    cancelFriendChallenge(event.currentTarget.dataset.challengeClear);
+  });
 }
 
 function friendChallengeLabel(row) {
@@ -926,7 +935,7 @@ function friendChallengeLabel(row) {
 }
 
 function friendRequestLabel(row) {
-  return `${row.kind === 'rematch' ? 'Rematch' : 'Challenge'}: ${friendChallengeLabel(row)}`;
+  return row.kind === 'rematch' ? 'Rematch' : 'Challenge';
 }
 
 function friendRequestClass(row) {
@@ -934,6 +943,9 @@ function friendRequestClass(row) {
 }
 
 function friendChallengeExpiry(row) {
+  if (row?.status === 'expired') {
+    return '<span class="friend-challenge-expiry is-expired">Expired</span>';
+  }
   const expiresAt = Number(row?.expires_at_ms || 0);
   return expiresAt
     ? `<span class="friend-challenge-expiry" data-friend-challenge-expires="${expiresAt}"></span>`
@@ -952,6 +964,7 @@ function syncFriendChallengeCountdowns() {
   countdowns.forEach((node) => {
     const seconds = Math.max(0, Math.ceil((Number(node.dataset.friendChallengeExpires) - now) / 1000));
     node.textContent = seconds ? `Expires in ${seconds}s` : 'Expired';
+    node.classList.toggle('is-urgent', seconds > 0 && seconds <= 5);
     expired ||= seconds === 0;
   });
   if (expired && !friendChallengeExpiryRefreshPending) {
@@ -966,23 +979,35 @@ function syncFriendChallengeCountdowns() {
   }
 }
 
+function friendRequestBadges(row) {
+  const sport = (row.sport || 'baseball').replace(/^./, (c) => c.toUpperCase());
+  const mode = row.mode === 'po' ? 'Playoffs' : 'Division Rivalry';
+  return `<div class="friend-match-request-badges">
+    <span class="friend-request-sport">${escapeHtml(sport)}</span>
+    <span class="friend-request-mode">${escapeHtml(mode)}</span>
+  </div>`;
+}
+
 function friendRequestCard(row, direction) {
   const incoming = direction === 'incoming';
   const declined = row.status === 'declined';
-  const action = incoming
+  const expired = row.status === 'expired';
+  const action = expired
+    ? (incoming
+      ? `<button class="secondary" type="button" data-gameover-request-clear="${row.challenge_id}">Clear</button>`
+      : `<button class="primary" type="button" data-gameover-request-resend="${row.challenge_id}">Resend</button>
+         <button class="secondary" type="button" data-gameover-request-clear="${row.challenge_id}">Clear</button>`)
+    : incoming
     ? `<button class="primary" type="button" data-gameover-request-accept="${row.challenge_id}">Accept</button>
        <button class="secondary" type="button" data-gameover-request-decline="${row.challenge_id}">Decline</button>`
     : `<button class="secondary" type="button" data-gameover-request-cancel="${row.challenge_id}">${declined ? 'Dismiss' : 'Cancel'}</button>`;
   return `
-    <section class="friend-match-request ${friendRequestClass(row)}${declined ? ' is-declined' : ''}">
+    <section class="friend-match-request ${friendRequestClass(row)}${declined ? ' is-declined' : ''}${expired ? ' is-expired' : ''}">
       <div class="friend-match-request-heading">
         <span>${incoming ? 'Incoming' : 'Outgoing'}</span>
         <strong>${escapeHtml(declined ? `${friendRequestLabel(row)} Declined` : friendRequestLabel(row))}</strong>
       </div>
-      <div class="friend-match-request-badges">
-        <span class="friend-request-sport">${escapeHtml((row.sport || 'baseball').replace(/^./, (c) => c.toUpperCase()))}</span>
-        <span class="friend-request-mode">${escapeHtml(row.mode === 'po' ? 'Playoffs' : 'Division Rivalry')}</span>
-      </div>
+      ${friendRequestBadges(row)}
       ${friendChallengeExpiry(row)}
       <div class="friend-gameover-actions">${action}</div>
     </section>`;
@@ -1040,11 +1065,14 @@ function renderFriendChallengePanel() {
   els.friendProfileStats.hidden = true;
   els.friendChallengePanel.hidden = false;
   if (incoming && friendChallengeView === 'incoming') {
+    const expired = incoming.status === 'expired';
     els.friendChallengePanel.innerHTML = `
-      <div class="friend-challenge-notice">Incoming: ${escapeHtml(friendChallengeLabel(incoming))} ${friendChallengeExpiry(incoming)}</div>
+      <div class="friend-challenge-notice${expired ? ' is-expired' : ''}">Incoming ${escapeHtml(friendRequestLabel(incoming))} ${friendChallengeExpiry(incoming)} ${friendRequestBadges(incoming)}</div>
       <div class="friend-gameover-actions">
-        <button class="primary" type="button" data-challenge-accept="${incoming.challenge_id}">Accept</button>
-        <button class="secondary" type="button" data-challenge-decline="${incoming.challenge_id}">Decline</button>
+        ${expired
+          ? `<button class="secondary" type="button" data-challenge-clear="${incoming.challenge_id}">Clear</button>`
+          : `<button class="primary" type="button" data-challenge-accept="${incoming.challenge_id}">Accept</button>
+             <button class="secondary" type="button" data-challenge-decline="${incoming.challenge_id}">Decline</button>`}
         <button class="secondary" type="button" data-friend-challenge-view="compose">Challenge</button>
       </div>`;
     els.friendProfilePanel.hidden = false;
@@ -1111,34 +1139,43 @@ function renderFriends() {
     els.incomingChallengesList,
     friendsData.incoming_challenges,
     'No Incoming Challenges.',
-    (row) => `
+    (row) => row.status === 'expired'
+      ? `<button class="secondary" type="button" data-challenge-clear="${row.challenge_id}">Clear</button>`
+      : `
       <button class="secondary" type="button" data-challenge-accept="${row.challenge_id}">Accept</button>
       <button class="secondary" type="button" data-friend-challenge="${row.user_id}">Challenge</button>
-      <button class="secondary" type="button" data-challenge-decline="${row.challenge_id}">Decline</button>
-    `,
+      <button class="secondary" type="button" data-challenge-decline="${row.challenge_id}">Decline</button>`,
   );
   els.incomingChallengesList.querySelectorAll('.friend-row').forEach((rowEl, idx) => {
     const row = friendsData.incoming_challenges[idx];
-    if (row) rowEl.querySelector('.friend-meta').insertAdjacentHTML('beforeend', `<div class="friend-sub">${escapeHtml(friendRequestLabel(row))} ${friendChallengeExpiry(row)}</div>`);
+    if (!row) return;
+    rowEl.classList.add(...friendRequestClass(row).split(' '));
+    if (row.status === 'expired') rowEl.classList.add('is-expired');
+    rowEl.querySelector('.friend-meta').insertAdjacentHTML('beforeend', `<div class="friend-sub">${escapeHtml(friendRequestLabel(row))} ${friendChallengeExpiry(row)}</div>${friendRequestBadges(row)}`);
   });
   renderSimpleList(
     els.outgoingChallengesList,
     friendsData.outgoing_challenges,
     'No Outgoing Challenges.',
     (row) => row.status === 'declined'
-      ? '<span class="friend-declined-note">Declined - click to clear</span>'
-      : `<button class="secondary" type="button" data-challenge-cancel="${row.challenge_id}">Cancel</button>`,
+      ? '<span class="friend-declined-note">Declined - Click to Clear</span>'
+      : row.status === 'expired'
+        ? `<button class="primary" type="button" data-challenge-resend="${row.challenge_id}">Resend</button>
+           <button class="secondary" type="button" data-challenge-clear="${row.challenge_id}">Clear</button>`
+        : `<button class="secondary" type="button" data-challenge-cancel="${row.challenge_id}">Cancel</button>`,
   );
   els.outgoingChallengesList.querySelectorAll('.friend-row').forEach((rowEl, idx) => {
     const row = friendsData.outgoing_challenges[idx];
     if (!row) return;
-    rowEl.querySelector('.friend-meta').insertAdjacentHTML('beforeend', `<div class="friend-sub">${escapeHtml(row.status === 'declined' ? `${friendRequestLabel(row)} Declined` : friendRequestLabel(row))} ${friendChallengeExpiry(row)}</div>`);
+    rowEl.classList.add(...friendRequestClass(row).split(' '));
+    rowEl.querySelector('.friend-meta').insertAdjacentHTML('beforeend', `<div class="friend-sub">${escapeHtml(friendRequestLabel(row))} ${friendChallengeExpiry(row)}</div>${friendRequestBadges(row)}`);
     if (row.status === 'declined') {
       rowEl.classList.add('is-declined', 'is-clickable');
       rowEl.dataset.challengeDismiss = row.challenge_id;
       rowEl.tabIndex = 0;
       rowEl.setAttribute('role', 'button');
     }
+    if (row.status === 'expired') rowEl.classList.add('is-expired');
   });
   renderSimpleList(
     els.friendsList,
@@ -1268,6 +1305,13 @@ async function sendFriendChallenge(friendUserId, sport, mode) {
   friendChallengeSubmitting = false;
 }
 
+async function resendFriendChallenge(challengeId, fromGameover = false) {
+  const row = friendsData?.outgoing_challenges?.find((item) => item.challenge_id === challengeId);
+  if (!row) return;
+  await sendFriendChallenge(row.user_id, row.sport, row.mode);
+  if (fromGameover && friendGameoverChallengeSelection) renderFriendGameoverChallenge();
+}
+
 function renderFriendGameoverChallenge() {
   const selection = friendGameoverChallengeSelection;
   if (!selection || !els.friendGameoverChallenge) return;
@@ -1298,6 +1342,7 @@ function renderFriendGameoverChallenge() {
         <p class="muted small" data-gameover-challenge-status></p>
       </div>` : ''}`;
   wireFriendGameoverChallengeActions();
+  syncFriendChallengeCountdowns();
 }
 
 function wireFriendGameoverChallengeActions() {
@@ -1325,6 +1370,12 @@ function wireFriendGameoverChallengeActions() {
   });
   els.friendGameoverChallenge.querySelector('[data-gameover-request-cancel]')?.addEventListener('click', (event) => {
     cancelFriendChallenge(event.currentTarget.dataset.gameoverRequestCancel, true);
+  });
+  els.friendGameoverChallenge.querySelector('[data-gameover-request-clear]')?.addEventListener('click', (event) => {
+    cancelFriendChallenge(event.currentTarget.dataset.gameoverRequestClear, true);
+  });
+  els.friendGameoverChallenge.querySelector('[data-gameover-request-resend]')?.addEventListener('click', (event) => {
+    resendFriendChallenge(event.currentTarget.dataset.gameoverRequestResend, true);
   });
   els.friendGameoverChallenge.querySelector('[data-gameover-challenge-send]')?.addEventListener('click', async (event) => {
     if (friendChallengeSubmitting) return;

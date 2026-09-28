@@ -351,10 +351,21 @@ header .title h1 {
   --request-mode: #ff8b8b;
 }
 
+.friend-match-request.is-expired {
+  --request-sport: #ffd84f;
+  --request-mode: #ffe69a;
+}
+
 .friend-row.is-declined {
   background: linear-gradient(90deg, rgba(255, 72, 72, 0.2), rgba(255, 72, 72, 0.045));
   border-color: rgba(255, 104, 104, 0.68);
   border-left-color: #ff5b5b;
+}
+
+.friend-row.is-expired {
+  background: linear-gradient(90deg, rgba(255, 216, 79, 0.22), rgba(255, 216, 79, 0.055));
+  border-color: rgba(255, 216, 79, 0.72);
+  border-left-color: #ffd84f;
 }
 
 .friend-row.is-clickable { cursor: pointer; }
@@ -368,8 +379,20 @@ header .title h1 {
 
 .friend-challenge-expiry {
   color: color-mix(in srgb, var(--request-mode, var(--accent)) 75%, #ffffff);
+  border-radius: 999px;
+  display: inline-flex;
+  margin-top: 0.16rem;
+  padding: 0.12rem 0.38rem;
+  transition: background-color .7s ease, color .7s ease;
   white-space: nowrap;
 }
+
+.friend-challenge-expiry.is-urgent {
+  background: rgba(255, 82, 82, 0.22);
+  color: #ff8f8f;
+}
+
+.friend-challenge-expiry.is-expired { color: #3a2a00; background: #ffd84f; }
 
 .friend-match-request-heading {
   display: flex;
@@ -398,6 +421,7 @@ header .title h1 {
 }
 
 .friend-match-request-badges span {
+  background: color-mix(in srgb, currentColor 20%, transparent);
   border: 1px solid currentColor;
   border-radius: 999px;
   font-size: .8rem;
@@ -408,6 +432,21 @@ header .title h1 {
 
 .friend-request-sport { color: var(--request-sport); }
 .friend-request-mode { color: var(--request-mode); }
+
+.friend-row .friend-match-request-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .3rem;
+  margin-top: .28rem;
+}
+
+.friend-row .friend-match-request-badges span {
+  border-radius: 999px;
+  font-size: .7rem;
+  font-weight: 850;
+  line-height: 1.1;
+  padding: .18rem .42rem;
+}
 
 .friend-gameover-composer {
   display: grid;

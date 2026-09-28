@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.6.20"
+APP_VERSION = "0.6.21"
 FRIEND_CHALLENGE_TTL_SECONDS = 30
 INTERNAL_AUTH_EMAIL_DOMAIN = "auth.teammatetag.com"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
@@ -2199,11 +2199,12 @@ def _friends_payload(conn, guest_id: str) -> dict:
                         else "'baseball' AS sport_id, 'dr' AS mode, 'random' AS preference")
     incoming_challenges = conn.execute(
         f"""SELECT challenge_id::text, sender_user_id::text, sender_name, {challenge_fields},
-                      (EXTRACT(EPOCH FROM (created_at + INTERVAL '30 seconds')) * 1000)::bigint
+                      CASE WHEN created_at > now() - INTERVAL '30 seconds' THEN 'pending' ELSE 'expired' END,
+                      CASE WHEN created_at > now() - INTERVAL '30 seconds'
+                           THEN (EXTRACT(EPOCH FROM (created_at + INTERVAL '30 seconds')) * 1000)::bigint
+                      END
              FROM dr_friend_challenges
-            WHERE recipient_user_id = %s
-              AND status = 'pending'
-              AND created_at > now() - INTERVAL '30 seconds'
+            WHERE recipient_user_id = %s AND status = 'pending'
             ORDER BY created_at DESC""",
         (guest_id,),
     ).fetchall()
@@ -2216,12 +2217,14 @@ def _friends_payload(conn, guest_id: str) -> dict:
                   WHERE sender_user_id = %s AND status IN ('pending', 'declined')
                   ORDER BY recipient_user_id, created_at DESC
              )
-             SELECT challenge_id, recipient_user_id, recipient_name, {challenge_fields}, status,
-                    CASE WHEN status = 'pending'
+             SELECT challenge_id, recipient_user_id, recipient_name, {challenge_fields},
+                    CASE WHEN status = 'pending' AND created_at <= now() - INTERVAL '30 seconds'
+                         THEN 'expired' ELSE status END,
+                    CASE WHEN status = 'pending' AND created_at > now() - INTERVAL '30 seconds'
                          THEN (EXTRACT(EPOCH FROM (created_at + INTERVAL '30 seconds')) * 1000)::bigint
                     END
                FROM latest
-              WHERE status = 'declined' OR created_at > now() - INTERVAL '30 seconds'""",
+              """,
         (guest_id,),
     ).fetchall()
     challenge_history = conn.execute(
@@ -2280,9 +2283,9 @@ def _friends_payload(conn, guest_id: str) -> dict:
         ],
         "incoming_challenges": [
             {"challenge_id": cid, "user_id": uid, "name": name, "sport": sport, "mode": mode,
-             "kind": "rematch" if preference == "rematch" else "challenge", "status": "pending",
+             "kind": "rematch" if preference == "rematch" else "challenge", "status": status,
              "expires_at_ms": expires_at_ms}
-            for cid, uid, name, sport, mode, preference, expires_at_ms in incoming_challenges
+            for cid, uid, name, sport, mode, preference, status, expires_at_ms in incoming_challenges
         ],
         "outgoing_challenges": [
             {"challenge_id": cid, "user_id": uid, "name": name, "sport": sport, "mode": mode,
@@ -3779,9 +3782,12 @@ def friends_challenge_cancel():
                   SET status = CASE WHEN status = 'declined' THEN 'dismissed' ELSE 'cancelled' END,
                       responded_at = now()
                 WHERE challenge_id = %s
-                  AND sender_user_id = %s
-                  AND status IN ('pending', 'declined')""",
-            (challenge_id, guest_id),
+                  AND (
+                       (sender_user_id = %s AND status IN ('pending', 'declined'))
+                    OR (recipient_user_id = %s AND status = 'pending'
+                        AND created_at <= now() - INTERVAL '30 seconds')
+                  )""",
+            (challenge_id, guest_id, guest_id),
         )
         return jsonify(_friends_payload(conn, guest_id))
 
