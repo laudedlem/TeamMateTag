@@ -1143,11 +1143,11 @@ function renderFriends() {
     friendsData.incoming_challenges,
     'No Incoming Challenges.',
     (row) => row.status === 'expired'
-      ? `<button class="secondary" type="button" data-challenge-clear="${row.challenge_id}">Clear</button>`
+      ? `<button class="secondary friend-request-action friend-request-action--clear" type="button" data-challenge-clear="${row.challenge_id}">Clear</button>`
       : `
-      <button class="secondary" type="button" data-challenge-accept="${row.challenge_id}">Accept</button>
-      <button class="secondary" type="button" data-friend-challenge="${row.user_id}">Challenge</button>
-      <button class="secondary" type="button" data-challenge-decline="${row.challenge_id}">Decline</button>`,
+      <button class="secondary friend-request-action friend-request-action--accept" type="button" data-challenge-accept="${row.challenge_id}">Accept</button>
+      <button class="secondary friend-request-action friend-request-action--challenge" type="button" data-friend-challenge="${row.user_id}">Challenge</button>
+      <button class="secondary friend-request-action friend-request-action--decline" type="button" data-challenge-decline="${row.challenge_id}">Decline</button>`,
   );
   els.incomingChallengesList.querySelectorAll('.friend-row').forEach((rowEl, idx) => {
     const row = friendsData.incoming_challenges[idx];
@@ -1163,9 +1163,9 @@ function renderFriends() {
     (row) => row.status === 'declined'
       ? '<span class="friend-declined-note">Declined - Click to Clear</span>'
       : row.status === 'expired'
-        ? `<button class="primary" type="button" data-challenge-resend="${row.challenge_id}">Resend</button>
-           <button class="secondary" type="button" data-challenge-clear="${row.challenge_id}">Clear</button>`
-        : `<button class="secondary" type="button" data-challenge-cancel="${row.challenge_id}">Cancel</button>`,
+        ? `<button class="secondary friend-request-action friend-request-action--resend" type="button" data-challenge-resend="${row.challenge_id}">Resend</button>
+           <button class="secondary friend-request-action friend-request-action--clear" type="button" data-challenge-clear="${row.challenge_id}">Clear</button>`
+        : `<button class="secondary friend-request-action friend-request-action--cancel" type="button" data-challenge-cancel="${row.challenge_id}">Cancel</button>`,
   );
   els.outgoingChallengesList.querySelectorAll('.friend-row').forEach((rowEl, idx) => {
     const row = friendsData.outgoing_challenges[idx];

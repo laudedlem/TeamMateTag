@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.6.23`, the friend-request clarity pass.
+- Current display version is `0.6.24`, the friend-request action polish pass.
   Verify the production footer after each deployment.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -579,6 +579,11 @@ decision needs context.
   players. Friends request cards use a compact full-width layout with equal
   action buttons and persistent sport/mode color chips, including when the
   request has expired.
+- `0.6.24`: Friends challenge cards now follow a compact three-line hierarchy:
+  name, challenge metadata, then actions. Accept, Challenge/Resend, and
+  Decline/Clear use distinct light green, blue, and red treatments with shared
+  button dimensions and type. The expired chip is a softer yellow than the
+  Playoffs chip.
 
 ### Important implementation notes
 

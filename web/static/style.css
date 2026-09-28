@@ -393,7 +393,11 @@ header .title h1 {
   color: #ff8f8f;
 }
 
-.friend-challenge-expiry.is-expired { color: #3a2a00; background: #ffd84f; }
+.friend-challenge-expiry.is-expired {
+  background: rgba(255, 216, 79, 0.52);
+  border: 1px solid rgba(255, 235, 157, 0.78);
+  color: #fff1b0;
+}
 .friend-challenge-expiry.is-lobby { color: #d9efff; background: rgba(74, 179, 255, 0.22); }
 
 .friend-match-request-heading {
@@ -8722,6 +8726,42 @@ body.headshot-audit-page .audit-status-pill {
   justify-content: center;
   min-width: 0;
   white-space: nowrap;
+}
+
+#friends-screen .friend-actions .friend-request-action {
+  border-radius: 999px;
+  box-sizing: border-box;
+  font-size: .76rem;
+  font-weight: 800;
+  min-height: 2rem;
+  padding: .36rem .58rem;
+  width: 100%;
+}
+
+#friends-screen .friend-actions .friend-request-action--accept {
+  background: rgba(130, 229, 161, 0.22);
+  border-color: rgba(130, 229, 161, 0.72);
+  color: #b9f5ce;
+}
+
+#friends-screen .friend-actions .friend-request-action--challenge,
+#friends-screen .friend-actions .friend-request-action--resend {
+  background: rgba(137, 201, 255, 0.2);
+  border-color: rgba(137, 201, 255, 0.7);
+  color: #c1e6ff;
+}
+
+#friends-screen .friend-actions .friend-request-action--decline,
+#friends-screen .friend-actions .friend-request-action--clear {
+  background: rgba(255, 151, 158, 0.2);
+  border-color: rgba(255, 151, 158, 0.7);
+  color: #ffc4c8;
+}
+
+#friends-screen .friend-actions .friend-request-action--cancel {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: var(--text);
 }
 
 #friends-screen .friend-meta {
