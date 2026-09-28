@@ -256,7 +256,7 @@ header .title h1 {
 
 .friend-choice-grid {
   display: grid;
-  gap: .42rem;
+  gap: .6rem;
 }
 
 .friend-sport-choice-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
@@ -268,10 +268,11 @@ header .title h1 {
   border-radius: 6px;
   color: var(--text-muted);
   font: inherit;
-  font-size: .78rem;
+  font-size: .96rem;
   font-weight: 850;
-  min-height: 2.35rem;
-  padding: .34rem;
+  min-height: 2.55rem;
+  padding: .3rem .2rem;
+  text-align: center;
 }
 
 .friend-choice.sport-baseball,
@@ -9039,9 +9040,7 @@ body.headshot-audit-page .audit-status-pill {
 
 #friends-screen .profile-detail:nth-child(3),
 #friends-screen .profile-detail:nth-child(4) {
-  background:
-    linear-gradient(135deg, rgba(255, 216, 79, 0.12), transparent 54%),
-    rgba(255, 255, 255, 0.058);
+  background: rgba(255, 255, 255, 0.058);
 }
 
 #friends-screen .profile-detail:nth-child(5),
@@ -9057,12 +9056,39 @@ body.headshot-audit-page .audit-status-pill {
 
 #friends-screen .profile-detail:nth-child(3),
 #friends-screen .profile-detail:nth-child(4) {
-  border-color: rgba(255, 216, 79, 0.46);
+  border-color: rgba(214, 221, 232, 0.58);
 }
 
 #friends-screen .profile-detail:nth-child(5),
 #friends-screen .profile-detail:nth-child(6) {
-  border-color: rgba(242, 85, 85, 0.46);
+  border-color: rgba(191, 129, 255, 0.62);
+}
+
+#friends-screen .profile-detail.is-friend-section-live {
+  border-color: rgba(67, 178, 111, 0.72);
+}
+
+#friends-screen .profile-detail.is-friend-section-expired {
+  border-color: rgba(255, 216, 79, 0.68);
+}
+
+#friends-screen .profile-detail.is-friend-section-declined {
+  border-color: rgba(242, 85, 85, 0.72);
+}
+
+#friends-screen #challenge-history-list .friend-history-summary {
+  align-items: stretch;
+  display: grid;
+  gap: .55rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+#friends-screen #challenge-history-list .friend-match-request-badges {
+  align-items: flex-end;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: .25rem;
+  justify-content: space-between;
 }
 
 .friend-row {

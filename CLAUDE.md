@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.6.26`, the friend-history and subsection pass.
+- Current display version is `0.6.27`, the friend-section state and layout pass.
   Verify the production footer after each deployment.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -591,6 +591,12 @@ decision needs context.
   the same colored chips used by active challenges, alongside the outcome and
   lineup length. Friends subsection borders are now thicker, evenly weighted,
   and more distinct by section.
+- `0.6.27`: Recent Friend Challenges uses a compact two-column summary with
+  the outcome and lineup on the left and vertically stacked sport/mode chips
+  on the right. Friends subsections now reflect live, expired, and declined
+  request states through their border color; Friends and history use purple.
+  The challenge composer title is a single `Challenge <username>` line and
+  its sport/mode choices are larger with more breathing room.
 
 ### Important implementation notes
 

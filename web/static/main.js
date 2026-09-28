@@ -942,6 +942,20 @@ function friendRequestClass(row) {
   return `request-sport-${row.sport || 'baseball'} request-mode-${row.mode === 'po' ? 'playoffs' : 'division'}`;
 }
 
+function setFriendsSectionState(list, state = '') {
+  const section = list?.closest('.profile-detail');
+  if (!section) return;
+  section.classList.remove('is-friend-section-live', 'is-friend-section-expired', 'is-friend-section-declined');
+  if (state) section.classList.add(`is-friend-section-${state}`);
+}
+
+function challengeSectionState(rows = [], outgoing = false) {
+  if (outgoing && rows.some((row) => row.status === 'declined')) return 'declined';
+  if (rows.some((row) => row.status === 'pending' || row.status === 'lobby')) return 'live';
+  if (rows.some((row) => row.status === 'expired')) return 'expired';
+  return '';
+}
+
 function friendChallengeExpiry(row) {
   if (row?.status === 'lobby') {
     return '<span class="friend-challenge-expiry is-lobby">In Lobby</span>';
@@ -1064,7 +1078,8 @@ function renderFriendChallengePanel() {
     (row) => row.user_id === friendChallengeSelection.friendUserId,
   );
   els.friendDetailLabel.textContent = 'Challenge Friend';
-  els.friendProfileName.textContent = friendName || 'Friend';
+  els.friendDetailLabel.hidden = true;
+  els.friendProfileName.textContent = `Challenge ${friendName || 'Friend'}`;
   els.friendProfileStats.hidden = true;
   els.friendChallengePanel.hidden = false;
   if (incoming && friendChallengeView === 'incoming') {
@@ -1195,15 +1210,24 @@ function renderFriends() {
     'No Challenge History Yet.',
     (row) => '',
   );
+  setFriendsSectionState(els.incomingRequestsList, friendsData.incoming_requests.length ? 'live' : '');
+  setFriendsSectionState(els.outgoingRequestsList, friendsData.outgoing_requests.length ? 'live' : '');
+  setFriendsSectionState(els.incomingChallengesList, challengeSectionState(friendsData.incoming_challenges));
+  setFriendsSectionState(els.outgoingChallengesList, challengeSectionState(friendsData.outgoing_challenges, true));
+  setFriendsSectionState(els.friendsList);
+  setFriendsSectionState(els.challengeHistoryList);
   syncFriendChallengeCountdowns();
   els.challengeHistoryList.querySelectorAll('.friend-row').forEach((rowEl, idx) => {
     const row = friendsData.challenge_history[idx];
     if (!row) return;
     rowEl.classList.add(...friendRequestClass(row).split(' '));
     rowEl.innerHTML = `
-      <div class="friend-meta">
-        <div class="friend-name">${escapeHtml(row.won ? 'Win' : 'Loss')} vs ${escapeHtml(row.opponent_label || 'Friend')}</div>
-        <div class="friend-sub">${friendRequestBadges(row)} <span>Lineup ${escapeHtml(String(row.chain_length || 0))}</span></div>
+      <div class="friend-history-summary">
+        <div class="friend-meta">
+          <div class="friend-name">${escapeHtml(row.won ? 'Win' : 'Loss')} vs ${escapeHtml(row.opponent_label || 'Friend')}</div>
+          <div class="friend-sub">Lineup ${escapeHtml(String(row.chain_length || 0))}</div>
+        </div>
+        ${friendRequestBadges(row)}
       </div>
     `;
   });
@@ -1445,6 +1469,7 @@ async function openFriendProfile(friendUserId) {
     return;
   }
   els.friendDetailLabel.textContent = 'Friend Snapshot';
+  els.friendDetailLabel.hidden = false;
   els.friendProfileName.textContent = next.username || next.display_name || 'Friend';
   const sportOrder = ['baseball', 'basketball', 'football', 'hockey'];
   els.friendProfileStats.innerHTML = sportOrder.map((sport) => {
