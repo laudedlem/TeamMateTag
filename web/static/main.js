@@ -835,7 +835,7 @@ function wireFriendsActions() {
     btn.addEventListener('click', () => cancelFriendChallenge(btn.dataset.challengeCancel));
   });
   document.querySelectorAll('[data-challenge-clear]').forEach((btn) => {
-    btn.addEventListener('click', () => cancelFriendChallenge(btn.dataset.challengeClear));
+    btn.addEventListener('click', () => cancelFriendChallenge(btn.dataset.challengeClear, false, true));
   });
   document.querySelectorAll('[data-challenge-resend]').forEach((btn) => {
     btn.addEventListener('click', () => resendFriendChallenge(btn.dataset.challengeResend));
@@ -925,7 +925,7 @@ function wireFriendChallengePanelActions() {
     respondFriendChallenge(event.currentTarget.dataset.challengeDecline, false);
   });
   els.friendChallengePanel.querySelector('[data-challenge-clear]')?.addEventListener('click', (event) => {
-    cancelFriendChallenge(event.currentTarget.dataset.challengeClear);
+    cancelFriendChallenge(event.currentTarget.dataset.challengeClear, false, true);
   });
 }
 
@@ -1375,7 +1375,7 @@ function wireFriendGameoverChallengeActions() {
     cancelFriendChallenge(event.currentTarget.dataset.gameoverRequestCancel, true);
   });
   els.friendGameoverChallenge.querySelector('[data-gameover-request-clear]')?.addEventListener('click', (event) => {
-    cancelFriendChallenge(event.currentTarget.dataset.gameoverRequestClear, true);
+    cancelFriendChallenge(event.currentTarget.dataset.gameoverRequestClear, true, true);
   });
   els.friendGameoverChallenge.querySelector('[data-gameover-request-resend]')?.addEventListener('click', (event) => {
     resendFriendChallenge(event.currentTarget.dataset.gameoverRequestResend, true);
@@ -1485,9 +1485,10 @@ async function respondFriendChallenge(challengeId, accept) {
   if (friendGameoverChallengeSelection) renderFriendGameoverChallenge();
 }
 
-async function cancelFriendChallenge(challengeId, fromGameover = false) {
+async function cancelFriendChallenge(challengeId, fromGameover = false, dismissOnly = false) {
   const next = await api('/api/friends/challenge_cancel', {
     challenge_id: challengeId,
+    dismiss_only: dismissOnly,
   });
   if (next?.error) {
     els.friendsStatus.textContent = next.error;

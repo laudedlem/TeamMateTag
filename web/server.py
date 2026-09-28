@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.6.22"
+APP_VERSION = "0.6.23"
 FRIEND_CHALLENGE_TTL_SECONDS = 30
 INTERNAL_AUTH_EMAIL_DOMAIN = "auth.teammatetag.com"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
@@ -1257,6 +1257,8 @@ def ensure_runtime_schema():
             conn.execute("ALTER TABLE dr_friend_challenges ADD COLUMN IF NOT EXISTS sport_id TEXT NOT NULL DEFAULT 'baseball'")
             conn.execute("ALTER TABLE dr_friend_challenges ADD COLUMN IF NOT EXISTS mode TEXT NOT NULL DEFAULT 'dr'")
             conn.execute("ALTER TABLE dr_friend_challenges ADD COLUMN IF NOT EXISTS preference TEXT NOT NULL DEFAULT 'random'")
+            conn.execute("ALTER TABLE dr_friend_challenges ADD COLUMN IF NOT EXISTS sender_dismissed_at TIMESTAMPTZ")
+            conn.execute("ALTER TABLE dr_friend_challenges ADD COLUMN IF NOT EXISTS recipient_dismissed_at TIMESTAMPTZ")
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS player_powerup_qualifications (
                        player_id TEXT NOT NULL REFERENCES players(player_id),
@@ -2233,7 +2235,9 @@ def _friends_payload(conn, guest_id: str) -> dict:
         f"""SELECT challenge_id::text, sender_user_id::text, sender_name, {challenge_fields},
                       game_id::text, created_at
              FROM dr_friend_challenges
-            WHERE recipient_user_id = %s AND status = 'pending'
+            WHERE recipient_user_id = %s
+              AND recipient_dismissed_at IS NULL
+              AND status = 'pending'
             ORDER BY created_at DESC""",
         (guest_id,),
     ).fetchall()
@@ -2243,7 +2247,9 @@ def _friends_payload(conn, guest_id: str) -> dict:
                         challenge_id::text, recipient_user_id::text, recipient_name,
                         {challenge_fields}, status, game_id::text, created_at
                    FROM dr_friend_challenges
-                  WHERE sender_user_id = %s AND status IN ('pending', 'declined')
+                  WHERE sender_user_id = %s
+                    AND sender_dismissed_at IS NULL
+                    AND status IN ('pending', 'declined')
                   ORDER BY recipient_user_id, created_at DESC
              )
              SELECT challenge_id, recipient_user_id, recipient_name, {challenge_fields}, status,
@@ -3574,7 +3580,8 @@ def _upsert_friend_match_request(conn, sender_id: str, recipient_id: str, sport:
                   SET sender_user_id=%s, recipient_user_id=%s,
                       sender_name=%s, recipient_name=%s,
                       sport_id=%s, mode=%s, preference=%s, game_id=%s,
-                      created_at=now(), responded_at=NULL
+                      created_at=now(), responded_at=NULL,
+                      sender_dismissed_at=NULL, recipient_dismissed_at=NULL
                 WHERE challenge_id=%s""",
             (sender_id, recipient_id, sender_name, recipient_name, sport, mode,
              preference, source_game_id, pending[0]),
@@ -3817,6 +3824,7 @@ def friends_challenge_cancel():
     ensure_runtime_schema()
     data = request.get_json(silent=True) or {}
     challenge_id = (data.get("challenge_id") or "").strip()
+    dismiss_only = bool(data.get("dismiss_only"))
     if not challenge_id:
         return jsonify({"error": "challenge_id required"}), 400
     with db() as conn:
@@ -3826,18 +3834,32 @@ def friends_challenge_cancel():
         me = _require_user(conn, guest_id)
         if not me:
             return jsonify({"error": "account required"}), 403
-        conn.execute(
-            """UPDATE dr_friend_challenges
-                  SET status = CASE WHEN status = 'declined' THEN 'dismissed' ELSE 'cancelled' END,
-                      responded_at = now()
-                WHERE challenge_id = %s
-                  AND (
-                       (sender_user_id = %s AND status IN ('pending', 'declined'))
-                    OR (recipient_user_id = %s AND status = 'pending'
-                        AND created_at <= now() - INTERVAL '30 seconds')
-                  )""",
-            (challenge_id, guest_id, guest_id),
-        )
+        if dismiss_only:
+            # Expired requests are historical for each participant independently.
+            # Clearing one must not hide it from the friend who has not acted yet.
+            conn.execute(
+                """UPDATE dr_friend_challenges
+                      SET sender_dismissed_at = CASE WHEN sender_user_id = %s THEN now() ELSE sender_dismissed_at END,
+                          recipient_dismissed_at = CASE WHEN recipient_user_id = %s THEN now() ELSE recipient_dismissed_at END
+                    WHERE challenge_id = %s
+                      AND status = 'pending'
+                      AND created_at <= now() - INTERVAL '30 seconds'
+                      AND (sender_user_id = %s OR recipient_user_id = %s)""",
+                (guest_id, guest_id, challenge_id, guest_id, guest_id),
+            )
+        else:
+            conn.execute(
+                """UPDATE dr_friend_challenges
+                      SET status = CASE WHEN status = 'declined' THEN 'dismissed' ELSE 'cancelled' END,
+                          responded_at = now()
+                    WHERE challenge_id = %s
+                      AND (
+                           (sender_user_id = %s AND status IN ('pending', 'declined'))
+                        OR (recipient_user_id = %s AND status = 'pending'
+                            AND created_at <= now() - INTERVAL '30 seconds')
+                      )""",
+                (challenge_id, guest_id, guest_id),
+            )
         return jsonify(_friends_payload(conn, guest_id))
 
 
