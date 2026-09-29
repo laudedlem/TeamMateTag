@@ -315,6 +315,20 @@ header .title h1 {
   border-top: 1px solid var(--border);
 }
 
+.friend-gameover-challenge.is-lobby-left {
+  background: rgba(255, 229, 137, 0.14);
+  border: 1px solid rgba(255, 216, 79, 0.62);
+  border-radius: 8px;
+  padding: .7rem;
+}
+
+.friend-lobby-left-notice {
+  color: #fff1b0;
+  font-size: .86rem;
+  font-weight: 900;
+  text-align: center;
+}
+
 .friend-gameover-title {
   color: var(--text);
   font-size: .84rem;
@@ -341,16 +355,22 @@ header .title h1 {
 }
 
 .friend-match-request.request-sport-baseball,
+.friend-gameover-record.request-sport-baseball,
 .friend-row.request-sport-baseball { --request-sport: #f25555; }
 .friend-match-request.request-sport-basketball,
+.friend-gameover-record.request-sport-basketball,
 .friend-row.request-sport-basketball { --request-sport: #ff8a34; }
 .friend-match-request.request-sport-football,
+.friend-gameover-record.request-sport-football,
 .friend-row.request-sport-football { --request-sport: #50d36b; }
 .friend-match-request.request-sport-hockey,
+.friend-gameover-record.request-sport-hockey,
 .friend-row.request-sport-hockey { --request-sport: #4ab3ff; }
 .friend-match-request.request-mode-division,
+.friend-gameover-record.request-mode-division,
 .friend-row.request-mode-division { --request-mode: #ff65ad; }
 .friend-match-request.request-mode-playoffs,
+.friend-gameover-record.request-mode-playoffs,
 .friend-row.request-mode-playoffs { --request-mode: #ffd84f; }
 
 .friend-match-request.is-declined {
@@ -399,8 +419,6 @@ header .title h1 {
   border: 1px solid rgba(255, 235, 157, 0.78);
   color: #fff1b0;
 }
-.friend-challenge-expiry.is-lobby { color: #d9efff; background: rgba(74, 179, 255, 0.22); }
-
 .friend-match-request-heading {
   display: flex;
   align-items: baseline;
@@ -409,7 +427,7 @@ header .title h1 {
 }
 
 .friend-match-request-heading span {
-  color: color-mix(in srgb, var(--request-mode) 78%, #ffffff);
+  color: #c5ccd5;
   font-size: .72rem;
   font-weight: 850;
   letter-spacing: .05em;
@@ -420,6 +438,12 @@ header .title h1 {
   color: var(--text);
   font-size: .95rem;
 }
+
+.friend-match-request.is-declined .friend-match-request-heading span,
+.friend-match-request.is-declined .friend-match-request-heading strong { color: #ffb4b4; }
+
+.friend-match-request.is-expired .friend-match-request-heading span,
+.friend-match-request.is-expired .friend-match-request-heading strong { color: #fff1b0; }
 
 .friend-match-request-badges {
   display: flex;
@@ -463,8 +487,15 @@ header .title h1 {
 .friend-gameover-composer {
   display: grid;
   gap: .48rem;
-  padding-top: .16rem;
+  padding-top: .08rem;
 }
+
+.friend-gameover-composer [data-gameover-challenge-status] {
+  margin: 0;
+  min-height: 0;
+}
+
+.friend-gameover-composer [data-gameover-challenge-status]:empty { display: none; }
 
 .friend-gameover-actions {
   display: flex;
@@ -483,6 +514,78 @@ header .title h1 {
 .friend-gameover-challenge .friend-match-request-badges {
   justify-content: center;
 }
+
+.friend-gameover-challenge .friend-match-request-badges span {
+  font-size: .9rem;
+  padding: .3rem .62rem;
+}
+
+.friend-playoff-picker {
+  display: grid;
+  gap: .28rem;
+  color: var(--text-muted);
+  font-size: .74rem;
+  font-weight: 850;
+  text-align: left;
+}
+
+.friend-playoff-picker select {
+  min-width: 0;
+  min-height: 2.2rem;
+  padding: .35rem .5rem;
+  font-size: .82rem;
+}
+
+.friend-gameover-challenge .friend-playoff-picker { text-align: center; }
+
+.friend-gameover-record {
+  align-items: center;
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: .34rem;
+  justify-content: center;
+  margin-top: .52rem;
+}
+
+.friend-gameover-record .friend-match-request-badges { gap: .3rem; }
+
+.friend-gameover-record .friend-match-request-badges span {
+  border-radius: 999px;
+  color: #161b24;
+  font-size: .72rem;
+  font-weight: 850;
+  line-height: 1.1;
+  padding: .2rem .42rem;
+}
+
+.friend-gameover-record .friend-request-sport { background: var(--request-sport); }
+.friend-gameover-record .friend-request-mode { background: var(--request-mode); }
+
+.friend-gameover-record-score {
+  color: var(--text-muted);
+  font-size: .78rem;
+  font-weight: 850;
+}
+
+.game-over-stats {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: .34rem;
+  justify-content: center;
+  margin-top: .52rem;
+}
+
+.game-over-stat {
+  border-radius: 999px;
+  font-size: .76rem;
+  font-weight: 850;
+  padding: .22rem .48rem;
+}
+
+.game-over-winner { background: rgba(111, 219, 146, 0.18); color: #bff5cf; }
+.game-over-lineup { background: rgba(117, 196, 255, 0.18); color: #c7ebff; }
+.game-over-strikes { background: rgba(255, 145, 145, 0.17); color: #ffc4c4; }
 
 .friend-gameover-challenge .friend-gameover-title { text-align: center; }
 

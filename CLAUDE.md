@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.6.27`, the friend-section state and layout pass.
+- Current display version is `0.6.28`, the friend game-over and Playoffs preference pass.
   Verify the production footer after each deployment.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -597,6 +597,11 @@ decision needs context.
   request states through their border color; Friends and history use purple.
   The challenge composer title is a single `Challenge <username>` line and
   its sport/mode choices are larger with more breathing room.
+- `0.6.28`: Friend game-over requests now use a silver default state, larger
+  sport/mode chips, compact summary stats, a colored H2H record, and a clear
+  post-lobby departure state. Playoffs friend challenges and rematches let
+  each player choose and save a win condition before entering; Division
+  Rivalry remains condition-free.
 
 ### Important implementation notes
 

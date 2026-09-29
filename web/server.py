@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.6.27"
+APP_VERSION = "0.6.28"
 FRIEND_CHALLENGE_TTL_SECONDS = 30
 INTERNAL_AUTH_EMAIL_DOMAIN = "auth.teammatetag.com"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
@@ -1257,6 +1257,7 @@ def ensure_runtime_schema():
             conn.execute("ALTER TABLE dr_friend_challenges ADD COLUMN IF NOT EXISTS sport_id TEXT NOT NULL DEFAULT 'baseball'")
             conn.execute("ALTER TABLE dr_friend_challenges ADD COLUMN IF NOT EXISTS mode TEXT NOT NULL DEFAULT 'dr'")
             conn.execute("ALTER TABLE dr_friend_challenges ADD COLUMN IF NOT EXISTS preference TEXT NOT NULL DEFAULT 'random'")
+            conn.execute("ALTER TABLE dr_friend_challenges ADD COLUMN IF NOT EXISTS win_condition_preference TEXT NOT NULL DEFAULT 'random'")
             conn.execute("ALTER TABLE dr_friend_challenges ADD COLUMN IF NOT EXISTS sender_dismissed_at TIMESTAMPTZ")
             conn.execute("ALTER TABLE dr_friend_challenges ADD COLUMN IF NOT EXISTS recipient_dismissed_at TIMESTAMPTZ")
             conn.execute(
@@ -1860,6 +1861,12 @@ def _normalized_playoff_preference(value: str | None) -> str:
     return value if value in PLAYOFF_WIN_CONDITIONS else "random"
 
 
+def _normalized_sport_playoff_preference(sport: str, value: str | None) -> str:
+    value = (value or "random").strip()
+    conditions = PLAYOFF_WIN_CONDITIONS if sport == "baseball" else LOCAL_PLAYOFF_CONFIG.get(sport, {}).get("conditions", {})
+    return value if value in conditions else "random"
+
+
 def _playoff_condition_for_guest(conn, guest_id: str) -> str:
     row = conn.execute(
         "SELECT playoff_win_condition_preference FROM guests WHERE guest_id = %s",
@@ -1870,8 +1877,8 @@ def _playoff_condition_for_guest(conn, guest_id: str) -> str:
             if preference == "random" else preference)
 
 
-def _save_playoff_preference(conn, guest_id: str, value: str | None) -> str:
-    preference = _normalized_playoff_preference(value)
+def _save_playoff_preference(conn, guest_id: str, value: str | None, sport: str = "baseball") -> str:
+    preference = _normalized_sport_playoff_preference(sport, value)
     conn.execute(
         "UPDATE guests SET playoff_win_condition_preference = %s WHERE guest_id = %s",
         (preference, guest_id),
@@ -2225,12 +2232,12 @@ def _friends_payload(conn, guest_id: str) -> dict:
         (guest_id, guest_id),
     ).fetchall()
     challenge_columns_ready = conn.execute(
-        """SELECT COUNT(*) = 3 FROM information_schema.columns
+        """SELECT COUNT(*) = 4 FROM information_schema.columns
              WHERE table_schema='public' AND table_name='dr_friend_challenges'
-               AND column_name IN ('sport_id', 'mode', 'preference')"""
+               AND column_name IN ('sport_id', 'mode', 'preference', 'win_condition_preference')"""
     ).fetchone()[0]
-    challenge_fields = ("sport_id, mode, preference" if challenge_columns_ready
-                        else "'baseball' AS sport_id, 'dr' AS mode, 'random' AS preference")
+    challenge_fields = ("sport_id, mode, preference, win_condition_preference" if challenge_columns_ready
+                        else "'baseball' AS sport_id, 'dr' AS mode, 'random' AS preference, 'random' AS win_condition_preference")
     incoming_challenges = conn.execute(
         f"""SELECT challenge_id::text, sender_user_id::text, sender_name, {challenge_fields},
                       game_id::text, created_at
@@ -2302,23 +2309,25 @@ def _friends_payload(conn, guest_id: str) -> dict:
                             if challenge_columns_ready else dr_state_dict(gid, blob, state, conn=conn))
             matched_redirect = _multi_redirect(sport, mode, gid)
     incoming_challenge_payload = []
-    for cid, uid, name, sport, mode, preference, source_game_id, created_at in incoming_challenges:
+    for cid, uid, name, sport, mode, preference, win_condition_preference, source_game_id, created_at in incoming_challenges:
         status, expires_at_ms = _friend_challenge_display_state(
             conn, uid, guest_id, "pending", source_game_id, created_at
         )
         incoming_challenge_payload.append({
             "challenge_id": cid, "user_id": uid, "name": name, "sport": sport, "mode": mode,
             "kind": "rematch" if preference == "rematch" else "challenge", "status": status,
+            "win_condition_preference": win_condition_preference or "random",
             "expires_at_ms": expires_at_ms,
         })
     outgoing_challenge_payload = []
-    for cid, uid, name, sport, mode, preference, status, source_game_id, created_at in outgoing_challenges:
+    for cid, uid, name, sport, mode, preference, win_condition_preference, status, source_game_id, created_at in outgoing_challenges:
         status, expires_at_ms = _friend_challenge_display_state(
             conn, guest_id, uid, status, source_game_id, created_at
         )
         outgoing_challenge_payload.append({
             "challenge_id": cid, "user_id": uid, "name": name, "sport": sport, "mode": mode,
             "kind": "rematch" if preference == "rematch" else "challenge", "status": status,
+            "win_condition_preference": win_condition_preference or "random",
             "expires_at_ms": expires_at_ms,
         })
     return {
@@ -3559,7 +3568,8 @@ def friends_respond():
 
 
 def _upsert_friend_match_request(conn, sender_id: str, recipient_id: str, sport: str,
-                                 mode: str, preference: str, source_game_id: str | None = None):
+                                 mode: str, preference: str, source_game_id: str | None = None,
+                                 win_condition_preference: str = "random"):
     """Keep exactly one replaceable pending match request for a friend pair."""
     a, b = _friendship_pair(sender_id, recipient_id)
     conn.execute(
@@ -3584,21 +3594,22 @@ def _upsert_friend_match_request(conn, sender_id: str, recipient_id: str, sport:
                   SET sender_user_id=%s, recipient_user_id=%s,
                       sender_name=%s, recipient_name=%s,
                       sport_id=%s, mode=%s, preference=%s, game_id=%s,
+                      win_condition_preference=%s,
                       created_at=now(), responded_at=NULL,
                       sender_dismissed_at=NULL, recipient_dismissed_at=NULL
                 WHERE challenge_id=%s""",
             (sender_id, recipient_id, sender_name, recipient_name, sport, mode,
-             preference, source_game_id, pending[0]),
+             preference, source_game_id, win_condition_preference, pending[0]),
         )
         return pending[0]
     row = conn.execute(
         """INSERT INTO dr_friend_challenges (
                sender_user_id, recipient_user_id, sender_name, recipient_name,
-               sport_id, mode, preference, game_id
-           ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+               sport_id, mode, preference, game_id, win_condition_preference
+           ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
            RETURNING challenge_id::text""",
         (sender_id, recipient_id, sender_name, recipient_name, sport, mode,
-         preference, source_game_id),
+         preference, source_game_id, win_condition_preference),
     ).fetchone()
     return row[0]
 
@@ -3618,9 +3629,9 @@ def friends_challenge():
         return jsonify({"error": "unsupported sport or mode"}), 400
     with db() as conn:
         challenge_columns_ready = conn.execute(
-            """SELECT COUNT(*) = 3 FROM information_schema.columns
+            """SELECT COUNT(*) = 4 FROM information_schema.columns
                  WHERE table_schema='public' AND table_name='dr_friend_challenges'
-                   AND column_name IN ('sport_id', 'mode', 'preference')"""
+                   AND column_name IN ('sport_id', 'mode', 'preference', 'win_condition_preference')"""
         ).fetchone()[0]
         if not challenge_columns_ready:
             return jsonify({"error": "Friends challenges are finishing an update. Please try again shortly."}), 503
@@ -3653,10 +3664,14 @@ def friends_challenge():
             "DELETE FROM sport_online_queue WHERE sport_id=%s AND mode=%s AND guest_id IN (%s, %s)",
             (sport, mode, guest_id, friend_user_id),
         )
+        win_condition_preference = _normalized_sport_playoff_preference(sport, preference) if mode == "po" else "random"
+        if mode == "po":
+            _save_playoff_preference(conn, guest_id, win_condition_preference, sport)
         _upsert_friend_match_request(
             conn, guest_id, friend_user_id, sport, mode,
-            preference if mode == "po" else "random",
+            win_condition_preference,
             source_game_id,
+            win_condition_preference,
         )
         return jsonify(_friends_payload(conn, guest_id))
 
@@ -3666,6 +3681,7 @@ def friends_rematch():
     ensure_runtime_schema()
     data = request.get_json(silent=True) or {}
     game_id = (data.get("game_id") or "").strip()
+    requested_preference = (data.get("win_condition_preference") or "random").strip()
     if not game_id:
         return jsonify({"error": "game_id required"}), 400
     with db() as conn:
@@ -3690,7 +3706,13 @@ def friends_rematch():
             "SELECT 1 FROM friendships WHERE user_a_id=%s AND user_b_id=%s", (a, b)
         ).fetchone():
             return jsonify({"error": "friendship required"}), 403
-        _upsert_friend_match_request(conn, guest_id, other_id, sport, mode, "rematch", game_id)
+        win_condition_preference = _normalized_sport_playoff_preference(sport, requested_preference) if mode == "po" else "random"
+        if mode == "po":
+            _save_playoff_preference(conn, guest_id, win_condition_preference, sport)
+        _upsert_friend_match_request(
+            conn, guest_id, other_id, sport, mode, "rematch", game_id,
+            win_condition_preference,
+        )
         return jsonify(_friends_payload(conn, guest_id))
 
 
@@ -3700,13 +3722,14 @@ def friends_challenge_respond():
     data = request.get_json(silent=True) or {}
     challenge_id = (data.get("challenge_id") or "").strip()
     accept = bool(data.get("accept"))
+    requested_preference = (data.get("win_condition_preference") or "random").strip()
     if not challenge_id:
         return jsonify({"error": "challenge_id required"}), 400
     with db() as conn:
         challenge_columns_ready = conn.execute(
-            """SELECT COUNT(*) = 3 FROM information_schema.columns
+            """SELECT COUNT(*) = 4 FROM information_schema.columns
                  WHERE table_schema='public' AND table_name='dr_friend_challenges'
-                   AND column_name IN ('sport_id', 'mode', 'preference')"""
+                   AND column_name IN ('sport_id', 'mode', 'preference', 'win_condition_preference')"""
         ).fetchone()[0]
         if not challenge_columns_ready:
             return jsonify({"error": "Friends challenges are finishing an update. Please try again shortly."}), 503
@@ -3718,14 +3741,16 @@ def friends_challenge_respond():
             return jsonify({"error": "account required"}), 403
         row = conn.execute(
             """SELECT sender_user_id::text, recipient_user_id::text, sender_name, recipient_name, status,
-                      sport_id, mode, preference, game_id::text, created_at
+                      sport_id, mode, preference, game_id::text, created_at,
+                      win_condition_preference
                  FROM dr_friend_challenges
                 WHERE challenge_id = %s""",
             (challenge_id,),
         ).fetchone()
         if not row:
             return jsonify({"error": "challenge not found"}), 404
-        sender_id, recipient_id, sender_name, recipient_name, status, sport, mode, preference, source_game_id, created_at = row
+        (sender_id, recipient_id, sender_name, recipient_name, status, sport, mode,
+         preference, source_game_id, created_at, sender_preference) = row
         if recipient_id != guest_id:
             return jsonify({"error": "unauthorized"}), 403
         if status != "pending":
@@ -3766,20 +3791,32 @@ def friends_challenge_respond():
                     source_players != {sender_id, recipient_id}):
                 return jsonify({"error": "rematch source unavailable"}), 409
             sport, mode = source_sport, source_mode
+            sender_preference = _normalized_sport_playoff_preference(
+                sport, sender_preference if sender_preference != "random" else preference
+            )
+            recipient_preference = _normalized_sport_playoff_preference(sport, requested_preference) if mode == "po" else "random"
+            if mode == "po":
+                _save_playoff_preference(conn, guest_id, recipient_preference, sport)
             gid, blob, state = _sport_online_create(
                 conn, sport, mode,
                 (sender_id, sender_name), (recipient_id, recipient_name),
-                _sport_online_rematch_preferences(source_blob),
+                {sender_id: sender_preference, recipient_id: recipient_preference},
                 first_guest_id=_sport_online_rematch_first_guest_id(source_blob),
             )
         else:
+            sender_preference = _normalized_sport_playoff_preference(
+                sport, sender_preference if sender_preference != "random" else preference
+            )
+            recipient_preference = _normalized_sport_playoff_preference(sport, requested_preference) if mode == "po" else "random"
+            if mode == "po":
+                _save_playoff_preference(conn, guest_id, recipient_preference, sport)
             gid, blob, state = _sport_online_create(
                 conn,
                 sport,
                 mode,
                 (sender_id, sender_name),
                 (recipient_id, recipient_name),
-                {sender_id: preference, recipient_id: "random"},
+                {sender_id: sender_preference, recipient_id: recipient_preference},
             )
         blob["friend_challenge_id"] = challenge_id
         _sport_online_save(conn, gid, blob)
