@@ -536,6 +536,19 @@ header .title h1 {
   font-size: .82rem;
 }
 
+.friends-screen .friend-playoff-picker,
+#friends-screen .friend-playoff-picker {
+  gap: .18rem;
+  margin-top: .36rem;
+  max-width: 28rem;
+}
+
+#friends-screen .friend-playoff-picker select {
+  min-height: 2rem;
+  font-size: .76rem;
+  padding: .26rem .42rem;
+}
+
 .friend-gameover-challenge .friend-playoff-picker { text-align: center; }
 
 .friend-gameover-record {

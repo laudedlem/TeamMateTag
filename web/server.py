@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.6.28"
+APP_VERSION = "0.6.29"
 FRIEND_CHALLENGE_TTL_SECONDS = 30
 INTERNAL_AUTH_EMAIL_DOMAIN = "auth.teammatetag.com"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
@@ -3713,6 +3713,45 @@ def friends_rematch():
             conn, guest_id, other_id, sport, mode, "rematch", game_id,
             win_condition_preference,
         )
+        return jsonify(_friends_payload(conn, guest_id))
+
+
+@app.route("/api/friends/challenge_preference", methods=["POST"])
+def friends_challenge_preference():
+    """Persist a Playoffs choice without replacing the timed friend request."""
+    ensure_runtime_schema()
+    data = request.get_json(silent=True) or {}
+    challenge_id = (data.get("challenge_id") or "").strip()
+    requested_preference = (data.get("win_condition_preference") or "random").strip()
+    if not challenge_id:
+        return jsonify({"error": "challenge_id required"}), 400
+    with db() as conn:
+        guest_id = _session_account_guest_id(conn)
+        if not guest_id or not _require_user(conn, guest_id):
+            return jsonify({"error": "account login required"}), 403
+        row = conn.execute(
+            """SELECT sender_user_id::text, recipient_user_id::text, sport_id, mode, status
+                 FROM dr_friend_challenges
+                WHERE challenge_id=%s
+                FOR UPDATE""",
+            (challenge_id,),
+        ).fetchone()
+        if not row:
+            return jsonify({"error": "challenge not found"}), 404
+        sender_id, recipient_id, sport, mode, status = row
+        if guest_id not in {sender_id, recipient_id}:
+            return jsonify({"error": "unauthorized"}), 403
+        if mode != "po" or status != "pending":
+            return jsonify({"error": "Playoffs preference is no longer editable"}), 409
+        preference = _normalized_sport_playoff_preference(sport, requested_preference)
+        _save_playoff_preference(conn, guest_id, preference, sport)
+        if guest_id == sender_id:
+            conn.execute(
+                """UPDATE dr_friend_challenges
+                      SET win_condition_preference=%s
+                    WHERE challenge_id=%s""",
+                (preference, challenge_id),
+            )
         return jsonify(_friends_payload(conn, guest_id))
 
 

@@ -842,6 +842,11 @@ function wireFriendsActions() {
   document.querySelectorAll('[data-challenge-resend]').forEach((btn) => {
     btn.addEventListener('click', () => resendFriendChallenge(btn.dataset.challengeResend));
   });
+  document.querySelectorAll('[data-friend-request-preference]').forEach((select) => {
+    select.addEventListener('change', () => {
+      updateFriendChallengePreference(select.dataset.friendRequestPreference, select.value);
+    });
+  });
   document.querySelectorAll('[data-challenge-dismiss]').forEach((row) => {
     const dismiss = () => cancelFriendChallenge(row.dataset.challengeDismiss);
     row.addEventListener('click', dismiss);
@@ -1044,7 +1049,10 @@ function friendRequestCard(row, direction) {
         <strong>${escapeHtml(declined ? 'Declined' : friendRequestLabel(row))}</strong>
       </div>
       ${friendRequestBadges(row)}
-      ${incoming && row.mode === 'po' && !expired ? friendPlayoffPreferencePicker({ sport: row.sport, preference: savedFriendPlayoffPreference(row.sport) }, 'data-gameover-request') : ''}
+      ${row.mode === 'po' && !expired && !declined ? friendPlayoffPreferencePicker({
+        sport: row.sport,
+        preference: incoming ? savedFriendPlayoffPreference(row.sport) : row.win_condition_preference,
+      }, 'data-gameover-request', row.challenge_id) : ''}
       ${friendChallengeExpiry(row)}
       <div class="friend-gameover-actions">${action}</div>
     </section>`;
@@ -1079,17 +1087,30 @@ function rememberFriendPlayoffPreference(sport, value) {
   return preference;
 }
 
-function friendPlayoffPreferencePicker(selection, attribute) {
+function friendPlayoffPreferencePicker(selection, attribute, challengeId = '') {
   const options = LOCAL_PLAYOFF_OPTIONS[selection.sport] || [];
   const selected = rememberFriendPlayoffPreference(
     selection.sport,
     selection.preference || savedFriendPlayoffPreference(selection.sport),
   );
+  const control = `${attribute}-preference${challengeId ? `="${escapeHtml(challengeId)}"` : ''}`;
   return `<label class="friend-playoff-picker">Win Condition
-    <select ${attribute}-preference>
+    <select ${control}>
       ${options.map(([value, label]) => `<option value="${escapeHtml(value)}"${value === selected ? ' selected' : ''}>${escapeHtml(label)}</option>`).join('')}
     </select>
   </label>`;
+}
+
+function inlineFriendPlayoffPreferencePicker(row, direction) {
+  if (row.mode !== 'po' || ['expired', 'declined'].includes(row.status)) return '';
+  const preference = direction === 'outgoing'
+    ? row.win_condition_preference
+    : savedFriendPlayoffPreference(row.sport);
+  return friendPlayoffPreferencePicker(
+    { sport: row.sport, preference },
+    'data-friend-request',
+    row.challenge_id,
+  );
 }
 
 function friendMatchupScore(record = {}) {
@@ -1237,7 +1258,7 @@ function renderFriends() {
     if (!row) return;
     rowEl.classList.add(...friendRequestClass(row).split(' '));
     if (row.status === 'expired') rowEl.classList.add('is-expired');
-    rowEl.querySelector('.friend-meta').insertAdjacentHTML('beforeend', `<div class="friend-sub">${escapeHtml(friendRequestLabel(row))} ${friendRequestBadges(row)} ${friendChallengeExpiry(row)}</div>`);
+    rowEl.querySelector('.friend-meta').insertAdjacentHTML('beforeend', `<div class="friend-sub">${escapeHtml(friendRequestLabel(row))} ${friendRequestBadges(row)} ${friendChallengeExpiry(row)}</div>${inlineFriendPlayoffPreferencePicker(row, 'incoming')}`);
   });
   renderSimpleList(
     els.outgoingChallengesList,
@@ -1254,7 +1275,7 @@ function renderFriends() {
     const row = friendsData.outgoing_challenges[idx];
     if (!row) return;
     rowEl.classList.add(...friendRequestClass(row).split(' '));
-    rowEl.querySelector('.friend-meta').insertAdjacentHTML('beforeend', `<div class="friend-sub">${escapeHtml(friendRequestLabel(row))} ${friendRequestBadges(row)} ${friendChallengeExpiry(row)}</div>`);
+    rowEl.querySelector('.friend-meta').insertAdjacentHTML('beforeend', `<div class="friend-sub">${escapeHtml(friendRequestLabel(row))} ${friendRequestBadges(row)} ${friendChallengeExpiry(row)}</div>${inlineFriendPlayoffPreferencePicker(row, 'outgoing')}`);
     if (row.status === 'declined') {
       rowEl.classList.add('is-declined', 'is-clickable');
       rowEl.dataset.challengeDismiss = row.challenge_id;
@@ -1466,6 +1487,11 @@ function wireFriendGameoverChallengeActions() {
       event.currentTarget.value,
     );
   });
+  els.friendGameoverChallenge.querySelectorAll('[data-gameover-request-preference]').forEach((select) => {
+    select.addEventListener('change', () => {
+      updateFriendChallengePreference(select.dataset.gameoverRequestPreference, select.value, true);
+    });
+  });
   els.friendGameoverChallenge.querySelector('[data-gameover-challenge-close]')?.addEventListener('click', () => {
     els.friendGameoverChallenge.hidden = true;
   });
@@ -1517,7 +1543,7 @@ function wireFriendGameoverChallengeActions() {
       return;
     }
     friendsData = next;
-    friendGameoverComposerOpen = true;
+    friendGameoverComposerOpen = false;
     renderFriendGameoverChallenge();
   });
 }
@@ -1605,19 +1631,33 @@ async function respondFriendChallenge(challengeId, accept, preference = 'random'
 
 function acceptFriendChallenge(challengeId) {
   const incoming = friendsData?.incoming_challenges?.find((row) => row.challenge_id === challengeId);
-  if (!incoming || incoming.mode !== 'po') {
-    respondFriendChallenge(challengeId, true);
+  const preference = incoming?.mode === 'po'
+    ? (document.querySelector(`[data-friend-request-preference="${challengeId}"]`)?.value || savedFriendPlayoffPreference(incoming.sport))
+    : 'random';
+  respondFriendChallenge(challengeId, true, preference);
+}
+
+async function updateFriendChallengePreference(challengeId, preference, fromGameover = false) {
+  const row = [...(friendsData?.incoming_challenges || []), ...(friendsData?.outgoing_challenges || [])]
+    .find((item) => item.challenge_id === challengeId);
+  if (!row || row.mode !== 'po') return;
+  const selected = rememberFriendPlayoffPreference(row.sport, preference);
+  const next = await api('/api/friends/challenge_preference', {
+    challenge_id: challengeId,
+    win_condition_preference: selected,
+  });
+  if (next?.error) {
+    if (fromGameover) {
+      const status = els.friendGameoverChallenge?.querySelector('[data-gameover-challenge-status]');
+      if (status) status.textContent = next.error;
+    } else {
+      els.friendsStatus.textContent = next.error;
+    }
     return;
   }
-  friendChallengeSelection = {
-    friendUserId: incoming.user_id,
-    friendName: incoming.name || 'Friend',
-    sport: incoming.sport,
-    mode: incoming.mode,
-    preference: savedFriendPlayoffPreference(incoming.sport),
-  };
-  friendChallengeView = 'incoming';
-  renderFriendChallengePanel();
+  friendsData = next;
+  renderFriends();
+  if (fromGameover && friendGameoverChallengeSelection) renderFriendGameoverChallenge();
 }
 
 async function cancelFriendChallenge(challengeId, fromGameover = false, dismissOnly = false) {

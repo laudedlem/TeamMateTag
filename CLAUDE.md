@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.6.28`, the friend game-over and Playoffs preference pass.
+- Current display version is `0.6.29`, the inline friend Playoffs preference pass.
   Verify the production footer after each deployment.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -602,6 +602,11 @@ decision needs context.
   post-lobby departure state. Playoffs friend challenges and rematches let
   each player choose and save a win condition before entering; Division
   Rivalry remains condition-free.
+- `0.6.29`: Playoffs friend requests now keep each player's compact win
+  condition selector directly on the incoming/outgoing request card until
+  acceptance. Updating a condition preserves the existing challenge and its
+  timer; after a game-over request is sent, its composer closes and the
+  outgoing card becomes the single source of truth.
 
 ### Important implementation notes
 
