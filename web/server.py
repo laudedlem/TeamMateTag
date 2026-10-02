@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.6.32"
+APP_VERSION = "0.6.33"
 FRIEND_CHALLENGE_TTL_SECONDS = 30
 INTERNAL_AUTH_EMAIL_DOMAIN = "auth.teammatetag.com"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
@@ -685,6 +685,25 @@ def _film_team_aliases(sport: str, team_id: str, name: str, season: int) -> set[
                     aliases.add(normalize(alias))
                     aliases.add(normalize(target))
     return {alias for alias in aliases if alias}
+
+
+def _film_team_search_rank(label: str, aliases: set[str], needle: str) -> int | None:
+    """Prefer what the player sees; use smart aliases only after enough input."""
+    visible = normalize(label)
+    visible_words = [normalize(word) for word in re.findall(r"[A-Za-z0-9]+", label)]
+    if visible.startswith(needle):
+        return 0
+    if any(word.startswith(needle) for word in visible_words):
+        return 1
+    # A one- or two-character query should feel like ordinary autocomplete,
+    # not leak internal abbreviations such as ANA or ATH into the result set.
+    if len(needle) < 3:
+        return None
+    if any(alias.startswith(needle) for alias in aliases):
+        return 2
+    if any(needle in alias for alias in aliases):
+        return 3
+    return None
 
 
 def ensure_static_caches():
@@ -9185,11 +9204,12 @@ def _film_review_autocomplete_options(conn, sport: str, game_id: str, query: str
         else:
             names[key] = (label, aliases)
     options = []
-    matching_names = [
-        label for label, aliases in names.values()
-        if any(needle in re.sub(r"(.)\1+", r"\1", alias) for alias in aliases)
-    ]
-    for team_name in sorted(matching_names):
+    matching_names = []
+    for label, aliases in names.values():
+        rank = _film_team_search_rank(label, aliases, needle)
+        if rank is not None:
+            matching_names.append((rank, label))
+    for _rank, team_name in sorted(matching_names, key=lambda item: (item[0], item[1])):
         for season in range(start, end + 1):
             if requested_year_text and len(requested_year_text) < 4:
                 if not str(season).startswith(requested_year_text):
