@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.6.33"
+APP_VERSION = "0.6.34"
 FRIEND_CHALLENGE_TTL_SECONDS = 30
 INTERNAL_AUTH_EMAIL_DOMAIN = "auth.teammatetag.com"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
@@ -579,6 +579,7 @@ class PgEngineConn:
 TEAM_NAME: dict[tuple[str, int], str] = {}
 TEAM_FRANCHISE: dict[tuple[str, int], str] = {}
 ALL_FR_TEAM_NAMES: list[str] = []
+ALL_FR_TEAM_OPTIONS: dict[str, set[str]] = {}
 PLAYER_CARD_CACHE: dict[str, dict] = {}
 PLAYER_CARD_LOCK = Lock()
 SPORT_CARD_CACHE: dict[tuple[str, str], dict] = {}
@@ -629,7 +630,10 @@ FR_CANONICAL_FRANCHISE_NAMES = {
     "FLA": "Miami Marlins",
     "TBD": "Tampa Bay Rays",
     "WSN": "Expos/Nationals",
+    "WAS": "Expos/Nationals",
     "CLE": "Cleveland Guardians",
+    "OAK": "Athletics",
+    "ATH": "Athletics",
 }
 
 
@@ -652,7 +656,7 @@ def fr_team_aliases(team_id: str, season: int) -> list[str]:
         return ["marlins", "florida marlins", "miami marlins"]
     if franchise_id == "TBD":
         return ["rays", "tampa bay rays", "tampa bay devil rays", "devil rays"]
-    if franchise_id == "WSN":
+    if franchise_id in {"WSN", "WAS"}:
         return ["expos/nationals", "expos", "nationals",
                 "montreal expos", "washington nationals"]
     if franchise_id == "CLE":
@@ -708,7 +712,7 @@ def _film_team_search_rank(label: str, aliases: set[str], needle: str) -> int | 
 
 def ensure_static_caches():
     """Load team-name lookups once per process. ~810 rows."""
-    global TEAM_NAME, TEAM_FRANCHISE, ALL_FR_TEAM_NAMES, STATIC_CACHE_READY
+    global TEAM_NAME, TEAM_FRANCHISE, ALL_FR_TEAM_NAMES, ALL_FR_TEAM_OPTIONS, STATIC_CACHE_READY
     if STATIC_CACHE_READY:
         return
     with STATIC_CACHE_LOCK:
@@ -724,6 +728,13 @@ def ensure_static_caches():
             fr_display_team_name_noinit(t, s) for t, s in TEAM_NAME
         })
         STATIC_CACHE_READY = True
+        options: dict[str, set[str]] = {}
+        for (team_id, season), name in TEAM_NAME.items():
+            label = fr_display_team_name(team_id, season)
+            options.setdefault(label, set()).update(
+                _film_team_aliases("baseball", team_id, name, season)
+            )
+        ALL_FR_TEAM_OPTIONS = options
 
 
 def fr_display_team_name_noinit(team_id: str, season: int) -> str:
@@ -5804,12 +5815,12 @@ def fr_team_autocomplete():
     if game_id:
         with db() as conn:
             return jsonify(_film_review_autocomplete_options(conn, "baseball", game_id, q))
-    prefix = [n for n in ALL_FR_TEAM_NAMES if n.lower().startswith(q)]
-    sub = [
-        n for n in ALL_FR_TEAM_NAMES
-        if q in n.lower() and not n.lower().startswith(q)
+    needle = normalize(q)
+    matches = [
+        (rank, label) for label, aliases in ALL_FR_TEAM_OPTIONS.items()
+        if (rank := _film_team_search_rank(label, aliases, needle)) is not None
     ]
-    return jsonify((prefix + sub)[:6])
+    return jsonify([label for _rank, label in sorted(matches, key=lambda item: (item[0], item[1]))[:6]])
 
 
 # ============================================================
@@ -9196,7 +9207,7 @@ def _film_review_autocomplete_options(conn, sport: str, game_id: str, query: str
     names: dict[str, tuple[str, set[str]]] = {}
     for team_id, name, franchise_id in teams:
         label = fr_display_team_name(team_id, start) if sport == "baseball" else _canonical_sport_team_name(sport, team_id, name)
-        key = str(franchise_id or normalize(label))
+        key = normalize(label)
         existing = names.get(key)
         aliases = _film_team_aliases(sport, team_id, name, start)
         if existing:
