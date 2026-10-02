@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.6.31"
+APP_VERSION = "0.6.32"
 FRIEND_CHALLENGE_TTL_SECONDS = 30
 INTERNAL_AUTH_EMAIL_DOMAIN = "auth.teammatetag.com"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
@@ -658,6 +658,33 @@ def fr_team_aliases(team_id: str, season: int) -> list[str]:
     if franchise_id == "CLE":
         return ["guardians", "indians", "cleveland guardians", "cleveland indians"]
     return [raw_name]
+
+
+def _film_team_aliases(sport: str, team_id: str, name: str, season: int) -> set[str]:
+    """Accept historical names and abbreviations while displaying one franchise label."""
+    canonical = fr_display_team_name(team_id, season) if sport == "baseball" else _canonical_sport_team_name(
+        sport, team_id, name
+    )
+    aliases = {
+        normalize(team_id),
+        normalize(str(team_id).split(":")[-1]),
+        normalize(name),
+        normalize(canonical),
+    }
+    if sport == "baseball":
+        aliases.update(normalize(alias) for alias in fr_team_aliases(team_id, season))
+    else:
+        # Historical relocation/name aliases are already maintained for card
+        # display. Reuse them for Film Review search and answer matching.
+        for alias, target in SPORT_TEAM_CANONICAL_NAMES.get(sport, {}).items():
+            if target == canonical:
+                aliases.add(normalize(alias))
+        if sport == "hockey":
+            for alias, target in NHL_TEAM_NAMES.items():
+                if _canonical_sport_team_name(sport, alias, target) == canonical:
+                    aliases.add(normalize(alias))
+                    aliases.add(normalize(target))
+    return {alias for alias in aliases if alias}
 
 
 def ensure_static_caches():
@@ -4657,7 +4684,7 @@ def _classify_local_fr_guess(team_text: str, year_text: str, shared: list[list],
     query = normalize(team_text)
     team_matches, year_match = [], False
     for team_id, season, team_name, *_rest in shared:
-        aliases = {normalize(team_id), normalize(team_name)}
+        aliases = _film_team_aliases(sport, team_id, team_name, season)
         team_hit = bool(query) and any(query == alias or query in alias or alias in query for alias in aliases)
         if team_hit:
             team_matches.append([team_id, season, team_name])
@@ -8718,7 +8745,7 @@ def _classify_fr_guess(team_text: str, year_text: str,
     team_match_rows = []
     year_match_any = False
     for team_id, season, team_name in shared:
-        aliases = fr_team_aliases(team_id, season)
+        aliases = _film_team_aliases("baseball", team_id, team_name, season)
         team_hit = bool(team_q) and (
             team_q == team_id.lower()
             or any(team_q in alias or alias in team_q for alias in aliases)
@@ -9119,7 +9146,7 @@ def _film_review_autocomplete_options(conn, sport: str, game_id: str, query: str
             ([first, second],),
         ).fetchall()
         teams = conn.execute(
-            "SELECT DISTINCT team_id, name FROM teams WHERE season >= 2000 ORDER BY name", ()
+            "SELECT DISTINCT team_id, name, franchise_id FROM teams WHERE season >= 2000 ORDER BY name", ()
         ).fetchall()
     else:
         years = conn.execute(
@@ -9128,7 +9155,7 @@ def _film_review_autocomplete_options(conn, sport: str, game_id: str, query: str
             (sport, [first, second]),
         ).fetchall()
         teams = conn.execute(
-            """SELECT DISTINCT team_id, name FROM sport_teams
+            """SELECT DISTINCT team_id, name, franchise_id FROM sport_teams
                  WHERE sport_id=%s AND season >= 2000 ORDER BY name""",
             (sport,),
         ).fetchall()
@@ -9147,14 +9174,22 @@ def _film_review_autocomplete_options(conn, sport: str, game_id: str, query: str
     requested_year = int(requested_year_text) if len(requested_year_text) == 4 else None
     team_query = query[:year_match.start()].strip() if year_match else query
     needle = re.sub(r"(.)\1+", r"\1", normalize(team_query))
-    names = {}
-    for team_id, name in teams:
+    names: dict[str, tuple[str, set[str]]] = {}
+    for team_id, name, franchise_id in teams:
         label = fr_display_team_name(team_id, start) if sport == "baseball" else _canonical_sport_team_name(sport, team_id, name)
-        label_key = re.sub(r"(.)\1+", r"\1", normalize(label))
-        if needle in label_key:
-            names[normalize(label)] = label
+        key = str(franchise_id or normalize(label))
+        existing = names.get(key)
+        aliases = _film_team_aliases(sport, team_id, name, start)
+        if existing:
+            existing[1].update(aliases)
+        else:
+            names[key] = (label, aliases)
     options = []
-    for team_name in sorted(names.values()):
+    matching_names = [
+        label for label, aliases in names.values()
+        if any(needle in re.sub(r"(.)\1+", r"\1", alias) for alias in aliases)
+    ]
+    for team_name in sorted(matching_names):
         for season in range(start, end + 1):
             if requested_year_text and len(requested_year_text) < 4:
                 if not str(season).startswith(requested_year_text):

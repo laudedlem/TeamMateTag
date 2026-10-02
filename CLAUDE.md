@@ -15,9 +15,9 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.6.31`, with stable full NHL autocomplete names
-  during live-season ingestion, current-season-only NHL publisher writes, and
-  clearer friend-forfeit game-over copy.
+- Current display version is `0.6.32`, with Film Review franchise-aware team
+  autocomplete, stable full NHL live-season names, current-season-only NHL
+  publisher writes, and clearer friend-forfeit game-over copy.
   Verify the production footer after each deployment.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
