@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.6.29`, the inline friend Playoffs preference pass.
+- Current display version is `0.6.30`, the friend Playoffs header and lobby-exit pass.
   Verify the production footer after each deployment.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
@@ -607,6 +607,12 @@ decision needs context.
   acceptance. Updating a condition preserves the existing challenge and its
   timer; after a game-over request is sent, its composer closes and the
   outgoing card becomes the single source of truth.
+- `0.6.30`: The Playoffs header keeps the timer pinned at the far right, with
+  H2H next to the turn label and the opening-lock notice directly before the
+  timer. Friend Playoffs rematches send immediately with the current condition
+  and remain editable on the outgoing request. A friend leaving midgame now
+  explicitly closes the finished lobby, so future requests use the 30-second
+  expiry rule.
 
 ### Important implementation notes
 

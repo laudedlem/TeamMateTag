@@ -128,6 +128,7 @@ const els = {
   friendChallengeAgainBtn: document.getElementById('friend-challenge-again-btn'),
   friendGameoverChallenge: document.getElementById('friend-gameover-challenge'),
   friendMatchupRecord: document.getElementById('friend-matchup-record'),
+  playoffOpeningLock: document.getElementById('playoff-opening-lock'),
   mpRematchStatus: document.getElementById('mp-rematch-status'),
   playAgainBtn: document.getElementById('play-again-btn'),
   requeueBtn: document.getElementById('requeue-btn'),
@@ -1125,7 +1126,7 @@ function friendGameoverRecord(record = {}) {
 }
 
 function gameOverStatsLine(teamsOut, outSummary, friendRecord, friendForfeit) {
-  const winner = friendForfeit ? 'Friend Left' : (game.winner || 'Game Over');
+  const winner = friendForfeit ? 'You Win' : (game.winner || 'Game Over');
   const time = game.last_move?.outcome === 'timeout' && game.winner ? ' Won on Time' : '';
   return `<span class="game-over-stats">
     <span class="game-over-stat game-over-winner">${escapeHtml(winner + time)}</span>
@@ -2082,17 +2083,27 @@ async function rematch() {
     }
     if (game.friend_matchup) {
       if (currentMode === 'po') {
+        const preference = game.win_conditions?.your_condition?.key || savedFriendPlayoffPreference(CURRENT_SPORT);
+        const next = await api('/api/friends/rematch', {
+          game_id: game.game_id,
+          win_condition_preference: preference,
+        });
+        if (next?.error) {
+          els.mpRematchStatus.hidden = false;
+          els.mpRematchStatus.textContent = next.error;
+          return;
+        }
+        friendsData = next;
         if (!friendGameoverChallengeSelection) {
           friendGameoverChallengeSelection = {
             friendUserId: game.opponent_guest_id,
             friendName: game.opponent_name || 'Friend',
             sport: CURRENT_SPORT,
             mode: 'po',
-            preference: savedFriendPlayoffPreference(CURRENT_SPORT),
+            preference,
           };
         }
-        friendGameoverRequestKind = 'rematch';
-        friendGameoverComposerOpen = true;
+        friendGameoverComposerOpen = false;
         renderFriendGameoverChallenge();
         return;
       }
@@ -2174,7 +2185,7 @@ function showGameOverBanner() {
       : '';
     const friendForfeit = isFriendGame && game.last_move?.outcome === 'forfeit';
     els.winnerText.textContent = friendForfeit
-      ? 'Your Friend Left the Game.'
+      ? 'You Win!'
       : game.winner ? `${game.winner} Wins!` : 'Game Over.';
     if (currentMode === 'po' && game.last_move?.win_condition_completed) {
       els.gameOverSummary.innerHTML =
@@ -2975,6 +2986,13 @@ function renderMpGame() {
     const isFriendGame = !!game.friend_matchup;
     els.friendMatchupRecord.hidden = !isFriendGame;
     els.friendMatchupRecord.textContent = isFriendGame ? friendMatchupScore(game.friend_matchup) : '';
+  }
+  if (els.playoffOpeningLock) {
+    const openingLocked = playoffOpeningLocked();
+    els.playoffOpeningLock.hidden = !openingLocked;
+    els.playoffOpeningLock.textContent = openingLocked
+      ? `Powerups + Win Conditions Unlock on Move ${playoffOpeningLockMoves() + 1}`
+      : '';
   }
   els.turnCard.classList.toggle('your-turn', !!game.your_turn);
   els.turnCard.classList.toggle('opponent-turn', !game.your_turn);

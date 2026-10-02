@@ -294,7 +294,7 @@ header .title h1 {
 .friend-challenge-send { justify-self: start; }
 
 .turn-header .friend-matchup-record {
-  margin-left: auto;
+  margin-left: .45rem;
   color: var(--accent);
   font-size: 0.78rem;
   font-weight: 700;
@@ -303,7 +303,21 @@ header .title h1 {
   white-space: nowrap;
 }
 
-.turn-header .friend-matchup-record + .timer {
+.turn-header .playoff-opening-lock {
+  color: #facc15;
+  font-size: 0.68rem;
+  font-weight: 900;
+  line-height: 1.1;
+  margin-left: auto;
+  max-width: 11rem;
+  text-align: right;
+}
+
+.turn-header .timer {
+  margin-left: auto;
+}
+
+.turn-header .playoff-opening-lock + .timer {
   margin-left: .45rem;
 }
 
@@ -10416,17 +10430,6 @@ body[data-mode-hub="manager"] .manager-starter-name span {
 .turn-card.playoffs-opening-locked {
   border-color: color-mix(in srgb, #facc15 72%, var(--border));
   box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.34), var(--shadow-sm);
-}
-
-.turn-card.playoffs-opening-locked .turn-header::after {
-  content: "Powerups and Win Conditions unlock on move 5";
-  color: #facc15;
-  font-size: 0.68rem;
-  font-weight: 900;
-  line-height: 1.1;
-  margin-left: auto;
-  max-width: 11rem;
-  text-align: right;
 }
 
 .turn-card.playoffs-powerup-active {

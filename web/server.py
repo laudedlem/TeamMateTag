@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.6.29"
+APP_VERSION = "0.6.30"
 FRIEND_CHALLENGE_TTL_SECONDS = 30
 INTERNAL_AUTH_EMAIL_DOMAIN = "auth.teammatetag.com"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
@@ -11068,6 +11068,20 @@ def sport_online_leave(sport: str, mode: str):
         if guest not in {blob["p1_guest_id"],blob["p2_guest_id"]}: return jsonify({"error":"unauthorized"}),403
         if not blob["finished"]:
             blob["finished"]=True; blob["winner"]=blob["p2"] if guest==blob["p1_guest_id"] else blob["p1"]; blob["last_move"]={"outcome":"forfeit"}; _save_sport_online_result(conn,gid,blob,state); _sport_online_save(conn,gid,blob)
+        if blob.get("friend_challenge_id"):
+            # Leaving a live friend match also leaves its finished lobby. Any
+            # subsequent friend request must use the normal 30-second TTL.
+            conn.execute(
+                """INSERT INTO sport_online_postgame_exits (original_game_id, guest_id)
+                   VALUES (%s, %s) ON CONFLICT DO NOTHING""",
+                (gid, guest),
+            )
+            conn.execute(
+                """UPDATE dr_friend_challenges
+                      SET game_id=NULL, created_at=now()
+                    WHERE game_id=%s AND status='pending'""",
+                (gid,),
+            )
         _delete_transient_bot_guests(conn, blob, gid)
         return jsonify({"status":"gone"})
 
