@@ -15,7 +15,7 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.6.34`, with unified Film Review franchise-aware
+- Current display version is `0.6.35`, with Film Review canonical team-season
   autocomplete, stable full NHL live-season names, current-season-only NHL
   publisher writes, and clearer friend-forfeit game-over copy.
   Verify the production footer after each deployment.

@@ -74,7 +74,7 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL")
 
-APP_VERSION = "0.6.34"
+APP_VERSION = "0.6.35"
 FRIEND_CHALLENGE_TTL_SECONDS = 30
 INTERNAL_AUTH_EMAIL_DOMAIN = "auth.teammatetag.com"
 HEADSHOT_AUDIT_TOKEN = os.environ.get("HEADSHOT_AUDIT_TOKEN", "")
@@ -9176,7 +9176,7 @@ def _film_review_autocomplete_options(conn, sport: str, game_id: str, query: str
             ([first, second],),
         ).fetchall()
         teams = conn.execute(
-            "SELECT DISTINCT team_id, name, franchise_id FROM teams WHERE season >= 2000 ORDER BY name", ()
+            "SELECT DISTINCT team_id, name, franchise_id, season FROM teams WHERE season >= 2000 ORDER BY name", ()
         ).fetchall()
     else:
         years = conn.execute(
@@ -9185,7 +9185,7 @@ def _film_review_autocomplete_options(conn, sport: str, game_id: str, query: str
             (sport, [first, second]),
         ).fetchall()
         teams = conn.execute(
-            """SELECT DISTINCT team_id, name, franchise_id FROM sport_teams
+            """SELECT DISTINCT team_id, name, franchise_id, season FROM sport_teams
                  WHERE sport_id=%s AND season >= 2000 ORDER BY name""",
             (sport,),
         ).fetchall()
@@ -9205,11 +9205,11 @@ def _film_review_autocomplete_options(conn, sport: str, game_id: str, query: str
     team_query = query[:year_match.start()].strip() if year_match else query
     needle = re.sub(r"(.)\1+", r"\1", normalize(team_query))
     names: dict[str, tuple[str, set[str]]] = {}
-    for team_id, name, franchise_id in teams:
-        label = fr_display_team_name(team_id, start) if sport == "baseball" else _canonical_sport_team_name(sport, team_id, name)
+    for team_id, name, franchise_id, team_season in teams:
+        label = fr_display_team_name(team_id, int(team_season)) if sport == "baseball" else _canonical_sport_team_name(sport, team_id, name)
         key = normalize(label)
         existing = names.get(key)
-        aliases = _film_team_aliases(sport, team_id, name, start)
+        aliases = _film_team_aliases(sport, team_id, name, int(team_season))
         if existing:
             existing[1].update(aliases)
         else:
