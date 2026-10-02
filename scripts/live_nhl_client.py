@@ -4,6 +4,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
+from functools import lru_cache
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -113,6 +114,18 @@ def full_team_name(team: dict[str, Any]) -> str:
     place = localized(team.get("placeName"))
     common = localized(team.get("commonName"))
     return " ".join(part for part in (place, common) if part).strip() or team.get("abbrev") or "NHL"
+
+
+@lru_cache(maxsize=512)
+def player_full_name(external_id: str) -> str | None:
+    """Read the canonical NHL player name when a box score only has an initial."""
+    try:
+        player = get_json(f"{API}/player/{external_id}/landing")
+    except requests.RequestException:
+        return None
+    first = localized(player.get("firstName"))
+    last = localized(player.get("lastName"))
+    return " ".join(part for part in (first, last) if part).strip() or None
 
 
 def fetch_game_rows(game: dict[str, Any]) -> GameRows:

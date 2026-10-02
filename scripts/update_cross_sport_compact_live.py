@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sqlite3
 import sys
 from collections import defaultdict
@@ -358,6 +359,27 @@ def unique_name_map(conn: sqlite3.Connection, sport: str) -> dict[str, tuple[str
     }
 
 
+def canonical_nhl_name_map(conn: sqlite3.Connection) -> dict[str, str]:
+    """Return stable full names for NHL IDs already known to the local catalog."""
+    names: dict[str, str] = {}
+    for external_id, display_name, first_name, last_name in conn.execute(
+        """
+        SELECT external_id, display_name, first_name, last_name
+          FROM sport_players
+         WHERE sport_id='hockey' AND external_id IS NOT NULL
+        """
+    ):
+        first = str(first_name or "").strip()
+        last = str(last_name or "").strip()
+        # NHL boxscores use initials (for example, "D. Toews"). Prefer the
+        # catalog's separate full-name fields whenever they are available.
+        if len(first.replace(".", "")) > 1 and last:
+            names[str(external_id)] = f"{first} {last}"
+        elif not re.match(r"^[A-Za-z]\.\s+", str(display_name or "")):
+            names[str(external_id)] = str(display_name)
+    return names
+
+
 def nba_appearances(event: dict[str, Any], player_map: dict[str, tuple[str, str | None]], names: dict[str, tuple[str, str | None]]) -> tuple[list[LocalAppearance], dict[str, str], str]:
     rows, teams = nba_live.fetch_game_appearances(event, player_map, names)
     out: list[LocalAppearance] = []
@@ -387,13 +409,16 @@ def nba_appearances(event: dict[str, Any], player_map: dict[str, tuple[str, str 
     return out, teams, status
 
 
-def nhl_appearances(game: dict[str, Any], _player_map: dict[str, tuple[str, str | None]], _names: dict[str, tuple[str, str | None]]) -> tuple[list[LocalAppearance], dict[str, str], str]:
+def nhl_appearances(game: dict[str, Any], canonical_names: dict[str, str]) -> tuple[list[LocalAppearance], dict[str, str], str]:
     game_rows = nhl_live.fetch_game_rows(game)
     teams: dict[str, str] = {}
     out: list[LocalAppearance] = []
     for row in game_rows.rows:
         teams[row.team_id] = row.team_name
-        first, last = split_name(row.name)
+        display_name = canonical_names.get(row.external_id, row.name)
+        if re.match(r"^[A-Za-z]\.\s+", display_name):
+            display_name = nhl_live.player_full_name(row.external_id) or display_name
+        first, last = split_name(display_name)
         out.append(
             LocalAppearance(
                 game_id=game_rows.game_id,
@@ -401,7 +426,7 @@ def nhl_appearances(game: dict[str, Any], _player_map: dict[str, tuple[str, str 
                 season=game_rows.season,
                 player_id=row.player_id,
                 external_id=row.external_id,
-                display_name=row.name,
+                display_name=display_name,
                 first_name=first,
                 last_name=last,
                 team_id=row.team_id,
@@ -646,6 +671,7 @@ def collect_local(path: Path, sport: str, season: int, start: date, end: date, r
         create_schema(conn)
         player_map = load_catalog(conn, sport, season)
         name_map = unique_name_map(conn, sport)
+        canonical_names = canonical_nhl_name_map(conn) if sport == "hockey" else {}
         if reset_season:
             for table in (
                 "sport_live_player_games",
@@ -664,7 +690,7 @@ def collect_local(path: Path, sport: str, season: int, start: date, end: date, r
             if sport == "basketball":
                 rows, teams, status = nba_appearances(game, player_map, name_map)
             else:
-                rows, teams, status = nhl_appearances(game, player_map, name_map)
+                rows, teams, status = nhl_appearances(game, canonical_names)
             count = upsert_local_game(conn, sport, config["source"], game, rows, teams, status)
             if count:
                 imported_games += 1
@@ -725,10 +751,43 @@ def upload_compact(path: Path, sport: str, season: int, prune_live_staging: bool
         ).fetchall()
         appearances = src.execute("SELECT sport_id, player_id, team_id, season, games_total FROM sport_appearances WHERE sport_id=? AND season=?", (sport, season)).fetchall()
         stints = src.execute("SELECT sport_id, player_id, team_id, season, first_unit, last_unit, first_label, last_label, source FROM sport_player_stints WHERE sport_id=? AND season=?", (sport, season)).fetchall()
-        positions = src.execute("SELECT sport_id, player_id, position, games FROM sport_player_positions WHERE sport_id=?", (sport,)).fetchall()
+        # Live refreshes only change people who appeared this season. Keeping
+        # the publisher scoped to that set avoids rewriting the full catalog.
+        positions = src.execute(
+            """
+            SELECT sport_id, player_id, position, games
+              FROM sport_player_positions
+             WHERE sport_id=? AND player_id IN (
+                   SELECT DISTINCT player_id FROM sport_appearances
+                    WHERE sport_id=? AND season=?
+             )
+            """,
+            (sport, sport, season),
+        ).fetchall()
         season_traits = src.execute("SELECT sport_id, player_id, season, games, points, goals, assists, source FROM sport_player_season_traits WHERE sport_id=? AND season=?", (sport, season)).fetchall()
-        searchable = src.execute("SELECT sport_id, player_id, display_name, disambiguation, search_key, last_key, career_games, teammate_count FROM sport_players_searchable WHERE sport_id=?", (sport,)).fetchall()
-        images = src.execute("SELECT sport_id, player_id, source_url, content_type FROM sport_player_images WHERE sport_id=?", (sport,)).fetchall()
+        searchable = src.execute(
+            """
+            SELECT sport_id, player_id, display_name, disambiguation, search_key,
+                   last_key, career_games, teammate_count
+              FROM sport_players_searchable
+             WHERE sport_id=? AND player_id IN (
+                   SELECT DISTINCT player_id FROM sport_appearances
+                    WHERE sport_id=? AND season=?
+             )
+            """,
+            (sport, sport, season),
+        ).fetchall()
+        images = src.execute(
+            """
+            SELECT sport_id, player_id, source_url, content_type
+              FROM sport_player_images
+             WHERE sport_id=? AND player_id IN (
+                   SELECT DISTINCT player_id FROM sport_appearances
+                    WHERE sport_id=? AND season=?
+             )
+            """,
+            (sport, sport, season),
+        ).fetchall()
         proofs = src.execute("SELECT player_a_id, player_b_id, team_id, season FROM sport_teammates WHERE sport_id=? AND season=?", (sport, season)).fetchall()
     finally:
         src.close()

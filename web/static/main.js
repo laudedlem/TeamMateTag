@@ -2185,7 +2185,7 @@ function showGameOverBanner() {
       : '';
     const friendForfeit = isFriendGame && game.last_move?.outcome === 'forfeit';
     els.winnerText.textContent = friendForfeit
-      ? 'You Win!'
+      ? 'Your Friend Left the Game.'
       : game.winner ? `${game.winner} Wins!` : 'Game Over.';
     if (currentMode === 'po' && game.last_move?.win_condition_completed) {
       els.gameOverSummary.innerHTML =

@@ -15,7 +15,9 @@ decision needs context.
   `https://teammatetag.vercel.app`.
 - Repo is `https://github.com/laudedlem/TeamMateTag`; local folder is
   `C:\Users\laude\Desktop\base2nerdle`; active branch is `main`.
-- Current display version is `0.6.30`, the friend Playoffs header and lobby-exit pass.
+- Current display version is `0.6.31`, with stable full NHL autocomplete names
+  during live-season ingestion, current-season-only NHL publisher writes, and
+  clearer friend-forfeit game-over copy.
   Verify the production footer after each deployment.
 - Stack is Flask + vanilla JavaScript on Vercel, Supabase Postgres, Supabase
   Storage, Supabase Auth, and a server-side session cookie.
